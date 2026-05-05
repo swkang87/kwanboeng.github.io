@@ -1,0 +1,1317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>(주)관보종합기술단 | KWAN BO ENGINEERING CO., LTD.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Serif+KR:wght@400;600;900&family=Montserrat:wght@400;500;600;700;800&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+/* ══════════════════════════════════
+   TOKENS — Light Theme
+══════════════════════════════════ */
+:root {
+  --navy:    #0d2044;
+  --navy2:   #1b3a6b;
+  --red:     #c41e1e;
+  --gold:    #b8902a;
+  --white:   #ffffff;
+  --bg:      #f4f6fb;
+  --bg2:     #edf0f8;
+  --ink:     #0d1e3a;
+  --gray:    #5a6a82;
+  --border:  #dde3ef;
+  --ease:    cubic-bezier(.4,0,.2,1);
+}
+
+/* ══════════════════════════════════
+   RESET
+══════════════════════════════════ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body {
+  font-family:'Noto Sans KR',sans-serif;
+  background:var(--white);
+  color:var(--ink);
+  overflow-x:hidden;
+}
+a { text-decoration:none; color:inherit; }
+ul { list-style:none; }
+
+/* ══════════════════════════════════
+   SCROLL REVEAL
+══════════════════════════════════ */
+.sr { opacity:0; transform:translateY(28px); transition:opacity .75s var(--ease), transform .75s var(--ease); }
+.sr.left  { transform:translateX(-28px); }
+.sr.right { transform:translateX( 28px); }
+.sr.on    { opacity:1; transform:none; }
+
+/* ══════════════════════════════════
+   ── NAV ──
+══════════════════════════════════ */
+#nav {
+  position:fixed; top:0; left:0; right:0; z-index:500;
+  height:68px;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 5%;
+  background:rgba(255,255,255,.0);
+  transition:background .4s, box-shadow .4s;
+}
+#nav.scrolled {
+  background:rgba(255,255,255,.97);
+  box-shadow:0 1px 0 var(--border), 0 4px 20px rgba(13,32,68,.06);
+  backdrop-filter:blur(16px);
+}
+#nav.scrolled .logo-ko { color:var(--navy); }
+#nav.scrolled .nav-link { color:var(--gray); }
+#nav.scrolled .nav-link:hover { color:var(--navy); }
+#nav.scrolled .ham span { background:var(--navy); }
+
+/* Logo */
+.logo { display:flex; align-items:center; gap:10px; }
+.logo-tri {
+  width:0; height:0;
+  border-left:12px solid transparent;
+  border-right:12px solid transparent;
+  border-bottom:20px solid var(--red);
+  flex-shrink:0;
+}
+.logo-ko {
+  font-family:'Noto Serif KR',serif;
+  font-size:.98rem; font-weight:900;
+  letter-spacing:-.02em; color:#fff;
+  transition:color .3s;
+}
+.logo-ko em { color:var(--gold); font-style:normal; }
+
+/* Nav links */
+.nav-center { display:flex; align-items:center; gap:28px; }
+.nav-link {
+  font-size:.8rem; font-weight:500; letter-spacing:.08em;
+  color:rgba(255,255,255,.8); transition:color .2s;
+  position:relative;
+}
+.nav-link::after {
+  content:''; position:absolute; bottom:-3px; left:0; right:0;
+  height:2px; background:var(--red);
+  transform:scaleX(0); transform-origin:left; transition:transform .25s;
+}
+.nav-link:hover { color:#fff; }
+.nav-link:hover::after { transform:scaleX(1); }
+
+/* Nav right */
+.nav-right { display:flex; align-items:center; gap:10px; }
+
+/* 문의하기 버튼 */
+.nav-contact {
+  padding:8px 20px;
+  background:var(--red); border-radius:2px;
+  font-size:.78rem; font-weight:700; letter-spacing:.05em;
+  color:#fff; transition:background .2s;
+}
+.nav-contact:hover { background:#a31515; }
+
+/* ★ 종합정보시스템 버튼 ★ */
+.nav-erp {
+  display:flex; align-items:center; gap:7px;
+  padding:8px 16px;
+  border:1.5px solid rgba(255,255,255,.35);
+  border-radius:2px;
+  font-size:.75rem; font-weight:600; letter-spacing:.06em;
+  color:rgba(255,255,255,.85);
+  transition:border-color .2s, color .2s, background .2s;
+  cursor:pointer; background:transparent;
+}
+.nav-erp:hover {
+  border-color:#fff; color:#fff;
+  background:rgba(255,255,255,.08);
+}
+#nav.scrolled .nav-erp {
+  border-color:var(--navy2); color:var(--navy);
+}
+#nav.scrolled .nav-erp:hover {
+  background:var(--navy); color:#fff; border-color:var(--navy);
+}
+.erp-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:#4caf9e;
+  box-shadow:0 0 0 0 rgba(76,175,158,.4);
+  animation:ping 2s ease-in-out infinite;
+}
+@keyframes ping {
+  0%,100%{ box-shadow:0 0 0 0 rgba(76,175,158,.5); }
+  50%    { box-shadow:0 0 0 5px rgba(76,175,158,.0); }
+}
+
+/* Hamburger */
+.ham { display:none; flex-direction:column; gap:5px; cursor:pointer; }
+.ham span { width:22px; height:2px; background:#fff; border-radius:2px; transition:.3s; }
+
+/* Mobile menu */
+#mob-menu {
+  display:none; position:fixed; inset:0; z-index:490;
+  background:rgba(13,32,68,.97); backdrop-filter:blur(20px);
+  flex-direction:column; align-items:center; justify-content:center; gap:36px;
+}
+#mob-menu.open { display:flex; }
+#mob-menu a, #mob-menu button {
+  font-family:'Noto Serif KR',serif;
+  font-size:1.6rem; font-weight:900;
+  color:rgba(255,255,255,.6); transition:color .2s;
+  background:none; border:none; cursor:pointer;
+}
+#mob-menu a:hover, #mob-menu button:hover { color:#fff; }
+
+/* ══════════════════════════════════
+   ★ ERP 로그인 모달 ★
+══════════════════════════════════ */
+#erp-modal {
+  display:none; position:fixed; inset:0; z-index:900;
+  background:rgba(13,32,68,.6); backdrop-filter:blur(12px);
+  align-items:center; justify-content:center;
+}
+#erp-modal.open { display:flex; }
+
+.modal-box {
+  background:#fff; border-radius:12px;
+  width:100%; max-width:440px;
+  box-shadow:0 24px 80px rgba(13,32,68,.25);
+  overflow:hidden;
+  animation:modalIn .3s var(--ease);
+}
+@keyframes modalIn {
+  from { opacity:0; transform:translateY(20px) scale(.97); }
+  to   { opacity:1; transform:none; }
+}
+
+/* 모달 헤더 */
+.modal-header {
+  background:var(--navy);
+  padding:28px 32px 24px;
+  position:relative;
+}
+.modal-header-top {
+  display:flex; align-items:center; gap:10px;
+  margin-bottom:6px;
+}
+.modal-logo-tri {
+  width:0; height:0;
+  border-left:9px solid transparent;
+  border-right:9px solid transparent;
+  border-bottom:15px solid var(--red);
+}
+.modal-co {
+  font-family:'Noto Serif KR',serif;
+  font-size:.85rem; font-weight:900; color:#fff;
+}
+.modal-co em { color:var(--gold); font-style:normal; }
+.modal-title {
+  font-size:1.2rem; font-weight:700; color:#fff;
+  letter-spacing:-.01em;
+}
+.modal-sub { font-size:.75rem; color:rgba(255,255,255,.5); margin-top:4px; }
+.modal-close {
+  position:absolute; top:20px; right:20px;
+  width:32px; height:32px; border-radius:50%;
+  background:rgba(255,255,255,.1); border:none; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; font-size:1rem; transition:background .2s;
+}
+.modal-close:hover { background:rgba(255,255,255,.2); }
+
+/* 모달 메뉴 그리드 */
+.modal-body { padding:28px 32px 32px; }
+.modal-menu-label {
+  font-size:.68rem; font-weight:700; letter-spacing:.14em;
+  color:var(--gray); margin-bottom:14px;
+  text-transform:uppercase;
+}
+.modal-grid {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:10px; margin-bottom:24px;
+}
+.modal-item {
+  display:flex; flex-direction:column; align-items:flex-start;
+  gap:6px; padding:16px;
+  border:1.5px solid var(--border); border-radius:8px;
+  cursor:pointer; transition:border-color .2s, background .2s, transform .15s;
+  text-decoration:none; color:inherit;
+}
+.modal-item:hover {
+  border-color:var(--navy2); background:var(--bg);
+  transform:translateY(-2px);
+}
+.modal-item-ico { font-size:1.4rem; }
+.modal-item-name {
+  font-size:.82rem; font-weight:700; color:var(--ink);
+}
+.modal-item-desc {
+  font-size:.71rem; color:var(--gray); line-height:1.4;
+}
+
+/* 로그인 폼 */
+.modal-divider {
+  height:1px; background:var(--border); margin-bottom:20px;
+}
+.modal-form { display:flex; flex-direction:column; gap:10px; }
+.modal-input {
+  width:100%; padding:11px 14px;
+  border:1.5px solid var(--border); border-radius:6px;
+  font-size:.85rem; font-family:'Noto Sans KR',sans-serif;
+  color:var(--ink); outline:none; transition:border-color .2s;
+}
+.modal-input:focus { border-color:var(--navy2); }
+.modal-login-btn {
+  width:100%; padding:12px;
+  background:var(--navy); border:none; border-radius:6px;
+  color:#fff; font-size:.85rem; font-weight:700;
+  font-family:'Noto Sans KR',sans-serif;
+  cursor:pointer; transition:background .2s;
+  letter-spacing:.04em;
+}
+.modal-login-btn:hover { background:var(--navy2); }
+.modal-note {
+  text-align:center; font-size:.72rem; color:var(--gray);
+  margin-top:10px; line-height:1.6;
+}
+
+/* ══════════════════════════════════
+   ── HERO ──
+══════════════════════════════════ */
+#hero {
+  position:relative; height:100vh; min-height:640px; overflow:hidden;
+}
+.hero-slide {
+  position:absolute; inset:0;
+  opacity:0; transition:opacity 1.2s var(--ease);
+}
+.hero-slide.active { opacity:1; }
+.hero-slide-img {
+  position:absolute; inset:0;
+  background-size:cover; background-position:center;
+}
+.hero-slide-img::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(
+    105deg,
+    rgba(13,32,68,.82) 0%,
+    rgba(13,32,68,.45) 55%,
+    rgba(13,32,68,.15) 100%
+  );
+}
+#hero::after {
+  content:''; position:absolute; bottom:0; left:0; right:0;
+  height:180px; z-index:2;
+  background:linear-gradient(transparent, var(--white));
+  pointer-events:none;
+}
+.hero-content {
+  position:relative; z-index:3; height:100%;
+  display:flex; flex-direction:column; justify-content:flex-end;
+  padding:0 6% 110px; max-width:1200px;
+}
+.hero-eyebrow {
+  display:flex; align-items:center; gap:14px; margin-bottom:20px;
+}
+.hero-line { width:32px; height:1px; background:var(--gold); }
+.hero-eyebrow span {
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:.7rem; letter-spacing:.24em; color:var(--gold);
+}
+.hero-h1 {
+  font-family:'Noto Serif KR',serif;
+  font-size:clamp(1.9rem,5vw,3.8rem);
+  font-weight:900; line-height:1.15; letter-spacing:-.03em;
+  color:#fff; margin-bottom:18px;
+}
+.hero-h1 .acc { color:var(--gold); }
+.hero-p {
+  font-size:.92rem; color:rgba(255,255,255,.7);
+  line-height:1.9; max-width:460px;
+  font-weight:300; margin-bottom:40px;
+}
+.hero-btns { display:flex; gap:12px; flex-wrap:wrap; }
+.btn-p {
+  display:inline-block; padding:13px 34px;
+  background:var(--red); border-radius:2px;
+  font-size:.82rem; font-weight:700; letter-spacing:.05em; color:#fff;
+  transition:background .2s, transform .15s;
+}
+.btn-p:hover { background:#a31515; transform:translateY(-2px); }
+.btn-o {
+  display:inline-block; padding:13px 34px;
+  border:1.5px solid rgba(255,255,255,.4); border-radius:2px;
+  font-size:.82rem; letter-spacing:.05em; color:rgba(255,255,255,.85);
+  transition:border-color .2s, color .2s;
+}
+.btn-o:hover { border-color:#fff; color:#fff; }
+
+/* Dots & counter */
+.hero-dots {
+  position:absolute; bottom:38px; left:6%; z-index:3;
+  display:flex; gap:7px;
+}
+.dot {
+  width:22px; height:3px; border-radius:2px;
+  background:rgba(255,255,255,.25); cursor:pointer;
+  transition:background .3s, width .3s;
+}
+.dot.active { background:var(--gold); width:36px; }
+.hero-counter {
+  position:absolute; bottom:42px; right:6%; z-index:3;
+  font-family:'Barlow Condensed',sans-serif; font-size:.82rem;
+  color:rgba(255,255,255,.5); display:flex; align-items:center; gap:6px;
+}
+.hero-counter strong { color:#fff; font-size:1rem; }
+.scroll-ind {
+  position:absolute; right:6%; bottom:104px; z-index:3;
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+}
+.scroll-ind span {
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:.58rem; letter-spacing:.2em; color:rgba(255,255,255,.4);
+  writing-mode:vertical-rl;
+}
+.sbar { width:1px; height:44px; background:rgba(255,255,255,.15); overflow:hidden; position:relative; }
+.sbar::after {
+  content:''; position:absolute; top:-100%; left:0; width:100%; height:100%;
+  background:var(--gold); animation:sa 1.8s ease-in-out infinite;
+}
+@keyframes sa { 0%{top:-100%} 100%{top:200%} }
+
+/* ── HERO Entrance ── */
+@keyframes fUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
+.hero-eyebrow { animation:fUp .8s .1s var(--ease) both; }
+.hero-h1      { animation:fUp .8s .25s var(--ease) both; }
+.hero-p       { animation:fUp .8s .4s var(--ease) both; }
+.hero-btns    { animation:fUp .8s .55s var(--ease) both; }
+.hero-dots,.hero-counter { animation:fUp .6s .7s var(--ease) both; }
+
+/* ══════════════════════════════════
+   ── STATS ──
+══════════════════════════════════ */
+#stats { background:var(--white); padding:0 6%; }
+.stats-inner {
+  display:grid; grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--border);
+}
+.stat-col {
+  padding:48px 0; text-align:center;
+  border-right:1px solid var(--border);
+}
+.stat-col:last-child { border-right:none; }
+.stat-num {
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:clamp(2rem,3.5vw,3rem);
+  font-weight:700; color:var(--navy);
+  line-height:1; margin-bottom:8px;
+}
+.stat-num em { color:var(--red); font-style:normal; font-size:.65em; }
+.stat-label { font-size:.73rem; color:var(--gray); letter-spacing:.05em; }
+
+/* ══════════════════════════════════
+   SECTION BASE
+══════════════════════════════════ */
+.stag {
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:.68rem; letter-spacing:.24em; color:var(--red);
+  margin-bottom:12px; display:block;
+}
+.stitle {
+  font-family:'Noto Serif KR',serif;
+  font-size:clamp(1.4rem,2.6vw,2rem);
+  font-weight:900; letter-spacing:-.02em; line-height:1.25;
+  color:var(--navy);
+}
+/* Montserrat for nav/UI elements */
+.nav-erp, .pf, .modal-login-btn, .modal-menu-label {
+  font-family:'Montserrat',sans-serif;
+}
+.sdesc { font-size:.88rem; color:var(--gray); line-height:1.85; font-weight:300; }
+
+/* ══════════════════════════════════
+   ── ABOUT ──
+══════════════════════════════════ */
+#about { padding:110px 6%; background:var(--white); }
+.about-grid {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:80px; align-items:center;
+  max-width:1100px; margin:0 auto;
+}
+.about-text .stitle { margin-bottom:24px; }
+.about-body {
+  font-size:.9rem; color:#4a5a72;
+  line-height:2.05; font-weight:300; margin-bottom:32px;
+}
+.about-body p+p { margin-top:16px; }
+.about-sig {
+  display:flex; align-items:center; gap:14px;
+  padding-top:24px; border-top:1px solid var(--border);
+}
+.sig-bar { width:3px; height:40px; background:var(--red); }
+.sig-name { font-size:.9rem; font-weight:700; display:block; margin-bottom:3px; color:var(--navy); }
+.sig-role { font-size:.73rem; color:var(--gray); }
+
+/* About cards */
+.about-cards { display:flex; flex-direction:column; gap:10px; }
+.acard {
+  display:flex; gap:14px; align-items:flex-start;
+  padding:18px 20px;
+  border:1.5px solid var(--border); border-radius:8px;
+  transition:border-color .2s, box-shadow .2s, transform .15s;
+  background:#fff;
+}
+.acard:hover {
+  border-color:var(--navy2);
+  box-shadow:0 4px 20px rgba(13,32,68,.08);
+  transform:translateX(4px);
+}
+.acard-ico {
+  width:36px; height:36px; flex-shrink:0;
+  background:rgba(196,30,30,.08);
+  border-radius:6px;
+  display:flex; align-items:center; justify-content:center; font-size:.95rem;
+}
+.acard-title { font-size:.84rem; font-weight:700; color:var(--navy); margin-bottom:4px; }
+.acard-desc  { font-size:.75rem; color:var(--gray); line-height:1.55; }
+
+/* ══════════════════════════════════
+   ── SERVICES ──
+══════════════════════════════════ */
+#services { padding:110px 6%; background:var(--bg); }
+.svc-hd {
+  display:flex; justify-content:space-between; align-items:flex-end;
+  margin-bottom:52px; flex-wrap:wrap; gap:20px;
+  max-width:1100px; margin-left:auto; margin-right:auto;
+}
+.svc-grid {
+  display:grid; grid-template-columns:repeat(3,1fr);
+  gap:16px; max-width:1100px; margin:0 auto;
+}
+.svc {
+  background:#fff; border:1.5px solid var(--border); border-radius:10px;
+  padding:32px 26px;
+  transition:border-color .25s, box-shadow .25s, transform .2s;
+  position:relative; overflow:hidden;
+}
+.svc::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:3px;
+  background:var(--red); transform:scaleX(0); transform-origin:left;
+  transition:transform .35s var(--ease);
+}
+.svc:hover {
+  border-color:transparent;
+  box-shadow:0 8px 32px rgba(13,32,68,.1);
+  transform:translateY(-4px);
+}
+.svc:hover::before { transform:scaleX(1); }
+.svc-no {
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:.65rem; letter-spacing:.18em; color:var(--red);
+  opacity:.6; margin-bottom:14px;
+}
+.svc h3 { font-size:.95rem; font-weight:700; color:var(--navy); margin-bottom:12px; }
+.svc ul li {
+  font-size:.78rem; color:var(--gray); line-height:1.8;
+  padding-left:10px; position:relative;
+}
+.svc ul li::before {
+  content:''; position:absolute; left:0; top:10px;
+  width:4px; height:1px; background:var(--red);
+}
+
+/* ══════════════════════════════════
+   ── DRONE ──
+══════════════════════════════════ */
+#drone { padding:110px 6%; background:var(--white); }
+.drone-grid {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:80px; align-items:center;
+  max-width:1100px; margin:0 auto;
+}
+.drone-text .stitle { margin-bottom:18px; }
+.drone-text .sdesc  { margin-bottom:32px; }
+.drone-feats { display:flex; flex-direction:column; gap:12px; }
+.dfeat {
+  display:flex; gap:14px; align-items:flex-start;
+  padding:14px 18px;
+  border:1.5px solid var(--border); border-radius:8px;
+  transition:border-color .2s, background .2s;
+}
+.dfeat:hover { border-color:var(--navy2); background:var(--bg); }
+.dfeat-ico { font-size:1.2rem; width:32px; text-align:center; margin-top:1px; }
+.dfeat strong { font-size:.83rem; font-weight:700; color:var(--navy); display:block; margin-bottom:2px; }
+.dfeat span   { font-size:.75rem; color:var(--gray); line-height:1.5; }
+.drone-img {
+  border-radius:10px; overflow:hidden; aspect-ratio:4/3;
+  border:1.5px solid var(--border);
+  position:relative;
+  box-shadow:0 12px 48px rgba(13,32,68,.1);
+}
+.drone-img img { width:100%; height:100%; object-fit:cover; display:block; }
+.drone-badge {
+  position:absolute; bottom:16px; left:16px;
+  background:rgba(13,32,68,.88); backdrop-filter:blur(8px);
+  border-radius:6px; padding:8px 14px;
+  font-size:.72rem; color:var(--gold); letter-spacing:.06em;
+  border:1px solid rgba(255,255,255,.1);
+}
+
+/* ══════════════════════════════════
+   ── PROJECTS ──
+══════════════════════════════════ */
+#projects { padding:110px 6%; background:var(--bg); }
+.proj-hd {
+  display:flex; justify-content:space-between; align-items:flex-end;
+  margin-bottom:40px; flex-wrap:wrap; gap:16px;
+  max-width:1100px; margin-left:auto; margin-right:auto;
+}
+.proj-filters { display:flex; gap:8px; flex-wrap:wrap; }
+.pf {
+  padding:7px 18px; border-radius:20px;
+  font-size:.74rem; font-weight:500; letter-spacing:.04em;
+  border:1.5px solid var(--border); color:var(--gray);
+  cursor:pointer; transition:.2s; background:#fff;
+}
+.pf.active, .pf:hover { background:var(--navy); border-color:var(--navy); color:#fff; }
+.proj-grid {
+  display:grid; grid-template-columns:repeat(3,1fr);
+  gap:16px; max-width:1100px; margin:0 auto;
+}
+.proj-card {
+  position:relative; border-radius:10px; overflow:hidden;
+  aspect-ratio:4/3; cursor:pointer;
+  box-shadow:0 2px 12px rgba(13,32,68,.08);
+  transition:box-shadow .3s, transform .3s;
+}
+.proj-card:hover { box-shadow:0 12px 40px rgba(13,32,68,.16); transform:translateY(-4px); }
+.proj-card.large { grid-column:span 2; aspect-ratio:16/9; }
+.proj-card img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .5s var(--ease); }
+.proj-card:hover img { transform:scale(1.05); }
+.proj-overlay {
+  position:absolute; inset:0;
+  background:linear-gradient(to top, rgba(13,32,68,.9) 0%, rgba(13,32,68,.2) 60%, transparent 100%);
+  display:flex; flex-direction:column; justify-content:flex-end;
+  padding:20px; opacity:0; transition:opacity .3s;
+}
+.proj-card:hover .proj-overlay { opacity:1; }
+.proj-cat { font-family:'Barlow Condensed',sans-serif; font-size:.62rem; letter-spacing:.14em; color:var(--gold); margin-bottom:5px; }
+.proj-name { font-size:.88rem; font-weight:700; color:#fff; line-height:1.3; }
+.proj-strip {
+  position:absolute; bottom:0; left:0; right:0; height:3px;
+  background:var(--red); transform:scaleX(0); transform-origin:left;
+  transition:transform .4s var(--ease);
+}
+.proj-card:hover .proj-strip { transform:scaleX(1); }
+
+/* ══════════════════════════════════
+   ── CERTS ──
+══════════════════════════════════ */
+#certs { padding:100px 6%; background:var(--navy); }
+.certs-in { max-width:1100px; margin:0 auto; }
+.certs-in .stag { color:var(--gold); }
+.certs-in .stitle { color:#fff; margin-bottom:48px; }
+.certs-grid {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:16px;
+}
+.cert {
+  border:1px solid rgba(255,255,255,.1); border-radius:10px;
+  padding:28px 22px;
+  background:rgba(255,255,255,.04);
+  transition:border-color .25s, background .25s, transform .2s;
+}
+.cert:hover {
+  border-color:rgba(184,144,42,.4);
+  background:rgba(255,255,255,.08);
+  transform:translateY(-4px);
+}
+.cert-ico { font-size:1.8rem; margin-bottom:14px; }
+.cert h4 { font-size:.88rem; font-weight:700; color:#fff; margin-bottom:7px; }
+.cert p { font-size:.74rem; color:rgba(255,255,255,.5); line-height:1.6; }
+
+/* ══════════════════════════════════
+   ── CONTACT ──
+══════════════════════════════════ */
+#contact { padding:110px 6%; background:var(--white); }
+.contact-grid {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:80px; align-items:start;
+  max-width:1100px; margin:0 auto;
+}
+.contact-text .stitle { margin-bottom:44px; }
+.clist { display:flex; flex-direction:column; gap:26px; }
+.crow { display:flex; gap:16px; align-items:flex-start; }
+.cico {
+  width:40px; height:40px; flex-shrink:0;
+  border:1.5px solid var(--border); border-radius:8px;
+  display:flex; align-items:center; justify-content:center; font-size:.95rem;
+  background:var(--bg);
+}
+.clabel {
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:.64rem; letter-spacing:.14em; color:var(--red);
+  margin-bottom:5px; display:block;
+}
+.cval { font-size:.86rem; line-height:1.8; color:#4a5a72; }
+.cval a { color:inherit; transition:color .2s; }
+.cval a:hover { color:var(--navy); }
+.map-box {
+  border:1.5px solid var(--border); border-radius:10px;
+  height:360px; overflow:hidden;
+  background:var(--bg);
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:10px; text-align:center;
+  color:var(--gray); font-size:.8rem; line-height:1.8;
+}
+
+/* ══════════════════════════════════
+   ── FOOTER ──
+══════════════════════════════════ */
+footer {
+  background:var(--navy); padding:52px 6% 36px;
+}
+.footer-in { max-width:1100px; margin:0 auto; }
+.footer-top {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  padding-bottom:32px; border-bottom:1px solid rgba(255,255,255,.08);
+  flex-wrap:wrap; gap:28px;
+}
+.footer-ko {
+  font-family:'Noto Serif KR',serif;
+  font-size:1rem; font-weight:900; color:#fff; margin-bottom:3px;
+}
+.footer-ko em { color:var(--gold); font-style:normal; }
+.footer-en {
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:.65rem; letter-spacing:.18em;
+  color:rgba(255,255,255,.35); margin-bottom:12px;
+}
+.footer-addr { font-size:.74rem; color:rgba(255,255,255,.3); line-height:1.9; }
+.footer-nav { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
+.footer-nav a { font-size:.74rem; color:rgba(255,255,255,.35); transition:color .2s; }
+.footer-nav a:hover { color:#fff; }
+.footer-btm {
+  display:flex; justify-content:space-between; align-items:center;
+  padding-top:22px; flex-wrap:wrap; gap:12px;
+}
+.footer-copy { font-size:.68rem; color:rgba(255,255,255,.2); }
+.footer-erp-link {
+  font-size:.7rem; color:rgba(255,255,255,.3);
+  display:flex; align-items:center; gap:6px;
+  cursor:pointer; transition:color .2s;
+  border:none; background:none;
+}
+.footer-erp-link:hover { color:rgba(255,255,255,.7); }
+.footer-erp-dot { width:5px; height:5px; border-radius:50%; background:#4caf9e; }
+
+/* ══════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════ */
+@media (max-width:960px) {
+  .nav-center, .nav-contact { display:none; }
+  .nav-erp { font-size:.7rem; padding:7px 12px; }
+  .ham { display:flex; }
+  .stats-inner { grid-template-columns:repeat(2,1fr); }
+  .stat-col:nth-child(2) { border-right:none; }
+  .stat-col:nth-child(3),
+  .stat-col:nth-child(4) { border-top:1px solid var(--border); }
+  .about-grid, .drone-grid, .contact-grid { grid-template-columns:1fr; gap:40px; }
+  .svc-grid { grid-template-columns:repeat(2,1fr); }
+  .proj-grid { grid-template-columns:1fr 1fr; }
+  .proj-card.large { grid-column:span 2; }
+  .certs-grid { grid-template-columns:repeat(2,1fr); }
+  .scroll-ind { display:none; }
+}
+@media (max-width:600px) {
+  .svc-grid { grid-template-columns:1fr; }
+  .proj-grid { grid-template-columns:1fr; }
+  .proj-card.large { grid-column:span 1; aspect-ratio:4/3; }
+  .certs-grid { grid-template-columns:1fr 1fr; }
+  .modal-grid { grid-template-columns:1fr; }
+  .modal-box { margin:16px; }
+  .hero-content { padding-bottom:96px; }
+  .svc-hd, .proj-hd { flex-direction:column; align-items:flex-start; }
+}
+/* ══════════════════════════════════
+   PERF TABLE (수행실적 목록)
+══════════════════════════════════ */
+.proj-gallery { max-width:1100px; margin:0 auto; }
+.proj-gallery.hidden { display:none; }
+
+.perf-wrap { padding-top:8px; }
+.perf-summary {
+  display:flex; align-items:baseline; gap:14px;
+  margin-bottom:24px; padding:20px 28px;
+  background:var(--navy); border-radius:10px;
+}
+.perf-count {
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:2.6rem; font-weight:700; color:#fff; line-height:1;
+}
+.perf-count em { color:var(--gold); font-style:normal; font-size:.7em; }
+.perf-note { font-size:.85rem; color:rgba(255,255,255,.55); }
+
+.perf-table {
+  border:1.5px solid var(--border); border-radius:10px; overflow:hidden;
+  background:#fff;
+  box-shadow:0 2px 16px rgba(13,32,68,.06);
+}
+.perf-thead {
+  display:grid; grid-template-columns:80px 1fr 200px;
+  background:var(--navy); padding:12px 20px;
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:.78rem; font-weight:600; letter-spacing:.1em; color:rgba(255,255,255,.65);
+}
+.perf-tbody { max-height:520px; overflow-y:auto; }
+.perf-tbody::-webkit-scrollbar { width:4px; }
+.perf-tbody::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+.perf-row {
+  display:grid; grid-template-columns:80px 1fr 200px;
+  padding:13px 20px; border-bottom:1px solid var(--border);
+  align-items:center; transition:background .15s;
+}
+.perf-row:last-child { border-bottom:none; }
+.perf-row:hover { background:var(--bg); }
+.py {
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:.9rem; font-weight:700; color:var(--red);
+}
+.pn { font-size:.82rem; color:var(--ink); line-height:1.45; padding-right:16px; }
+.pa { font-size:.76rem; color:var(--gray); line-height:1.4; }
+
+.perf-more-rows.hidden { display:none; }
+.perf-more-btn:hover { background:var(--bg) !important; }
+
+/* ─ responsive perf ─ */
+@media(max-width:700px){
+  .perf-thead { grid-template-columns:60px 1fr; }
+  .perf-thead span:last-child { display:none; }
+  .perf-row { grid-template-columns:60px 1fr; }
+  .pa { display:none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════ NAV ════════════════ -->
+<nav id="nav">
+  <a href="#hero" class="logo">
+    <div class="logo-tri"></div>
+    <div class="logo-ko"><em>(주)</em>관보종합기술단</div>
+  </a>
+
+  <div class="nav-center">
+    <a href="#about"    class="nav-link">회사소개</a>
+    <a href="#services" class="nav-link">사업분야</a>
+    <a href="#drone"    class="nav-link">드론측량</a>
+    <a href="#projects" class="nav-link">수행실적</a>
+    <a href="#contact"  class="nav-link">문의</a>
+  </div>
+
+  <div class="nav-right">
+    <!-- ★ 종합정보시스템 버튼 -->
+    <button class="nav-erp" id="erpBtn">
+      <div class="erp-dot"></div>
+      종합정보시스템
+    </button>
+    <a href="#contact" class="nav-contact">문의하기</a>
+    <div class="ham" id="hamBtn"><span></span><span></span><span></span></div>
+  </div>
+</nav>
+
+<!-- 모바일 메뉴 -->
+<div id="mob-menu">
+  <a href="#about"    class="ml">회사소개</a>
+  <a href="#services" class="ml">사업분야</a>
+  <a href="#drone"    class="ml">드론측량</a>
+  <a href="#projects" class="ml">수행실적</a>
+  <a href="#contact"  class="ml">문의</a>
+  <button class="ml" id="mobErpBtn">종합정보시스템</button>
+</div>
+
+<!-- ════════════════ ERP 모달 ════════════════ -->
+<div id="erp-modal">
+  <div class="modal-box">
+    <!-- 헤더 -->
+    <div class="modal-header">
+      <div class="modal-header-top">
+        <div class="modal-logo-tri"></div>
+        <div class="modal-co"><em>(주)</em>관보종합기술단</div>
+      </div>
+      <div class="modal-title">종합정보시스템</div>
+      <div class="modal-sub">임직원 전용 내부 시스템</div>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+
+    <!-- 메뉴 그리드 -->
+    <div class="modal-body">
+      <div class="modal-menu-label">빠른 메뉴</div>
+      <div class="modal-grid">
+        <a href="#" class="modal-item">
+          <div class="modal-item-ico">📅</div>
+          <div class="modal-item-name">연차관리</div>
+          <div class="modal-item-desc">연차 신청·조회·잔여일수 확인</div>
+        </a>
+        <a href="#" class="modal-item">
+          <div class="modal-item-ico">✅</div>
+          <div class="modal-item-name">전자결재</div>
+          <div class="modal-item-desc">기안·결재·문서함 관리</div>
+        </a>
+        <a href="#" class="modal-item">
+          <div class="modal-item-ico">🕐</div>
+          <div class="modal-item-name">근태관리</div>
+          <div class="modal-item-desc">출퇴근 기록 및 초과근무 신청</div>
+        </a>
+        <a href="#" class="modal-item">
+          <div class="modal-item-ico">📋</div>
+          <div class="modal-item-name">업무보고</div>
+          <div class="modal-item-desc">일·주간 업무 보고 및 공유</div>
+        </a>
+      </div>
+
+      <div class="modal-divider"></div>
+
+      <!-- 로그인 -->
+      <div class="modal-menu-label">로그인</div>
+      <div class="modal-form">
+        <input class="modal-input" type="text"     placeholder="아이디"/>
+        <input class="modal-input" type="password" placeholder="비밀번호"/>
+        <button class="modal-login-btn">로그인</button>
+      </div>
+      <div class="modal-note">
+        계정 문의 : 관리자에게 문의해 주세요<br/>
+        <a href="#" style="color:var(--navy2);">비밀번호 찾기</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ ① HERO ════════════════ -->
+<section id="hero">
+  <div class="hero-slide active">
+    <div class="hero-slide-img" style="background-image:url('조감도_최종.jpg')"></div>
+  </div>
+  <div class="hero-slide">
+    <div class="hero-slide-img" style="background-image:url('감천유진타워_조감도.jpg')"></div>
+  </div>
+  <div class="hero-slide">
+    <div class="hero-slide-img" style="background-image:url('조감도최종.jpg')"></div>
+  </div>
+  <div class="hero-slide">
+    <div class="hero-slide-img" style="background-image:url('drone-aerial.jpg')"></div>
+  </div>
+  <div class="hero-slide">
+    <div class="hero-slide-img" style="background-image:url('관보적용조감도.jpg')"></div>
+  </div>
+  <div class="hero-slide">
+    <div class="hero-slide-img" style="background-image:url('괴정동노인주거복지-조감도_다시_copy.jpg')"></div>
+  </div>
+
+  <div class="hero-content">
+    <div class="hero-eyebrow">
+      <div class="hero-line"></div>
+      <span>KWAN BO ENGINEERING CO., LTD.</span>
+    </div>
+    <h1 class="hero-h1">
+      기술로 신뢰를 쌓고<br/>
+      <span class="acc">현장에서 답을 찾습니다.</span>
+    </h1>
+    <p class="hero-p">
+      측량·설계·감리·지반 전 분야를 아우르는 종합 엔지니어링 기업.<br/>
+      드론측량부터 민간개발사업까지, 관보가 함께합니다.
+    </p>
+    <div class="hero-btns">
+      <a href="#projects" class="btn-p">수행실적 보기</a>
+      <a href="#contact"  class="btn-o">문의하기</a>
+    </div>
+  </div>
+
+  <div class="hero-dots" id="heroDots"></div>
+  <div class="hero-counter"><strong id="slideNum">1</strong><span>/ 6</span></div>
+  <div class="scroll-ind"><div class="sbar"></div><span>SCROLL</span></div>
+</section>
+
+<!-- ════════════════ ② STATS ════════════════ -->
+<section id="stats">
+  <div class="stats-inner">
+    <div class="stat-col sr">
+      <div class="stat-num" data-to="9">0<em>개</em></div>
+      <div class="stat-label">엔지니어링 등록 분야</div>
+    </div>
+    <div class="stat-col sr" style="transition-delay:.1s">
+      <div class="stat-num" data-to="4">0<em>개</em></div>
+      <div class="stat-label">전문 인증 보유</div>
+    </div>
+    <div class="stat-col sr" style="transition-delay:.2s">
+      <div class="stat-num" data-to="197">0<em>+</em></div>
+      <div class="stat-label">수행 프로젝트 건수</div>
+    </div>
+    <div class="stat-col sr" style="transition-delay:.3s">
+      <div class="stat-num" data-to="30">0<em>년+</em></div>
+      <div class="stat-label">업력 (1995년 창업)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ ③ ABOUT ════════════════ -->
+<section id="about">
+  <div class="about-grid">
+    <div class="sr left">
+      <span class="stag">ABOUT — 회사소개</span>
+      <h2 class="stitle" style="margin-bottom:24px;">고객의 성공이<br/>곧 우리의 성과입니다.</h2>
+      <div class="about-body">
+        <!-- TODO: 대표 인사말 교체 -->
+        <p>관보종합기술단은 부산을 중심으로 측량·설계·감리·지반 분야에서 최고의 기술 서비스를 제공하는 종합 엔지니어링 기업입니다.</p>
+        <p>장애인기업·여성기업으로서 사회적 가치를 실현하며, 공공과 민간 양 방면에서 신뢰받는 파트너가 되고자 합니다.</p>
+      </div>
+      <div class="about-sig">
+        <div class="sig-bar"></div>
+        <div>
+          <span class="sig-name">(주)관보종합기술단 공동대표이사</span>
+          <span class="sig-role">강 호 갑 &nbsp;·&nbsp; 이 수 금</span>
+        </div>
+      </div>
+    </div>
+    <div class="sr right" style="transition-delay:.15s">
+      <div class="about-cards">
+        <div class="acard"><div class="acard-ico">📐</div><div><div class="acard-title">건설엔지니어링업 설계·사업관리(일반)</div><div class="acard-desc">도로·토지·구조·상하수도·교통·도시계획·수자원·조경·수질 9개 분야</div></div></div>
+        <div class="acard"><div class="acard-ico">📡</div><div><div class="acard-title">드론측량 / UIS DB구축</div><div class="acard-desc">공공측량·지하시설물측량·수치지도제작·영상처리</div></div></div>
+        <div class="acard"><div class="acard-ico">🛡️</div><div><div class="acard-title">지하안전영향평가 전문기관</div><div class="acard-desc">지반조사 및 지반설계검토, 가시설·옹벽 전문</div></div></div>
+        <div class="acard"><div class="acard-ico">🏙️</div><div><div class="acard-title">민간개발사업</div><div class="acard-desc">개발행위허가·지구단위계획·도시관리계획·APT단지 부대토목</div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ ④ SERVICES ════════════════ -->
+<section id="services">
+  <div class="svc-hd sr">
+    <div>
+      <span class="stag">SERVICES — 사업분야</span>
+      <h2 class="stitle">전문 분야별<br/>종합 엔지니어링 서비스</h2>
+    </div>
+    <p class="sdesc" style="max-width:260px;text-align:right;">각 분야 전문 기술자가<br/>프로젝트 전 과정을 책임집니다.</p>
+  </div>
+  <div class="svc-grid">
+    <div class="svc sr" style="transition-delay:.05s"><div class="svc-no">01</div><h3>측량업</h3><ul><li>공공측량</li><li>지하시설물측량 (UIS DB구축)</li><li>드론측량 / 영상처리</li><li>수치지도제작</li></ul></div>
+    <div class="svc sr" style="transition-delay:.1s"><div class="svc-no">02</div><h3>지하안전 &amp; 지반</h3><ul><li>지하안전영향평가 (전문기관)</li><li>지반조사 및 지반설계검토</li><li>가시설·옹벽 설계</li><li>안전점검 (토목)</li></ul></div>
+    <div class="svc sr" style="transition-delay:.15s"><div class="svc-no">03</div><h3>민간개발사업</h3><ul><li>개발행위허가 (토지형질변경)</li><li>지구단위계획 결정</li><li>도시관리계획 결정</li><li>APT단지 부대토목</li><li>산업단지 조성계획</li></ul></div>
+    <div class="svc sr" style="transition-delay:.2s"><div class="svc-no">04</div><h3>토목설계</h3><ul><li>기본계획 및 실시설계</li><li>재해예방 및 복구설계</li><li>토목공사 설계변경</li><li>도로시설물 개량·유지보수</li></ul></div>
+    <div class="svc sr" style="transition-delay:.25s"><div class="svc-no">05</div><h3>건설사업관리 (감리)</h3><ul><li>토목공사 건설사업관리</li><li>설계·사업관리 (일반)</li><li>공정·품질·안전 관리</li></ul></div>
+    <div class="svc sr" style="transition-delay:.3s"><div class="svc-no">06</div><h3>상수도 &amp; 기타</h3><ul><li>상수도관망 세척·누수탐사</li><li>산업디자인</li><li>기업부설연구소</li><li>소프트웨어사업자</li></ul></div>
+  </div>
+</section>
+
+<!-- ════════════════ ⑤ DRONE ════════════════ -->
+<section id="drone">
+  <div class="drone-grid">
+    <div class="sr left">
+      <span class="stag">DRONE SURVEY — 드론측량</span>
+      <h2 class="stitle" style="margin-bottom:18px;">하늘에서 보는<br/>정밀한 눈</h2>
+      <p class="sdesc" style="margin-bottom:28px;">드론을 활용한 공공측량·지하시설물측량·UIS DB구축부터<br/>수치지도제작·조감도 제작까지 원스톱으로 제공합니다.</p>
+      <div class="drone-feats">
+        <div class="dfeat"><div class="dfeat-ico">🛩️</div><div><strong>공공측량 · 드론측량</strong><span>고정밀 RTK 드론으로 정사영상 및 3D 포인트클라우드 생성</span></div></div>
+        <div class="dfeat"><div class="dfeat-ico">🗺️</div><div><strong>UIS DB구축 · 수치지도제작</strong><span>지하시설물 측량 및 수치지형도 제작</span></div></div>
+        <div class="dfeat"><div class="dfeat-ico">🏙️</div><div><strong>드론 조감도 제작</strong><span>드론 항공사진 기반 개발사업 조감도 및 시각화</span></div></div>
+        <div class="dfeat"><div class="dfeat-ico">📊</div><div><strong>영상처리 · 데이터 분석</strong><span>취득 데이터 처리 및 GIS 연계 분석</span></div></div>
+      </div>
+    </div>
+    <div class="sr right" style="transition-delay:.15s">
+      <div class="drone-img">
+        <img src="drone-aerial.jpg" alt="드론측량 항공사진"/>
+        <div class="drone-badge">🚁 DRONE SURVEY &amp; MAPPING</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ ⑥ PROJECTS ════════════════ -->
+<section id="projects">
+  <div class="proj-hd sr">
+    <div>
+      <span class="stag">PROJECTS — 수행실적</span>
+      <h2 class="stitle">주요 수행실적</h2>
+    </div>
+    <div class="proj-filters">
+      <button class="pf active" data-tab="all">전체</button>
+      <button class="pf" data-tab="design">설계용역</button>
+      <button class="pf" data-tab="cm">건설사업관리(감리)</button>
+    </div>
+  </div>
+
+  <!-- 조감도 갤러리 -->
+  <div class="proj-gallery" id="tab-all">
+    <div class="proj-grid">
+      <div class="proj-card large sr"><img src="조감도_최종.jpg" alt="대단지 APT 조감도"/><div class="proj-overlay"><div class="proj-cat">민간개발사업 · 드론측량</div><div class="proj-name">대단지 APT 개발사업 조감도</div></div><div class="proj-strip"></div></div>
+      <div class="proj-card sr" style="transition-delay:.05s"><img src="감천유진타워_조감도.jpg" alt="감천 유진타워"/><div class="proj-overlay"><div class="proj-cat">드론측량 · 민간개발</div><div class="proj-name">감천 유진타워</div></div><div class="proj-strip"></div></div>
+      <div class="proj-card sr" style="transition-delay:.1s"><img src="괴정동노인주거복지-조감도_다시_copy.jpg" alt="세계한인타운"/><div class="proj-overlay"><div class="proj-cat">민간개발사업</div><div class="proj-name">괴정동 노인주거복지시설</div></div><div class="proj-strip"></div></div>
+      <div class="proj-card sr" style="transition-delay:.1s"><img src="조감도최종.jpg" alt="APT단지"/><div class="proj-overlay"><div class="proj-cat">민간개발사업</div><div class="proj-name">APT단지 부대토목 조감도</div></div><div class="proj-strip"></div></div>
+      <div class="proj-card sr" style="transition-delay:.15s"><img src="drone-aerial.jpg" alt="드론 항공사진"/><div class="proj-overlay"><div class="proj-cat">드론측량</div><div class="proj-name">드론 항공사진 기반 조감도</div></div><div class="proj-strip"></div></div>
+      <div class="proj-card sr" style="transition-delay:.2s"><img src="관보적용조감도.jpg" alt="산업시설"/><div class="proj-overlay"><div class="proj-cat">산업단지</div><div class="proj-name">산업시설 조감도</div></div><div class="proj-strip"></div></div>
+    </div>
+  </div>
+
+  <!-- 설계용역 목록 -->
+  <div class="proj-gallery hidden" id="tab-design">
+    <div class="perf-wrap">
+      <div class="perf-summary sr">
+        <span class="perf-count">190<em>건+</em></span>
+        <span class="perf-note">설계용역 수행실적 (2016~현재)</span>
+      </div>
+      <div class="perf-table sr" style="transition-delay:.1s">
+        <div class="perf-thead">
+          <span>연도</span><span>용역명</span><span>발주기관</span>
+        </div>
+        <div class="perf-tbody">
+          <div class="perf-row"><span class="py">2026</span><span class="pn">동삼로50번길 도로확장 도시관리계획 결정 및 실시설계 용역</span><span class="pa">부산광역시 영도구</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">국가하천(서낙동강) 및 주변지역 불법시설물 전수조사용역</span><span class="pa">부산광역시 강서구</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">지사2일반산업단지 내 옹벽 3개소 정밀안전점검용역</span><span class="pa">부산광역시 강서구</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">역세권주차장 진출입로 변속차로 연장공사 실시설계용역</span><span class="pa">부산광역시 강서구</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">모덕초등학교~덕상초등학교 일원 옹벽 디자인 개선사업 외 4건 실시설계용역</span><span class="pa">부산광역시 사상구</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">우암동 도시숲 공영주차장 조성사업 기본 및 실시설계용역</span><span class="pa">부산광역시 남구</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">반송1동 스마트한 우리길 조성사업 실시설계용역</span><span class="pa">부산광역시 해운대구</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">영선중~부산영상예술고 일원 도로개설(3차) 도시관리계획 변경결정 및 실시설계 용역</span><span class="pa">부산광역시 영도구</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">2026년 주요시설물 정기안전점검용역</span><span class="pa">부산광역시 금정구</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">대신중학교 일원 보행환경 개선사업 외 3건 실시설계용역</span><span class="pa">부산광역시 서구</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">화명 제2정수 침전지 트라프 보수공사 실시설계용역</span><span class="pa">부산광역시 상수도사업본부 화명정수사업소</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">장안 임랑마을 주차장 및 진입도로 도시관리계획 결정 용역</span><span class="pa">부산광역시 기장군</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">괴정배수지 도시관리계획 결정(폐지) 용역</span><span class="pa">부산광역시 상수도사업본부</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">장안 신리마을 지구단위계획도로(소2-358호선) UIS DB구축 용역</span><span class="pa">부산광역시 기장군</span></div>
+          <div class="perf-row"><span class="py">2026</span><span class="pn">금곡초등학교 통학로 개선공사 설계용역</span><span class="pa">부산광역시북부교육지원청</span></div>
+          <div class="perf-row"><span class="py">2025</span><span class="pn">사상블루웨이 조성사업 실시설계용역</span><span class="pa">부산광역시 사상구</span></div>
+          <div class="perf-row"><span class="py">2025</span><span class="pn">백양터널 일원 방음벽 정비공사 실시설계용역</span><span class="pa">부산광역시 사상구</span></div>
+          <div class="perf-row"><span class="py">2025</span><span class="pn">당감동 백양푸른채 주변 상수도관 세척용역</span><span class="pa">부산광역시 상수도사업본부</span></div>
+          <div class="perf-row"><span class="py">2025</span><span class="pn">국가하천 홍수기 전·중·후 안전점검용역</span><span class="pa">부산광역시</span></div>
+          <div class="perf-row"><span class="py">2025</span><span class="pn">시청역 일원 노후하수관로 정비공사 외 1개소 UIS DB 구축용역</span><span class="pa">부산광역시 연제구</span></div>
+          <div class="perf-row"><span class="py">2025</span><span class="pn">남항남로31번길 일원 도로개설 간이 배수펌프장 실시설계 용역</span><span class="pa">부산광역시 영도구</span></div>
+          <div class="perf-row"><span class="py">2025</span><span class="pn">매리취수장 부유식 계류장 설치공사 실시설계용역</span><span class="pa">부산광역시 상수도사업본부</span></div>
+          <div class="perf-row"><span class="py">2025</span><span class="pn">덕산 제1정수장 정수지(1-1) 보수보강공사 실시설계용역</span><span class="pa">부산광역시 상수도사업본부</span></div>
+          <div class="perf-row"><span class="py">2024</span><span class="pn">동부산 산업단지 공업용수 공급방안 용역</span><span class="pa">부산광역시</span></div>
+          <div class="perf-row"><span class="py">2024</span><span class="pn">덕산 제2정수장 공업용수 정수공정 개선공사 실시설계용역</span><span class="pa">부산광역시 상수도사업본부</span></div>
+          <div class="perf-row"><span class="py">2024</span><span class="pn">장안읍 장안배수펌프장 앞 도시계획도로 개설공사 실시설계용역</span><span class="pa">부산광역시 기장군</span></div>
+          <div class="perf-row"><span class="py">2024</span><span class="pn">남항남로31번길 일원 도로개설 도시관리계획 결정 및 실시설계 용역</span><span class="pa">부산광역시 영도구</span></div>
+          <div class="perf-row"><span class="py">2023</span><span class="pn">수영강 산책로 포장 정비 공사 실시설계용역</span><span class="pa">부산광역시 동래구</span></div>
+          <div class="perf-row"><span class="py">2023</span><span class="pn">동삼패총~하리해안길 간 도로개설 도시관리계획 결정 및 실시설계용역</span><span class="pa">부산광역시 영도구</span></div>
+          <div class="perf-row"><span class="py">2023</span><span class="pn">산복도로 이음길 정비사업(1차년도) 실시설계용역</span><span class="pa">부산광역시 서구</span></div>
+          <div class="perf-row perf-more-btn" id="designMoreBtn" style="cursor:pointer;justify-content:center;color:var(--navy2);font-weight:600;">
+            <span style="display:flex;align-items:center;gap:6px;">▼ &nbsp;더보기 (160건+)</span>
+          </div>
+          <!-- 숨김 rows -->
+          <div class="perf-more-rows hidden">
+            <div class="perf-row"><span class="py">2022</span><span class="pn">쇠미로 연결도로 도시관리계획(도로) 결정 및 실시설계용역</span><span class="pa">부산광역시 동래구</span></div>
+            <div class="perf-row"><span class="py">2022</span><span class="pn">구서역 2~4번출구 일원 도로정비 외 4개소 실시설계용역</span><span class="pa">부산광역시 금정구</span></div>
+            <div class="perf-row"><span class="py">2022</span><span class="pn">좌동 세실로 95일원외 1개소 보도정비공사 실시설계용역</span><span class="pa">부산광역시 해운대구</span></div>
+            <div class="perf-row"><span class="py">2021</span><span class="pn">태림아파트~동삼지구대 간 도로개설 도시관리계획 결정(변경) 및 실시설계용역</span><span class="pa">부산광역시 영도구</span></div>
+            <div class="perf-row"><span class="py">2021</span><span class="pn">2021년 하반기 도로정비사업(갑구) 실시설계용역</span><span class="pa">부산광역시 부산진구</span></div>
+            <div class="perf-row"><span class="py">2020</span><span class="pn">좌동,송정동 등 소규모 도로정비공사 실시설계용역</span><span class="pa">부산광역시 해운대구</span></div>
+            <div class="perf-row"><span class="py">2020</span><span class="pn">2020년 상반기 도로정비사업(갑구) 실시설계용역</span><span class="pa">부산광역시 부산진구</span></div>
+            <div class="perf-row"><span class="py">2019</span><span class="pn">부산형 무장애 보행길 선도사업 실시설계용역</span><span class="pa">부산광역시 영도구</span></div>
+            <div class="perf-row"><span class="py">2019</span><span class="pn">화명1택지지구 지구단위계획 결정(변경)</span><span class="pa">부산광역시 북구</span></div>
+            <div class="perf-row"><span class="py">2018</span><span class="pn">동천변 복개구조물 복구공사 실시설계용역</span><span class="pa">부산광역시 남구</span></div>
+            <div class="perf-row"><span class="py">2017</span><span class="pn">오륜동 일원 누리길 조성사업 실시설계용역</span><span class="pa">부산광역시 금정구</span></div>
+            <div class="perf-row"><span class="py">2016</span><span class="pn">거제대로~거제천간 도로확장공사 실시설계용역</span><span class="pa">부산광역시 연제구</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 건설사업관리(감리) 목록 -->
+  <div class="proj-gallery hidden" id="tab-cm">
+    <div class="perf-wrap">
+      <div class="perf-summary sr">
+        <span class="perf-count">7<em>건</em></span>
+        <span class="perf-note">건설사업관리(감리) 수행실적</span>
+      </div>
+      <div class="perf-table sr" style="transition-delay:.1s">
+        <div class="perf-thead">
+          <span>연도</span><span>용역명</span><span>발주기관</span>
+        </div>
+        <div class="perf-tbody">
+          <div class="perf-row"><span class="py">2026</span><span class="pn">2026년 도로굴착 복구공사 건설사업관리용역(단가계약)</span><span class="pa">부산광역시 사상구</span></div>
+          <div class="perf-row"><span class="py">2025</span><span class="pn">2025년 하수도분야 건설사업관리(시공감리)(2구간) 용역</span><span class="pa">부산광역시 강서구</span></div>
+          <div class="perf-row"><span class="py">2024</span><span class="pn">다대동 고지대 이동편의 개선공사 건설사업관리용역</span><span class="pa">부산광역시 사하구</span></div>
+          <div class="perf-row"><span class="py">2022</span><span class="pn">2022년 상수도급배수관 시설공사 건설사업관리용역(부산진1권역)</span><span class="pa">부산광역시</span></div>
+          <div class="perf-row"><span class="py">2022</span><span class="pn">하수관로 신설(확충)사업(해리단길 일원) 건설사업관리용역</span><span class="pa">부산광역시 해운대구</span></div>
+          <div class="perf-row"><span class="py">2021</span><span class="pn">2022년 교통안전시설물 설치공사 건설사업관리용역</span><span class="pa">부산광역시</span></div>
+          <div class="perf-row"><span class="py">2017</span><span class="pn">하수관로신설(확충)공사[동부처리구역(재송동일원)] 건설사업관리용역</span><span class="pa">부산광역시</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ════════════════ ⑦ CERTS ════════════════ -->
+<section id="certs">
+  <div class="certs-in">
+    <span class="stag">CERTIFICATION — 인증현황</span>
+    <h2 class="stitle" style="color:#fff;margin-bottom:48px;">검증된 전문성</h2>
+    <div class="certs-grid">
+      <div class="cert sr" style="transition-delay:.05s"><div class="cert-ico">♿</div><h4>장애인기업 등록</h4><p>장애인기업 종합지원센터 등록 인증</p></div>
+      <div class="cert sr" style="transition-delay:.1s"><div class="cert-ico">👩‍💼</div><h4>여성기업 등록</h4><p>여성기업지원센터 등록 인증</p></div>
+      <div class="cert sr" style="transition-delay:.15s"><div class="cert-ico">🏗️</div><h4>건설엔지니어링업</h4><p>설계·사업관리(일반) 9개 분야</p></div>
+      <div class="cert sr" style="transition-delay:.2s"><div class="cert-ico">🔬</div><h4>지하안전영향평가</h4><p>지하안전영향평가 전문기관<br/>안전점검 전문기관(토목)</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ ⑧ CONTACT ════════════════ -->
+<section id="contact">
+  <div class="contact-grid">
+    <div class="sr left">
+      <span class="stag">CONTACT — 문의</span>
+      <h2 class="stitle" style="margin-bottom:44px;">프로젝트에 대해<br/>상담해 드립니다.</h2>
+      <div class="clist">
+        <div class="crow"><div class="cico">📍</div><div><span class="clabel">ADDRESS</span><div class="cval">부산광역시 연제구 거제대로 270, 705호<br/>(거제동, 종근당빌딩)</div></div></div>
+        <div class="crow"><div class="cico">📱</div><div><span class="clabel">MOBILE — 강승우 실장</span><div class="cval"><a href="tel:01093152914">010-9315-2914</a></div></div></div>
+        <div class="crow"><div class="cico">📞</div><div><span class="clabel">TEL / FAX</span><div class="cval">T. <a href="tel:0518532633">051) 853-2633</a> &nbsp;/&nbsp; F. 051) 853-4893</div></div></div>
+        <div class="crow"><div class="cico">✉️</div><div><span class="clabel">E-MAIL</span><div class="cval"><a href="mailto:kwanboeng@naver.com">kwanboeng@naver.com</a> (설계)<br/><a href="mailto:kwanboacc@naver.com">kwanboacc@naver.com</a> (계약)</div></div></div>
+      </div>
+    </div>
+    <div class="sr right" style="transition-delay:.15s">
+      <div class="map-box">
+        <!-- TODO: 카카오맵 API iframe 삽입 -->
+        <div style="font-size:2.5rem;opacity:.25">🗺️</div>
+        <div style="font-size:.8rem;color:var(--gray);line-height:1.8;text-align:center;">
+          부산광역시 연제구 거제대로 270<br/>705호, 종근당빌딩<br/>
+          <span style="font-size:.72rem;opacity:.6">지도 API 연동 예정</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ ⑨ FOOTER ════════════════ -->
+<footer>
+  <div class="footer-in">
+    <div class="footer-top">
+      <div>
+        <div class="footer-ko"><em>(주)</em>관보종합기술단</div>
+        <div class="footer-en">KWAN BO ENGINEERING CO., LTD.</div>
+        <div class="footer-addr">
+          부산광역시 연제구 거제대로 270, 705호 (거제동, 종근당빌딩)<br/>
+          T. 051) 853-2633 &nbsp;|&nbsp; F. 051) 853-4893 &nbsp;|&nbsp; kwanboeng@naver.com
+        </div>
+      </div>
+      <div class="footer-nav">
+        <a href="#about">회사소개</a>
+        <a href="#services">사업분야</a>
+        <a href="#drone">드론측량</a>
+        <a href="#projects">수행실적</a>
+        <a href="#certs">인증현황</a>
+        <a href="#contact">오시는 길</a>
+      </div>
+    </div>
+    <div class="footer-btm">
+      <span class="footer-copy">© 2025 (주)관보종합기술단. All rights reserved.</span>
+      <button class="footer-erp-link" id="footerErpBtn">
+        <div class="footer-erp-dot"></div>
+        종합정보시스템 임직원 로그인
+      </button>
+    </div>
+  </div>
+</footer>
+
+<!-- ════════════════ JS ════════════════ -->
+<script>
+/* NAV */
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', scrollY > 40);
+}, { passive:true });
+
+/* 햄버거 */
+const ham = document.getElementById('hamBtn');
+const mob = document.getElementById('mob-menu');
+ham.addEventListener('click', () => mob.classList.toggle('open'));
+document.querySelectorAll('.ml').forEach(a => {
+  a.addEventListener('click', () => mob.classList.remove('open'));
+});
+
+/* ERP 모달 */
+const modal = document.getElementById('erp-modal');
+function openErp() { modal.classList.add('open'); document.body.style.overflow='hidden'; }
+function closeErp(){ modal.classList.remove('open'); document.body.style.overflow=''; }
+document.getElementById('erpBtn').addEventListener('click', openErp);
+document.getElementById('mobErpBtn').addEventListener('click', () => { mob.classList.remove('open'); openErp(); });
+document.getElementById('modalClose').addEventListener('click', closeErp);
+document.getElementById('footerErpBtn').addEventListener('click', openErp);
+modal.addEventListener('click', e => { if(e.target === modal) closeErp(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeErp(); });
+
+/* 히어로 슬라이드 */
+const slides = document.querySelectorAll('.hero-slide');
+const dotsWrap = document.getElementById('heroDots');
+const numEl = document.getElementById('slideNum');
+let cur = 0;
+const TOTAL = slides.length;
+
+slides.forEach((_, i) => {
+  const d = document.createElement('div');
+  d.className = 'dot' + (i===0?' active':'');
+  d.addEventListener('click', () => goTo(i));
+  dotsWrap.appendChild(d);
+});
+
+function goTo(n) {
+  slides[cur].classList.remove('active');
+  dotsWrap.children[cur].classList.remove('active');
+  cur = (n + TOTAL) % TOTAL;
+  slides[cur].classList.add('active');
+  dotsWrap.children[cur].classList.add('active');
+  numEl.textContent = cur + 1;
+}
+let timer = setInterval(() => goTo(cur+1), 5000);
+dotsWrap.addEventListener('click', () => { clearInterval(timer); timer = setInterval(()=>goTo(cur+1),5000); });
+
+/* 스크롤 리빌 */
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('on'); });
+}, { threshold:.12 });
+document.querySelectorAll('.sr').forEach(el => obs.observe(el));
+
+/* 카운터 */
+function countUp(el) {
+  const to = +el.dataset.to, t0 = performance.now(), dur = 1400;
+  (function tick(now) {
+    const p = Math.min((now-t0)/dur, 1);
+    el.childNodes[0].textContent = Math.round((1-Math.pow(1-p,3))*to);
+    if(p<1) requestAnimationFrame(tick);
+  })(performance.now());
+}
+const cObs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if(e.isIntersecting){ countUp(e.target); cObs.unobserve(e.target); }});
+}, { threshold:.5 });
+document.querySelectorAll('.stat-num[data-to]').forEach(el => cObs.observe(el));
+
+/* 프로젝트 탭 전환 */
+document.querySelectorAll('.pf').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.pf').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.proj-gallery').forEach(g => g.classList.add('hidden'));
+    document.getElementById('tab-' + tab).classList.remove('hidden');
+  });
+});
+
+/* 설계용역 더보기 */
+const moreBtn = document.getElementById('designMoreBtn');
+if(moreBtn){
+  moreBtn.addEventListener('click', () => {
+    const moreRows = document.querySelector('.perf-more-rows');
+    if(moreRows.classList.contains('hidden')){
+      moreRows.classList.remove('hidden');
+      moreBtn.querySelector('span').innerHTML = '▲ &nbsp;접기';
+    } else {
+      moreRows.classList.add('hidden');
+      moreBtn.querySelector('span').innerHTML = '▼ &nbsp;더보기 (160건+)';
+    }
+  });
+}
+</script>
+</body>
+</html>
