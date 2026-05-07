@@ -1,0 +1,715 @@
+
+<div id="app" style="height:660px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;display:flex;"></div>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script type="text/babel" data-presets="react">
+const {useState,useEffect,useCallback,useRef}=React;
+
+const SB_URL='https://pxtddjilxwomzfsjhmvn.supabase.co/rest/v1';
+const SB_KEY='sb_publishable_M2fWxHmHFMLfdtRConOuMg_GfIMv9bS';
+
+const HOLIDAYS={
+  '2026-01-01':'신정','2026-01-28':'설날연휴','2026-01-29':'설날','2026-01-30':'설날연휴',
+  '2026-03-01':'삼일절','2026-05-05':'어린이날','2026-05-24':'부처님오신날','2026-06-06':'현충일',
+  '2026-08-15':'광복절','2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴',
+  '2026-10-03':'개천절','2026-10-09':'한글날','2026-12-25':'크리스마스',
+  '2025-01-01':'신정','2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴',
+  '2025-03-01':'삼일절','2025-05-05':'어린이날','2025-05-06':'대체공휴일',
+  '2025-06-06':'현충일','2025-08-15':'광복절','2025-10-03':'개천절',
+  '2025-10-05':'추석','2025-10-06':'추석연휴','2025-10-07':'추석연휴',
+  '2025-10-09':'한글날','2025-12-25':'크리스마스',
+};
+
+const COLORS=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16'];
+
+const today=()=>new Date().toISOString().split('T')[0];
+const thisYear=()=>new Date().getFullYear();
+const isHol=d=>!!HOLIDAYS[d];
+const isWknd=d=>[0,6].includes(new Date(d+'T12:00:00').getDay());
+const isWork=d=>!isHol(d)&&!isWknd(d);
+const toMins=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
+
+const countWD=(s,e)=>{
+  let c=0,cur=new Date(s+'T12:00:00'),end=new Date(e+'T12:00:00');
+  while(cur<=end){if(isWork(cur.toISOString().split('T')[0]))c++;cur.setDate(cur.getDate()+1);}
+  return c;
+};
+
+const calcHours=(st,et)=>{
+  let mins=toMins(et)-toMins(st);
+  const lunchStart=720,lunchEnd=780;
+  if(toMins(st)<lunchEnd&&toMins(et)>lunchStart)
+    mins-=Math.min(toMins(et),lunchEnd)-Math.max(toMins(st),lunchStart);
+  return Math.max(0,mins/60);
+};
+
+const hoursToDays=h=>Math.round(h/2)*0.25;
+const daysLabel=n=>n===0.25?'반반차(2h)':n===0.5?'반차(4h)':n===0.75?'3/4일(6h)':`${n}일`;
+const fmtDate=d=>{if(!d)return'';const[y,m,dd]=d.split('-');return`${+m}/${+dd}`;};
+const fmtFull=d=>{if(!d)return'';const[y,m,dd]=d.split('-');return`${y}년 ${+m}월 ${+dd}일`;};
+const fmtPhone=p=>{if(!p)return'';const n=p.replace(/\D/g,'');return n.length===11?`${n.slice(0,3)}-${n.slice(3,7)}-${n.slice(7)}`:p;};
+
+const api={
+  headers:()=>({'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json','Prefer':'return=representation'}),
+  get:(t,q='')=>fetch(`${SB_URL}/${t}${q}`,{headers:api.headers()}).then(r=>r.ok?r.json():[]),
+  post:(t,b)=>fetch(`${SB_URL}/${t}`,{method:'POST',headers:api.headers(),body:JSON.stringify(b)}).then(r=>r.json()),
+  patch:(t,q,b)=>fetch(`${SB_URL}/${t}${q}`,{method:'PATCH',headers:api.headers(),body:JSON.stringify(b)}),
+  del:(t,q)=>fetch(`${SB_URL}/${t}${q}`,{method:'DELETE',headers:api.headers()}),
+};
+const audit=(uid,action,tid,detail)=>api.post('audit_logs',{user_id:uid,action,target_id:tid||null,detail});
+
+// Styles
+const inp={width:'100%',padding:'9px 11px',border:'1.5px solid #e2e8f0',borderRadius:7,fontSize:13,outline:'none',boxSizing:'border-box',fontFamily:"'Noto Sans KR',sans-serif",background:'white',color:'#0f172a'};
+const lbl={display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:4};
+const card={background:'white',borderRadius:10,padding:14,boxShadow:'0 1px 5px rgba(0,0,0,0.06)',border:'1px solid #f1f5f9',marginBottom:10};
+const btn=(v='def')=>({padding:'7px 13px',border:'none',borderRadius:7,cursor:'pointer',fontSize:12,fontWeight:600,fontFamily:"'Noto Sans KR',sans-serif",
+  ...(v==='primary'?{background:'#1e40af',color:'white'}:
+      v==='success'?{background:'#15803d',color:'white'}:
+      v==='danger'?{background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca'}:
+      v==='warn'?{background:'#fef9c3',color:'#854d0e',border:'1px solid #fde68a'}:
+      {background:'#f1f5f9',color:'#374151'})});
+
+const Badge=({s})=>{
+  const m={approved:{bg:'#f0fdf4',c:'#15803d',t:'승인완료'},manager_approved:{bg:'#eff6ff',c:'#1e40af',t:'1차승인'},
+    pending:{bg:'#fffbeb',c:'#b45309',t:'대기중'},rejected:{bg:'#fef2f2',c:'#dc2626',t:'반려'},
+    cancelled:{bg:'#f8fafc',c:'#94a3b8',t:'취소'},cancel_pending:{bg:'#fff7ed',c:'#c2410c',t:'취소요청'}};
+  const b=m[s]||m.pending;
+  return <span style={{background:b.bg,color:b.c,padding:'2px 8px',borderRadius:20,fontSize:10,fontWeight:700,whiteSpace:'nowrap'}}>{b.t}</span>;
+};
+
+const Modal=({title,onClose,children})=>(
+  <div style={{position:'absolute',inset:0,background:'rgba(15,23,42,0.55)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:16}}>
+    <div style={{background:'white',borderRadius:14,padding:20,width:'100%',maxWidth:380,maxHeight:'85%',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,.3)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <b style={{fontSize:14,color:'#0f172a'}}>{title}</b>
+        <button onClick={onClose} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#94a3b8',padding:0,lineHeight:1}}>×</button>
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+// ── Dashboard (Employee) ──────────────────────────────────
+function EmpDashboard({user,leaves,onNav}){
+  const yr=thisYear();
+  const used=leaves.filter(l=>l.user_id===user.id&&l.status==='approved'&&l.type==='연차'&&l.start_date?.startsWith(String(yr))).reduce((s,l)=>s+Number(l.days),0);
+  const total=Number(user.total_days||0),rem=total-used;
+  const pending=leaves.filter(l=>l.user_id===user.id&&['pending','manager_approved'].includes(l.status));
+  const recent=leaves.filter(l=>l.user_id===user.id).sort((a,b)=>b.created_at?.localeCompare(a.created_at)).slice(0,4);
+  const mo=new Date().getMonth()+1;
+  return(
+    <div>
+      {(mo===6||mo===10)&&rem>0&&(
+        <div style={{background:'#fef3c7',border:'1px solid #fde68a',borderRadius:8,padding:'10px 13px',marginBottom:10,fontSize:12,color:'#92400e'}}>
+          ⚠️ <b>연차 사용 촉진 {mo===6?'1차':'2차'} 안내</b> — 잔여 <b>{rem}일</b> 연말 소멸 예정
+        </div>
+      )}
+      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>안녕하세요, {user.name}님 👋</p>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:10}}>
+        {[{l:'총 연차',v:total,c:'#1e40af'},{l:'사용',v:used,c:'#b45309'},{l:'잔여',v:rem,c:rem>5?'#15803d':rem>0?'#b45309':'#dc2626'}].map((x,i)=>(
+          <div key={i} style={{...card,marginBottom:0,textAlign:'center',padding:'12px 8px'}}>
+            <p style={{margin:'0 0 3px',fontSize:11,color:'#64748b'}}>{x.l}</p>
+            <p style={{margin:0,fontSize:21,fontWeight:800,color:x.c}}>{x.v}<span style={{fontSize:10,fontWeight:400}}> 일</span></p>
+          </div>
+        ))}
+      </div>
+      <div style={card}>
+        <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}><span style={{fontSize:12,fontWeight:600,color:'#374151'}}>사용률</span><span style={{fontSize:11,color:'#64748b'}}>{used}/{total}일</span></div>
+        <div style={{background:'#e2e8f0',borderRadius:100,height:8,overflow:'hidden'}}>
+          <div style={{background:'#1e40af',height:'100%',width:`${total>0?Math.min(100,(used/total)*100):0}%`,borderRadius:100,transition:'width .4s'}}/>
+        </div>
+      </div>
+      {pending.length>0&&(
+        <div style={{...card,background:'#fffbeb',border:'1px solid #fde68a'}}>
+          <p style={{margin:'0 0 5px',fontSize:12,fontWeight:600,color:'#92400e'}}>⏳ 결재 대기 {pending.length}건</p>
+          {pending.map(l=><p key={l.id} style={{margin:'2px 0',fontSize:12,color:'#78350f'}}>{l.type} {daysLabel(Number(l.days))} — {fmtFull(l.start_date)}</p>)}
+        </div>
+      )}
+      <div style={card}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+          <span style={{fontSize:12,fontWeight:600,color:'#374151'}}>최근 신청 내역</span>
+          <button onClick={()=>onNav('history')} style={{...btn(),padding:'3px 9px',fontSize:11}}>전체보기</button>
+        </div>
+        {recent.length===0?<p style={{textAlign:'center',fontSize:12,color:'#94a3b8',margin:'12px 0'}}>신청 내역이 없습니다</p>:recent.map(l=>(
+          <div key={l.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderBottom:'1px solid #f8fafc'}}>
+            <div><span style={{fontSize:13,fontWeight:500,color:'#0f172a'}}>{l.type} {daysLabel(Number(l.days))}</span><span style={{fontSize:11,color:'#94a3b8',marginLeft:6}}>{fmtFull(l.start_date)}</span></div>
+            <Badge s={l.status}/>
+          </div>
+        ))}
+      </div>
+      <button onClick={()=>onNav('apply')} style={{...btn('primary'),width:'100%',padding:'11px',fontSize:13}}>+ 연차 / 공가 신청</button>
+    </div>
+  );
+}
+
+// ── Apply ─────────────────────────────────────────────────
+function ApplyView({user,users,leaves,onRefresh,onNav}){
+  const [type,setType]=useState('연차');
+  const [mode,setMode]=useState('date');
+  const [start,setStart]=useState('');
+  const [end,setEnd]=useState('');
+  const [st,setSt]=useState('09:00');
+  const [et,setEt]=useState('18:00');
+  const [reason,setReason]=useState('');
+  const [retro,setRetro]=useState(false);
+  const [err,setErr]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [done,setDone]=useState(false);
+
+  const usedDays=leaves.filter(l=>l.user_id===user.id&&l.status==='approved'&&l.type==='연차'&&l.start_date?.startsWith(String(thisYear()))).reduce((s,l)=>s+Number(l.days),0);
+  const rem=Number(user.total_days||0)-usedDays;
+
+  const previewDays=()=>{
+    if(type==='공가')return start&&end?countWD(start,end):0;
+    if(mode==='time')return st&&et?hoursToDays(calcHours(st,et)):0;
+    return start&&end?countWD(start,end):0;
+  };
+
+  const hasDup=(s,e)=>leaves.filter(l=>l.user_id===user.id&&['approved','manager_approved','pending'].includes(l.status))
+    .some(l=>{const ls=new Date(l.start_date+'T12:00:00'),le=new Date((l.end_date||l.start_date)+'T12:00:00'),sd=new Date(s+'T12:00:00'),ed=new Date((e||s)+'T12:00:00');return sd<=le&&ed>=ls;});
+
+  const getStatus=()=>{
+    if(user.role==='manager')return'manager_approved';
+    const mgr=users.find(u=>u.role==='manager'&&u.team_id===user.team_id);
+    if(!mgr)return'manager_approved';
+    const mgrLeave=leaves.some(l=>l.user_id===mgr.id&&l.status==='approved'&&l.start_date<=today()&&(l.end_date||l.start_date)>=today());
+    return mgrLeave?'manager_approved':'pending';
+  };
+
+  const submit=async()=>{
+    setErr('');
+    const pd=previewDays();
+    if(!start){setErr('날짜를 선택해 주세요.');return;}
+    if((mode==='date'||type==='공가')&&!end){setErr('종료일을 선택해 주세요.');return;}
+    if(pd<=0){setErr('유효한 날짜/시간을 선택해 주세요.');return;}
+    if(mode==='time'&&pd<0.25){setErr('최소 2시간 이상 선택해 주세요.');return;}
+    if(type==='연차'&&pd>rem){setErr(`잔여 연차(${rem}일)가 부족합니다.`);return;}
+    if(type==='공가'&&!reason.trim()){setErr('공가 사유를 입력해 주세요.');return;}
+    const endDate=mode==='time'?start:end;
+    if(hasDup(start,endDate)){setErr('해당 기간에 이미 신청된 연차가 있습니다.');return;}
+    setBusy(true);
+    try{
+      const res=await api.post('leave_requests',{user_id:user.id,type,start_date:start,end_date:endDate,start_time:mode==='time'?st:null,end_time:mode==='time'?et:null,days:pd,reason:reason||null,status:getStatus(),is_retroactive:retro,cancel_requested:false});
+      await audit(user.id,'연차신청',res[0]?.id,`${type} ${pd}일`);
+      setDone(true);onRefresh();
+    }catch{setErr('오류가 발생했습니다.');}
+    setBusy(false);
+  };
+
+  if(done)return(
+    <div style={{...card,textAlign:'center',padding:'40px 20px'}}>
+      <p style={{fontSize:30,margin:'0 0 10px'}}>✅</p>
+      <p style={{fontWeight:700,color:'#15803d',fontSize:14,margin:'0 0 4px'}}>신청이 완료되었습니다</p>
+      <p style={{color:'#64748b',fontSize:12,margin:'0 0 16px'}}>결재자 승인을 기다려주세요</p>
+      <div style={{display:'flex',gap:8,justifyContent:'center'}}>
+        <button onClick={()=>setDone(false)} style={btn()}>추가 신청</button>
+        <button onClick={()=>onNav('history')} style={btn('primary')}>내역 보기</button>
+      </div>
+    </div>
+  );
+
+  const pd=previewDays();
+  return(
+    <div>
+      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>연차 / 공가 신청</p>
+      <div style={{...card,background:'#fff7ed',border:'1px solid #fed7aa',padding:'9px 12px',display:'flex',alignItems:'center',gap:8}}>
+        <input type="checkbox" id="retro" checked={retro} onChange={e=>setRetro(e.target.checked)} style={{width:14,height:14,cursor:'pointer'}}/>
+        <label htmlFor="retro" style={{fontSize:12,color:'#c2410c',cursor:'pointer'}}>🚨 사후 결재 (복귀 당일 신청만 가능)</label>
+      </div>
+      <div style={{marginBottom:11}}>
+        <label style={lbl}>신청 종류</label>
+        <div style={{display:'flex',gap:7}}>
+          {['연차','공가'].map(t=><button key={t} onClick={()=>setType(t)} style={{flex:1,padding:'8px',border:`2px solid ${type===t?'#1e40af':'#e2e8f0'}`,borderRadius:7,background:type===t?'#eff6ff':'white',color:type===t?'#1e40af':'#374151',fontWeight:type===t?700:400,cursor:'pointer',fontSize:13,fontFamily:"'Noto Sans KR',sans-serif"}}>{t}</button>)}
+        </div>
+      </div>
+      {type==='연차'&&(
+        <div style={{marginBottom:11}}>
+          <label style={lbl}>신청 방식</label>
+          <div style={{display:'flex',gap:7}}>
+            {[{k:'date',l:'날짜 단위'},{k:'time',l:'시간 단위 (당일)'}].map(o=><button key={o.k} onClick={()=>setMode(o.k)} style={{flex:1,padding:'7px',border:`2px solid ${mode===o.k?'#1e40af':'#e2e8f0'}`,borderRadius:7,background:mode===o.k?'#eff6ff':'white',color:mode===o.k?'#1e40af':'#374151',fontWeight:mode===o.k?700:400,cursor:'pointer',fontSize:12,fontFamily:"'Noto Sans KR',sans-serif"}}>{o.l}</button>)}
+          </div>
+        </div>
+      )}
+      <div style={{marginBottom:11}}><label style={lbl}>{mode==='time'?'날짜':'시작일'}</label><input type="date" value={start} onChange={e=>setStart(e.target.value)} style={inp}/></div>
+      {(mode==='date'||type==='공가')&&<div style={{marginBottom:11}}><label style={lbl}>종료일</label><input type="date" value={end} min={start||undefined} onChange={e=>setEnd(e.target.value)} style={inp}/></div>}
+      {type==='연차'&&mode==='time'&&(
+        <div style={{display:'flex',gap:10,marginBottom:11}}>
+          <div style={{flex:1}}><label style={lbl}>시작 시간</label><select value={st} onChange={e=>setSt(e.target.value)} style={inp}>{['09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00'].map(t=><option key={t}>{t}</option>)}</select></div>
+          <div style={{flex:1}}><label style={lbl}>종료 시간</label><select value={et} onChange={e=>setEt(e.target.value)} style={inp}>{['11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00'].map(t=><option key={t}>{t}</option>)}</select></div>
+        </div>
+      )}
+      {pd>0&&<div style={{background:type==='공가'?'#f0fdf4':'#eff6ff',borderRadius:8,padding:'9px 12px',marginBottom:11,display:'flex',justifyContent:'space-between'}}>
+        <span style={{color:type==='공가'?'#15803d':'#1e40af',fontSize:12}}>{type==='공가'?'공가':'연차 사용 예정'}</span>
+        <b style={{color:type==='공가'?'#15803d':'#1e40af',fontSize:13}}>{daysLabel(pd)}{type==='연차'?` (잔여 ${rem}일)`:''}</b>
+      </div>}
+      <div style={{marginBottom:11}}><label style={lbl}>{type==='공가'?'공가 사유 *':'사유 (선택)'}</label><textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder={type==='공가'?'예) 예비군 훈련, 건강검진':'사유 입력'} rows={2} style={{...inp,resize:'none'}}/></div>
+      {err&&<p style={{color:'#dc2626',fontSize:12,margin:'0 0 9px'}}>{err}</p>}
+      <button onClick={submit} disabled={busy} style={{...btn('primary'),width:'100%',padding:'11px',fontSize:13,opacity:busy?0.6:1}}>{busy?'신청 중...':'신청하기'}</button>
+    </div>
+  );
+}
+
+// ── History ───────────────────────────────────────────────
+function HistoryView({user,leaves,onRefresh}){
+  const my=leaves.filter(l=>l.user_id===user.id).sort((a,b)=>b.created_at?.localeCompare(a.created_at));
+  const cancel=async l=>{
+    if(l.status==='approved'){if(!confirm('승인된 연차 취소를 요청하시겠습니까?'))return;await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'cancel_pending',cancel_requested:true});await audit(user.id,'취소요청',l.id,'');}
+    else{if(!confirm('취소하시겠습니까?'))return;await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'cancelled'});await audit(user.id,'취소',l.id,'');}
+    onRefresh();
+  };
+  return(
+    <div>
+      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>신청 내역</p>
+      {my.length===0?<div style={{...card,textAlign:'center',padding:'32px',color:'#94a3b8',fontSize:13}}>신청 내역이 없습니다</div>:my.map(l=>(
+        <div key={l.id} style={{...card,display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8,flexWrap:'wrap'}}>
+          <div style={{flex:1}}>
+            <div style={{display:'flex',gap:5,alignItems:'center',marginBottom:4,flexWrap:'wrap'}}>
+              <b style={{fontSize:13,color:'#0f172a'}}>{l.type}</b>
+              <span style={{background:'#f1f5f9',borderRadius:20,padding:'1px 7px',fontSize:11,color:'#64748b'}}>{daysLabel(Number(l.days))}</span>
+              {l.is_retroactive&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 7px',fontSize:10,fontWeight:700}}>사후결재</span>}
+              <Badge s={l.status}/>
+            </div>
+            <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}{l.start_time?` (${l.start_time}~${l.end_time})`:''}</p>
+            {l.reason&&<p style={{margin:'0 0 2px',fontSize:11,color:'#64748b'}}>💬 {l.reason}</p>}
+            {l.reject_reason&&<p style={{margin:0,fontSize:11,color:'#dc2626'}}>🚫 {l.reject_reason}</p>}
+          </div>
+          <div style={{display:'flex',gap:5,flexShrink:0}}>
+            {['pending','manager_approved'].includes(l.status)&&<button onClick={()=>cancel(l)} style={{...btn('danger'),padding:'4px 9px',fontSize:11}}>취소</button>}
+            {l.status==='approved'&&<button onClick={()=>cancel(l)} style={{...btn('warn'),padding:'4px 9px',fontSize:11}}>취소요청</button>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Calendar ──────────────────────────────────────────────
+function CalView({users,leaves}){
+  const now=new Date();
+  const [yr,setYr]=useState(now.getFullYear());
+  const [mo,setMo]=useState(now.getMonth());
+  const [sel,setSel]=useState(null);
+  const [tab,setTab]=useState('month');
+  const WD=['일','월','화','수','목','금','토'];
+  const emp=users.filter(u=>u.role!=='admin');
+  const getColor=uid=>COLORS[emp.findIndex(u=>u.id===uid)%COLORS.length]||'#94a3b8';
+  const approved=leaves.filter(l=>l.status==='approved');
+  const getDayPeople=ds=>approved.filter(l=>l.start_date<=ds&&(l.end_date||l.start_date)>=ds).map(l=>{const u=users.find(x=>x.id===l.user_id);return{name:u?.name||'',color:getColor(l.user_id),type:l.type,time:l.start_time?`${l.start_time}~${l.end_time}`:null};});
+  const dim=new Date(yr,mo+1,0).getDate(),fd=new Date(yr,mo,1).getDay(),cells=Math.ceil((fd+dim)/7)*7;
+
+  const getWeekDays=()=>{const d=new Date(yr,mo,1);while(d.getDay()!==0)d.setDate(d.getDate()-1);return Array.from({length:7},(_,i)=>{const x=new Date(d);x.setDate(d.getDate()+i);return x.toISOString().split('T')[0];})};
+
+  const selPeople=sel?getDayPeople(sel):[];
+  const todayStr=today();
+
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,flexWrap:'wrap',gap:6}}>
+        <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:0}}>팀 캘린더</p>
+        <div style={{display:'flex',gap:5}}>
+          <button onClick={()=>setTab('month')} style={{...btn(tab==='month'?'primary':'def'),padding:'5px 11px',fontSize:11}}>월간</button>
+          <button onClick={()=>setTab('week')}  style={{...btn(tab==='week'?'primary':'def'),padding:'5px 11px',fontSize:11}}>주간</button>
+        </div>
+      </div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+        <button onClick={()=>{if(mo===0){setYr(y=>y-1);setMo(11);}else setMo(m=>m-1);}} style={{...btn(),padding:'4px 10px'}}>‹</button>
+        <b style={{fontSize:13,color:'#0f172a'}}>{yr}년 {mo+1}월</b>
+        <button onClick={()=>{if(mo===11){setYr(y=>y+1);setMo(0);}else setMo(m=>m+1);}} style={{...btn(),padding:'4px 10px'}}>›</button>
+      </div>
+      {tab==='month'&&(
+        <div style={{...card,padding:8}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
+            {WD.map((d,i)=><div key={d} style={{textAlign:'center',padding:'3px 0',fontSize:10,fontWeight:700,color:i===0?'#ef4444':i===6?'#3b82f6':'#94a3b8'}}>{d}</div>)}
+            {Array.from({length:cells}).map((_,i)=>{
+              const dn=i-fd+1,valid=dn>=1&&dn<=dim;
+              const ds=valid?`${yr}-${String(mo+1).padStart(2,'0')}-${String(dn).padStart(2,'0')}`:null;
+              const people=ds?getDayPeople(ds):[];
+              const hol=ds?HOLIDAYS[ds]:null;
+              const dow=i%7,isTday=ds===todayStr;
+              return(
+                <div key={i} onClick={()=>ds&&setSel(sel===ds?null:ds)} style={{minHeight:62,padding:'2px',borderRadius:5,cursor:valid?'pointer':'default',background:sel===ds?'#eff6ff':isTday?'#fef9c3':(dow===0||dow===6)?'#fafafa':'white',border:sel===ds?'2px solid #1e40af':isTday?'2px solid #f59e0b':'1px solid #f1f5f9'}}>
+                  {valid&&(<>
+                    <div style={{fontSize:10,fontWeight:isTday?800:400,color:hol?'#dc2626':dow===0?'#ef4444':dow===6?'#3b82f6':'#374151'}}>{dn}</div>
+                    {hol&&<div style={{fontSize:8,color:'#dc2626',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap'}}>{hol}</div>}
+                    {people.slice(0,2).map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:2,padding:'1px 2px',fontSize:8,marginBottom:1,overflow:'hidden',whiteSpace:'nowrap'}}>{p.name}{p.type==='공가'?'(공)':''}</div>)}
+                    {people.length>2&&<div style={{fontSize:8,color:'#94a3b8'}}>+{people.length-2}</div>}
+                  </>)}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {tab==='week'&&(
+        <div style={{...card,padding:8}}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>
+            {getWeekDays().map((ds,i)=>{
+              const people=getDayPeople(ds),hol=HOLIDAYS[ds],dow=new Date(ds+'T12:00:00').getDay(),dn=parseInt(ds.split('-')[2]),isTday=ds===todayStr;
+              return(
+                <div key={ds} style={{borderRadius:7,border:isTday?'2px solid #f59e0b':'1px solid #f1f5f9',background:isTday?'#fef9c3':(dow===0||dow===6)?'#fafafa':'white',padding:6,minHeight:100}}>
+                  <div style={{fontSize:11,fontWeight:700,color:hol?'#dc2626':dow===0?'#ef4444':dow===6?'#3b82f6':'#374151',marginBottom:3}}>{WD[dow]} {dn}</div>
+                  {hol&&<div style={{fontSize:9,color:'#dc2626',marginBottom:3}}>{hol}</div>}
+                  {people.map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:3,padding:'2px 5px',fontSize:10,marginBottom:2}}>{p.name}{p.type==='공가'?'(공)':''}</div>)}
+                  {people.length===0&&<div style={{fontSize:10,color:'#cbd5e1'}}>—</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {sel&&selPeople.length>0&&(
+        <div style={{...card,border:'1px solid #bfdbfe'}}>
+          <p style={{margin:'0 0 7px',fontWeight:700,fontSize:12,color:'#1e40af'}}>{fmtFull(sel)}</p>
+          {selPeople.map((p,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:7,padding:'4px 0',borderBottom:'1px solid #f1f5f9'}}><div style={{width:8,height:8,borderRadius:2,background:p.color,flexShrink:0}}/><span style={{fontSize:13,fontWeight:600}}>{p.name}</span><span style={{fontSize:12,color:'#64748b'}}>{p.type}{p.time?` (${p.time})`:''}</span></div>)}
+        </div>
+      )}
+      <div style={{...card,marginTop:4}}>
+        <p style={{margin:'0 0 7px',fontSize:11,fontWeight:600,color:'#374151'}}>직원 색상</p>
+        <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+          {emp.map((u,i)=><div key={u.id} style={{display:'flex',alignItems:'center',gap:4,fontSize:11}}><div style={{width:8,height:8,borderRadius:2,background:COLORS[i%COLORS.length]}}/>{u.name}</div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Manager Approve ───────────────────────────────────────
+function MgrApprove({user,users,leaves,onRefresh}){
+  const [rid,setRid]=useState(null),[rr,setRr]=useState('');
+  const team=leaves.filter(l=>{const lu=users.find(u=>u.id===l.user_id);return lu?.team_id===user.team_id&&lu?.id!==user.id&&l.status==='pending';});
+  const approve=async l=>{await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'manager_approved'});await audit(user.id,'1차승인',l.id,'');onRefresh();};
+  const reject=async()=>{await api.patch('leave_requests',`?id=eq.${rid}`,{status:'rejected',reject_reason:rr||null});await audit(user.id,'반려',rid,rr||'');setRid(null);setRr('');onRefresh();};
+  return(
+    <div>
+      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>팀원 결재</p>
+      {team.length===0?<div style={{...card,textAlign:'center',padding:'32px',color:'#94a3b8',fontSize:13}}><span style={{fontSize:28}}>✅</span><p style={{margin:'8px 0 0'}}>대기 중인 결재가 없습니다</p></div>:team.map(l=>{
+        const lu=users.find(u=>u.id===l.user_id);
+        return(
+          <div key={l.id} style={{...card,border:'1px solid #fde68a'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
+              <div style={{flex:1}}>
+                <div style={{display:'flex',gap:5,marginBottom:4,flexWrap:'wrap',alignItems:'center'}}>
+                  <b style={{fontSize:13}}>{lu?.name}</b>
+                  <span style={{fontSize:12,color:'#64748b'}}>{l.type} {daysLabel(Number(l.days))}</span>
+                  {l.is_retroactive&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>사후결재</span>}
+                </div>
+                <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}{l.start_time?` (${l.start_time}~${l.end_time})`:''}</p>
+                {l.reason&&<p style={{margin:0,fontSize:11,color:'#64748b'}}>💬 {l.reason}</p>}
+              </div>
+              <div style={{display:'flex',gap:6}}><button onClick={()=>approve(l)} style={btn('success')}>1차 승인</button><button onClick={()=>setRid(l.id)} style={btn('danger')}>반려</button></div>
+            </div>
+          </div>
+        );
+      })}
+      {rid&&<Modal title="반려 사유" onClose={()=>setRid(null)}><div style={{marginBottom:12}}><label style={lbl}>반려 사유 (선택)</label><textarea value={rr} onChange={e=>setRr(e.target.value)} placeholder="사유 없이도 반려 가능" rows={3} style={{...inp,resize:'none'}}/></div><div style={{display:'flex',gap:8}}><button onClick={()=>setRid(null)} style={{...btn(),flex:1}}>취소</button><button onClick={reject} style={{...btn('danger'),flex:1}}>반려 확정</button></div></Modal>}
+    </div>
+  );
+}
+
+// ── Admin Approve ─────────────────────────────────────────
+function AdminApprove({user,users,leaves,onRefresh}){
+  const [rid,setRid]=useState(null),[rr,setRr]=useState('');
+  const pending=leaves.filter(l=>['manager_approved','cancel_pending'].includes(l.status));
+  const done=leaves.filter(l=>['approved','rejected','cancelled'].includes(l.status)).sort((a,b)=>b.created_at?.localeCompare(a.created_at)).slice(0,10);
+  const getU=id=>users.find(u=>u.id===id);
+  const approve=async l=>{await api.patch('leave_requests',`?id=eq.${l.id}`,{status:l.status==='cancel_pending'?'cancelled':'approved'});await audit(user.id,'최종승인',l.id,'');onRefresh();};
+  const reject=async()=>{await api.patch('leave_requests',`?id=eq.${rid}`,{status:'rejected',reject_reason:rr||null});await audit(user.id,'반려',rid,rr||'');setRid(null);setRr('');onRefresh();};
+  return(
+    <div>
+      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>최종 승인 관리</p>
+      {pending.length===0?<div style={{...card,textAlign:'center',padding:'28px',color:'#94a3b8',fontSize:13}}><span style={{fontSize:28}}>✅</span><p style={{margin:'8px 0 0'}}>대기 중인 승인이 없습니다</p></div>:pending.map(l=>{const lu=getU(l.user_id);return(
+        <div key={l.id} style={{...card,border:'1px solid #fde68a'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
+            <div style={{flex:1}}>
+              <div style={{display:'flex',gap:5,marginBottom:4,flexWrap:'wrap',alignItems:'center'}}>
+                <b style={{fontSize:13}}>{lu?.name}</b>
+                <span style={{fontSize:12,color:'#64748b'}}>{l.type} {daysLabel(Number(l.days))}</span>
+                {l.status==='cancel_pending'&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>취소요청</span>}
+                {l.is_retroactive&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>사후결재</span>}
+              </div>
+              <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}</p>
+              {l.reason&&<p style={{margin:0,fontSize:11,color:'#64748b'}}>💬 {l.reason}</p>}
+            </div>
+            <div style={{display:'flex',gap:6}}><button onClick={()=>approve(l)} style={btn('success')}>최종 승인</button><button onClick={()=>setRid(l.id)} style={btn('danger')}>반려</button></div>
+          </div>
+        </div>
+      );})}
+      {done.length>0&&<><p style={{fontSize:12,fontWeight:600,color:'#374151',margin:'14px 0 8px'}}>처리 완료</p>{done.map(l=>{const lu=getU(l.user_id);return(<div key={l.id} style={{...card,padding:'10px 13px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}><div><b style={{fontSize:13}}>{lu?.name}</b><span style={{fontSize:12,color:'#64748b',marginLeft:6}}>{l.type} {daysLabel(Number(l.days))}</span><p style={{margin:'1px 0 0',fontSize:11,color:'#94a3b8'}}>{fmtFull(l.start_date)}</p></div><Badge s={l.status}/></div>);})}</>}
+      {rid&&<Modal title="반려 사유" onClose={()=>setRid(null)}><div style={{marginBottom:12}}><label style={lbl}>반려 사유 (선택)</label><textarea value={rr} onChange={e=>setRr(e.target.value)} placeholder="사유 없이도 반려 가능" rows={3} style={{...inp,resize:'none'}}/></div><div style={{display:'flex',gap:8}}><button onClick={()=>setRid(null)} style={{...btn(),flex:1}}>취소</button><button onClick={reject} style={{...btn('danger'),flex:1}}>반려 확정</button></div></Modal>}
+    </div>
+  );
+}
+
+// ── Admin Teams ───────────────────────────────────────────
+function AdminTeams({user,teams,users,onRefresh}){
+  const [showAdd,setShowAdd]=useState(false),[nm,setNm]=useState('');
+  const add=async()=>{if(!nm.trim())return;await api.post('teams',{name:nm.trim()});await audit(user.id,'팀생성',null,nm);setNm('');setShowAdd(false);onRefresh();};
+  const del=async t=>{if(users.some(u=>u.team_id===t.id)){alert('팀원이 있는 팀은 삭제할 수 없습니다.');return;}if(!confirm(`"${t.name}" 팀을 삭제하시겠습니까?`))return;await api.del('teams',`?id=eq.${t.id}`);onRefresh();};
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}><p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:0}}>팀 관리</p><button onClick={()=>setShowAdd(true)} style={btn('primary')}>+ 팀 추가</button></div>
+      {teams.map(t=>{const members=users.filter(u=>u.team_id===t.id),mgr=members.find(u=>u.role==='manager');return(
+        <div key={t.id} style={card}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:7}}><b style={{fontSize:14}}>{t.name}</b><button onClick={()=>del(t)} style={{...btn('danger'),padding:'4px 9px',fontSize:11}}>삭제</button></div>
+          <p style={{margin:'0 0 7px',fontSize:12,color:'#64748b'}}>팀장: <b style={{color:'#1e40af'}}>{mgr?.name||'미지정'}</b> · 팀원 {members.length}명</p>
+          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>{members.map(m=><span key={m.id} style={{background:m.role==='manager'?'#eff6ff':'#f8fafc',color:m.role==='manager'?'#1e40af':'#374151',border:`1px solid ${m.role==='manager'?'#bfdbfe':'#e2e8f0'}`,borderRadius:20,padding:'3px 10px',fontSize:12,fontWeight:m.role==='manager'?700:400}}>{m.name}{m.role==='manager'?' (팀장)':''}</span>)}</div>
+        </div>
+      );})}
+      {showAdd&&<Modal title="팀 추가" onClose={()=>setShowAdd(false)}><div style={{marginBottom:12}}><label style={lbl}>팀 이름</label><input value={nm} onChange={e=>setNm(e.target.value)} placeholder="예) 개발팀" style={inp} onKeyDown={e=>e.key==='Enter'&&add()}/></div><div style={{display:'flex',gap:8}}><button onClick={()=>setShowAdd(false)} style={{...btn(),flex:1}}>취소</button><button onClick={add} style={{...btn('primary'),flex:1}}>추가</button></div></Modal>}
+    </div>
+  );
+}
+
+// ── Admin Users ───────────────────────────────────────────
+function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
+  const [showAdd,setShowAdd]=useState(false),[showBulk,setShowBulk]=useState(false),[editU,setEditU]=useState(null),[bulk,setBulk]=useState('');
+  const [form,setForm]=useState({name:'',phone:'',password:'1234',role:'employee',team_id:'',join_date:today(),total_days:15});
+  const getUsed=uid=>leaves.filter(l=>l.user_id===uid&&l.status==='approved'&&l.type==='연차'&&l.start_date?.startsWith(String(thisYear()))).reduce((s,l)=>s+Number(l.days),0);
+  const addUser=async()=>{
+    if(!form.name||!form.phone){alert('이름과 전화번호를 입력해 주세요.');return;}
+    const ph=form.phone.replace(/\D/g,'');
+    if(users.find(u=>u.phone===ph)){alert('이미 등록된 전화번호입니다.');return;}
+    await api.post('users',{...form,phone:ph,total_days:Number(form.total_days)||15});
+    await audit(adm.id,'직원추가',null,form.name);
+    setShowAdd(false);setForm({name:'',phone:'',password:'1234',role:'employee',team_id:'',join_date:today(),total_days:15});onRefresh();
+  };
+  const updateUser=async()=>{
+    await api.patch('users',`?id=eq.${editU.id}`,{name:editU.name,phone:editU.phone.replace(/\D/g,''),role:editU.role,team_id:editU.team_id||null,total_days:Number(editU.total_days),join_date:editU.join_date});
+    await audit(adm.id,'직원수정',editU.id,editU.name);setEditU(null);onRefresh();
+  };
+  const resetPw=async u=>{const pw=prompt(`${u.name}의 새 비밀번호 (기본: 1234):`)||'1234';await api.patch('users',`?id=eq.${u.id}`,{password:pw});alert('비밀번호가 초기화되었습니다.');};
+  const processBulk=async()=>{
+    let ok=0;
+    for(const row of bulk.trim().split('\n').filter(r=>r.trim())){
+      const [name,phone,teamName,roleLabel,joinDate,daysStr]=row.split(/\t|,/).map(c=>c.trim());
+      if(!name||!phone)continue;
+      const ph=phone.replace(/\D/g,'');
+      if(users.find(u=>u.phone===ph))continue;
+      const team=teams.find(t=>t.name===teamName);
+      await api.post('users',{name,phone:ph,password:'1234',role:roleLabel==='팀장'?'manager':'employee',team_id:team?.id||null,join_date:joinDate||today(),total_days:Number(daysStr)||15});
+      ok++;
+    }
+    await audit(adm.id,'일괄등록',null,`${ok}명 등록`);
+    alert(`${ok}명이 등록되었습니다.`);setBulk('');setShowBulk(false);onRefresh();
+  };
+  const emp=users.filter(u=>u.role!=='admin');
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:6}}>
+        <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:0}}>직원 관리</p>
+        <div style={{display:'flex',gap:6}}><button onClick={()=>setShowBulk(true)} style={btn()}>엑셀 일괄 등록</button><button onClick={()=>setShowAdd(true)} style={btn('primary')}>+ 직원 추가</button></div>
+      </div>
+      <div style={{...card,padding:0,overflow:'hidden'}}>
+        <div style={{display:'grid',gridTemplateColumns:'1.2fr 0.8fr 0.8fr 44px 44px 44px 80px',padding:'7px 12px',background:'#f8fafc',fontSize:10,fontWeight:700,color:'#94a3b8',gap:5,borderBottom:'1px solid #f1f5f9'}}>
+          <span>직원</span><span>팀</span><span>전화</span><span style={{textAlign:'center'}}>총</span><span style={{textAlign:'center'}}>사용</span><span style={{textAlign:'center'}}>잔여</span><span style={{textAlign:'center'}}>관리</span>
+        </div>
+        {emp.map(u=>{const used=getUsed(u.id),total=Number(u.total_days||0),rem=total-used,team=teams.find(t=>t.id===u.team_id);return(
+          <div key={u.id} style={{display:'grid',gridTemplateColumns:'1.2fr 0.8fr 0.8fr 44px 44px 44px 80px',padding:'9px 12px',borderBottom:'1px solid #f8fafc',gap:5,alignItems:'center'}}>
+            <div><p style={{margin:0,fontWeight:600,fontSize:12,color:'#0f172a'}}>{u.name} {u.role==='manager'&&<span style={{fontSize:9,color:'#1e40af'}}>(팀장)</span>}</p></div>
+            <span style={{fontSize:11,color:'#374151'}}>{team?.name||'미배정'}</span>
+            <span style={{fontSize:10,color:'#64748b'}}>{fmtPhone(u.phone)}</span>
+            <span style={{textAlign:'center',fontSize:12,fontWeight:600}}>{total}</span>
+            <span style={{textAlign:'center',fontSize:12,color:'#b45309',fontWeight:600}}>{used}</span>
+            <span style={{textAlign:'center',fontSize:12,color:rem>5?'#15803d':rem>0?'#b45309':'#dc2626',fontWeight:700}}>{rem}</span>
+            <div style={{display:'flex',gap:3,justifyContent:'center'}}><button onClick={()=>setEditU({...u})} style={{...btn(),padding:'3px 6px',fontSize:10}}>수정</button><button onClick={()=>resetPw(u)} style={{...btn(),padding:'3px 6px',fontSize:10}}>PW</button></div>
+          </div>
+        );})}
+      </div>
+      {showAdd&&<Modal title="직원 추가" onClose={()=>setShowAdd(false)}>
+        {[{l:'이름',k:'name',ph:'홍길동'},{l:'전화번호',k:'phone',ph:'01012345678'},{l:'초기 비밀번호',k:'password',ph:'1234'},{l:'입사일',k:'join_date',type:'date'},{l:'연차 일수',k:'total_days',type:'number'}].map(f=><div key={f.k} style={{marginBottom:10}}><label style={lbl}>{f.l}</label><input type={f.type||'text'} value={form[f.k]} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} style={inp}/></div>)}
+        <div style={{marginBottom:10}}><label style={lbl}>직급</label><select value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))} style={inp}><option value="employee">팀원</option><option value="manager">팀장</option></select></div>
+        <div style={{marginBottom:14}}><label style={lbl}>소속 팀</label><select value={form.team_id} onChange={e=>setForm(p=>({...p,team_id:e.target.value}))} style={inp}><option value="">팀 선택</option>{teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
+        <div style={{display:'flex',gap:8}}><button onClick={()=>setShowAdd(false)} style={{...btn(),flex:1}}>취소</button><button onClick={addUser} style={{...btn('primary'),flex:1}}>추가</button></div>
+      </Modal>}
+      {editU&&<Modal title="직원 수정" onClose={()=>setEditU(null)}>
+        {[{l:'이름',k:'name'},{l:'전화번호',k:'phone'},{l:'입사일',k:'join_date',type:'date'},{l:'연차 일수',k:'total_days',type:'number'}].map(f=><div key={f.k} style={{marginBottom:10}}><label style={lbl}>{f.l}</label><input type={f.type||'text'} value={editU[f.k]||''} onChange={e=>setEditU(p=>({...p,[f.k]:e.target.value}))} style={inp}/></div>)}
+        <div style={{marginBottom:10}}><label style={lbl}>직급</label><select value={editU.role} onChange={e=>setEditU(p=>({...p,role:e.target.value}))} style={inp}><option value="employee">팀원</option><option value="manager">팀장</option></select></div>
+        <div style={{marginBottom:14}}><label style={lbl}>소속 팀</label><select value={editU.team_id||''} onChange={e=>setEditU(p=>({...p,team_id:e.target.value}))} style={inp}><option value="">팀 선택</option>{teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
+        <div style={{display:'flex',gap:8}}><button onClick={()=>setEditU(null)} style={{...btn(),flex:1}}>취소</button><button onClick={updateUser} style={{...btn('primary'),flex:1}}>저장</button></div>
+      </Modal>}
+      {showBulk&&<Modal title="엑셀 일괄 등록" onClose={()=>setShowBulk(false)}>
+        <div style={{background:'#f8fafc',borderRadius:7,padding:'9px 11px',marginBottom:10,fontSize:11,color:'#64748b',lineHeight:1.8}}><b>엑셀에서 복사 후 붙여넣기</b><br/>순서: 이름 | 전화번호 | 팀이름 | 직급(팀장/팀원) | 입사일 | 연차일수</div>
+        <textarea value={bulk} onChange={e=>setBulk(e.target.value)} placeholder="엑셀 내용 붙여넣기" rows={5} style={{...inp,resize:'none',marginBottom:12,fontFamily:'monospace',fontSize:12}}/>
+        <div style={{display:'flex',gap:8}}><button onClick={()=>setShowBulk(false)} style={{...btn(),flex:1}}>취소</button><button onClick={processBulk} style={{...btn('primary'),flex:1}}>등록</button></div>
+      </Modal>}
+    </div>
+  );
+}
+
+// ── Admin Stats ───────────────────────────────────────────
+function AdminStats({users,teams,leaves}){
+  const yr=thisYear();
+  const emp=users.filter(u=>u.role!=='admin');
+  const getUsed=uid=>leaves.filter(l=>l.user_id===uid&&l.status==='approved'&&l.type==='연차'&&l.start_date?.startsWith(String(yr))).reduce((s,l)=>s+Number(l.days),0);
+  const monthly=Array.from({length:12},(_,i)=>{const mo=String(i+1).padStart(2,'0'),d=leaves.filter(l=>l.status==='approved'&&l.type==='연차'&&l.start_date?.startsWith(`${yr}-${mo}`)).reduce((s,l)=>s+Number(l.days),0);return{m:`${i+1}월`,d};});
+  const maxD=Math.max(...monthly.map(x=>x.d),1);
+  return(
+    <div>
+      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>{yr}년 연차 통계</p>
+      <div style={card}><p style={{margin:'0 0 12px',fontSize:12,fontWeight:600}}>월별 연차 사용</p><div style={{display:'flex',gap:3,alignItems:'flex-end',height:90}}>{monthly.map(x=><div key={x.m} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}><span style={{fontSize:9,color:'#64748b'}}>{x.d>0?x.d:''}</span><div style={{width:'100%',background:'#1e40af',borderRadius:'3px 3px 0 0',height:`${(x.d/maxD)*80}px`,minHeight:x.d>0?3:1,opacity:x.d>0?1:0.1}}/><span style={{fontSize:8,color:'#94a3b8',whiteSpace:'nowrap'}}>{x.m}</span></div>)}</div></div>
+      <div style={card}><p style={{margin:'0 0 10px',fontSize:12,fontWeight:600}}>직원별 현황</p><div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}><thead><tr style={{borderBottom:'2px solid #f1f5f9'}}>{['직원','팀','총','사용','잔여'].map(h=><th key={h} style={{padding:'5px 8px',textAlign:'left',fontSize:10,color:'#94a3b8',fontWeight:700}}>{h}</th>)}</tr></thead><tbody>{emp.map(u=>{const used=getUsed(u.id),total=Number(u.total_days||0),rem=total-used,team=teams.find(t=>t.id===u.team_id);return(<tr key={u.id} style={{borderBottom:'1px solid #f8fafc'}}><td style={{padding:'7px 8px',fontWeight:600}}>{u.name}{u.role==='manager'&&<span style={{fontSize:9,color:'#1e40af',marginLeft:3}}>(팀장)</span>}</td><td style={{padding:'7px 8px',color:'#64748b'}}>{team?.name||'-'}</td><td style={{padding:'7px 8px',textAlign:'center'}}>{total}</td><td style={{padding:'7px 8px',textAlign:'center',color:'#b45309',fontWeight:600}}>{used}</td><td style={{padding:'7px 8px',textAlign:'center',color:rem>5?'#15803d':rem>0?'#b45309':'#dc2626',fontWeight:700}}>{rem}</td></tr>);})}</tbody></table></div></div>
+    </div>
+  );
+}
+
+// ── Admin Audit ───────────────────────────────────────────
+function AdminAudit({users,auditLogs}){
+  const logs=[...auditLogs].sort((a,b)=>b.created_at?.localeCompare(a.created_at));
+  const getU=id=>users.find(u=>u.id===id);
+  return(
+    <div>
+      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>감사 로그</p>
+      {logs.length===0?<div style={{...card,textAlign:'center',padding:'28px',color:'#94a3b8',fontSize:13}}>감사 로그가 없습니다</div>:logs.map(l=>{const u=getU(l.user_id),dt=l.created_at?new Date(l.created_at):null;return(<div key={l.id} style={{...card,padding:'10px 13px',display:'flex',gap:9,alignItems:'flex-start'}}><div style={{width:28,height:28,borderRadius:6,background:'#f1f5f9',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,flexShrink:0}}>{l.action.includes('승인')?'✅':l.action.includes('반려')?'🚫':l.action.includes('취소')?'↩️':'📝'}</div><div style={{flex:1}}><div style={{display:'flex',gap:5,marginBottom:2,flexWrap:'wrap',alignItems:'center'}}><b style={{fontSize:12}}>{u?.name||'?'}</b><span style={{background:'#f1f5f9',borderRadius:20,padding:'1px 6px',fontSize:10,color:'#64748b'}}>{l.action}</span></div>{l.detail&&<p style={{margin:'0 0 1px',fontSize:11,color:'#64748b'}}>{l.detail}</p>}<p style={{margin:0,fontSize:10,color:'#94a3b8'}}>{dt?`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`:''}</p></div></div>);})}
+    </div>
+  );
+}
+
+// ── Profile ───────────────────────────────────────────────
+function ProfileView({user,onLogout,onRefresh}){
+  const [cur,setCur]=useState(''),[nw,setNw]=useState(''),[cf,setCf]=useState(''),[msg,setMsg]=useState('');
+  const change=async()=>{if(cur!==user.password){setMsg('현재 비밀번호가 올바르지 않습니다.');return;}if(nw.length<4){setMsg('새 비밀번호는 4자 이상이어야 합니다.');return;}if(nw!==cf){setMsg('새 비밀번호가 일치하지 않습니다.');return;}await api.patch('users',`?id=eq.${user.id}`,{password:nw});setMsg('done');setCur('');setNw('');setCf('');onRefresh();};
+  return(
+    <div>
+      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>내 정보</p>
+      <div style={card}><div style={{display:'flex',gap:11,alignItems:'center'}}><div style={{width:42,height:42,borderRadius:10,background:'#1e40af',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:800,fontSize:17}}>{user.name[0]}</div><div><p style={{margin:'0 0 2px',fontSize:15,fontWeight:700,color:'#0f172a'}}>{user.name}</p><p style={{margin:0,fontSize:12,color:'#64748b'}}>{user.role==='admin'?'관리자':user.role==='manager'?'팀장':'팀원'} · {fmtPhone(user.phone)}</p></div></div></div>
+      <div style={card}><p style={{margin:'0 0 12px',fontSize:13,fontWeight:700}}>비밀번호 변경</p>{msg==='done'?<div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:7,padding:'11px',textAlign:'center',color:'#15803d',fontSize:13,fontWeight:600}}>✅ 비밀번호가 변경되었습니다</div>:<>{[{l:'현재 비밀번호',v:cur,s:setCur},{l:'새 비밀번호',v:nw,s:setNw},{l:'새 비밀번호 확인',v:cf,s:setCf}].map(f=><div key={f.l} style={{marginBottom:10}}><label style={lbl}>{f.l}</label><input type="password" value={f.v} onChange={e=>f.s(e.target.value)} style={inp}/></div>)}{msg&&<p style={{color:'#dc2626',fontSize:12,margin:'0 0 9px'}}>{msg}</p>}<button onClick={change} style={{...btn('primary'),width:'100%'}}>변경하기</button></>}</div>
+      <button onClick={onLogout} style={{...btn('danger'),width:'100%',padding:'11px',fontSize:13}}>로그아웃</button>
+    </div>
+  );
+}
+
+// ── Admin Dashboard ───────────────────────────────────────
+function AdminDash({user,users,teams,leaves,onNav}){
+  const yr=thisYear(),td=today();
+  const pending=leaves.filter(l=>['manager_approved','cancel_pending'].includes(l.status));
+  const todayLeaves=leaves.filter(l=>l.status==='approved'&&l.start_date<=td&&(l.end_date||l.start_date)>=td);
+  const totalUsed=leaves.filter(l=>l.status==='approved'&&l.type==='연차'&&l.start_date?.startsWith(String(yr))).reduce((s,l)=>s+Number(l.days),0);
+  const empCount=users.filter(u=>u.role!=='admin').length;
+  const getU=id=>users.find(u=>u.id===id);
+  return(
+    <div>
+      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>관리자 대시보드</p>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:10}}>
+        {[{l:'전체 직원',v:empCount,unit:'명',c:'#1e40af'},{l:'최종승인 대기',v:pending.length,unit:'건',c:'#b45309'},{l:`${yr}년 사용`,v:totalUsed,unit:'일',c:'#15803d'}].map((x,i)=><div key={i} style={{...card,marginBottom:0,textAlign:'center',padding:'12px 8px'}}><p style={{margin:'0 0 3px',fontSize:11,color:'#64748b'}}>{x.l}</p><p style={{margin:0,fontSize:21,fontWeight:800,color:x.c}}>{x.v}<span style={{fontSize:10,fontWeight:400}}> {x.unit}</span></p></div>)}
+      </div>
+      {pending.length>0&&<div style={card}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}><b style={{fontSize:12,color:'#0f172a'}}>⏳ 최종 승인 대기 ({pending.length}건)</b><button onClick={()=>onNav('admin_approve')} style={{...btn(),padding:'3px 9px',fontSize:11}}>전체 보기</button></div>{pending.slice(0,3).map(l=>{const u=getU(l.user_id);return(<div key={l.id} style={{padding:'6px 0',borderBottom:'1px solid #f8fafc',display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><b style={{fontSize:12}}>{u?.name}</b><span style={{fontSize:11,color:'#64748b',marginLeft:5}}>{l.type} {daysLabel(Number(l.days))}</span><p style={{margin:'1px 0 0',fontSize:10,color:'#94a3b8'}}>{fmtFull(l.start_date)}</p></div><Badge s={l.status}/></div>);})}</div>}
+      {todayLeaves.length>0&&<div style={card}><b style={{fontSize:12}}>📅 오늘 휴가 중 ({todayLeaves.length}명)</b><div style={{display:'flex',flexWrap:'wrap',gap:5,marginTop:8}}>{todayLeaves.map(l=>{const u=getU(l.user_id);return<span key={l.id} style={{background:'#eff6ff',color:'#1e40af',borderRadius:20,padding:'4px 11px',fontSize:12,fontWeight:600}}>{u?.name} ({l.type})</span>;})}</div></div>}
+      {pending.length===0&&todayLeaves.length===0&&<div style={{...card,textAlign:'center',padding:'28px',color:'#94a3b8',fontSize:13}}><span style={{fontSize:28}}>✅</span><p style={{margin:'8px 0 0'}}>오늘은 승인 대기 및 휴가자가 없습니다</p></div>}
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────
+function App(){
+  const [loading,setLoading]=useState(true);
+  const [users,setUsers]=useState([]);
+  const [teams,setTeams]=useState([]);
+  const [leaves,setLeaves]=useState([]);
+  const [auditLogs,setAuditLogs]=useState([]);
+  const [cu,setCu]=useState(null);
+  const [view,setView]=useState('dashboard');
+  const [phone,setPhone]=useState('');
+  const [pw,setPw]=useState('');
+  const [err,setErr]=useState('');
+
+  const load=useCallback(async()=>{
+    try{
+      const [u,t,l,a]=await Promise.all([api.get('users','?order=name'),api.get('teams','?order=name'),api.get('leave_requests','?order=created_at.desc'),api.get('audit_logs','?order=created_at.desc&limit=200')]);
+      setUsers(Array.isArray(u)?u:[]);setTeams(Array.isArray(t)?t:[]);setLeaves(Array.isArray(l)?l:[]);setAuditLogs(Array.isArray(a)?a:[]);
+    }catch(e){console.error(e);}
+    setLoading(false);
+  },[]);
+
+  useEffect(()=>{load();},[]);
+
+  const login=()=>{const p=phone.replace(/\D/g,'');const u=users.find(x=>x.phone===p&&x.password===pw);if(u){setCu(u);setErr('');setView('dashboard');}else setErr('전화번호 또는 비밀번호가 올바르지 않습니다.');};
+  const logout=()=>{setCu(null);setView('dashboard');};
+  const refresh=()=>load().then(()=>setCu(prev=>prev?users.find(u=>u.id===prev.id)||prev:null));
+
+  if(!cu){
+    return(
+      <div style={{height:'660px',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:"'Noto Sans KR',sans-serif"}}>
+        <div style={{background:'white',borderRadius:18,padding:'34px 28px',width:'100%',maxWidth:340,boxShadow:'0 25px 70px rgba(0,0,0,.45)'}}>
+          <div style={{textAlign:'center',marginBottom:24}}>
+            <div style={{width:50,height:50,background:'linear-gradient(135deg,#1e40af,#3b82f6)',borderRadius:13,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 11px',fontSize:22}}>📅</div>
+            <p style={{margin:'0 0 2px',fontSize:15,fontWeight:800,color:'#0f172a'}}>(주)관보종합기술단</p>
+            <p style={{margin:0,fontSize:12,color:'#64748b'}}>연차 관리 시스템</p>
+          </div>
+          {loading?<p style={{textAlign:'center',color:'#94a3b8',fontSize:13}}>연결 중...</p>:<>
+            <div style={{marginBottom:11}}><label style={lbl}>전화번호</label><input value={phone} onChange={e=>setPhone(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="010-0000-0000" style={inp}/></div>
+            <div style={{marginBottom:6}}><label style={lbl}>비밀번호</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="비밀번호 입력" style={inp}/></div>
+            {err&&<p style={{color:'#dc2626',fontSize:12,margin:'6px 0 0'}}>{err}</p>}
+            <button onClick={login} style={{...btn('primary'),width:'100%',padding:'11px',fontSize:13,marginTop:13}}>로그인</button>
+            <p style={{textAlign:'center',fontSize:11,color:'#94a3b8',marginTop:12}}>관리자: 010-0000-0000 / admin1234</p>
+          </>}
+        </div>
+      </div>
+    );
+  }
+
+  const pendingCount=leaves.filter(l=>['manager_approved','cancel_pending'].includes(l.status)).length;
+  const mgrPending=leaves.filter(l=>{const lu=users.find(u=>u.id===l.user_id);return lu?.team_id===cu.team_id&&lu?.id!==cu.id&&l.status==='pending';}).length;
+
+  const navItems=cu.role==='admin'
+    ?[{k:'dashboard',l:'대시보드',i:'📊'},{k:'admin_approve',l:'승인 관리',i:'✅',b:pendingCount},{k:'admin_teams',l:'팀 관리',i:'🏢'},{k:'admin_users',l:'직원 관리',i:'👥'},{k:'admin_stats',l:'통계',i:'📈'},{k:'admin_audit',l:'감사 로그',i:'📋'},{k:'calendar',l:'팀 캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}]
+    :cu.role==='manager'
+    ?[{k:'dashboard',l:'대시보드',i:'🏠'},{k:'team_approve',l:'팀원 결재',i:'✅',b:mgrPending},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'calendar',l:'팀 캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}]
+    :[{k:'dashboard',l:'대시보드',i:'🏠'},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'calendar',l:'팀 캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}];
+
+  const props={user:cu,users,teams,leaves,auditLogs,onRefresh:load,onNav:setView};
+  const renderView=()=>{
+    if(view==='dashboard')return cu.role==='admin'?<AdminDash {...props}/>:<EmpDashboard {...props}/>;
+    if(view==='apply')return <ApplyView {...props}/>;
+    if(view==='history')return <HistoryView {...props}/>;
+    if(view==='calendar')return <CalView {...props}/>;
+    if(view==='profile')return <ProfileView {...props} onLogout={logout}/>;
+    if(view==='team_approve')return <MgrApprove {...props}/>;
+    if(view==='admin_approve')return <AdminApprove {...props}/>;
+    if(view==='admin_teams')return <AdminTeams {...props}/>;
+    if(view==='admin_users')return <AdminUsers {...props}/>;
+    if(view==='admin_stats')return <AdminStats {...props}/>;
+    if(view==='admin_audit')return <AdminAudit {...props}/>;
+    return null;
+  };
+
+  const team=teams.find(t=>t.id===cu.team_id);
+  return(
+    <div style={{display:'flex',height:'660px',overflow:'hidden',fontFamily:"'Noto Sans KR',sans-serif",background:'#f1f5f9',position:'relative'}}>
+      <div style={{width:168,background:'#0f172a',display:'flex',flexDirection:'column',flexShrink:0,overflowY:'auto'}}>
+        <div style={{padding:'14px 13px 11px',borderBottom:'1px solid #1e293b'}}>
+          <p style={{margin:'0 0 1px',fontSize:10,fontWeight:800,color:'white',lineHeight:1.4}}>(주)관보종합기술단</p>
+          <p style={{margin:0,fontSize:9,color:'#475569'}}>연차 관리 시스템</p>
+        </div>
+        <nav style={{padding:'5px 6px',flex:1}}>
+          {navItems.map(item=>(
+            <button key={item.k} onClick={()=>setView(item.k)} style={{width:'100%',display:'flex',alignItems:'center',gap:6,padding:'7px 8px',marginBottom:1,background:view===item.k?'#1d4ed8':'transparent',border:'none',borderRadius:6,cursor:'pointer',textAlign:'left',color:view===item.k?'white':'#94a3b8',fontFamily:"'Noto Sans KR',sans-serif",fontSize:11,fontWeight:view===item.k?700:400}}>
+              <span style={{fontSize:12}}>{item.i}</span>
+              <span style={{flex:1}}>{item.l}</span>
+              {item.b>0&&<span style={{background:'#ef4444',color:'white',borderRadius:20,padding:'1px 5px',fontSize:9,fontWeight:700}}>{item.b}</span>}
+            </button>
+          ))}
+        </nav>
+        <div style={{padding:'9px',borderTop:'1px solid #1e293b'}}>
+          <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:7}}>
+            <div style={{width:26,height:26,borderRadius:6,background:'#1d4ed8',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:800,fontSize:11,flexShrink:0}}>{cu.name[0]}</div>
+            <div style={{minWidth:0}}>
+              <p style={{margin:0,fontSize:11,fontWeight:700,color:'white',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cu.name}</p>
+              <p style={{margin:0,fontSize:9,color:'#475569'}}>{cu.role==='admin'?'관리자':cu.role==='manager'?'팀장':'팀원'}{team?` · ${team.name}`:''}</p>
+            </div>
+          </div>
+          <button onClick={logout} style={{width:'100%',padding:'5px',background:'#1e293b',color:'#94a3b8',border:'none',borderRadius:5,cursor:'pointer',fontSize:10,fontFamily:"'Noto Sans KR',sans-serif"}}>로그아웃</button>
+        </div>
+      </div>
+      <div style={{flex:1,overflow:'auto',padding:'16px 14px'}}>
+        <div style={{maxWidth:680,margin:'0 auto'}}>
+          {renderView()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('app')).render(<App/>);
+</script>
