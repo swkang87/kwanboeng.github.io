@@ -450,13 +450,18 @@ function CalView({users,leaves}){
               const dn=i-fd+1,valid=dn>=1&&dn<=dim;
               const ds=valid?`${yr}-${String(mo+1).padStart(2,'0')}-${String(dn).padStart(2,'0')}`:null;
               const people=ds?getDayPeople(ds):[];
-              const hol=ds?(HOLIDAYS[ds]||SUBSTITUTE[ds]):null;
+              const hol=ds?HOLIDAYS[ds]:null;
+              const sub=ds?SUBSTITUTE[ds]:null;
+              const isHolDay=!!(hol||sub);
               const dow=i%7,isTday=ds===todayStr;
+              const bg=sel===ds?'#eff6ff':isTday?'#fef9c3':isHolDay?'#fff1f2':(dow===0||dow===6)?'#fafafa':'white';
+              const numColor=isHolDay?'#dc2626':dow===0?'#ef4444':dow===6?'#3b82f6':'#374151';
               return(
-                <div key={i} onClick={()=>ds&&setSel(sel===ds?null:ds)} style={{minHeight:62,padding:'2px',borderRadius:5,cursor:valid?'pointer':'default',background:sel===ds?'#eff6ff':isTday?'#fef9c3':(dow===0||dow===6)?'#fafafa':'white',border:sel===ds?'2px solid #1e40af':isTday?'2px solid #f59e0b':'1px solid #f1f5f9'}}>
+                <div key={i} onClick={()=>ds&&setSel(sel===ds?null:ds)} style={{minHeight:62,padding:'2px',borderRadius:5,cursor:valid?'pointer':'default',background:bg,border:sel===ds?'2px solid #1e40af':isTday?'2px solid #f59e0b':'1px solid #f1f5f9'}}>
                   {valid&&(<>
-                    <div style={{fontSize:10,fontWeight:isTday?800:400,color:hol?'#dc2626':dow===0?'#ef4444':dow===6?'#3b82f6':'#374151'}}>{dn}</div>
-                    {hol&&<div style={{fontSize:8,color:'#dc2626',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap'}}>{hol}</div>}
+                    <div style={{fontSize:10,fontWeight:isTday||isHolDay?700:400,color:numColor}}>{dn}</div>
+                    {hol&&<div style={{fontSize:8,color:'#dc2626',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>{hol}</div>}
+                    {sub&&<div style={{fontSize:8,color:'#dc2626',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>대체공휴일</div>}
                     {people.slice(0,2).map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:2,padding:'1px 2px',fontSize:8,marginBottom:1,overflow:'hidden',whiteSpace:'nowrap'}}>{p.name}{p.type==='공가'?'(공)':''}</div>)}
                     {people.length>2&&<div style={{fontSize:8,color:'#94a3b8'}}>+{people.length-2}</div>}
                   </>)}
@@ -470,13 +475,19 @@ function CalView({users,leaves}){
         <div style={{...card,padding:8}}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>
             {getWeekDays().map((ds,i)=>{
-              const people=getDayPeople(ds),hol=HOLIDAYS[ds]||SUBSTITUTE[ds],dow=new Date(ds+'T12:00:00').getDay(),dn=parseInt(ds.split('-')[2]),isTday=ds===todayStr;
+              const people=getDayPeople(ds);
+              const hol=HOLIDAYS[ds],sub=SUBSTITUTE[ds];
+              const isHolDay=!!(hol||sub);
+              const dow=new Date(ds+'T12:00:00').getDay(),dn=parseInt(ds.split('-')[2]),isTday=ds===todayStr;
+              const bg=isTday?'#fef9c3':isHolDay?'#fff1f2':(dow===0||dow===6)?'#fafafa':'white';
+              const numColor=isHolDay?'#dc2626':dow===0?'#ef4444':dow===6?'#3b82f6':'#374151';
               return(
-                <div key={ds} style={{borderRadius:7,border:isTday?'2px solid #f59e0b':'1px solid #f1f5f9',background:isTday?'#fef9c3':(dow===0||dow===6)?'#fafafa':'white',padding:6,minHeight:100}}>
-                  <div style={{fontSize:11,fontWeight:700,color:hol?'#dc2626':dow===0?'#ef4444':dow===6?'#3b82f6':'#374151',marginBottom:3}}>{WD[dow]} {dn}</div>
-                  {hol&&<div style={{fontSize:9,color:'#dc2626',marginBottom:3}}>{hol}</div>}
+                <div key={ds} style={{borderRadius:7,border:isTday?'2px solid #f59e0b':'1px solid #f1f5f9',background:bg,padding:6,minHeight:100}}>
+                  <div style={{fontSize:11,fontWeight:700,color:numColor,marginBottom:2}}>{WD[dow]} {dn}</div>
+                  {hol&&<div style={{fontSize:9,color:'#dc2626',fontWeight:600,marginBottom:2}}>{hol}</div>}
+                  {sub&&<div style={{fontSize:9,color:'#dc2626',fontWeight:600,marginBottom:2}}>대체공휴일</div>}
                   {people.map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:3,padding:'2px 5px',fontSize:10,marginBottom:2}}>{p.name}{p.type==='공가'?'(공)':''}</div>)}
-                  {people.length===0&&<div style={{fontSize:10,color:'#cbd5e1'}}>—</div>}
+                  {people.length===0&&!isHolDay&&<div style={{fontSize:10,color:'#cbd5e1'}}>—</div>}
                 </div>
               );
             })}
