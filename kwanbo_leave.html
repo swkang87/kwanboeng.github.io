@@ -1,5 +1,8 @@
 
-<div id="app" style="height:660px;overflow:hidden;font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;display:flex;"></div>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>(주)관보종합기술단 연차관리</title>
+<style>*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}body{margin:0;padding:0;}</style>
+<div id="app"></div>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -11,15 +14,38 @@ const SB_URL='https://pxtddjilxwomzfsjhmvn.supabase.co/rest/v1';
 const SB_KEY='sb_publishable_M2fWxHmHFMLfdtRConOuMg_GfIMv9bS';
 
 const HOLIDAYS={
-  '2026-01-01':'신정','2026-01-28':'설날연휴','2026-01-29':'설날','2026-01-30':'설날연휴',
-  '2026-03-01':'삼일절','2026-05-05':'어린이날','2026-05-24':'부처님오신날','2026-06-06':'현충일',
-  '2026-08-15':'광복절','2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴',
-  '2026-10-03':'개천절','2026-10-09':'한글날','2026-12-25':'크리스마스',
-  '2025-01-01':'신정','2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴',
-  '2025-03-01':'삼일절','2025-05-05':'어린이날','2025-05-06':'대체공휴일',
-  '2025-06-06':'현충일','2025-08-15':'광복절','2025-10-03':'개천절',
+  // 2026 법정공휴일
+  '2026-01-01':'신정',
+  '2026-01-28':'설날연휴','2026-01-29':'설날','2026-01-30':'설날연휴',
+  '2026-03-01':'삼일절',
+  '2026-05-05':'어린이날','2026-05-24':'부처님오신날',
+  '2026-06-06':'현충일',
+  '2026-08-15':'광복절',
+  '2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴',
+  '2026-10-03':'개천절','2026-10-09':'한글날',
+  '2026-12-25':'크리스마스',
+  // 2025 법정공휴일
+  '2025-01-01':'신정',
+  '2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴',
+  '2025-03-01':'삼일절',
+  '2025-05-05':'어린이날',
+  '2025-06-06':'현충일',
+  '2025-07-17':'제헌절',
+  '2025-08-15':'광복절',
+  '2025-10-03':'개천절',
   '2025-10-05':'추석','2025-10-06':'추석연휴','2025-10-07':'추석연휴',
-  '2025-10-09':'한글날','2025-12-25':'크리스마스',
+  '2025-10-09':'한글날',
+  '2025-12-25':'크리스마스',
+};
+// 대체공휴일 (빨간색 + "대체공휴일" 라벨)
+const SUBSTITUTE={
+  '2025-05-06':'대체공휴일', // 부처님오신날(5/5)·어린이날 겹침
+  '2026-03-02':'대체공휴일', // 삼일절(3/1 일)
+  '2026-05-25':'대체공휴일', // 부처님오신날(5/24 일)
+  '2026-06-08':'대체공휴일', // 현충일(6/6 토)
+  '2026-08-17':'대체공휴일', // 광복절(8/15 토)
+  '2026-09-28':'대체공휴일', // 추석(9/27 일)
+  '2026-10-05':'대체공휴일', // 개천절(10/3 토)
 };
 
 const COLORS=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16'];
@@ -27,8 +53,10 @@ const COLORS=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8
 const today=()=>new Date().toISOString().split('T')[0];
 const thisYear=()=>new Date().getFullYear();
 const isHol=d=>!!HOLIDAYS[d];
+const isSub=d=>!!SUBSTITUTE[d];
+const isRed=d=>isHol(d)||isSub(d)||new Date(d+'T12:00:00').getDay()===0;
 const isWknd=d=>[0,6].includes(new Date(d+'T12:00:00').getDay());
-const isWork=d=>!isHol(d)&&!isWknd(d);
+const isWork=d=>!isHol(d)&&!isSub(d)&&!isWknd(d);
 const toMins=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
 
 const countWD=(s,e)=>{
@@ -144,27 +172,98 @@ function EmpDashboard({user,leaves,onNav}){
   );
 }
 
+// ── MiniCal (연차신청용 달력 피커) ───────────────────────
+function MiniCal({yr,mo,onPrev,onNext,start,end,hoverDate,onHover,onDayClick,singleMode,teamLeaves,users,myId}){
+  const WD=['일','월','화','수','목','금','토'];
+  const dim=new Date(yr,mo+1,0).getDate();
+  const fd=new Date(yr,mo,1).getDay();
+  const cells=Math.ceil((fd+dim)/7)*7;
+  const todayStr=today();
+  const getDayColor=(d,dow)=>{
+    if(HOLIDAYS[d]||SUBSTITUTE[d]||dow===0)return'#dc2626';
+    if(dow===6)return'#2563eb';
+    return'#0f172a';
+  };
+  const inRange=(d)=>start&&end&&d>start&&d<end;
+  const inHover=(d)=>start&&!end&&hoverDate&&d>start&&d<=hoverDate;
+  return(
+    <div style={{background:'white',border:'1.5px solid #e2e8f0',borderRadius:10,padding:'10px 8px',marginBottom:11}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+        <button onClick={onPrev} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,color:'#374151',padding:'0 6px',lineHeight:1}}>‹</button>
+        <span style={{fontSize:13,fontWeight:700,color:'#0f172a'}}>{yr}년 {mo+1}월</span>
+        <button onClick={onNext} style={{background:'none',border:'none',cursor:'pointer',fontSize:18,color:'#374151',padding:'0 6px',lineHeight:1}}>›</button>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:'2px 1px'}}>
+        {WD.map((w,i)=><div key={w} style={{textAlign:'center',fontSize:10,fontWeight:700,color:i===0?'#dc2626':i===6?'#2563eb':'#94a3b8',padding:'3px 0'}}>{w}</div>)}
+        {Array.from({length:cells},(_,i)=>{
+          const dn=i-fd+1;
+          if(dn<1||dn>dim)return<div key={i}/>;
+          const d=`${yr}-${String(mo+1).padStart(2,'0')}-${String(dn).padStart(2,'0')}`;
+          const dow=new Date(d+'T12:00:00').getDay();
+          const isSel=d===start||d===end;
+          const isToday=d===todayStr;
+          const inR=inRange(d)||inHover(d);
+          const dc=getDayColor(d,dow);
+          const dayPeople=teamLeaves.filter(l=>l.start_date<=d&&(l.end_date||l.start_date)>=d&&l.user_id!==myId);
+          return(
+            <div key={i} onClick={()=>onDayClick(d)} onMouseEnter={()=>onHover(d)} onMouseLeave={()=>onHover(null)}
+              style={{textAlign:'center',cursor:'pointer',borderRadius:5,
+                background:isSel?'#1e40af':inR?'#dbeafe':'transparent',
+                border:isToday&&!isSel?'1.5px solid #1e40af':'1.5px solid transparent',
+                padding:'2px 1px',minHeight:42}}>
+              <div style={{fontSize:12,fontWeight:isSel||isToday?700:400,color:isSel?'white':dc}}>{dn}</div>
+              {HOLIDAYS[d]&&<div style={{fontSize:7,color:isSel?'#bfdbfe':'#dc2626',lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{HOLIDAYS[d]}</div>}
+              {SUBSTITUTE[d]&&<div style={{fontSize:7,color:isSel?'#bfdbfe':'#dc2626',lineHeight:1.2}}>대체공휴일</div>}
+              {dayPeople.slice(0,2).map((l,j)=>{const u=users.find(x=>x.id===l.user_id);return<div key={j} style={{fontSize:7,background:'#fef9c3',color:'#92400e',borderRadius:2,margin:'1px 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u?.name}</div>;})}
+              {dayPeople.length>2&&<div style={{fontSize:7,color:'#94a3b8'}}>+{dayPeople.length-2}</div>}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{display:'flex',gap:8,marginTop:7,flexWrap:'wrap'}}>
+        {[{c:'#dc2626',l:'공휴일/일'},{c:'#2563eb',l:'토'},{c:'#1e40af',l:'선택'},{bg:'#fef9c3',c:'#92400e',l:'팀원휴가'}].map((x,i)=>(
+          <div key={i} style={{display:'flex',alignItems:'center',gap:3}}>
+            <div style={{width:8,height:8,borderRadius:2,background:x.bg||x.c,flexShrink:0}}/>
+            <span style={{fontSize:9,color:'#64748b'}}>{x.l}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Apply ─────────────────────────────────────────────────
 function ApplyView({user,users,leaves,onRefresh,onNav}){
+  const now=new Date();
   const [type,setType]=useState('연차');
   const [mode,setMode]=useState('date');
   const [start,setStart]=useState('');
   const [end,setEnd]=useState('');
+  const [hoverDate,setHoverDate]=useState(null);
+  const [calYr,setCalYr]=useState(now.getFullYear());
+  const [calMo,setCalMo]=useState(now.getMonth());
   const [st,setSt]=useState('09:00');
   const [et,setEt]=useState('18:00');
   const [reason,setReason]=useState('');
-  const [retro,setRetro]=useState(false);
   const [err,setErr]=useState('');
   const [busy,setBusy]=useState(false);
   const [done,setDone]=useState(false);
 
   const usedDays=leaves.filter(l=>l.user_id===user.id&&l.status==='approved'&&l.type==='연차'&&l.start_date?.startsWith(String(thisYear()))).reduce((s,l)=>s+Number(l.days),0);
   const rem=Number(user.total_days||0)-usedDays;
+  const singleMode=mode==='time';
+
+  const handleDayClick=(d)=>{
+    if(singleMode){setStart(d);setEnd(d);return;}
+    if(!start||end||(start&&d<start)){setStart(d);setEnd('');}
+    else if(d===start){setEnd(d);}
+    else{setEnd(d);}
+  };
 
   const previewDays=()=>{
-    if(type==='공가')return start&&end?countWD(start,end):0;
     if(mode==='time')return st&&et?hoursToDays(calcHours(st,et)):0;
-    return start&&end?countWD(start,end):0;
+    if(!start||!end)return 0;
+    return countWD(start,end);
   };
 
   const hasDup=(s,e)=>leaves.filter(l=>l.user_id===user.id&&['approved','manager_approved','pending'].includes(l.status))
@@ -178,25 +277,29 @@ function ApplyView({user,users,leaves,onRefresh,onNav}){
     return mgrLeave?'manager_approved':'pending';
   };
 
+  const isRetro=!!(start&&start<today());
+
   const submit=async()=>{
     setErr('');
     const pd=previewDays();
     if(!start){setErr('날짜를 선택해 주세요.');return;}
-    if((mode==='date'||type==='공가')&&!end){setErr('종료일을 선택해 주세요.');return;}
+    if(mode==='date'&&!end){setErr('종료일을 선택해 주세요.');return;}
     if(pd<=0){setErr('유효한 날짜/시간을 선택해 주세요.');return;}
     if(mode==='time'&&pd<0.25){setErr('최소 2시간 이상 선택해 주세요.');return;}
     if(type==='연차'&&pd>rem){setErr(`잔여 연차(${rem}일)가 부족합니다.`);return;}
     if(type==='공가'&&!reason.trim()){setErr('공가 사유를 입력해 주세요.');return;}
-    const endDate=mode==='time'?start:end;
+    const endDate=singleMode?start:end;
     if(hasDup(start,endDate)){setErr('해당 기간에 이미 신청된 연차가 있습니다.');return;}
     setBusy(true);
     try{
-      const res=await api.post('leave_requests',{user_id:user.id,type,start_date:start,end_date:endDate,start_time:mode==='time'?st:null,end_time:mode==='time'?et:null,days:pd,reason:reason||null,status:getStatus(),is_retroactive:retro,cancel_requested:false});
+      const res=await api.post('leave_requests',{user_id:user.id,type,start_date:start,end_date:endDate,start_time:singleMode?st:null,end_time:singleMode?et:null,days:pd,reason:reason||null,status:getStatus(),is_retroactive:isRetro,cancel_requested:false});
       await audit(user.id,'연차신청',res[0]?.id,`${type} ${pd}일`);
       setDone(true);onRefresh();
     }catch{setErr('오류가 발생했습니다.');}
     setBusy(false);
   };
+
+  const teamLeaves=leaves.filter(l=>['approved','manager_approved','pending'].includes(l.status)&&users.find(u=>u.id===l.user_id)?.team_id===user.team_id);
 
   if(done)return(
     <div style={{...card,textAlign:'center',padding:'40px 20px'}}>
@@ -214,36 +317,54 @@ function ApplyView({user,users,leaves,onRefresh,onNav}){
   return(
     <div>
       <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>연차 / 공가 신청</p>
-      <div style={{...card,background:'#fff7ed',border:'1px solid #fed7aa',padding:'9px 12px',display:'flex',alignItems:'center',gap:8}}>
-        <input type="checkbox" id="retro" checked={retro} onChange={e=>setRetro(e.target.checked)} style={{width:14,height:14,cursor:'pointer'}}/>
-        <label htmlFor="retro" style={{fontSize:12,color:'#c2410c',cursor:'pointer'}}>🚨 사후 결재 (복귀 당일 신청만 가능)</label>
-      </div>
+
       <div style={{marginBottom:11}}>
         <label style={lbl}>신청 종류</label>
         <div style={{display:'flex',gap:7}}>
-          {['연차','공가'].map(t=><button key={t} onClick={()=>setType(t)} style={{flex:1,padding:'8px',border:`2px solid ${type===t?'#1e40af':'#e2e8f0'}`,borderRadius:7,background:type===t?'#eff6ff':'white',color:type===t?'#1e40af':'#374151',fontWeight:type===t?700:400,cursor:'pointer',fontSize:13,fontFamily:"'Noto Sans KR',sans-serif"}}>{t}</button>)}
+          {['연차','공가'].map(t=><button key={t} onClick={()=>{setType(t);setStart('');setEnd('');}} style={{flex:1,padding:'8px',border:`2px solid ${type===t?'#1e40af':'#e2e8f0'}`,borderRadius:7,background:type===t?'#eff6ff':'white',color:type===t?'#1e40af':'#374151',fontWeight:type===t?700:400,cursor:'pointer',fontSize:13,fontFamily:"'Noto Sans KR',sans-serif"}}>{t}</button>)}
         </div>
       </div>
-      {type==='연차'&&(
-        <div style={{marginBottom:11}}>
-          <label style={lbl}>신청 방식</label>
-          <div style={{display:'flex',gap:7}}>
-            {[{k:'date',l:'날짜 단위'},{k:'time',l:'시간 단위 (당일)'}].map(o=><button key={o.k} onClick={()=>setMode(o.k)} style={{flex:1,padding:'7px',border:`2px solid ${mode===o.k?'#1e40af':'#e2e8f0'}`,borderRadius:7,background:mode===o.k?'#eff6ff':'white',color:mode===o.k?'#1e40af':'#374151',fontWeight:mode===o.k?700:400,cursor:'pointer',fontSize:12,fontFamily:"'Noto Sans KR',sans-serif"}}>{o.l}</button>)}
-          </div>
+
+      <div style={{marginBottom:11}}>
+        <label style={lbl}>신청 방식</label>
+        <div style={{display:'flex',gap:7}}>
+          {[{k:'date',l:'날짜 단위'},{k:'time',l:'시간 단위 (당일)'}].map(o=><button key={o.k} onClick={()=>{setMode(o.k);setStart('');setEnd('');}} style={{flex:1,padding:'7px',border:`2px solid ${mode===o.k?'#1e40af':'#e2e8f0'}`,borderRadius:7,background:mode===o.k?'#eff6ff':'white',color:mode===o.k?'#1e40af':'#374151',fontWeight:mode===o.k?700:400,cursor:'pointer',fontSize:12,fontFamily:"'Noto Sans KR',sans-serif"}}>{o.l}</button>)}
         </div>
-      )}
-      <div style={{marginBottom:11}}><label style={lbl}>{mode==='time'?'날짜':'시작일'}</label><input type="date" value={start} onChange={e=>setStart(e.target.value)} style={inp}/></div>
-      {(mode==='date'||type==='공가')&&<div style={{marginBottom:11}}><label style={lbl}>종료일</label><input type="date" value={end} min={start||undefined} onChange={e=>setEnd(e.target.value)} style={inp}/></div>}
-      {type==='연차'&&mode==='time'&&(
+      </div>
+
+      {isRetro&&<div style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:8,padding:'8px 12px',marginBottom:11,fontSize:12,color:'#c2410c'}}>🚨 선택한 날짜가 오늘 이전입니다 — 사후 결재로 처리됩니다</div>}
+
+      <div style={{marginBottom:4}}>
+        <label style={lbl}>
+          {singleMode?'날짜 선택':'기간 선택'}
+          {start&&<span style={{fontWeight:400,color:'#1e40af',marginLeft:6}}>{fmtFull(start)}{end&&end!==start?` ~ ${fmtFull(end)}`:''}</span>}
+        </label>
+      </div>
+      <MiniCal
+        yr={calYr} mo={calMo}
+        onPrev={()=>{if(calMo===0){setCalMo(11);setCalYr(y=>y-1);}else setCalMo(m=>m-1);}}
+        onNext={()=>{if(calMo===11){setCalMo(0);setCalYr(y=>y+1);}else setCalMo(m=>m+1);}}
+        start={start} end={end} hoverDate={hoverDate}
+        onHover={singleMode?()=>{}:setHoverDate}
+        onDayClick={handleDayClick}
+        singleMode={singleMode}
+        teamLeaves={teamLeaves}
+        users={users}
+        myId={user.id}
+      />
+
+      {singleMode&&(
         <div style={{display:'flex',gap:10,marginBottom:11}}>
           <div style={{flex:1}}><label style={lbl}>시작 시간</label><select value={st} onChange={e=>setSt(e.target.value)} style={inp}>{['09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00'].map(t=><option key={t}>{t}</option>)}</select></div>
           <div style={{flex:1}}><label style={lbl}>종료 시간</label><select value={et} onChange={e=>setEt(e.target.value)} style={inp}>{['11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00'].map(t=><option key={t}>{t}</option>)}</select></div>
         </div>
       )}
+
       {pd>0&&<div style={{background:type==='공가'?'#f0fdf4':'#eff6ff',borderRadius:8,padding:'9px 12px',marginBottom:11,display:'flex',justifyContent:'space-between'}}>
         <span style={{color:type==='공가'?'#15803d':'#1e40af',fontSize:12}}>{type==='공가'?'공가':'연차 사용 예정'}</span>
         <b style={{color:type==='공가'?'#15803d':'#1e40af',fontSize:13}}>{daysLabel(pd)}{type==='연차'?` (잔여 ${rem}일)`:''}</b>
       </div>}
+
       <div style={{marginBottom:11}}><label style={lbl}>{type==='공가'?'공가 사유 *':'사유 (선택)'}</label><textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder={type==='공가'?'예) 예비군 훈련, 건강검진':'사유 입력'} rows={2} style={{...inp,resize:'none'}}/></div>
       {err&&<p style={{color:'#dc2626',fontSize:12,margin:'0 0 9px'}}>{err}</p>}
       <button onClick={submit} disabled={busy} style={{...btn('primary'),width:'100%',padding:'11px',fontSize:13,opacity:busy?0.6:1}}>{busy?'신청 중...':'신청하기'}</button>
@@ -613,37 +734,59 @@ function App(){
   const [phone,setPhone]=useState('');
   const [pw,setPw]=useState('');
   const [err,setErr]=useState('');
+  const [isMobile,setIsMobile]=useState(typeof window!=='undefined'&&window.innerWidth<768);
+
+  useEffect(()=>{
+    const handle=()=>setIsMobile(window.innerWidth<768);
+    window.addEventListener('resize',handle);
+    return()=>window.removeEventListener('resize',handle);
+  },[]);
 
   const load=useCallback(async()=>{
     try{
       const [u,t,l,a]=await Promise.all([api.get('users','?order=name'),api.get('teams','?order=name'),api.get('leave_requests','?order=created_at.desc'),api.get('audit_logs','?order=created_at.desc&limit=200')]);
-      setUsers(Array.isArray(u)?u:[]);setTeams(Array.isArray(t)?t:[]);setLeaves(Array.isArray(l)?l:[]);setAuditLogs(Array.isArray(a)?a:[]);
+      const us=Array.isArray(u)?u:[];
+      setUsers(us);setTeams(Array.isArray(t)?t:[]);setLeaves(Array.isArray(l)?l:[]);setAuditLogs(Array.isArray(a)?a:[]);
+      const savedId=sessionStorage.getItem('kwanbo_uid');
+      if(savedId){const saved=us.find(x=>x.id===savedId);if(saved)setCu(saved);}
+      else setCu(prev=>prev?us.find(x=>x.id===prev.id)||prev:null);
     }catch(e){console.error(e);}
     setLoading(false);
   },[]);
 
   useEffect(()=>{load();},[]);
 
-  const login=()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits)&&x.password===pw);if(u){setCu(u);setErr('');setView('dashboard');}else setErr('아이디 또는 비밀번호가 올바르지 않습니다.');};
-  const logout=()=>{setCu(null);setView('dashboard');};
-  const refresh=()=>load().then(()=>setCu(prev=>prev?users.find(u=>u.id===prev.id)||prev:null));
+  const login=()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits)&&x.password===pw);if(u){setCu(u);setErr('');setView('dashboard');sessionStorage.setItem('kwanbo_uid',u.id);}else setErr('아이디 또는 비밀번호가 올바르지 않습니다.');};
+  const logout=()=>{setCu(null);setView('dashboard');sessionStorage.removeItem('kwanbo_uid');};
+  const refresh=()=>load();
 
+  // ── 로그인 화면 ──────────────────────────────────────────
   if(!cu){
-    return(
-      <div style={{height:'660px',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:"'Noto Sans KR',sans-serif"}}>
-        <div style={{background:'white',borderRadius:18,padding:'34px 28px',width:'100%',maxWidth:340,boxShadow:'0 25px 70px rgba(0,0,0,.45)'}}>
-          <div style={{textAlign:'center',marginBottom:24}}>
-            <div style={{width:50,height:50,background:'linear-gradient(135deg,#1e40af,#3b82f6)',borderRadius:13,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 11px',fontSize:22}}>📅</div>
-            <p style={{margin:'0 0 2px',fontSize:15,fontWeight:800,color:'#0f172a'}}>(주)관보종합기술단</p>
-            <p style={{margin:0,fontSize:12,color:'#64748b'}}>연차 관리 시스템</p>
-          </div>
-          {loading?<p style={{textAlign:'center',color:'#94a3b8',fontSize:13}}>연결 중...</p>:<>
-            <div style={{marginBottom:11}}><label style={lbl}>아이디</label><input value={phone} onChange={e=>setPhone(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="전화번호 또는 아이디" style={inp}/></div>
-            <div style={{marginBottom:6}}><label style={lbl}>비밀번호</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="비밀번호 입력" style={inp}/></div>
-            {err&&<p style={{color:'#dc2626',fontSize:12,margin:'6px 0 0'}}>{err}</p>}
-            <button onClick={login} style={{...btn('primary'),width:'100%',padding:'11px',fontSize:13,marginTop:13}}>로그인</button>
-          </>}
+    const loginBox=(
+      <div style={{background:'white',borderRadius:18,padding:'34px 28px',width:'100%',maxWidth:340,boxShadow:'0 25px 70px rgba(0,0,0,.45)'}}>
+        <div style={{textAlign:'center',marginBottom:24}}>
+          <div style={{width:54,height:54,background:'linear-gradient(135deg,#1e40af,#3b82f6)',borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px',fontSize:24}}>📅</div>
+          <p style={{margin:'0 0 2px',fontSize:16,fontWeight:800,color:'#0f172a'}}>(주)관보종합기술단</p>
+          <p style={{margin:0,fontSize:13,color:'#64748b'}}>연차 관리 시스템</p>
         </div>
+        {loading?<p style={{textAlign:'center',color:'#94a3b8',fontSize:14}}>연결 중...</p>:<>
+          <div style={{marginBottom:13}}><label style={lbl}>아이디</label><input value={phone} onChange={e=>setPhone(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="전화번호 또는 아이디" style={{...inp,fontSize:16}}/></div>
+          <div style={{marginBottom:8}}><label style={lbl}>비밀번호</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="비밀번호 입력" style={{...inp,fontSize:16}}/></div>
+          {err&&<p style={{color:'#dc2626',fontSize:13,margin:'6px 0 0'}}>{err}</p>}
+          <button onClick={login} style={{...btn('primary'),width:'100%',padding:'13px',fontSize:15,marginTop:14}}>로그인</button>
+        </>}
+      </div>
+    );
+    if(isMobile){
+      return(
+        <div style={{minHeight:'100dvh',background:'linear-gradient(160deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:"'Noto Sans KR',sans-serif"}}>
+          {loginBox}
+        </div>
+      );
+    }
+    return(
+      <div style={{height:'660px',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:"'Noto Sans KR',sans-serif",zoom:1.3}}>
+        {loginBox}
       </div>
     );
   }
@@ -652,10 +795,10 @@ function App(){
   const mgrPending=leaves.filter(l=>{const lu=users.find(u=>u.id===l.user_id);return lu?.team_id===cu.team_id&&lu?.id!==cu.id&&l.status==='pending';}).length;
 
   const navItems=cu.role==='admin'
-    ?[{k:'dashboard',l:'대시보드',i:'📊'},{k:'admin_approve',l:'승인 관리',i:'✅',b:pendingCount},{k:'admin_teams',l:'팀 관리',i:'🏢'},{k:'admin_users',l:'직원 관리',i:'👥'},{k:'admin_stats',l:'통계',i:'📈'},{k:'admin_audit',l:'감사 로그',i:'📋'},{k:'calendar',l:'팀 캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}]
+    ?[{k:'dashboard',l:'대시보드',i:'📊'},{k:'admin_approve',l:'승인 관리',i:'✅',b:pendingCount},{k:'admin_teams',l:'팀 관리',i:'🏢'},{k:'admin_users',l:'직원 관리',i:'👥'},{k:'admin_stats',l:'통계',i:'📈'},{k:'admin_audit',l:'감사 로그',i:'📋'},{k:'calendar',l:'캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}]
     :cu.role==='manager'
-    ?[{k:'dashboard',l:'대시보드',i:'🏠'},{k:'team_approve',l:'팀원 결재',i:'✅',b:mgrPending},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'calendar',l:'팀 캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}]
-    :[{k:'dashboard',l:'대시보드',i:'🏠'},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'calendar',l:'팀 캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}];
+    ?[{k:'dashboard',l:'대시보드',i:'🏠'},{k:'team_approve',l:'팀원 결재',i:'✅',b:mgrPending},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'calendar',l:'캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}]
+    :[{k:'dashboard',l:'대시보드',i:'🏠'},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'calendar',l:'캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}];
 
   const props={user:cu,users,teams,leaves,auditLogs,onRefresh:load,onNav:setView};
   const renderView=()=>{
@@ -674,8 +817,48 @@ function App(){
   };
 
   const team=teams.find(t=>t.id===cu.team_id);
+
+  // ── 모바일 레이아웃 ──────────────────────────────────────
+  if(isMobile){
+    const mobileNav=navItems.slice(0,5);
+    const currentTitle=navItems.find(n=>n.k===view)?.l||'';
+    return(
+      <div style={{display:'flex',flexDirection:'column',height:'100dvh',fontFamily:"'Noto Sans KR',sans-serif",background:'#f1f5f9',overflow:'hidden'}}>
+        {/* 상단 헤더 */}
+        <div style={{background:'#0f172a',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,paddingTop:'max(12px,env(safe-area-inset-top))'}}>
+          <div>
+            <p style={{margin:0,fontSize:13,fontWeight:800,color:'white',lineHeight:1.3}}>(주)관보종합기술단</p>
+            <p style={{margin:0,fontSize:10,color:'#64748b'}}>연차 관리 시스템</p>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{textAlign:'right'}}>
+              <p style={{margin:0,fontSize:13,fontWeight:700,color:'white'}}>{cu.name}</p>
+              <p style={{margin:0,fontSize:10,color:'#64748b'}}>{cu.role==='admin'?'관리자':cu.role==='manager'?'팀장':'팀원'}{team?` · ${team.name}`:''}</p>
+            </div>
+            <button onClick={logout} style={{background:'#1e293b',color:'#94a3b8',border:'none',borderRadius:7,padding:'6px 10px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>로그아웃</button>
+          </div>
+        </div>
+        {/* 콘텐츠 영역 */}
+        <div style={{flex:1,overflowY:'auto',padding:'14px 14px 76px',WebkitOverflowScrolling:'touch'}}>
+          {renderView()}
+        </div>
+        {/* 하단 탭 바 */}
+        <div style={{position:'fixed',bottom:0,left:0,right:0,background:'white',borderTop:'1px solid #e2e8f0',display:'flex',zIndex:200,paddingBottom:'env(safe-area-inset-bottom)'}}>
+          {mobileNav.map(item=>(
+            <button key={item.k} onClick={()=>setView(item.k)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3,background:'none',border:'none',cursor:'pointer',color:view===item.k?'#1e40af':'#94a3b8',padding:'8px 4px',position:'relative',fontFamily:"'Noto Sans KR',sans-serif",minHeight:56}}>
+              {item.b>0&&<span style={{position:'absolute',top:5,left:'50%',transform:'translateX(4px)',background:'#ef4444',color:'white',borderRadius:10,padding:'1px 5px',fontSize:9,fontWeight:700,minWidth:16,textAlign:'center'}}>{item.b}</span>}
+              <span style={{fontSize:20,lineHeight:1}}>{item.i}</span>
+              <span style={{fontSize:10,fontWeight:view===item.k?700:400,letterSpacing:-0.3}}>{item.l}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── PC 레이아웃 (기존 유지) ──────────────────────────────
   return(
-    <div style={{display:'flex',height:'660px',overflow:'hidden',fontFamily:"'Noto Sans KR',sans-serif",background:'#f1f5f9',position:'relative'}}>
+    <div style={{display:'flex',height:'660px',overflow:'hidden',fontFamily:"'Noto Sans KR',sans-serif",background:'#f1f5f9',position:'relative',zoom:1.3}}>
       <div style={{width:168,background:'#0f172a',display:'flex',flexDirection:'column',flexShrink:0,overflowY:'auto'}}>
         <div style={{padding:'14px 13px 11px',borderBottom:'1px solid #1e293b'}}>
           <p style={{margin:'0 0 1px',fontSize:10,fontWeight:800,color:'white',lineHeight:1.4}}>(주)관보종합기술단</p>
