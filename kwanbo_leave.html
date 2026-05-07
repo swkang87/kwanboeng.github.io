@@ -624,7 +624,7 @@ function App(){
 
   useEffect(()=>{load();},[]);
 
-  const login=()=>{const p=phone.replace(/\D/g,'');const u=users.find(x=>x.phone===p&&x.password===pw);if(u){setCu(u);setErr('');setView('dashboard');}else setErr('전화번호 또는 비밀번호가 올바르지 않습니다.');};
+  const login=()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits)&&x.password===pw);if(u){setCu(u);setErr('');setView('dashboard');}else setErr('아이디 또는 비밀번호가 올바르지 않습니다.');};
   const logout=()=>{setCu(null);setView('dashboard');};
   const refresh=()=>load().then(()=>setCu(prev=>prev?users.find(u=>u.id===prev.id)||prev:null));
 
@@ -638,11 +638,10 @@ function App(){
             <p style={{margin:0,fontSize:12,color:'#64748b'}}>연차 관리 시스템</p>
           </div>
           {loading?<p style={{textAlign:'center',color:'#94a3b8',fontSize:13}}>연결 중...</p>:<>
-            <div style={{marginBottom:11}}><label style={lbl}>전화번호</label><input value={phone} onChange={e=>setPhone(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="010-0000-0000" style={inp}/></div>
+            <div style={{marginBottom:11}}><label style={lbl}>아이디</label><input value={phone} onChange={e=>setPhone(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="전화번호 또는 아이디" style={inp}/></div>
             <div style={{marginBottom:6}}><label style={lbl}>비밀번호</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="비밀번호 입력" style={inp}/></div>
             {err&&<p style={{color:'#dc2626',fontSize:12,margin:'6px 0 0'}}>{err}</p>}
             <button onClick={login} style={{...btn('primary'),width:'100%',padding:'11px',fontSize:13,marginTop:13}}>로그인</button>
-            <p style={{textAlign:'center',fontSize:11,color:'#94a3b8',marginTop:12}}>관리자: 010-0000-0000 / admin1234</p>
           </>}
         </div>
       </div>
