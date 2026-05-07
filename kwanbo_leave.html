@@ -78,6 +78,8 @@ const daysLabel=n=>n===0.25?'반반차(2h)':n===0.5?'반차(4h)':n===0.75?'3/4�
 const fmtDate=d=>{if(!d)return'';const[y,m,dd]=d.split('-');return`${+m}/${+dd}`;};
 const fmtFull=d=>{if(!d)return'';const[y,m,dd]=d.split('-');return`${y}년 ${+m}월 ${+dd}일`;};
 const fmtPhone=p=>{if(!p)return'';const n=p.replace(/\D/g,'');return n.length===11?`${n.slice(0,3)}-${n.slice(3,7)}-${n.slice(7)}`:p;};
+// UTC → KST(+9) 변환 후 포맷
+const fmtDT=s=>{if(!s)return'';const d=new Date(new Date(s).getTime()+9*60*60*1000);return`${d.getUTCFullYear()}.${String(d.getUTCMonth()+1).padStart(2,'0')}.${String(d.getUTCDate()).padStart(2,'0')} ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;};
 
 const api={
   headers:()=>({'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json','Prefer':'return=representation'}),
@@ -393,6 +395,7 @@ function HistoryView({user,leaves,onRefresh}){
               <Badge s={l.status}/>
             </div>
             <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}{l.start_time?` (${l.start_time}~${l.end_time})`:''}</p>
+            {l.created_at&&<p style={{margin:'0 0 2px',fontSize:10,color:'#94a3b8'}}>🕐 신청: {fmtDT(l.created_at)}</p>}
             {l.reason&&<p style={{margin:'0 0 2px',fontSize:11,color:'#64748b'}}>💬 {l.reason}</p>}
             {l.reject_reason&&<p style={{margin:0,fontSize:11,color:'#dc2626'}}>🚫 {l.reject_reason}</p>}
           </div>
@@ -447,7 +450,7 @@ function CalView({users,leaves}){
               const dn=i-fd+1,valid=dn>=1&&dn<=dim;
               const ds=valid?`${yr}-${String(mo+1).padStart(2,'0')}-${String(dn).padStart(2,'0')}`:null;
               const people=ds?getDayPeople(ds):[];
-              const hol=ds?HOLIDAYS[ds]:null;
+              const hol=ds?(HOLIDAYS[ds]||SUBSTITUTE[ds]):null;
               const dow=i%7,isTday=ds===todayStr;
               return(
                 <div key={i} onClick={()=>ds&&setSel(sel===ds?null:ds)} style={{minHeight:62,padding:'2px',borderRadius:5,cursor:valid?'pointer':'default',background:sel===ds?'#eff6ff':isTday?'#fef9c3':(dow===0||dow===6)?'#fafafa':'white',border:sel===ds?'2px solid #1e40af':isTday?'2px solid #f59e0b':'1px solid #f1f5f9'}}>
@@ -467,7 +470,7 @@ function CalView({users,leaves}){
         <div style={{...card,padding:8}}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>
             {getWeekDays().map((ds,i)=>{
-              const people=getDayPeople(ds),hol=HOLIDAYS[ds],dow=new Date(ds+'T12:00:00').getDay(),dn=parseInt(ds.split('-')[2]),isTday=ds===todayStr;
+              const people=getDayPeople(ds),hol=HOLIDAYS[ds]||SUBSTITUTE[ds],dow=new Date(ds+'T12:00:00').getDay(),dn=parseInt(ds.split('-')[2]),isTday=ds===todayStr;
               return(
                 <div key={ds} style={{borderRadius:7,border:isTday?'2px solid #f59e0b':'1px solid #f1f5f9',background:isTday?'#fef9c3':(dow===0||dow===6)?'#fafafa':'white',padding:6,minHeight:100}}>
                   <div style={{fontSize:11,fontWeight:700,color:hol?'#dc2626':dow===0?'#ef4444':dow===6?'#3b82f6':'#374151',marginBottom:3}}>{WD[dow]} {dn}</div>
@@ -517,6 +520,7 @@ function MgrApprove({user,users,leaves,onRefresh}){
                   {l.is_retroactive&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>사후결재</span>}
                 </div>
                 <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}{l.start_time?` (${l.start_time}~${l.end_time})`:''}</p>
+                {l.created_at&&<p style={{margin:'0 0 2px',fontSize:10,color:'#94a3b8'}}>🕐 신청: {fmtDT(l.created_at)}</p>}
                 {l.reason&&<p style={{margin:0,fontSize:11,color:'#64748b'}}>💬 {l.reason}</p>}
               </div>
               <div style={{display:'flex',gap:6}}><button onClick={()=>approve(l)} style={btn('success')}>1차 승인</button><button onClick={()=>setRid(l.id)} style={btn('danger')}>반려</button></div>
@@ -533,10 +537,12 @@ function MgrApprove({user,users,leaves,onRefresh}){
 function AdminApprove({user,users,leaves,onRefresh}){
   const [rid,setRid]=useState(null),[rr,setRr]=useState('');
   const pending=leaves.filter(l=>['manager_approved','cancel_pending'].includes(l.status));
-  const done=leaves.filter(l=>['approved','rejected','cancelled'].includes(l.status)).sort((a,b)=>b.created_at?.localeCompare(a.created_at)).slice(0,10);
+  // 직원이 직접 취소한 건(cancel_requested=false)은 제외
+  const done=leaves.filter(l=>['approved','rejected'].includes(l.status)||(l.status==='cancelled'&&l.cancel_requested)).sort((a,b)=>b.created_at?.localeCompare(a.created_at)).slice(0,20);
   const getU=id=>users.find(u=>u.id===id);
   const approve=async l=>{await api.patch('leave_requests',`?id=eq.${l.id}`,{status:l.status==='cancel_pending'?'cancelled':'approved'});await audit(user.id,'최종승인',l.id,'');onRefresh();};
   const reject=async()=>{await api.patch('leave_requests',`?id=eq.${rid}`,{status:'rejected',reject_reason:rr||null});await audit(user.id,'반려',rid,rr||'');setRid(null);setRr('');onRefresh();};
+  const delLeave=async l=>{if(!confirm('이 내역을 목록에서 삭제하시겠습니까?'))return;await api.del('leave_requests',`?id=eq.${l.id}`);onRefresh();};
   return(
     <div>
       <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>최종 승인 관리</p>
@@ -551,13 +557,29 @@ function AdminApprove({user,users,leaves,onRefresh}){
                 {l.is_retroactive&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>사후결재</span>}
               </div>
               <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}</p>
+              {l.created_at&&<p style={{margin:'0 0 2px',fontSize:10,color:'#94a3b8'}}>🕐 신청: {fmtDT(l.created_at)}</p>}
               {l.reason&&<p style={{margin:0,fontSize:11,color:'#64748b'}}>💬 {l.reason}</p>}
             </div>
             <div style={{display:'flex',gap:6}}><button onClick={()=>approve(l)} style={btn('success')}>최종 승인</button><button onClick={()=>setRid(l.id)} style={btn('danger')}>반려</button></div>
           </div>
         </div>
       );})}
-      {done.length>0&&<><p style={{fontSize:12,fontWeight:600,color:'#374151',margin:'14px 0 8px'}}>처리 완료</p>{done.map(l=>{const lu=getU(l.user_id);return(<div key={l.id} style={{...card,padding:'10px 13px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}><div><b style={{fontSize:13}}>{lu?.name}</b><span style={{fontSize:12,color:'#64748b',marginLeft:6}}>{l.type} {daysLabel(Number(l.days))}</span><p style={{margin:'1px 0 0',fontSize:11,color:'#94a3b8'}}>{fmtFull(l.start_date)}</p></div><Badge s={l.status}/></div>);})}</>}
+      {done.length>0&&<>
+        <p style={{fontSize:12,fontWeight:600,color:'#374151',margin:'14px 0 8px'}}>처리 완료</p>
+        {done.map(l=>{const lu=getU(l.user_id);return(
+          <div key={l.id} style={{...card,padding:'10px 13px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+            <div style={{flex:1}}>
+              <b style={{fontSize:13}}>{lu?.name}</b>
+              <span style={{fontSize:12,color:'#64748b',marginLeft:6}}>{l.type} {daysLabel(Number(l.days))}</span>
+              <p style={{margin:'1px 0 0',fontSize:11,color:'#94a3b8'}}>{fmtFull(l.start_date)}{l.created_at?` · 신청 ${fmtDT(l.created_at)}`:''}</p>
+            </div>
+            <div style={{display:'flex',gap:6,alignItems:'center'}}>
+              <Badge s={l.status}/>
+              <button onClick={()=>delLeave(l)} style={{...btn('danger'),padding:'3px 8px',fontSize:11}}>삭제</button>
+            </div>
+          </div>
+        );})}
+      </>}
       {rid&&<Modal title="반려 사유" onClose={()=>setRid(null)}><div style={{marginBottom:12}}><label style={lbl}>반려 사유 (선택)</label><textarea value={rr} onChange={e=>setRr(e.target.value)} placeholder="사유 없이도 반려 가능" rows={3} style={{...inp,resize:'none'}}/></div><div style={{display:'flex',gap:8}}><button onClick={()=>setRid(null)} style={{...btn(),flex:1}}>취소</button><button onClick={reject} style={{...btn('danger'),flex:1}}>반려 확정</button></div></Modal>}
     </div>
   );
@@ -575,7 +597,7 @@ function AdminTeams({user,teams,users,onRefresh}){
         <div key={t.id} style={card}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:7}}><b style={{fontSize:14}}>{t.name}</b><button onClick={()=>del(t)} style={{...btn('danger'),padding:'4px 9px',fontSize:11}}>삭제</button></div>
           <p style={{margin:'0 0 7px',fontSize:12,color:'#64748b'}}>팀장: <b style={{color:'#1e40af'}}>{mgr?.name||'미지정'}</b> · 팀원 {members.length}명</p>
-          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>{members.map(m=><span key={m.id} style={{background:m.role==='manager'?'#eff6ff':'#f8fafc',color:m.role==='manager'?'#1e40af':'#374151',border:`1px solid ${m.role==='manager'?'#bfdbfe':'#e2e8f0'}`,borderRadius:20,padding:'3px 10px',fontSize:12,fontWeight:m.role==='manager'?700:400}}>{m.name}{m.role==='manager'?' (팀장)':''}</span>)}</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>{[...members].sort((a,b)=>a.role==='manager'?-1:b.role==='manager'?1:0).map(m=><span key={m.id} style={{background:m.role==='manager'?'#eff6ff':'#f8fafc',color:m.role==='manager'?'#1e40af':'#374151',border:`1px solid ${m.role==='manager'?'#bfdbfe':'#e2e8f0'}`,borderRadius:20,padding:'3px 10px',fontSize:12,fontWeight:m.role==='manager'?700:400}}>{m.name}{m.role==='manager'?' (팀장)':''}</span>)}</div>
         </div>
       );})}
       {showAdd&&<Modal title="팀 추가" onClose={()=>setShowAdd(false)}><div style={{marginBottom:12}}><label style={lbl}>팀 이름</label><input value={nm} onChange={e=>setNm(e.target.value)} placeholder="예) 개발팀" style={inp} onKeyDown={e=>e.key==='Enter'&&add()}/></div><div style={{display:'flex',gap:8}}><button onClick={()=>setShowAdd(false)} style={{...btn(),flex:1}}>취소</button><button onClick={add} style={{...btn('primary'),flex:1}}>추가</button></div></Modal>}
@@ -600,7 +622,7 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
     await api.patch('users',`?id=eq.${editU.id}`,{name:editU.name,phone:editU.phone.replace(/\D/g,''),role:editU.role,team_id:editU.team_id||null,total_days:Number(editU.total_days),join_date:editU.join_date});
     await audit(adm.id,'직원수정',editU.id,editU.name);setEditU(null);onRefresh();
   };
-  const resetPw=async u=>{const pw=prompt(`${u.name}의 새 비밀번호 (기본: 1234):`)||'1234';await api.patch('users',`?id=eq.${u.id}`,{password:pw});alert('비밀번호가 초기화되었습니다.');};
+  const resetPw=async u=>{const pw=prompt(`${u.name}의 새 비밀번호 입력:\n(빈칸으로 확인 시 생년월일 6자리로 초기화)`);if(pw===null)return;await api.patch('users',`?id=eq.${u.id}`,{password:pw.trim()||u.phone.slice(0,6)});alert('비밀번호가 변경되었습니다.');};
   const processBulk=async()=>{
     let ok=0;
     for(const row of bulk.trim().split('\n').filter(r=>r.trim())){
@@ -676,13 +698,27 @@ function AdminStats({users,teams,leaves}){
 }
 
 // ── Admin Audit ───────────────────────────────────────────
-function AdminAudit({users,auditLogs}){
+function AdminAudit({user,users,auditLogs,onRefresh}){
   const logs=[...auditLogs].sort((a,b)=>b.created_at?.localeCompare(a.created_at));
   const getU=id=>users.find(u=>u.id===id);
+  const delLog=async id=>{if(!confirm('이 로그를 삭제하시겠습니까?'))return;await api.del('audit_logs',`?id=eq.${id}`);onRefresh();};
   return(
     <div>
       <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>감사 로그</p>
-      {logs.length===0?<div style={{...card,textAlign:'center',padding:'28px',color:'#94a3b8',fontSize:13}}>감사 로그가 없습니다</div>:logs.map(l=>{const u=getU(l.user_id),dt=l.created_at?new Date(l.created_at):null;return(<div key={l.id} style={{...card,padding:'10px 13px',display:'flex',gap:9,alignItems:'flex-start'}}><div style={{width:28,height:28,borderRadius:6,background:'#f1f5f9',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,flexShrink:0}}>{l.action.includes('승인')?'✅':l.action.includes('반려')?'🚫':l.action.includes('취소')?'↩️':'📝'}</div><div style={{flex:1}}><div style={{display:'flex',gap:5,marginBottom:2,flexWrap:'wrap',alignItems:'center'}}><b style={{fontSize:12}}>{u?.name||'?'}</b><span style={{background:'#f1f5f9',borderRadius:20,padding:'1px 6px',fontSize:10,color:'#64748b'}}>{l.action}</span></div>{l.detail&&<p style={{margin:'0 0 1px',fontSize:11,color:'#64748b'}}>{l.detail}</p>}<p style={{margin:0,fontSize:10,color:'#94a3b8'}}>{dt?`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`:''}</p></div></div>);})}
+      {logs.length===0?<div style={{...card,textAlign:'center',padding:'28px',color:'#94a3b8',fontSize:13}}>감사 로그가 없습니다</div>:logs.map(l=>{const u=getU(l.user_id);return(
+        <div key={l.id} style={{...card,padding:'10px 13px',display:'flex',gap:9,alignItems:'flex-start'}}>
+          <div style={{width:28,height:28,borderRadius:6,background:'#f1f5f9',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,flexShrink:0}}>{l.action.includes('승인')?'✅':l.action.includes('반려')?'🚫':l.action.includes('취소')?'↩️':'📝'}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:'flex',gap:5,marginBottom:2,flexWrap:'wrap',alignItems:'center'}}>
+              <b style={{fontSize:12}}>{u?.name||'?'}</b>
+              <span style={{background:'#f1f5f9',borderRadius:20,padding:'1px 6px',fontSize:10,color:'#64748b'}}>{l.action}</span>
+            </div>
+            {l.detail&&<p style={{margin:'0 0 1px',fontSize:11,color:'#64748b'}}>{l.detail}</p>}
+            <p style={{margin:0,fontSize:10,color:'#94a3b8'}}>{fmtDT(l.created_at)}</p>
+          </div>
+          <button onClick={()=>delLog(l.id)} style={{...btn('danger'),padding:'3px 7px',fontSize:10,flexShrink:0}}>삭제</button>
+        </div>
+      );})}
     </div>
   );
 }
@@ -734,6 +770,8 @@ function App(){
   const [phone,setPhone]=useState('');
   const [pw,setPw]=useState('');
   const [err,setErr]=useState('');
+  const [syncing,setSyncing]=useState(false);
+  const [lastSync,setLastSync]=useState('');
   const [isMobile,setIsMobile]=useState(typeof window!=='undefined'&&window.innerWidth<768);
 
   useEffect(()=>{
@@ -755,6 +793,21 @@ function App(){
   },[]);
 
   useEffect(()=>{load();},[]);
+
+  // 30초 자동 폴링 (로그인 상태일 때만)
+  useEffect(()=>{
+    if(!cu)return;
+    const id=setInterval(async()=>{await load();setLastSync(fmtDT(new Date().toISOString()));},30000);
+    return()=>clearInterval(id);
+  },[cu?.id]);
+
+  const manualRefresh=async()=>{
+    if(syncing)return;
+    setSyncing(true);
+    await load();
+    setLastSync(fmtDT(new Date().toISOString()));
+    setSyncing(false);
+  };
 
   const login=()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits)&&x.password===pw);if(u){setCu(u);setErr('');setView('dashboard');sessionStorage.setItem('kwanbo_uid',u.id);}else setErr('아이디 또는 비밀번호가 올바르지 않습니다.');};
   const logout=()=>{setCu(null);setView('dashboard');sessionStorage.removeItem('kwanbo_uid');};
@@ -830,11 +883,12 @@ function App(){
             <p style={{margin:0,fontSize:13,fontWeight:800,color:'white',lineHeight:1.3}}>(주)관보종합기술단</p>
             <p style={{margin:0,fontSize:10,color:'#64748b'}}>연차 관리 시스템</p>
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
             <div style={{textAlign:'right'}}>
               <p style={{margin:0,fontSize:13,fontWeight:700,color:'white'}}>{cu.name}</p>
               <p style={{margin:0,fontSize:10,color:'#64748b'}}>{cu.role==='admin'?'관리자':cu.role==='manager'?'팀장':'팀원'}{team?` · ${team.name}`:''}</p>
             </div>
+            <button onClick={manualRefresh} disabled={syncing} style={{background:'#1e293b',color:syncing?'#f59e0b':'#94a3b8',border:'none',borderRadius:7,padding:'6px 10px',fontSize:15,cursor:'pointer',lineHeight:1}} title="새로고침">{syncing?'⏳':'🔄'}</button>
             <button onClick={logout} style={{background:'#1e293b',color:'#94a3b8',border:'none',borderRadius:7,padding:'6px 10px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>로그아웃</button>
           </div>
         </div>
@@ -881,6 +935,10 @@ function App(){
               <p style={{margin:0,fontSize:9,color:'#475569'}}>{cu.role==='admin'?'관리자':cu.role==='manager'?'팀장':'팀원'}{team?` · ${team.name}`:''}</p>
             </div>
           </div>
+          <div style={{display:'flex',gap:5,marginBottom:5}}>
+            <button onClick={manualRefresh} disabled={syncing} style={{flex:1,padding:'5px',background:'#1e293b',color:syncing?'#f59e0b':'#94a3b8',border:'none',borderRadius:5,cursor:'pointer',fontSize:10,fontFamily:"'Noto Sans KR',sans-serif"}}>{syncing?'⏳ 동기화 중...':'🔄 새로고침'}</button>
+          </div>
+          {lastSync&&<p style={{margin:'0 0 5px',fontSize:8,color:'#334155',textAlign:'center'}}>마지막 동기화 {lastSync}</p>}
           <button onClick={logout} style={{width:'100%',padding:'5px',background:'#1e293b',color:'#94a3b8',border:'none',borderRadius:5,cursor:'pointer',fontSize:10,fontFamily:"'Noto Sans KR',sans-serif"}}>로그아웃</button>
         </div>
       </div>
