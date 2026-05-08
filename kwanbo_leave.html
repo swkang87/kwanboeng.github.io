@@ -143,7 +143,7 @@ const calLabel=(p)=>{
   const d=Number(p.days);
   if(d>=1)return p.name;
   const tag=d<=0.25?'반반차':'반차';
-  return p.type==='공가'?`${p.name}(공${tag})`:`${p.name}(${tag})`;
+  return p.type==='공가'?`${p.name}(공가·${tag})`:`${p.name}(${tag})`;
 };
 const typeLabel=(type,days)=>{
   const d=Number(days);
@@ -491,7 +491,7 @@ function CalView({users,leaves}){
   const emp=users.filter(u=>u.role!=='admin');
   const getColor=uid=>COLORS[emp.findIndex(u=>u.id===uid)%COLORS.length]||'#94a3b8';
   const approved=leaves.filter(l=>l.status==='approved');
-  const getDayPeople=ds=>approved.filter(l=>l.start_date<=ds&&(l.end_date||l.start_date)>=ds).map(l=>{const u=users.find(x=>x.id===l.user_id);return{name:u?.name||'',color:getColor(l.user_id),type:l.type,time:l.start_time?`${l.start_time}~${l.end_time}`:null};});
+  const getDayPeople=ds=>approved.filter(l=>l.start_date<=ds&&(l.end_date||l.start_date)>=ds).map(l=>{const u=users.find(x=>x.id===l.user_id);return{name:u?.name||'',color:getColor(l.user_id),type:l.type,days:l.days,time:l.start_time?`${l.start_time}~${l.end_time}`:null};});
   const dim=new Date(yr,mo+1,0).getDate(),fd=new Date(yr,mo,1).getDay(),cells=Math.ceil((fd+dim)/7)*7;
 
   const getWeekDays=()=>{const d=new Date(yr,mo,1);while(d.getDay()!==0)d.setDate(d.getDate()-1);return Array.from({length:7},(_,i)=>{const x=new Date(d);x.setDate(d.getDate()+i);return x.toISOString().split('T')[0];})};
@@ -568,7 +568,7 @@ function CalView({users,leaves}){
       {sel&&selPeople.length>0&&(
         <div style={{...card,border:'1px solid #bfdbfe'}}>
           <p style={{margin:'0 0 7px',fontWeight:700,fontSize:12,color:'#1e40af'}}>{fmtFull(sel)}</p>
-          {selPeople.map((p,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:7,padding:'4px 0',borderBottom:'1px solid #f1f5f9'}}><div style={{width:8,height:8,borderRadius:2,background:p.color,flexShrink:0}}/><span style={{fontSize:13,fontWeight:600}}>{p.name}</span><span style={{fontSize:12,color:'#64748b'}}>{p.type}{p.time?` (${p.time})`:''}</span></div>)}
+          {selPeople.map((p,i)=><div key={i} style={{display:'flex',alignItems:'center',gap:7,padding:'4px 0',borderBottom:'1px solid #f1f5f9'}}><div style={{width:8,height:8,borderRadius:2,background:p.color,flexShrink:0}}/><span style={{fontSize:13,fontWeight:600}}>{p.name}</span><span style={{fontSize:12,color:'#64748b'}}>{typeLabel(p.type,p.days)}{p.time?` (${p.time})`:''}</span></div>)}
         </div>
       )}
       <div style={{...card,marginTop:4}}>
