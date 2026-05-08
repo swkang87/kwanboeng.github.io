@@ -554,42 +554,93 @@ function MgrApprove({user,users,leaves,onRefresh}){
 }
 
 // ── Admin Approve ─────────────────────────────────────────
-function AdminApprove({user,users,leaves,onRefresh}){
+function AdminApprove({user,users,teams,leaves,onRefresh}){
+  const [tab,setTab]=useState('final');
   const [rid,setRid]=useState(null),[rr,setRr]=useState('');
-  const pending=leaves.filter(l=>['manager_approved','cancel_pending'].includes(l.status));
-  // 직원이 직접 취소한 건(cancel_requested=false)은 제외
+
+  // 팀장 대기 (pending) — 팀장이 아직 미결재
+  const teamPending=leaves.filter(l=>l.status==='pending').sort((a,b)=>a.created_at?.localeCompare(b.created_at));
+  // 최종 승인 대기 (manager_approved, cancel_pending)
+  const finalPending=leaves.filter(l=>['manager_approved','cancel_pending'].includes(l.status));
+  // 처리 완료
   const done=leaves.filter(l=>['approved','rejected'].includes(l.status)||(l.status==='cancelled'&&l.cancel_requested)).sort((a,b)=>b.created_at?.localeCompare(a.created_at)).slice(0,20);
+
   const getU=id=>users.find(u=>u.id===id);
+  const getTeam=uid=>{const u=users.find(x=>x.id===uid);return teams.find(t=>t.id===u?.team_id)?.name||'-';};
+
   const approve=async l=>{await api.patch('leave_requests',`?id=eq.${l.id}`,{status:l.status==='cancel_pending'?'cancelled':'approved'});await audit(user.id,'최종승인',l.id,'');onRefresh();};
+  const adminDirectApprove=async l=>{if(!confirm(`${getU(l.user_id)?.name}의 신청을 팀장 결재를 건너뛰고 직접 승인하시겠습니까?`))return;await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'approved'});await audit(user.id,'관리자직접승인',l.id,'팀장 결재 없이 승인');onRefresh();};
+  const adminDirectReject=async l=>{const reason=prompt('반려 사유 (선택):');if(reason===null)return;await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'rejected',reject_reason:reason||null});await audit(user.id,'관리자직접반려',l.id,reason||'');onRefresh();};
   const reject=async()=>{await api.patch('leave_requests',`?id=eq.${rid}`,{status:'rejected',reject_reason:rr||null});await audit(user.id,'반려',rid,rr||'');setRid(null);setRr('');onRefresh();};
   const delLeave=async l=>{if(!confirm('이 내역을 목록에서 삭제하시겠습니까?'))return;await api.del('leave_requests',`?id=eq.${l.id}`);onRefresh();};
+
+  const LeaveCard=({l,children})=>{
+    const lu=getU(l.user_id);
+    return(
+      <div style={{...card,border:'1px solid #fde68a'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
+          <div style={{flex:1}}>
+            <div style={{display:'flex',gap:5,marginBottom:4,flexWrap:'wrap',alignItems:'center'}}>
+              <b style={{fontSize:13}}>{lu?.name}</b>
+              <span style={{fontSize:11,color:'#64748b',background:'#f1f5f9',borderRadius:20,padding:'1px 6px'}}>{getTeam(l.user_id)}</span>
+              <span style={{fontSize:12,color:'#64748b'}}>{l.type} {daysLabel(Number(l.days))}</span>
+              {l.status==='cancel_pending'&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>취소요청</span>}
+              {l.is_retroactive&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>사후결재</span>}
+            </div>
+            <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}</p>
+            {l.created_at&&<p style={{margin:'0 0 2px',fontSize:10,color:'#94a3b8'}}>🕐 신청: {fmtDT(l.created_at)}</p>}
+            {l.reason&&<p style={{margin:0,fontSize:11,color:'#64748b'}}>💬 {l.reason}</p>}
+          </div>
+          <div style={{display:'flex',gap:6',flexShrink:0}}>{children}</div>
+        </div>
+      </div>
+    );
+  };
+
   return(
     <div>
-      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>최종 승인 관리</p>
-      {pending.length===0?<div style={{...card,textAlign:'center',padding:'28px',color:'#94a3b8',fontSize:13}}><span style={{fontSize:28}}>✅</span><p style={{margin:'8px 0 0'}}>대기 중인 승인이 없습니다</p></div>:pending.map(l=>{const lu=getU(l.user_id);return(
-        <div key={l.id} style={{...card,border:'1px solid #fde68a'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
-            <div style={{flex:1}}>
-              <div style={{display:'flex',gap:5,marginBottom:4,flexWrap:'wrap',alignItems:'center'}}>
-                <b style={{fontSize:13}}>{lu?.name}</b>
-                <span style={{fontSize:12,color:'#64748b'}}>{l.type} {daysLabel(Number(l.days))}</span>
-                {l.status==='cancel_pending'&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>취소요청</span>}
-                {l.is_retroactive&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>사후결재</span>}
-              </div>
-              <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}</p>
-              {l.created_at&&<p style={{margin:'0 0 2px',fontSize:10,color:'#94a3b8'}}>🕐 신청: {fmtDT(l.created_at)}</p>}
-              {l.reason&&<p style={{margin:0,fontSize:11,color:'#64748b'}}>💬 {l.reason}</p>}
-            </div>
-            <div style={{display:'flex',gap:6}}><button onClick={()=>approve(l)} style={btn('success')}>최종 승인</button><button onClick={()=>setRid(l.id)} style={btn('danger')}>반려</button></div>
-          </div>
-        </div>
-      );})}
-      {done.length>0&&<>
-        <p style={{fontSize:12,fontWeight:600,color:'#374151',margin:'14px 0 8px'}}>처리 완료</p>
-        {done.map(l=>{const lu=getU(l.user_id);return(
+      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>승인 관리</p>
+
+      {/* 탭 */}
+      <div style={{display:'flex',gap:6,marginBottom:12}}>
+        {[
+          {k:'team',l:'팀장 대기',b:teamPending.length},
+          {k:'final',l:'최종 승인',b:finalPending.length},
+          {k:'done',l:'처리 완료'},
+        ].map(t=>(
+          <button key={t.k} onClick={()=>setTab(t.k)} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 14px',borderRadius:7,border:`2px solid ${tab===t.k?'#1e40af':'#e2e8f0'}`,background:tab===t.k?'#eff6ff':'white',color:tab===t.k?'#1e40af':'#374151',fontWeight:tab===t.k?700:400,cursor:'pointer',fontSize:12,fontFamily:"'Noto Sans KR',sans-serif"}}>
+            {t.l}
+            {t.b>0&&<span style={{background:'#ef4444',color:'white',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>{t.b}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* 팀장 대기 탭 */}
+      {tab==='team'&&(teamPending.length===0
+        ?<div style={{...card,textAlign:'center',padding:'28px',color:'#94a3b8',fontSize:13}}><span style={{fontSize:28}}>✅</span><p style={{margin:'8px 0 0'}}>팀장 결재 대기 중인 건이 없습니다</p></div>
+        :teamPending.map(l=><LeaveCard key={l.id} l={l}>
+            <button onClick={()=>adminDirectApprove(l)} style={{...btn('success'),fontSize:11}}>직접 승인</button>
+            <button onClick={()=>adminDirectReject(l)} style={{...btn('danger'),fontSize:11}}>반려</button>
+          </LeaveCard>)
+      )}
+
+      {/* 최종 승인 탭 */}
+      {tab==='final'&&(finalPending.length===0
+        ?<div style={{...card,textAlign:'center',padding:'28px',color:'#94a3b8',fontSize:13}}><span style={{fontSize:28}}>✅</span><p style={{margin:'8px 0 0'}}>대기 중인 승인이 없습니다</p></div>
+        :finalPending.map(l=><LeaveCard key={l.id} l={l}>
+            <button onClick={()=>approve(l)} style={{...btn('success'),fontSize:11}}>최종 승인</button>
+            <button onClick={()=>setRid(l.id)} style={{...btn('danger'),fontSize:11}}>반려</button>
+          </LeaveCard>)
+      )}
+
+      {/* 처리 완료 탭 */}
+      {tab==='done'&&(done.length===0
+        ?<div style={{...card,textAlign:'center',padding:'28px',color:'#94a3b8',fontSize:13}}>처리 완료된 내역이 없습니다</div>
+        :done.map(l=>{const lu=getU(l.user_id);return(
           <div key={l.id} style={{...card,padding:'10px 13px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
             <div style={{flex:1}}>
               <b style={{fontSize:13}}>{lu?.name}</b>
+              <span style={{fontSize:11,color:'#64748b',background:'#f1f5f9',borderRadius:20,padding:'1px 6px',marginLeft:5}}>{getTeam(l.user_id)}</span>
               <span style={{fontSize:12,color:'#64748b',marginLeft:6}}>{l.type} {daysLabel(Number(l.days))}</span>
               <p style={{margin:'1px 0 0',fontSize:11,color:'#94a3b8'}}>{fmtFull(l.start_date)}{l.created_at?` · 신청 ${fmtDT(l.created_at)}`:''}</p>
             </div>
@@ -598,8 +649,9 @@ function AdminApprove({user,users,leaves,onRefresh}){
               {l.status!=='approved'&&<button onClick={()=>delLeave(l)} style={{...btn('danger'),padding:'3px 8px',fontSize:11}}>삭제</button>}
             </div>
           </div>
-        );})}
-      </>}
+        );})
+      )}
+
       {rid&&<Modal title="반려 사유" onClose={()=>setRid(null)}><div style={{marginBottom:12}}><label style={lbl}>반려 사유 (선택)</label><textarea value={rr} onChange={e=>setRr(e.target.value)} placeholder="사유 없이도 반려 가능" rows={3} style={{...inp,resize:'none'}}/></div><div style={{display:'flex',gap:8}}><button onClick={()=>setRid(null)} style={{...btn(),flex:1}}>취소</button><button onClick={reject} style={{...btn('danger'),flex:1}}>반려 확정</button></div></Modal>}
     </div>
   );
@@ -885,7 +937,7 @@ function App(){
     );
   }
 
-  const pendingCount=leaves.filter(l=>['manager_approved','cancel_pending'].includes(l.status)).length;
+  const pendingCount=leaves.filter(l=>['manager_approved','cancel_pending','pending'].includes(l.status)).length;
   const mgrPending=leaves.filter(l=>{const lu=users.find(u=>u.id===l.user_id);return lu?.team_id===cu.team_id&&lu?.id!==cu.id&&l.status==='pending';}).length;
 
   const navItems=cu.role==='admin'
@@ -902,7 +954,7 @@ function App(){
     if(view==='calendar')return <CalView {...props}/>;
     if(view==='profile')return <ProfileView {...props} onLogout={logout}/>;
     if(view==='team_approve')return <MgrApprove {...props}/>;
-    if(view==='admin_approve')return <AdminApprove {...props}/>;
+    if(view==='admin_approve')return <AdminApprove {...props} teams={teams}/>;
     if(view==='admin_teams')return <AdminTeams {...props}/>;
     if(view==='admin_users')return <AdminUsers {...props}/>;
     if(view==='admin_stats')return <AdminStats {...props}/>;
