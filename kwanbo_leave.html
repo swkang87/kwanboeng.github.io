@@ -30,6 +30,7 @@ const HOLIDAYS={
   '2025-03-01':'삼일절',
   '2025-05-05':'어린이날',
   '2025-06-03':'임시공휴일(지방선거)',
+  '2025-06-06':'현충일',
   '2025-07-17':'제헌절',
   '2025-08-15':'광복절',
   '2025-10-03':'개천절',
@@ -78,13 +79,15 @@ const daysLabel=n=>n===0.25?'반반차(2h)':n===0.5?'반차(4h)':n===0.75?'3/4�
 const fmtDate=d=>{if(!d)return'';const[y,m,dd]=d.split('-');return`${+m}/${+dd}`;};
 const fmtFull=d=>{if(!d)return'';const[y,m,dd]=d.split('-');return`${y}년 ${+m}월 ${+dd}일`;};
 const fmtPhone=p=>{if(!p)return'';const n=p.replace(/\D/g,'');return n.length===11?`${n.slice(0,3)}-${n.slice(3,7)}-${n.slice(7)}`:p;};
-// 항상 서울(KST) 기준으로 출력 — 브라우저 로케일 무관
+// 항상 서울(KST) 기준으로 출력
 const fmtDT=s=>{
   if(!s)return'';
   try{
     const d=new Date(s);
     if(isNaN(d))return s;
-    return new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(d).replace(/\. /g,'.').replace(/\.$/,'');
+    // toLocaleString으로 Asia/Seoul 시간 문자열을 얻어 새 Date로 파싱
+    const kst=new Date(d.toLocaleString('en-US',{timeZone:'Asia/Seoul'}));
+    return`${kst.getFullYear()}.${String(kst.getMonth()+1).padStart(2,'0')}.${String(kst.getDate()).padStart(2,'0')} ${String(kst.getHours()).padStart(2,'0')}:${String(kst.getMinutes()).padStart(2,'0')}`;
   }catch{return s;}
 };
 
