@@ -293,8 +293,25 @@ function App() {
   const handleLogout = () => { localStorage.removeItem('kwanbo_pm_user'); setUser(null); };
   const isAdmin = user?.role === 'admin';
 
-  const gp = (id) => { setSelProject(id); setView('project'); };
-  const nv = (v) => { setView(v); setSelProject(null); };
+  const gp = (id) => {
+    history.pushState({ view: 'project', id }, '', '');
+    setSelProject(id); setView('project');
+  };
+  const nv = (v) => {
+    history.pushState({ view: v }, '', '');
+    setView(v); setSelProject(null);
+  };
+
+  useEffect(() => {
+    const onPop = (e) => {
+      const s = e.state;
+      if (!s) { setView('weekly'); setSelProject(null); return; }
+      if (s.view === 'project' && s.id) { setSelProject(s.id); setView('project'); }
+      else { setView(s.view || 'weekly'); setSelProject(null); }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   if (!user) return <Login onLogin={handleLogin} />;
 
