@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>(주)관보종합기술단 | KWAN BO ENGINEERING CO., LTD.</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Serif+KR:wght@400;600;900&family=Montserrat:wght@400;500;600;700;800&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<!-- Pretendard -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"/>
+<!-- Playfair Display + Barlow Condensed -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 /* ══════════════════════════════════
    TOKENS — Light Theme
@@ -30,10 +34,13 @@
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 html { scroll-behavior:smooth; }
 body {
-  font-family:'Noto Sans KR',sans-serif;
+  font-family:'Pretendard', sans-serif;
   background:var(--white);
   color:var(--ink);
   overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  word-break:keep-all;
 }
 a { text-decoration:none; color:inherit; }
 ul { list-style:none; }
@@ -70,16 +77,16 @@ ul { list-style:none; }
 /* Logo */
 .logo { display:flex; align-items:center; gap:10px; }
 .logo-img {
-  height:32px; width:auto;
-  flex-shrink:0;
-  /* 흰 배경에서는 원본 컬러, 스크롤 후에도 동일 */
-  filter:drop-shadow(0 1px 3px rgba(0,0,0,.15));
+  height:34px; width:auto; flex-shrink:0;
+  display:block;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.2));
 }
 .logo-ko {
   font-family:'Pretendard', sans-serif;
   font-size:.98rem; font-weight:800;
   letter-spacing:-.02em; color:#fff;
   transition:color .3s;
+  line-height:1;
 }
 .logo-ko em { color:var(--gold); font-style:normal; }
 
@@ -92,7 +99,7 @@ ul { list-style:none; }
 }
 .nav-link::after {
   content:''; position:absolute; bottom:-3px; left:0; right:0;
-  height:2px; background:var(--red);
+  height:2px; background:var(--gold);
   transform:scaleX(0); transform-origin:left; transition:transform .25s;
 }
 .nav-link:hover { color:#fff; }
@@ -101,14 +108,15 @@ ul { list-style:none; }
 /* Nav right */
 .nav-right { display:flex; align-items:center; gap:10px; }
 
-/* 문의하기 버튼 */
+/* 문의하기 버튼 — 딥 네이비 */
 .nav-contact {
   padding:8px 20px;
-  background:var(--red); border-radius:2px;
+  background:#1a3a6b; border-radius:2px;
   font-size:.78rem; font-weight:700; letter-spacing:.05em;
   color:#fff; transition:background .2s;
+  font-family:'Pretendard',sans-serif;
 }
-.nav-contact:hover { background:#a31515; }
+.nav-contact:hover { background:#0d2044; }
 
 /* ★ 종합정보시스템 버튼 ★ */
 .nav-erp {
@@ -154,8 +162,8 @@ ul { list-style:none; }
 }
 #mob-menu.open { display:flex; }
 #mob-menu a, #mob-menu button {
-  font-family:'Noto Serif KR',serif;
-  font-size:1.6rem; font-weight:900;
+  font-family:'Pretendard',sans-serif;
+  font-size:1.6rem; font-weight:800;
   color:rgba(255,255,255,.6); transition:color .2s;
   background:none; border:none; cursor:pointer;
 }
@@ -194,7 +202,8 @@ ul { list-style:none; }
   margin-bottom:6px;
 }
 .modal-logo-img {
-  height:24px; width:auto; flex-shrink:0;
+  height:26px; width:auto; flex-shrink:0;
+  display:block;
 }
 .modal-co {
   font-family:'Pretendard', sans-serif;
@@ -203,7 +212,7 @@ ul { list-style:none; }
 .modal-co em { color:var(--gold); font-style:normal; }
 .modal-title {
   font-family:'Pretendard', sans-serif;
-  font-size:1.25rem; font-weight:800; color:#fff;
+  font-size:1.2rem; font-weight:800; color:#fff;
   letter-spacing:-.03em;
 }
 .modal-sub { font-family:'Pretendard',sans-serif; font-size:.75rem; color:rgba(255,255,255,.5); margin-top:4px; }
@@ -254,7 +263,7 @@ ul { list-style:none; }
 .modal-input {
   width:100%; padding:11px 14px;
   border:1.5px solid var(--border); border-radius:6px;
-  font-size:.85rem; font-family:'Noto Sans KR',sans-serif;
+  font-size:.85rem; font-family:'Pretendard',sans-serif;
   color:var(--ink); outline:none; transition:border-color .2s;
 }
 .modal-input:focus { border-color:var(--navy2); }
@@ -262,7 +271,7 @@ ul { list-style:none; }
   width:100%; padding:12px;
   background:var(--navy); border:none; border-radius:6px;
   color:#fff; font-size:.85rem; font-weight:700;
-  font-family:'Noto Sans KR',sans-serif;
+  font-family:'Pretendard',sans-serif;
   cursor:pointer; transition:background .2s;
   letter-spacing:.04em;
 }
@@ -316,9 +325,9 @@ ul { list-style:none; }
   font-size:.7rem; letter-spacing:.24em; color:var(--gold);
 }
 .hero-h1 {
-  font-family:'Noto Serif KR',serif;
+  font-family:'Pretendard',sans-serif;
   font-size:clamp(1.9rem,5vw,3.8rem);
-  font-weight:900; line-height:1.15; letter-spacing:-.03em;
+  font-weight:800; line-height:1.15; letter-spacing:-.03em;
   color:#fff; margin-bottom:18px;
 }
 .hero-h1 .acc { color:var(--gold); }
@@ -330,18 +339,20 @@ ul { list-style:none; }
 .hero-btns { display:flex; gap:12px; flex-wrap:wrap; }
 .btn-p {
   display:inline-block; padding:13px 34px;
-  background:var(--red); border-radius:2px;
+  background:#1a3a6b; border-radius:2px;
   font-size:.82rem; font-weight:700; letter-spacing:.05em; color:#fff;
+  font-family:'Pretendard',sans-serif;
   transition:background .2s, transform .15s;
 }
-.btn-p:hover { background:#a31515; transform:translateY(-2px); }
+.btn-p:hover { background:#0d2044; transform:translateY(-2px); }
 .btn-o {
   display:inline-block; padding:13px 34px;
-  border:1.5px solid rgba(255,255,255,.4); border-radius:2px;
-  font-size:.82rem; letter-spacing:.05em; color:rgba(255,255,255,.85);
-  transition:border-color .2s, color .2s;
+  border:1.5px solid rgba(255,255,255,.5); border-radius:2px;
+  font-size:.82rem; letter-spacing:.05em; color:#fff;
+  font-family:'Pretendard',sans-serif;
+  transition:border-color .2s, background .2s;
 }
-.btn-o:hover { border-color:#fff; color:#fff; }
+.btn-o:hover { border-color:#fff; background:rgba(255,255,255,.1); }
 
 /* Dots & counter */
 .hero-dots {
@@ -410,19 +421,20 @@ ul { list-style:none; }
    SECTION BASE
 ══════════════════════════════════ */
 .stag {
-  font-family:'Barlow Condensed',sans-serif;
-  font-size:.68rem; letter-spacing:.24em; color:var(--red);
-  margin-bottom:12px; display:block;
+  font-family:'Playfair Display', serif;
+  font-size:.88rem; font-style:italic; font-weight:700;
+  letter-spacing:.02em; color:var(--red);
+  margin-bottom:14px; display:block;
 }
 .stitle {
-  font-family:'Noto Serif KR',serif;
-  font-size:clamp(1.4rem,2.6vw,2rem);
-  font-weight:900; letter-spacing:-.02em; line-height:1.25;
+  font-family:'Pretendard', sans-serif;
+  font-size:clamp(1.5rem,2.8vw,2.2rem);
+  font-weight:800; letter-spacing:-.04em; line-height:1.2;
   color:var(--navy);
 }
-/* Montserrat for nav/UI elements */
+/* Pretendard for nav/UI elements */
 .nav-erp, .pf, .modal-login-btn, .modal-menu-label {
-  font-family:'Montserrat',sans-serif;
+  font-family:'Pretendard',sans-serif;
 }
 .sdesc { font-size:.88rem; color:var(--gray); line-height:1.85; font-weight:300; }
 
@@ -675,8 +687,8 @@ footer {
   flex-wrap:wrap; gap:28px;
 }
 .footer-ko {
-  font-family:'Noto Serif KR',serif;
-  font-size:1rem; font-weight:900; color:#fff; margin-bottom:3px;
+  font-family:'Pretendard',sans-serif;
+  font-size:1rem; font-weight:800; color:#fff; margin-bottom:3px;
 }
 .footer-ko em { color:var(--gold); font-style:normal; }
 .footer-en {
@@ -795,7 +807,7 @@ footer {
 <!-- ════════════════ NAV ════════════════ -->
 <nav id="nav">
   <a href="#hero" class="logo">
-    <div class="logo-tri-wrap"><img src="logo.png" alt="관보종합기술단 로고" class="logo-img"/></div>
+    <img src="logo.png" alt="관보종합기술단 로고" class="logo-img"/>
     <div class="logo-ko"><em>(주)</em>관보종합기술단</div>
   </a>
 
@@ -834,7 +846,7 @@ footer {
     <!-- 헤더 -->
     <div class="modal-header">
       <div class="modal-header-top">
-        <img src="logo.png" alt="관보종합기술단 로고" class="modal-logo-img"/>
+        <img src="logo.png" alt="관보로고" class="modal-logo-img"/>
         <div class="modal-co"><em>(주)</em>관보종합기술단</div>
       </div>
       <div class="modal-title">종합정보시스템</div>
@@ -1191,7 +1203,7 @@ footer {
     <div class="footer-top">
       <div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-          <img src="logo.png" alt="관보종합기술단 로고" style="height:28px;width:auto;opacity:.85;"/>
+          <img src="logo.png" alt="관보종합기술단 로고" style="height:28px;width:auto;opacity:.8;"/>
           <div class="footer-ko"><em>(주)</em>관보종합기술단</div>
         </div>
         <div class="footer-en">KWAN BO ENGINEERING CO., LTD.</div>
