@@ -129,24 +129,21 @@ const fmtFull=d=>{if(!d)return'';const[y,m,dd]=d.split('-');return`${y}년 ${+m}
 const fmtPhone=p=>{if(!p)return'';const n=p.replace(/\D/g,'');return n.length===11?`${n.slice(0,3)}-${n.slice(3,7)}-${n.slice(7)}`:p;};
 const fmtDT=s=>{
   if(!s)return'';
-  // Supabase 마이크로초(6자리) → 밀리초(3자리)로 잘라서 파싱
-  const clean=s.replace(/(\.\d{3})\d+/,'$1');
-  const t=Date.parse(clean);
-  if(isNaN(t))return s;
-  const kst=new Date(t+32400000);
-  const yy=kst.getUTCFullYear();
-  const mm=String(kst.getUTCMonth()+1).padStart(2,'0');
-  const dd=String(kst.getUTCDate()).padStart(2,'0');
-  const hh=String(kst.getUTCHours()).padStart(2,'0');
-  const mi=String(kst.getUTCMinutes()).padStart(2,'0');
-  return`${yy}.${mm}.${dd} ${hh}:${mi}`;
+  // 타임존 정보와 무관하게 숫자만 뽑아서 UTC로 재구성 후 +9
+  // Supabase 예: "2026-05-08T04:30:11.988936+00:00" 또는 "2026-05-08T04:30:11"
+  const m=s.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+  if(!m)return s;
+  // m[1..6] = 년,월,일,시,분,초 (항상 UTC 기준으로 Supabase가 저장)
+  const utcMs=Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]);
+  const kst=new Date(utcMs+32400000);
+  return`${kst.getUTCFullYear()}.${String(kst.getUTCMonth()+1).padStart(2,'0')}.${String(kst.getUTCDate()).padStart(2,'0')} ${String(kst.getUTCHours()).padStart(2,'0')}:${String(kst.getUTCMinutes()).padStart(2,'0')}`;
 };
 
 const calLabel=(p)=>{
   const d=Number(p.days);
-  const isPartial=d<1;
-  if(p.type==='공가')return isPartial?`${p.name}(공${d})`:p.name;
-  return isPartial?`${p.name}(${d})`:p.name;
+  if(d>=1)return p.name;
+  const tag=d<=0.25?'반반차':'반차';
+  return p.type==='공가'?`${p.name}(공${tag})`:`${p.name}(${tag})`;
 };
 const typeLabel=(type,days)=>{
   const d=Number(days);
