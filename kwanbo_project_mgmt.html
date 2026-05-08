@@ -281,22 +281,22 @@ function Login({ onLogin }) {
 
 // ─── Main App ───
 function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try { const s = localStorage.getItem('kwanbo_pm_user'); return s ? JSON.parse(s) : null; }
+    catch { return null; }
+  });
   const [view, setView] = useState('weekly');
   const [selProject, setSelProject] = useState(null);
   const [calDate, setCalDate] = useState(new Date());
 
-  const canEdit = (project) => {
-    if (!user || !project) return false;
-    if (user.role === 'admin') return true;
-    return false; // checked per-component via project_members
-  };
+  const handleLogin = (u) => { localStorage.setItem('kwanbo_pm_user', JSON.stringify(u)); setUser(u); };
+  const handleLogout = () => { localStorage.removeItem('kwanbo_pm_user'); setUser(null); };
   const isAdmin = user?.role === 'admin';
 
   const gp = (id) => { setSelProject(id); setView('project'); };
   const nv = (v) => { setView(v); setSelProject(null); };
 
-  if (!user) return <Login onLogin={setUser} />;
+  if (!user) return <Login onLogin={handleLogin} />;
 
   const menuItems = [
     { k: 'weekly', l: '주간보고' },
@@ -327,7 +327,7 @@ function App() {
         </div>
         <div className="nav-user">
           안녕하세요, <span>{user.name}</span>님
-          <button className="logout-btn" onClick={() => setUser(null)}>로그아웃</button>
+          <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
         </div>
       </nav>
 
