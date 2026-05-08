@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>관보종합기술단 공정관리시스템</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+input,textarea,select,button{font-family:'Noto Sans KR',sans-serif}
+button{cursor:pointer}
+
+/* ── PRINT ── */
+@media print{
+  .no-print{display:none!important}
+  .print-only{display:block!important}
+  body{background:#fff}
+  #print-area{display:block!important}
+}
+.print-only{display:none}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-box{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+.modal-title{font-size:16px;font-weight:800;color:#0f172a;margin-bottom:18px;padding-bottom:12px;border-bottom:2px solid #f1f5f9}
+.form-group{margin-bottom:14px}
+.form-label{font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;display:block}
+.form-input{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;color:#1e293b;outline:none;transition:border .2s}
+.form-input:focus{border-color:#2563eb}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{padding:9px 18px;border-radius:7px;border:none;font-size:13px;font-weight:700;transition:all .2s}
+.btn-primary{background:#0f172a;color:#fff}
+.btn-primary:hover{background:#1e3a5f}
+.btn-secondary{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
+.btn-secondary:hover{background:#e2e8f0}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-danger:hover{background:#b91c1c}
+.btn-success{background:#059669;color:#fff}
+.btn-success:hover{background:#047857}
+.btn-sm{padding:5px 12px;font-size:11px;border-radius:5px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:14px;border-top:1px solid #f1f5f9}
+
+/* ── ALERT ── */
+.alert{padding:10px 14px;border-radius:7px;font-size:12px;margin-bottom:12px}
+.alert-error{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+.alert-success{background:#f0fdf4;color:#059669;border:1px solid #bbf7d0}
+
+/* ── NAV ── */
+.navbar{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);color:#fff;padding:0 16px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;flex-wrap:wrap;gap:6px}
+.nav-brand{display:flex;align-items:center;gap:8px}
+.nav-accent{width:5px;height:22px;background:#ef4444;border-radius:2px}
+.nav-title{font-size:13px;font-weight:800;letter-spacing:-.5px}
+.nav-sub{font-size:9px;opacity:.45;letter-spacing:1.5px}
+.nav-menu{display:flex;gap:2px;background:rgba(255,255,255,.08);border-radius:7px;padding:2px}
+.nav-btn{padding:5px 11px;border-radius:5px;border:none;background:transparent;color:rgba(255,255,255,.5);font-size:11px;font-weight:500;cursor:pointer;transition:all .2s}
+.nav-btn.active{background:rgba(255,255,255,.18);color:#fff;font-weight:700}
+.nav-btn.highlight{background:rgba(239,68,68,.25);color:#fca5a5;font-weight:700}
+.nav-btn.highlight.active{background:rgba(239,68,68,.5);color:#fff}
+.nav-user{font-size:11px;color:rgba(255,255,255,.6);display:flex;align-items:center;gap:8px}
+.nav-user span{color:#fff;font-weight:700}
+.logout-btn{padding:4px 10px;border-radius:5px;border:1px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.6);font-size:10px;cursor:pointer}
+
+/* ── CARDS & TABLE ── */
+.page{max-width:1200px;margin:0 auto;padding:14px 12px}
+.section-title{font-size:16px;font-weight:800;color:#0f172a;margin-bottom:12px}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card-p{padding:16px}
+.badge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;color:#fff;line-height:16px;white-space:nowrap}
+.pbar-wrap{display:flex;align-items:center;gap:5px}
+.pbar-track{height:5px;background:#e2e8f0;border-radius:3px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:3px;transition:width .4s}
+.delta-pos{font-size:10px;font-weight:700;color:#059669}
+.delta-neg{font-size:10px;font-weight:700;color:#dc2626}
+.delta-zero{font-size:10px;color:#94a3b8}
+.tag-관급{background:#2563eb}
+.tag-사급{background:#059669}
+.tag-기술지원{background:#d97706}
+.tag-진행중{background:#2563eb}
+.tag-중지{background:#94a3b8}
+.tag-완료{background:#6b7280}
+.tag-pm{background:#0f172a}
+.tag-support{background:#64748b}
+.tag-contractor{background:#d97706}
+
+/* ── PROJECT LIST ── */
+.proj-card{background:#fff;border-radius:10px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,.05);margin-bottom:7px;border-left:4px solid #e2e8f0;cursor:pointer;transition:transform .15s}
+.proj-card:hover{transform:translateX(2px)}
+.proj-card.stopped{opacity:.65}
+.proj-name{font-size:13px;font-weight:800;color:#0f172a;margin:3px 0}
+
+/* ── TABLE ── */
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{padding:7px 5px;text-align:left;font-size:10px;font-weight:700;color:#64748b;border-bottom:2px solid #e2e8f0;background:#f8fafc;white-space:nowrap}
+.tbl td{padding:6px 5px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+.tbl tr:hover td{background:#fafbfc}
+.tbl .tc{text-align:center}
+.tbl tr.stopped td{color:#9ca3af;background:#f9fafb}
+
+/* ── MY PROJECTS ── */
+.my-proj-card{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:10px;border-left:4px solid #2563eb}
+.my-proj-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+
+/* ── SUMMARY CARDS ── */
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:7px;margin-bottom:12px}
+.sum-card{background:#fff;border-radius:9px;padding:11px 13px;box-shadow:0 1px 2px rgba(0,0,0,.05);border-top:3px solid #e2e8f0}
+.sum-val{font-size:22px;font-weight:900}
+.sum-label{font-size:9px;color:#94a3b8;font-weight:600;margin-bottom:2px}
+.sum-unit{font-size:10px;font-weight:400;color:#94a3b8}
+
+/* ── CALENDAR ── */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-head{padding:6px 2px;text-align:center;font-size:10px;font-weight:700;background:#f8fafc;border-bottom:1px solid #e2e8f0}
+.cal-cell{min-height:64px;padding:2px 3px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;cursor:pointer;transition:background .15s}
+.cal-cell:hover{background:#f0f9ff}
+.cal-cell.selected{background:#eff6ff}
+.cal-cell.today{background:#fffbeb}
+.cal-date{font-size:11px;font-weight:500}
+.cal-ev{font-size:8px;margin-top:1px;padding:1px 3px;border-radius:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+
+/* ── EVENT STYLES ── */
+.ev-착수보고{background:#dbeafe;color:#1e40af}
+.ev-중간보고{background:#e0e7ff;color:#4338ca}
+.ev-최종보고{background:#d1fae5;color:#065f46}
+.ev-위원회{background:#fce7f3;color:#9d174d}
+.ev-협의{background:#fef3c7;color:#92400e}
+.ev-납품{background:#f3e8ff;color:#6b21a8}
+.ev-기타{background:#f1f5f9;color:#334155}
+
+/* ── UPCOMING ── */
+.upcoming-card{padding:8px 10px;border-radius:7px;margin-bottom:5px;cursor:pointer;border-left:3px solid}
+.timeline{position:relative;padding-left:20px}
+.timeline-line{position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:#e2e8f0;border-radius:1px}
+.timeline-item{position:relative;margin-bottom:8px;padding-left:12px}
+.timeline-dot{position:absolute;left:-16px;top:5px;width:8px;height:8px;border-radius:50%;border:2px solid #fff;z-index:1}
+
+/* ── PRINT LAYOUT ── */
+#print-area{display:none}
+@media print{
+  #print-area{display:block;font-family:'Noto Sans KR',sans-serif}
+  @page{size:A3 landscape;margin:8mm}
+  body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .print-header{text-align:center;margin-bottom:8px}
+  .print-title{font-size:14pt;font-weight:900;color:#0f172a}
+  .print-sub{font-size:8pt;color:#64748b}
+  .print-cols{display:flex;gap:10px}
+  .print-col{flex:1}
+  .ptbl{width:100%;border-collapse:collapse;font-size:7pt}
+  .ptbl th{padding:3px 2px;background:#e2e8f0;border:0.5px solid #94a3b8;font-size:7pt;font-weight:700;text-align:center;white-space:nowrap}
+  .ptbl td{padding:2px 2px;border:0.5px solid #ddd;font-size:7pt;vertical-align:top}
+  .ptbl .tc{text-align:center}
+  .ptbl tr.stopped td{color:#9ca3af;background:#f5f5f5}
+}
+
+/* ── LOGIN ── */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)}
+.login-box{background:#fff;border-radius:16px;padding:36px;width:360px;box-shadow:0 24px 80px rgba(0,0,0,.4)}
+.login-logo{text-align:center;margin-bottom:28px}
+.login-logo-accent{width:6px;height:28px;background:#ef4444;border-radius:2px;display:inline-block;margin-right:8px;vertical-align:middle}
+.login-logo-text{font-size:15px;font-weight:800;color:#0f172a}
+.login-logo-sub{font-size:10px;color:#94a3b8;margin-top:4px}
+.login-title{font-size:18px;font-weight:900;color:#0f172a;margin-bottom:4px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="print-area"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ─── Supabase ───
+const { createClient } = supabase;
+const sb = createClient(
+  'https://pxtddjilxwomzfsjhmvn.supabase.co',
+  'sb_publishable_M2fWxHmHFMLfdtRConOuMg_GfIMv9bS'
+);
+
+// ─── Constants ───
+const CAT_COLOR = { '관급': '#2563eb', '사급': '#059669', '기술지원': '#d97706' };
+const STATUS_COLOR = { '진행중': '#2563eb', '중지': '#94a3b8', '완료': '#6b7280' };
+const EV_TYPES = ['착수보고', '중간보고', '최종보고', '위원회', '협의', '납품', '기타'];
+const EV_ICON = { '착수보고': '🚀', '중간보고': '📋', '최종보고': '📦', '위원회': '🏛️', '협의': '🤝', '납품': '📬', '기타': '📌' };
+const EV_COLOR = {
+  '착수보고': { bg: '#dbeafe', bd: '#3b82f6', tx: '#1e40af' },
+  '중간보고': { bg: '#e0e7ff', bd: '#6366f1', tx: '#4338ca' },
+  '최종보고': { bg: '#d1fae5', bd: '#059669', tx: '#065f46' },
+  '위원회':   { bg: '#fce7f3', bd: '#ec4899', tx: '#9d174d' },
+  '협의':     { bg: '#fef3c7', bd: '#f59e0b', tx: '#92400e' },
+  '납품':     { bg: '#f3e8ff', bd: '#a855f7', tx: '#6b21a8' },
+  '기타':     { bg: '#f1f5f9', bd: '#94a3b8', tx: '#334155' },
+};
+const ec = (t) => EV_COLOR[t] || EV_COLOR['기타'];
+const DK = ['일','월','화','수','목','금','토'];
+
+// ─── Utilities ───
+const ff = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${t.getFullYear()}.${String(t.getMonth()+1).padStart(2,'0')}.${String(t.getDate()).padStart(2,'0')}`; };
+const fs = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${String(t.getMonth()+1).padStart(2,'0')}.${String(t.getDate()).padStart(2,'0')}`; };
+const fmt = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${t.getMonth()+1}/${t.getDate()}`; };
+const today = () => new Date().toISOString().split('T')[0];
+const thisMonday = () => { const d = new Date(); d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1)); return d.toISOString().split('T')[0]; };
+const weekLabel = (d) => { const dt = new Date(d+'T00:00:00'); const s = new Date(dt); s.setDate(s.getDate()-(dt.getDay()===0?6:dt.getDay()-1)); const e = new Date(s); e.setDate(e.getDate()+4); return `${s.getFullYear()}년 ${s.getMonth()+1}월 ${Math.ceil(s.getDate()/7)}주차 (${fmt(s.toISOString().split('T')[0])}~${fmt(e.toISOString().split('T')[0])})`; };
+
+// ─── Shared Components ───
+const Bd = ({ children, bg = '#64748b', sm }) => (
+  <span className="badge" style={{ background: bg, fontSize: sm ? 9 : 10 }}>{children}</span>
+);
+const PBar = ({ pct, w = 100 }) => {
+  const c = pct >= 80 ? '#059669' : pct >= 50 ? '#2563eb' : '#f59e0b';
+  return (
+    <div className="pbar-wrap">
+      <div className="pbar-track" style={{ width: w }}>
+        <div className="pbar-fill" style={{ width: `${pct}%`, background: c }} />
+      </div>
+      <span style={{ fontSize: 11, fontWeight: 700, color: c, minWidth: 28 }}>{pct}%</span>
+    </div>
+  );
+};
+const Delta = ({ prev, curr }) => {
+  const d = curr - prev;
+  if (d === 0) return <span className="delta-zero">—</span>;
+  return <span className={d > 0 ? 'delta-pos' : 'delta-neg'}>{d > 0 ? `▲${d}` : `▼${Math.abs(d)}`}</span>;
+};
+const Spinner = () => <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>불러오는 중...</div>;
+const Modal = ({ title, onClose, children, wide }) => (
+  <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-box" style={wide ? { maxWidth: 700 } : {}}>
+      <div className="modal-title">{title}</div>
+      {children}
+    </div>
+  </div>
+);
+
+// ─── Login ───
+function Login({ onLogin }) {
+  const [phone, setPhone] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handle = async () => {
+    if (!phone || !pw) { setErr('전화번호와 비밀번호를 입력해주세요.'); return; }
+    setLoading(true); setErr('');
+    try {
+      const { data, error } = await sb.from('users').select('*').eq('phone', phone).eq('password', pw).single();
+      if (error || !data) { setErr('전화번호 또는 비밀번호가 올바르지 않습니다.'); }
+      else { onLogin(data); }
+    } catch { setErr('서버 오류가 발생했습니다.'); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="login-wrap">
+      <div className="login-box">
+        <div className="login-logo">
+          <div><span className="login-logo-accent" /><span className="login-logo-text">관보종합기술단</span></div>
+          <div className="login-logo-sub">KWANBO ENGINEERING CO., LTD.</div>
+        </div>
+        <div className="login-title" style={{ textAlign: 'center', marginBottom: 20 }}>공정관리시스템</div>
+        {err && <div className="alert alert-error">{err}</div>}
+        <div className="form-group">
+          <label className="form-label">전화번호 (ID)</label>
+          <input className="form-input" value={phone} onChange={e => setPhone(e.target.value)} placeholder="010-0000-0000" onKeyDown={e => e.key === 'Enter' && handle()} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">비밀번호</label>
+          <input className="form-input" type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="비밀번호" onKeyDown={e => e.key === 'Enter' && handle()} />
+        </div>
+        <button className="btn btn-primary" style={{ width: '100%', marginTop: 8, padding: '11px' }} onClick={handle} disabled={loading}>
+          {loading ? '로그인 중...' : '로그인'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ───
+function App() {
+  const [user, setUser] = useState(null);
+  const [view, setView] = useState('weekly');
+  const [selProject, setSelProject] = useState(null);
+  const [calDate, setCalDate] = useState(new Date());
+
+  const canEdit = (project) => {
+    if (!user || !project) return false;
+    if (user.role === 'admin') return true;
+    return false; // checked per-component via project_members
+  };
+  const isAdmin = user?.role === 'admin';
+
+  const gp = (id) => { setSelProject(id); setView('project'); };
+  const nv = (v) => { setView(v); setSelProject(null); };
+
+  if (!user) return <Login onLogin={setUser} />;
+
+  const menuItems = [
+    { k: 'weekly', l: '주간보고' },
+    { k: 'monthly', l: '월간달력' },
+    { k: 'projects', l: '프로젝트' },
+    { k: 'mine', l: '📁 내 프로젝트', hl: true },
+    ...(isAdmin ? [{ k: 'admin', l: '⚙ 관리', hl: true }] : []),
+  ];
+
+  return (
+    <div>
+      {/* Navbar */}
+      <nav className="navbar no-print">
+        <div className="nav-brand">
+          <div className="nav-accent" />
+          <div>
+            <div className="nav-sub">KWANBO ENGINEERING</div>
+            <div className="nav-title">공정관리시스템</div>
+          </div>
+        </div>
+        <div className="nav-menu">
+          {menuItems.map(t => (
+            <button key={t.k} onClick={() => nv(t.k)}
+              className={`nav-btn ${t.hl ? 'highlight' : ''} ${(view === t.k || (view === 'project' && t.k === 'projects')) ? 'active' : ''}`}>
+              {t.l}
+            </button>
+          ))}
+        </div>
+        <div className="nav-user">
+          안녕하세요, <span>{user.name}</span>님
+          <button className="logout-btn" onClick={() => setUser(null)}>로그아웃</button>
+        </div>
+      </nav>
+
+      {/* Views */}
+      <div className="page">
+        {view === 'weekly'  && <WeeklyReport gp={gp} user={user} />}
+        {view === 'monthly' && <MonthlyCalendar gp={gp} calDate={calDate} setCalDate={setCalDate} />}
+        {view === 'projects' && <ProjectList gp={gp} />}
+        {view === 'project' && selProject && <ProjectDetail id={selProject} user={user} gb={() => nv('projects')} />}
+        {view === 'mine'   && <MyProjects user={user} gp={gp} />}
+        {view === 'admin'  && isAdmin && <AdminPanel user={user} />}
+      </div>
+    </div>
+  );
+}
+
+// ─── Weekly Report ───
+function WeeklyReport({ gp, user }) {
+  const [projects, setProjects] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [allWeeks, setAllWeeks] = useState([]);
+  const [selWeek, setSelWeek] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadAll(); }, []);
+
+  const loadAll = async () => {
+    setLoading(true);
+    const [pj, rp, ev, us] = await Promise.all([
+      sb.from('projects').select('*').neq('status', '완료').order('name'),
+      sb.from('weekly_reports').select('*').order('week_date', { ascending: false }),
+      sb.from('project_events').select('*'),
+      sb.from('users').select('id, name'),
+    ]);
+    setProjects(pj.data || []);
+    setReports(rp.data || []);
+    setEvents(ev.data || []);
+    setUsers(us.data || []);
+    const weeks = [...new Set((rp.data || []).map(r => r.week_date))].sort((a,b) => b.localeCompare(a));
+    if (weeks.length === 0) weeks.push(thisMonday());
+    setAllWeeks(weeks);
+    setSelWeek(weeks[0]);
+    setLoading(false);
+  };
+
+  const uName = (id) => users.find(u => u.id === id)?.name || '';
+
+  const sortedProjects = (() => {
+    const catOrder = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
+    const active = projects.filter(p => p.status === '진행중' && p.category !== '기술지원');
+    const stopped = projects.filter(p => p.status === '중지');
+    const tech = projects.filter(p => p.category === '기술지원');
+    const byPct = (arr) => arr.sort((a,b) => {
+      const pa = reports.filter(r => r.project_id === a.id && r.week_date <= selWeek).sort((x,y) => y.week_date.localeCompare(x.week_date))[0]?.progress_pct || 0;
+      const pb = reports.filter(r => r.project_id === b.id && r.week_date <= selWeek).sort((x,y) => y.week_date.localeCompare(x.week_date))[0]?.progress_pct || 0;
+      return catOrder(a.category) - catOrder(b.category) || pb - pa;
+    });
+    return [...byPct(active), ...byPct(stopped), ...tech];
+  })();
+
+  const getReport = (pid) => {
+    const r = reports.filter(x => x.project_id === pid && x.week_date === selWeek)[0];
+    if (r) return { ...r, isThisWeek: true };
+    const prev = reports.filter(x => x.project_id === pid && x.week_date < selWeek).sort((a,b) => b.week_date.localeCompare(a.week_date))[0];
+    return prev ? { ...prev, isThisWeek: false } : null;
+  };
+
+  const getNextEvent = (pid) => events.filter(e => e.project_id === pid && !e.done).sort((a,b) => a.event_date.localeCompare(b.event_date))[0];
+
+  const activeProjects = sortedProjects.filter(p => p.status !== '완료');
+  const thisWeekReports = reports.filter(r => r.week_date === selWeek);
+  const avgPct = activeProjects.length > 0 ? Math.round(activeProjects.reduce((s,p) => { const r = getReport(p.id); return s + (r?.progress_pct || 0); }, 0) / activeProjects.length) : 0;
+  const issueCount = thisWeekReports.filter(r => r.issues).length;
+
+  const twoWeeksLater = selWeek ? (() => { const d = new Date(selWeek+'T00:00:00'); d.setDate(d.getDate()+14); return d.toISOString().split('T')[0]; })() : '';
+  const upcomingEvs = events.filter(e => !e.done && selWeek && e.event_date >= selWeek && e.event_date <= twoWeeksLater).sort((a,b) => a.event_date.localeCompare(b.event_date));
+
+  const handlePrint = () => {
+    const el = document.getElementById('print-area');
+    const half = Math.ceil(sortedProjects.length / 2);
+    const renderRows = (rows, startNum) => rows.map((p, i) => {
+      const r = getReport(p.id);
+      const stopped = p.status === '중지';
+      const d = r ? r.progress_pct - r.prev_pct : 0;
+      return `<tr class="${stopped ? 'stopped' : ''}">
+        <td class="tc">${startNum + i}</td>
+        <td class="tc"><span style="background:${stopped?'#d1d5db':CAT_COLOR[p.category]||'#64748b'};color:#fff;padding:1px 4px;border-radius:2px;font-size:6.5pt;font-weight:700">${stopped?'중지':p.category}</span></td>
+        <td style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${p.name}</td>
+        <td>${p.client||''}</td>
+        <td class="tc">${uName(p.pm_id)}</td>
+        <td class="tc">${r?.prev_pct||0}</td>
+        <td class="tc" style="font-weight:700">${r?.progress_pct||0}</td>
+        <td class="tc" style="font-weight:700;color:${d>0?'#059669':d<0?'#dc2626':'#999'}">${d>0?'+'+d:d<0?d:'—'}</td>
+        <td>${r?.isThisWeek ? (r?.summary||'') : (stopped?'중지':'—')}</td>
+        <td>${r?.isThisWeek ? (r?.next_plan||'') : '—'}</td>
+        <td style="color:${r?.issues?'#dc2626':'inherit'}">${r?.issues||''}</td>
+      </tr>`;
+    }).join('');
+    const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>전주</th><th>금주</th><th>±</th><th>금주 실적</th><th>다음주 계획</th><th>비고</th></tr>`;
+    el.innerHTML = `
+      <div class="print-header">
+        <div class="print-title">주간 공정 보고서</div>
+        <div class="print-sub">${selWeek ? weekLabel(selWeek) : ''} &nbsp;|&nbsp; 관보종합기술단 KWANBO ENGINEERING</div>
+      </div>
+      <div class="print-cols">
+        <div class="print-col"><table class="ptbl"><thead>${tableHead}</thead><tbody>${renderRows(sortedProjects.slice(0, half), 1)}</tbody></table></div>
+        <div class="print-col"><table class="ptbl"><thead>${tableHead}</thead><tbody>${renderRows(sortedProjects.slice(half), half+1)}</tbody></table></div>
+      </div>`;
+    window.print();
+  };
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
+        <h2 className="section-title" style={{ margin: 0 }}>📋 주간 공정 보고</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => { const i = allWeeks.indexOf(selWeek); if (i < allWeeks.length - 1) setSelWeek(allWeeks[i+1]); }}>◀</button>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#334155', minWidth: 190, textAlign: 'center' }}>{selWeek ? weekLabel(selWeek) : ''}</span>
+          <button className="btn btn-secondary btn-sm" onClick={() => { const i = allWeeks.indexOf(selWeek); if (i > 0) setSelWeek(allWeeks[i-1]); }}>▶</button>
+          <button className="btn btn-primary btn-sm" onClick={handlePrint}>🖨 A3 인쇄</button>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="sum-grid">
+        <div className="sum-card" style={{ borderTopColor: '#2563eb' }}><div className="sum-label">진행 프로젝트</div><div className="sum-val" style={{ color: '#2563eb' }}>{activeProjects.filter(p=>p.status==='진행중').length}<span className="sum-unit"> 건</span></div></div>
+        <div className="sum-card" style={{ borderTopColor: thisWeekReports.length === activeProjects.filter(p=>p.status==='진행중').length ? '#059669' : '#f59e0b' }}><div className="sum-label">금주 보고</div><div className="sum-val" style={{ color: '#f59e0b' }}>{thisWeekReports.length}<span className="sum-unit"> / {activeProjects.filter(p=>p.status==='진행중').length}건</span></div></div>
+        <div className="sum-card" style={{ borderTopColor: '#6366f1' }}><div className="sum-label">평균 공정률</div><div className="sum-val" style={{ color: '#6366f1' }}>{avgPct}<span className="sum-unit"> %</span></div></div>
+        <div className="sum-card" style={{ borderTopColor: issueCount > 0 ? '#dc2626' : '#059669' }}><div className="sum-label">이슈</div><div className="sum-val" style={{ color: issueCount > 0 ? '#dc2626' : '#059669' }}>{issueCount}<span className="sum-unit"> 건</span></div></div>
+      </div>
+
+      {/* Upcoming events */}
+      {upcomingEvs.length > 0 && (
+        <div className="card card-p" style={{ marginBottom: 12, border: '1px solid #fde68a' }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#92400e', marginBottom: 8 }}>🔜 향후 2주 주요 공정</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {upcomingEvs.map(e => { const s = ec(e.type); const pn = projects.find(p => p.id === e.project_id)?.name || ''; return (
+              <div key={e.id} className="upcoming-card" style={{ background: s.bg, borderColor: s.bd, flex: '1 1 260px', maxWidth: 380, cursor: 'pointer' }} onClick={() => gp(e.project_id)}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span>{EV_ICON[e.type]}</span>
+                  <span style={{ fontWeight: 700, fontSize: 12, color: s.tx }}>{e.title}</span>
+                  <Bd bg={s.bd}>{e.type}</Bd>
+                  <span style={{ fontSize: 10, color: '#64748b' }}>{fs(e.event_date)}</span>
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{pn.length > 28 ? pn.slice(0,28)+'…' : pn}</div>
+              </div>
+            );})}
+          </div>
+        </div>
+      )}
+
+      {/* Progress bars overview */}
+      <div className="card card-p" style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 10 }}>📊 전체 공정률</div>
+        {sortedProjects.map(p => {
+          const r = getReport(p.id);
+          const pct = r?.progress_pct || 0, prev = r?.prev_pct || 0;
+          return (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5, cursor: 'pointer', opacity: p.status === '중지' ? 0.6 : 1 }} onClick={() => gp(p.id)}>
+              <Bd bg={p.status === '중지' ? '#d1d5db' : CAT_COLOR[p.category]}>{p.status === '중지' ? '중지' : p.category}</Bd>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#1e40af', width: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{p.name.length > 18 ? p.name.slice(0,18)+'…' : p.name}</span>
+              <div style={{ flex: 1, height: 14, background: '#f1f5f9', borderRadius: 7, overflow: 'hidden', position: 'relative', minWidth: 60 }}>
+                <div style={{ height: '100%', borderRadius: 7, width: `${pct}%`, background: pct>=80?'linear-gradient(90deg,#059669,#10b981)':pct>=50?'linear-gradient(90deg,#2563eb,#60a5fa)':'linear-gradient(90deg,#f59e0b,#fbbf24)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4, transition: 'width .5s' }}>
+                  {pct >= 18 && <span style={{ fontSize: 9, fontWeight: 800, color: '#fff' }}>{pct}%</span>}
+                </div>
+                {pct < 18 && <span style={{ position: 'absolute', left: `${Math.max(pct+1,2)}%`, top: 2, fontSize: 9, fontWeight: 700, color: '#64748b' }}>{pct}%</span>}
+              </div>
+              <Delta prev={prev} curr={pct} />
+              <span style={{ fontSize: 10, color: '#94a3b8', width: 40, textAlign: 'right', flexShrink: 0 }}>{uName(p.pm_id)}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Detail cards */}
+      {sortedProjects.map((p, idx) => {
+        const r = getReport(p.id);
+        const pct = r?.progress_pct || 0, prev = r?.prev_pct || 0;
+        const ne = getNextEvent(p.id);
+        const stopped = p.status === '중지';
+        return (
+          <div key={p.id} style={{ background: '#fff', borderRadius: 10, padding: '12px 14px', boxShadow: '0 1px 3px rgba(0,0,0,.05)', marginBottom: 7, borderLeft: `4px solid ${stopped ? '#d1d5db' : CAT_COLOR[p.category]}`, opacity: stopped ? 0.6 : 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              <div style={{ cursor: 'pointer' }} onClick={() => gp(p.id)}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>#{idx+1}</span>
+                  <Bd bg={stopped?'#d1d5db':CAT_COLOR[p.category]}>{stopped?'중지':p.category}</Bd>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: stopped ? '#9ca3af' : '#0f172a' }}>{p.name}</span>
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>{p.client} · PM: {uName(p.pm_id)} · {fs(p.start_date)}~{fs(p.end_date)}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <PBar pct={pct} w={100} />
+                <Delta prev={prev} curr={pct} />
+              </div>
+            </div>
+            {r?.isThisWeek ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12 }}>
+                <div style={{ padding: '7px 10px', background: '#f0fdf4', borderRadius: 6 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#059669', marginBottom: 2 }}>금주 실적</div>
+                  {r.summary || '—'}
+                </div>
+                <div style={{ padding: '7px 10px', background: '#eff6ff', borderRadius: 6 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', marginBottom: 2 }}>다음주 계획</div>
+                  {r.next_plan || '—'}
+                </div>
+                {r.issues && <div style={{ gridColumn: '1/-1', padding: '5px 10px', background: '#fef2f2', borderRadius: 6 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#dc2626' }}>⚠ </span>
+                  <span style={{ fontSize: 12, color: '#991b1b' }}>{r.issues}</span>
+                </div>}
+                {ne && <div style={{ gridColumn: '1/-1', padding: '4px 10px', background: ec(ne.type).bg, borderRadius: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 12 }}>{EV_ICON[ne.type]}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: ec(ne.type).tx }}>다음 주요 공정:</span>
+                  <span style={{ fontSize: 11, color: ec(ne.type).tx }}>{ne.title} ({fs(ne.event_date)})</span>
+                </div>}
+              </div>
+            ) : (
+              <div style={{ padding: '7px 10px', background: stopped ? '#f1f5f9' : '#fef3c7', borderRadius: 6, fontSize: 11, color: stopped ? '#9ca3af' : '#92400e' }}>
+                {stopped ? '⏸ 중지 상태' : '⚠ 금주 보고 미입력'}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Monthly Calendar ───
+function MonthlyCalendar({ gp, calDate, setCalDate }) {
+  const [events, setEvents] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [selDate, setSelDate] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadAll(); }, []);
+
+  const loadAll = async () => {
+    const [ev, pj] = await Promise.all([
+      sb.from('project_events').select('*'),
+      sb.from('projects').select('id, name, category, status'),
+    ]);
+    setEvents(ev.data || []);
+    setProjects(pj.data || []);
+    setLoading(false);
+  };
+
+  const y = calDate.getFullYear(), m = calDate.getMonth();
+  const fd = new Date(y, m, 1).getDay();
+  const dm = new Date(y, m+1, 0).getDate();
+  const td = today();
+  const cells = [];
+  for (let i = 0; i < fd; i++) cells.push(null);
+  for (let d = 1; d <= dm; d++) cells.push(d);
+  const ds = (d) => `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+  const selEvents = selDate ? events.filter(e => e.event_date === selDate) : [];
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <button className="btn btn-secondary btn-sm" onClick={() => setCalDate(new Date(y, m-1, 1))}>◀</button>
+        <h2 className="section-title" style={{ margin: 0 }}>{y}년 {m+1}월</h2>
+        <button className="btn btn-secondary btn-sm" onClick={() => setCalDate(new Date(y, m+1, 1))}>▶</button>
+      </div>
+      <div className="card" style={{ overflow: 'hidden', marginBottom: 12 }}>
+        <div className="cal-grid">
+          {DK.map((d,i) => <div key={d} className="cal-head" style={{ color: i===0?'#dc2626':i===6?'#2563eb':'#64748b' }}>{d}</div>)}
+          {cells.map((d,i) => {
+            if (!d) return <div key={`e${i}`} style={{ minHeight: 64, borderBottom: '1px solid #f1f5f9', borderRight: '1px solid #f1f5f9' }} />;
+            const dt = ds(d), ev = events.filter(e => e.event_date === dt);
+            const isT = dt === td, isS = dt === selDate, dw = (fd+d-1)%7;
+            return (
+              <div key={d} className={`cal-cell ${isS?'selected':''} ${isT?'today':''}`} onClick={() => setSelDate(dt === selDate ? null : dt)}>
+                <div className="cal-date" style={{ color: dw===0?'#dc2626':dw===6?'#2563eb':'#334155', fontWeight: isT?800:500 }}>
+                  {d}{isT && <span style={{ fontSize: 7, background: '#f59e0b', color: '#fff', borderRadius: 2, padding: '0 2px', marginLeft: 2, fontWeight: 700 }}>TODAY</span>}
+                </div>
+                {ev.slice(0,2).map(e => (
+                  <div key={e.id} className={`cal-ev ev-${e.type}`}>{EV_ICON[e.type]} {e.title}</div>
+                ))}
+                {ev.length > 2 && <div style={{ fontSize: 8, color: '#94a3b8' }}>+{ev.length-2}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {selDate && (
+        <div className="card card-p">
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 10 }}>📅 {ff(selDate)} ({DK[new Date(selDate+'T00:00:00').getDay()]})</h3>
+          {selEvents.length === 0 ? (
+            <div style={{ fontSize: 13, color: '#94a3b8' }}>등록된 주요 공정이 없습니다.</div>
+          ) : selEvents.map(e => {
+            const s = ec(e.type), pn = projects.find(p => p.id === e.project_id)?.name || '';
+            return (
+              <div key={e.id} className="upcoming-card" style={{ background: s.bg, borderColor: s.bd, marginBottom: 6 }} onClick={() => gp(e.project_id)}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 15 }}>{EV_ICON[e.type]}</span>
+                  <span style={{ fontWeight: 800, fontSize: 13, color: s.tx }}>{e.title}</span>
+                  <Bd bg={s.bd}>{e.type}</Bd>
+                  {e.done ? <Bd bg="#059669">완료</Bd> : <Bd bg="#f59e0b">예정</Bd>}
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{pn}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Project List ───
+function ProjectList({ gp }) {
+  const [projects, setProjects] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [sf, setSf] = useState('진행중');
+  const [cf, setCf] = useState('all');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadAll(); }, []);
+  const loadAll = async () => {
+    const [pj, rp, ev, us] = await Promise.all([
+      sb.from('projects').select('*').order('name'),
+      sb.from('weekly_reports').select('project_id, week_date, progress_pct').order('week_date', { ascending: false }),
+      sb.from('project_events').select('*'),
+      sb.from('users').select('id, name'),
+    ]);
+    setProjects(pj.data || []);
+    setReports(rp.data || []);
+    setEvents(ev.data || []);
+    setUsers(us.data || []);
+    setLoading(false);
+  };
+
+  const uName = (id) => users.find(u => u.id === id)?.name || '';
+  const getPct = (pid) => reports.filter(r => r.project_id === pid).sort((a,b) => b.week_date.localeCompare(a.week_date))[0]?.progress_pct || 0;
+  const getNext = (pid) => events.filter(e => e.project_id === pid && !e.done).sort((a,b) => a.event_date.localeCompare(b.event_date))[0];
+
+  const filtered = projects.filter(p => (sf === 'all' || p.status === sf) && (cf === 'all' || p.category === cf));
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
+        <h2 className="section-title" style={{ margin: 0 }}>📊 프로젝트 목록</h2>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 2 }}>
+            {['all','진행중','중지','완료'].map(s => (
+              <button key={s} className="btn btn-sm" style={{ background: sf===s?'#0f172a':'#fff', color: sf===s?'#fff':'#64748b', border: '1px solid #e2e8f0' }} onClick={() => setSf(s)}>{s==='all'?'전체':s}</button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 2 }}>
+            {['all','관급','사급','기술지원'].map(c => (
+              <button key={c} className="btn btn-sm" style={{ background: cf===c?'#0f172a':'#fff', color: cf===c?'#fff':'#64748b', border: '1px solid #e2e8f0' }} onClick={() => setCf(c)}>{c==='all'?'전체':c}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      {filtered.map(p => {
+        const pct = getPct(p.id), ne = getNext(p.id);
+        const stopped = p.status === '중지';
+        return (
+          <div key={p.id} className={`proj-card ${stopped?'stopped':''}`} style={{ borderLeftColor: stopped ? '#d1d5db' : CAT_COLOR[p.category], opacity: p.status==='완료'?0.55:1 }} onClick={() => gp(p.id)}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                  <Bd bg={stopped?'#d1d5db':CAT_COLOR[p.category]}>{p.category}</Bd>
+                  <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
+                </div>
+                <div className="proj-name" style={{ color: stopped?'#9ca3af':'#0f172a' }}>{p.name}</div>
+                <div style={{ fontSize: 10, color: '#64748b' }}>{p.client} · PM: {uName(p.pm_id)} · {fs(p.start_date)}~{fs(p.end_date)}</div>
+                {ne && <div style={{ fontSize: 10, color: ec(ne.type).tx, marginTop: 2 }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
+              </div>
+              <PBar pct={pct} w={110} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Project Detail ───
+function ProjectDetail({ id, user, gb }) {
+  const [project, setProject] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadAll(); }, [id]);
+  const loadAll = async () => {
+    setLoading(true);
+    const [pj, mb, ev, rp, us] = await Promise.all([
+      sb.from('projects').select('*').eq('id', id).single(),
+      sb.from('project_members').select('*').eq('project_id', id),
+      sb.from('project_events').select('*').eq('project_id', id).order('event_date'),
+      sb.from('weekly_reports').select('*').eq('project_id', id).order('week_date'),
+      sb.from('users').select('id, name'),
+    ]);
+    setProject(pj.data);
+    setMembers(mb.data || []);
+    setEvents(ev.data || []);
+    setReports(rp.data || []);
+    setUsers(us.data || []);
+    setLoading(false);
+  };
+
+  const uName = (uid) => users.find(u => u.id === uid)?.name || '';
+  if (loading) return <Spinner />;
+  if (!project) return <div style={{ padding: 20, color: '#94a3b8' }}>프로젝트를 찾을 수 없습니다.</div>;
+
+  const p = project;
+  const lp = reports.length > 0 ? reports[reports.length-1].progress_pct : 0;
+  const de = events.filter(e => e.done), ue = events.filter(e => !e.done);
+  const stopped = p.status === '중지';
+
+  // Line chart
+  const renderChart = () => {
+    if (reports.length < 2) return null;
+    const W=520, H=140, PL=32, PR=12, PT=16, PB=24, cw=W-PL-PR, ch=H-PT-PB;
+    const pts = reports.map((r,i) => ({ x: PL+(i/(reports.length-1))*cw, y: PT+ch-(r.progress_pct/100)*ch, pct: r.progress_pct, d: fmt(r.week_date) }));
+    const ln = pts.map((p,i) => `${i===0?'M':'L'}${p.x},${p.y}`).join(' ');
+    const ar = `${ln} L${pts[pts.length-1].x},${PT+ch} L${pts[0].x},${PT+ch} Z`;
+    return (
+      <div className="card card-p" style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>📈 공정률 추이</div>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
+          {[0,25,50,75,100].map(v => { const y=PT+ch-(v/100)*ch; return <g key={v}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke="#f1f5f9" strokeWidth={1}/><text x={PL-3} y={y+3} textAnchor="end" fontSize={8} fill="#94a3b8">{v}</text></g>; })}
+          <path d={ar} fill="url(#pag)" opacity={0.25}/>
+          <path d={ln} fill="none" stroke="#3b82f6" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
+          {pts.map((pt,i) => <g key={i}><circle cx={pt.x} cy={pt.y} r={3} fill="#fff" stroke="#3b82f6" strokeWidth={2}/><text x={pt.x} y={pt.y-6} textAnchor="middle" fontSize={8} fontWeight={700} fill="#1d4ed8">{pt.pct}%</text><text x={pt.x} y={PT+ch+12} textAnchor="middle" fontSize={7} fill="#94a3b8">{pt.d}</text></g>)}
+          <defs><linearGradient id="pag" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6"/><stop offset="100%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs>
+        </svg>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <button className="btn btn-secondary btn-sm" style={{ marginBottom: 10 }} onClick={gb}>← 목록</button>
+      {/* Header */}
+      <div className="card card-p" style={{ marginBottom: 10, borderLeft: `5px solid ${stopped?'#d1d5db':CAT_COLOR[p.category]}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+          <Bd bg={stopped?'#d1d5db':CAT_COLOR[p.category]}>{p.category}</Bd>
+          <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
+        </div>
+        <h2 style={{ fontSize: 16, fontWeight: 900, color: stopped?'#9ca3af':'#0f172a', marginBottom: 8 }}>{p.name}</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 8, fontSize: 12 }}>
+          <div><span style={{ fontSize: 9, color: '#94a3b8' }}>발주처</span><br/><strong>{p.client}</strong></div>
+          {p.client_dept && <div><span style={{ fontSize: 9, color: '#94a3b8' }}>발주부서/담당자</span><br/><strong>{p.client_dept} / {p.client_contact}</strong></div>}
+          <div><span style={{ fontSize: 9, color: '#94a3b8' }}>PM</span><br/><strong>{uName(p.pm_id)}</strong></div>
+          <div><span style={{ fontSize: 9, color: '#94a3b8' }}>기간</span><br/><strong>{ff(p.start_date)} ~ {ff(p.end_date)}</strong></div>
+          <div><span style={{ fontSize: 9, color: '#94a3b8' }}>참여인원</span><br/><strong>{members.map(m => uName(m.user_id)).join(', ')}</strong></div>
+          <div><span style={{ fontSize: 9, color: '#94a3b8' }}>현재 공정률</span><br/><PBar pct={lp} w={110} /></div>
+        </div>
+        {p.memo && <div style={{ marginTop: 8, padding: '6px 10px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#64748b' }}>{p.memo}</div>}
+      </div>
+
+      {renderChart()}
+
+      {/* Upcoming events */}
+      {ue.length > 0 && (
+        <div className="card card-p" style={{ marginBottom: 10, border: '1px solid #fde68a' }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#92400e', marginBottom: 8 }}>🔜 다가오는 주요 공정</div>
+          {ue.map(e => { const s = ec(e.type); return (
+            <div key={e.id} style={{ padding: '9px 12px', borderRadius: 8, background: s.bg, borderLeft: `4px solid ${s.bd}`, marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 15 }}>{EV_ICON[e.type]}</span>
+                <span style={{ fontWeight: 800, fontSize: 13, color: s.tx }}>{e.title}</span>
+                <Bd bg={s.bd}>{e.type}</Bd>
+              </div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>📅 {ff(e.event_date)} · {uName(e.registered_by)}{e.memo ? ' · ' + e.memo : ''}</div>
+            </div>
+          );})}
+        </div>
+      )}
+
+      {/* Done events timeline */}
+      <div className="card card-p" style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 10 }}>✅ 완료 주요 공정</div>
+        {de.length === 0 ? <div style={{ fontSize: 12, color: '#94a3b8' }}>없음</div> : (
+          <div className="timeline">
+            <div className="timeline-line" />
+            {de.map(e => { const s = ec(e.type); return (
+              <div key={e.id} className="timeline-item">
+                <div className="timeline-dot" style={{ background: s.bd, boxShadow: `0 0 0 2px ${s.bd}` }} />
+                <div style={{ padding: '6px 10px', borderRadius: 6, background: s.bg }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span>{EV_ICON[e.type]}</span><span style={{ fontWeight: 700, fontSize: 12, color: s.tx }}>{e.title}</span><Bd bg={s.bd}>{e.type}</Bd></div>
+                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{ff(e.event_date)} · {uName(e.registered_by)}{e.memo ? ' · ' + e.memo : ''}</div>
+                </div>
+              </div>
+            );})}
+          </div>
+        )}
+      </div>
+
+      {/* Weekly report history */}
+      <div className="card card-p">
+        <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>📋 주간 보고 이력</div>
+        {reports.length === 0 ? <div style={{ fontSize: 12, color: '#94a3b8' }}>보고 이력이 없습니다.</div> :
+          reports.slice().reverse().map(r => (
+            <div key={r.id} style={{ padding: '7px 10px', borderLeft: '3px solid #3b82f6', marginBottom: 6, borderRadius: '0 6px 6px 0', background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <span style={{ fontSize: 11, fontWeight: 700 }}>{ff(r.week_date)}</span>
+                <PBar pct={r.progress_pct} w={55} />
+                <Delta prev={r.prev_pct} curr={r.progress_pct} />
+              </div>
+              <div style={{ fontSize: 12, color: '#334155' }}>{r.summary}</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>→ {r.next_plan}</div>
+              {r.issues && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 1 }}>⚠ {r.issues}</div>}
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  );
+}
+
+// ─── My Projects (PM/Support input) ───
+function MyProjects({ user, gp }) {
+  const [myProjects, setMyProjects] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(null); // { type, projectId, data? }
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => { loadAll(); }, []);
+
+  const loadAll = async () => {
+    setLoading(true);
+    // Get projects where I'm PM or support member
+    const [pmProjs, memberProjs, us, rp, ev] = await Promise.all([
+      sb.from('projects').select('*').eq('pm_id', user.id).neq('status', '완료'),
+      sb.from('project_members').select('project_id, role').eq('user_id', user.id),
+      sb.from('users').select('id, name'),
+      sb.from('weekly_reports').select('*').order('week_date', { ascending: false }),
+      sb.from('project_events').select('*'),
+    ]);
+    // Get support projects not already in PM list
+    const pmIds = new Set((pmProjs.data || []).map(p => p.id));
+    const supportIds = (memberProjs.data || []).filter(m => !pmIds.has(m.project_id)).map(m => m.project_id);
+    let supportProjs = [];
+    if (supportIds.length > 0) {
+      const { data } = await sb.from('projects').select('*').in('id', supportIds).neq('status', '완료');
+      supportProjs = data || [];
+    }
+    const allMine = [...(pmProjs.data || []), ...supportProjs];
+    setMyProjects(allMine);
+    setUsers(us.data || []);
+    setReports(rp.data || []);
+    setEvents(ev.data || []);
+    setLoading(false);
+  };
+
+  const isPM = (pid) => myProjects.find(p => p.id === pid)?.pm_id === user.id || user.role === 'admin';
+  const uName = (id) => users.find(u => u.id === id)?.name || '';
+  const getLatestReport = (pid) => reports.filter(r => r.project_id === pid).sort((a,b) => b.week_date.localeCompare(a.week_date))[0];
+  const getNextEvent = (pid) => events.filter(e => e.project_id === pid && !e.done).sort((a,b) => a.event_date.localeCompare(b.event_date))[0];
+
+  const showMsg = (m) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div>
+      <h2 className="section-title">📁 내 프로젝트</h2>
+      {msg && <div className="alert alert-success">{msg}</div>}
+      {myProjects.length === 0 ? (
+        <div className="card card-p" style={{ color: '#94a3b8', fontSize: 13 }}>담당 프로젝트가 없습니다.</div>
+      ) : myProjects.map(p => {
+        const lr = getLatestReport(p.id);
+        const ne = getNextEvent(p.id);
+        const amPM = isPM(p.id);
+        return (
+          <div key={p.id} className="my-proj-card" style={{ borderLeftColor: CAT_COLOR[p.category] }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                  <Bd bg={CAT_COLOR[p.category]}>{p.category}</Bd>
+                  <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
+                  {amPM && <Bd bg="#0f172a">PM</Bd>}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 2, cursor: 'pointer' }} onClick={() => gp(p.id)}>{p.name}</div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>{p.client} · {fs(p.start_date)} ~ {fs(p.end_date)}</div>
+                {ne && <div style={{ fontSize: 11, color: ec(ne.type).tx, marginTop: 2 }}>{EV_ICON[ne.type]} 다음: {ne.title} ({fs(ne.event_date)})</div>}
+              </div>
+              <PBar pct={lr?.progress_pct || 0} w={110} />
+            </div>
+            {lr && (
+              <div style={{ fontSize: 11, color: '#64748b', padding: '6px 10px', background: '#f8fafc', borderRadius: 6, marginBottom: 8 }}>
+                <span style={{ fontWeight: 700 }}>최근 보고 ({ff(lr.week_date)})</span>: {lr.summary}
+              </div>
+            )}
+            <div className="my-proj-actions">
+              <button className="btn btn-success btn-sm" onClick={() => setModal({ type: 'report', projectId: p.id, data: lr })}>
+                📝 주간보고 입력
+              </button>
+              {amPM && <>
+                <button className="btn btn-secondary btn-sm" onClick={() => setModal({ type: 'event', projectId: p.id })}>
+                  📌 주요공정 등록
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => setModal({ type: 'editProject', projectId: p.id, data: p })}>
+                  ✏️ 프로젝트 수정
+                </button>
+              </>}
+              <button className="btn btn-secondary btn-sm" onClick={() => gp(p.id)}>
+                🔍 상세보기
+              </button>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Modals */}
+      {modal?.type === 'report' && (
+        <WeeklyReportModal projectId={modal.projectId} userId={user.id} prevData={modal.data}
+          onClose={() => setModal(null)} onSaved={() => { setModal(null); loadAll(); showMsg('주간 보고가 저장되었습니다.'); }} />
+      )}
+      {modal?.type === 'event' && (
+        <EventModal projectId={modal.projectId} userId={user.id}
+          onClose={() => setModal(null)} onSaved={() => { setModal(null); loadAll(); showMsg('주요 공정이 등록되었습니다.'); }} />
+      )}
+      {modal?.type === 'editProject' && (
+        <EditProjectModal project={modal.data} userId={user.id}
+          onClose={() => setModal(null)} onSaved={() => { setModal(null); loadAll(); showMsg('프로젝트 정보가 수정되었습니다.'); }} />
+      )}
+    </div>
+  );
+}
+
+// ─── Weekly Report Input Modal ───
+function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
+  const [weekDate, setWeekDate] = useState(thisMonday());
+  const [pct, setPct] = useState(prevData?.progress_pct || 0);
+  const [prevPct, setPrevPct] = useState(prevData?.progress_pct || 0);
+  const [summary, setSummary] = useState('');
+  const [nextPlan, setNextPlan] = useState('');
+  const [issues, setIssues] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const save = async () => {
+    if (!summary) { setErr('금주 실적을 입력해주세요.'); return; }
+    setLoading(true); setErr('');
+    const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: nextPlan, issues, reported_by: userId, updated_at: new Date().toISOString() };
+    // Upsert by project_id + week_date
+    const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
+    if (error) { setErr('저장 중 오류가 발생했습니다: ' + error.message); setLoading(false); return; }
+    onSaved();
+  };
+
+  return (
+    <Modal title="📝 주간 공정 보고 입력" onClose={onClose}>
+      {err && <div className="alert alert-error">{err}</div>}
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">보고 기준일 (해당 주 월요일)</label>
+          <input type="date" className="form-input" value={weekDate} onChange={e => setWeekDate(e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">금주 공정률 (%)</label>
+          <input type="number" className="form-input" min={0} max={100} value={pct} onChange={e => setPct(e.target.value)} />
+        </div>
+      </div>
+      <div className="form-group">
+        <label className="form-label">전주 공정률 (%)</label>
+        <input type="number" className="form-input" min={0} max={100} value={prevPct} onChange={e => setPrevPct(e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label className="form-label">금주 실적 *</label>
+        <textarea className="form-input" rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="이번 주에 완료한 주요 업무를 입력하세요" />
+      </div>
+      <div className="form-group">
+        <label className="form-label">다음주 계획</label>
+        <textarea className="form-input" rows={2} value={nextPlan} onChange={e => setNextPlan(e.target.value)} placeholder="다음 주 진행 예정 업무" />
+      </div>
+      <div className="form-group">
+        <label className="form-label">이슈 / 특이사항</label>
+        <textarea className="form-input" rows={2} value={issues} onChange={e => setIssues(e.target.value)} placeholder="문제점, 리스크, 발주처 요청사항 등 (없으면 비워두세요)" />
+      </div>
+      <div className="modal-footer">
+        <button className="btn btn-secondary" onClick={onClose}>취소</button>
+        <button className="btn btn-primary" onClick={save} disabled={loading}>{loading ? '저장 중...' : '저장'}</button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Event Modal ───
+function EventModal({ projectId, userId, onClose, onSaved }) {
+  const [type, setType] = useState('착수보고');
+  const [title, setTitle] = useState('');
+  const [eventDate, setEventDate] = useState(today());
+  const [done, setDone] = useState(false);
+  const [memo, setMemo] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => { setTitle(type); }, [type]);
+
+  const save = async () => {
+    if (!title || !eventDate) { setErr('제목과 일정일을 입력해주세요.'); return; }
+    setLoading(true); setErr('');
+    const { error } = await sb.from('project_events').insert({ project_id: projectId, type, title, event_date: eventDate, done, registered_by: userId, memo });
+    if (error) { setErr('저장 중 오류: ' + error.message); setLoading(false); return; }
+    onSaved();
+  };
+
+  return (
+    <Modal title="📌 주요 공정 등록" onClose={onClose}>
+      {err && <div className="alert alert-error">{err}</div>}
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">유형</label>
+          <select className="form-input" value={type} onChange={e => setType(e.target.value)}>
+            {EV_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">일정일</label>
+          <input type="date" className="form-input" value={eventDate} onChange={e => setEventDate(e.target.value)} />
+        </div>
+      </div>
+      <div className="form-group">
+        <label className="form-label">제목</label>
+        <input className="form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="예: 1차 중간보고회" />
+      </div>
+      <div className="form-group">
+        <label className="form-label">메모</label>
+        <input className="form-input" value={memo} onChange={e => setMemo(e.target.value)} placeholder="추가 설명 (선택)" />
+      </div>
+      <div className="form-group">
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+          <input type="checkbox" checked={done} onChange={e => setDone(e.target.checked)} />
+          완료된 공정으로 등록
+        </label>
+      </div>
+      <div className="modal-footer">
+        <button className="btn btn-secondary" onClick={onClose}>취소</button>
+        <button className="btn btn-primary" onClick={save} disabled={loading}>{loading ? '저장 중...' : '등록'}</button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Edit Project Modal ───
+function EditProjectModal({ project, userId, onClose, onSaved }) {
+  const [form, setForm] = useState({ ...project });
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    setLoading(true); setErr('');
+    const oldEndDate = project.end_date, oldContact = project.client_contact;
+    const updates = { name: form.name, client: form.client, client_dept: form.client_dept, client_contact: form.client_contact, start_date: form.start_date, end_date: form.end_date, status: form.status, memo: form.memo, updated_at: new Date().toISOString() };
+    const { error } = await sb.from('projects').update(updates).eq('id', project.id);
+    if (error) { setErr('저장 중 오류: ' + error.message); setLoading(false); return; }
+    // Log changes
+    const changes = [];
+    if (form.end_date !== oldEndDate) changes.push({ project_id: project.id, field_name: '준공일', old_value: oldEndDate, new_value: form.end_date, changed_by: userId });
+    if (form.client_contact !== oldContact) changes.push({ project_id: project.id, field_name: '발주처 담당자', old_value: oldContact, new_value: form.client_contact, changed_by: userId });
+    if (changes.length > 0) await sb.from('change_logs').insert(changes);
+    onSaved();
+  };
+
+  return (
+    <Modal title="✏️ 프로젝트 정보 수정" onClose={onClose} wide>
+      {err && <div className="alert alert-error">{err}</div>}
+      <div className="form-group">
+        <label className="form-label">용역명</label>
+        <input className="form-input" value={form.name || ''} onChange={e => set('name', e.target.value)} />
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">발주처</label>
+          <input className="form-input" value={form.client || ''} onChange={e => set('client', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">발주부서</label>
+          <input className="form-input" value={form.client_dept || ''} onChange={e => set('client_dept', e.target.value)} />
+        </div>
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">발주처 담당자</label>
+          <input className="form-input" value={form.client_contact || ''} onChange={e => set('client_contact', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">상태</label>
+          <select className="form-input" value={form.status || '진행중'} onChange={e => set('status', e.target.value)}>
+            <option>진행중</option><option>중지</option><option>완료</option>
+          </select>
+        </div>
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">착수일</label>
+          <input type="date" className="form-input" value={form.start_date || ''} onChange={e => set('start_date', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">준공일</label>
+          <input type="date" className="form-input" value={form.end_date || ''} onChange={e => set('end_date', e.target.value)} />
+        </div>
+      </div>
+      <div className="form-group">
+        <label className="form-label">비고</label>
+        <textarea className="form-input" rows={2} value={form.memo || ''} onChange={e => set('memo', e.target.value)} />
+      </div>
+      <div className="modal-footer">
+        <button className="btn btn-secondary" onClick={onClose}>취소</button>
+        <button className="btn btn-primary" onClick={save} disabled={loading}>{loading ? '저장 중...' : '저장'}</button>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Admin Panel ───
+function AdminPanel({ user }) {
+  const [tab, setTab] = useState('create');
+  const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => { loadAll(); }, []);
+  const loadAll = async () => {
+    const [pj, us] = await Promise.all([
+      sb.from('projects').select('*').order('name'),
+      sb.from('users').select('*').order('name'),
+    ]);
+    setProjects(pj.data || []);
+    setUsers(us.data || []);
+    setLoading(false);
+  };
+
+  const showMsg = (m) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
+  if (loading) return <Spinner />;
+
+  return (
+    <div>
+      <h2 className="section-title">⚙ 관리자 메뉴</h2>
+      {msg && <div className="alert alert-success">{msg}</div>}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: '#fff', borderRadius: 8, padding: 4, boxShadow: '0 1px 2px rgba(0,0,0,.06)', width: 'fit-content' }}>
+        {[{k:'create',l:'새 프로젝트 등록'},{k:'members',l:'참여인원 배정'},{k:'userList',l:'직원 목록'}].map(t => (
+          <button key={t.k} onClick={() => setTab(t.k)} className="btn btn-sm" style={{ background: tab===t.k?'#0f172a':'transparent', color: tab===t.k?'#fff':'#64748b', border: 'none' }}>{t.l}</button>
+        ))}
+      </div>
+
+      {tab === 'create' && <CreateProjectForm userId={user.id} users={users} onSaved={() => { loadAll(); showMsg('프로젝트가 등록되었습니다.'); }} />}
+      {tab === 'members' && <MemberAssign projects={projects} users={users} onSaved={() => { loadAll(); showMsg('참여인원이 업데이트되었습니다.'); }} />}
+      {tab === 'userList' && <UserList users={users} onSaved={() => { loadAll(); showMsg('저장되었습니다.'); }} />}
+    </div>
+  );
+}
+
+// ─── Create Project Form ───
+function CreateProjectForm({ userId, users, onSaved }) {
+  const [form, setForm] = useState({ name:'', category:'관급', client:'', client_dept:'', client_contact:'', pm_id:'', start_date:'', end_date:'', status:'진행중', memo:'' });
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    if (!form.name || !form.client || !form.pm_id) { setErr('용역명, 발주처, PM은 필수입니다.'); return; }
+    setLoading(true); setErr('');
+    const { data, error } = await sb.from('projects').insert({ ...form }).select().single();
+    if (error) { setErr('등록 중 오류: ' + error.message); setLoading(false); return; }
+    // Auto-add PM as project_member
+    await sb.from('project_members').insert({ project_id: data.id, user_id: form.pm_id, role: 'pm' });
+    setForm({ name:'', category:'관급', client:'', client_dept:'', client_contact:'', pm_id:'', start_date:'', end_date:'', status:'진행중', memo:'' });
+    onSaved();
+    setLoading(false);
+  };
+
+  return (
+    <div className="card card-p">
+      <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 14 }}>새 프로젝트 등록</div>
+      {err && <div className="alert alert-error">{err}</div>}
+      <div className="form-group">
+        <label className="form-label">용역명 *</label>
+        <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="용역명을 입력하세요" />
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">분류</label>
+          <select className="form-input" value={form.category} onChange={e => set('category', e.target.value)}>
+            <option>관급</option><option>사급</option><option>기술지원</option>
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">PM *</label>
+          <select className="form-input" value={form.pm_id} onChange={e => set('pm_id', e.target.value)}>
+            <option value="">선택</option>
+            {users.filter(u => u.role !== 'contractor').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">발주처 *</label>
+          <input className="form-input" value={form.client} onChange={e => set('client', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">발주부서</label>
+          <input className="form-input" value={form.client_dept} onChange={e => set('client_dept', e.target.value)} />
+        </div>
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">발주처 담당자</label>
+          <input className="form-input" value={form.client_contact} onChange={e => set('client_contact', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">상태</label>
+          <select className="form-input" value={form.status} onChange={e => set('status', e.target.value)}>
+            <option>진행중</option><option>중지</option><option>완료</option>
+          </select>
+        </div>
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">착수일</label>
+          <input type="date" className="form-input" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">준공일</label>
+          <input type="date" className="form-input" value={form.end_date} onChange={e => set('end_date', e.target.value)} />
+        </div>
+      </div>
+      <div className="form-group">
+        <label className="form-label">비고</label>
+        <textarea className="form-input" rows={2} value={form.memo} onChange={e => set('memo', e.target.value)} />
+      </div>
+      <button className="btn btn-primary" onClick={save} disabled={loading} style={{ marginTop: 4 }}>{loading ? '등록 중...' : '프로젝트 등록'}</button>
+    </div>
+  );
+}
+
+// ─── Member Assign ───
+function MemberAssign({ projects, users, onSaved }) {
+  const [selPid, setSelPid] = useState('');
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadMembers = async (pid) => {
+    setSelPid(pid);
+    if (!pid) { setMembers([]); return; }
+    const { data } = await sb.from('project_members').select('*').eq('project_id', pid);
+    setMembers(data || []);
+  };
+
+  const addMember = async (userId, role) => {
+    if (!selPid || !userId) return;
+    const exists = members.find(m => m.user_id === userId);
+    if (exists) { alert('이미 배정된 인원입니다.'); return; }
+    setLoading(true);
+    await sb.from('project_members').insert({ project_id: selPid, user_id: userId, role });
+    await loadMembers(selPid);
+    onSaved();
+    setLoading(false);
+  };
+
+  const removeMember = async (id) => {
+    setLoading(true);
+    await sb.from('project_members').delete().eq('id', id);
+    await loadMembers(selPid);
+    onSaved();
+    setLoading(false);
+  };
+
+  const uName = (id) => users.find(u => u.id === id)?.name || '';
+  const [newUser, setNewUser] = useState('');
+  const [newRole, setNewRole] = useState('support');
+
+  return (
+    <div className="card card-p">
+      <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 14 }}>참여인원 배정</div>
+      <div className="form-group">
+        <label className="form-label">프로젝트 선택</label>
+        <select className="form-input" value={selPid} onChange={e => loadMembers(e.target.value)}>
+          <option value="">선택하세요</option>
+          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+      {selPid && (
+        <>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>현재 참여인원</div>
+            {members.length === 0 ? <div style={{ fontSize: 12, color: '#94a3b8' }}>배정된 인원이 없습니다.</div> :
+              members.map(m => (
+                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: '#f8fafc', borderRadius: 6, marginBottom: 4 }}>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{uName(m.user_id)}</span>
+                  <Bd bg={m.role==='pm'?'#0f172a':m.role==='contractor'?'#d97706':'#64748b'}>{m.role==='pm'?'PM':m.role==='support'?'서포트':'외주'}</Bd>
+                  <button className="btn btn-danger btn-sm" onClick={() => removeMember(m.id)} disabled={loading}>제거</button>
+                </div>
+              ))
+            }
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <label className="form-label">직원 추가</label>
+              <select className="form-input" value={newUser} onChange={e => setNewUser(e.target.value)}>
+                <option value="">선택</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
+              </select>
+            </div>
+            <div style={{ width: 100 }}>
+              <label className="form-label">역할</label>
+              <select className="form-input" value={newRole} onChange={e => setNewRole(e.target.value)}>
+                <option value="pm">PM</option><option value="support">서포트</option><option value="contractor">외주</option>
+              </select>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={() => { addMember(newUser, newRole); setNewUser(''); }} disabled={loading || !newUser}>추가</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── User List (Admin) ───
+function UserList({ users, onSaved }) {
+  const [newUser, setNewUser] = useState({ name:'', phone:'', password:'', role:'employee' });
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const set = (k,v) => setNewUser(f => ({...f,[k]:v}));
+
+  const addUser = async () => {
+    if (!newUser.name || !newUser.phone || !newUser.password) { setErr('이름, 전화번호, 비밀번호는 필수입니다.'); return; }
+    setLoading(true); setErr('');
+    const { error } = await sb.from('users').insert({ ...newUser, join_date: today(), total_days: 0, used_days: 0 });
+    if (error) { setErr('등록 오류: ' + error.message); setLoading(false); return; }
+    setNewUser({ name:'', phone:'', password:'', role:'employee' });
+    onSaved();
+    setLoading(false);
+  };
+
+  return (
+    <div className="card card-p">
+      <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 14 }}>직원 목록 ({users.length}명)</div>
+      <table className="tbl" style={{ marginBottom: 20 }}>
+        <thead><tr><th>이름</th><th>전화번호(ID)</th><th>권한</th></tr></thead>
+        <tbody>
+          {users.map(u => (
+            <tr key={u.id}>
+              <td style={{ fontWeight: 600 }}>{u.name}</td>
+              <td>{u.phone}</td>
+              <td><Bd bg={u.role==='admin'?'#0f172a':u.role==='contractor'?'#d97706':'#2563eb'}>{u.role==='admin'?'관리자':u.role==='contractor'?'외주':'직원'}</Bd></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 10 }}>새 직원 추가</div>
+      {err && <div className="alert alert-error">{err}</div>}
+      <div className="form-row">
+        <div className="form-group"><label className="form-label">이름</label><input className="form-input" value={newUser.name} onChange={e => set('name',e.target.value)} /></div>
+        <div className="form-group"><label className="form-label">전화번호 (로그인 ID)</label><input className="form-input" value={newUser.phone} onChange={e => set('phone',e.target.value)} placeholder="010-0000-0000" /></div>
+      </div>
+      <div className="form-row">
+        <div className="form-group"><label className="form-label">초기 비밀번호</label><input className="form-input" value={newUser.password} onChange={e => set('password',e.target.value)} /></div>
+        <div className="form-group"><label className="form-label">권한</label>
+          <select className="form-input" value={newUser.role} onChange={e => set('role',e.target.value)}>
+            <option value="employee">직원</option><option value="admin">관리자</option><option value="contractor">외주</option>
+          </select>
+        </div>
+      </div>
+      <button className="btn btn-primary btn-sm" onClick={addUser} disabled={loading}>{loading?'추가 중...':'직원 추가'}</button>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
