@@ -69,16 +69,15 @@ ul { list-style:none; }
 
 /* Logo */
 .logo { display:flex; align-items:center; gap:10px; }
-.logo-tri {
-  width:0; height:0;
-  border-left:12px solid transparent;
-  border-right:12px solid transparent;
-  border-bottom:20px solid var(--red);
+.logo-img {
+  height:32px; width:auto;
   flex-shrink:0;
+  /* 흰 배경에서는 원본 컬러, 스크롤 후에도 동일 */
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.15));
 }
 .logo-ko {
-  font-family:'Noto Serif KR',serif;
-  font-size:.98rem; font-weight:900;
+  font-family:'Pretendard', sans-serif;
+  font-size:.98rem; font-weight:800;
   letter-spacing:-.02em; color:#fff;
   transition:color .3s;
 }
@@ -194,22 +193,20 @@ ul { list-style:none; }
   display:flex; align-items:center; gap:10px;
   margin-bottom:6px;
 }
-.modal-logo-tri {
-  width:0; height:0;
-  border-left:9px solid transparent;
-  border-right:9px solid transparent;
-  border-bottom:15px solid var(--red);
+.modal-logo-img {
+  height:24px; width:auto; flex-shrink:0;
 }
 .modal-co {
-  font-family:'Noto Serif KR',serif;
-  font-size:.85rem; font-weight:900; color:#fff;
+  font-family:'Pretendard', sans-serif;
+  font-size:.85rem; font-weight:800; color:#fff;
 }
 .modal-co em { color:var(--gold); font-style:normal; }
 .modal-title {
-  font-size:1.2rem; font-weight:700; color:#fff;
-  letter-spacing:-.01em;
+  font-family:'Pretendard', sans-serif;
+  font-size:1.25rem; font-weight:800; color:#fff;
+  letter-spacing:-.03em;
 }
-.modal-sub { font-size:.75rem; color:rgba(255,255,255,.5); margin-top:4px; }
+.modal-sub { font-family:'Pretendard',sans-serif; font-size:.75rem; color:rgba(255,255,255,.5); margin-top:4px; }
 .modal-close {
   position:absolute; top:20px; right:20px;
   width:32px; height:32px; border-radius:50%;
@@ -798,7 +795,7 @@ footer {
 <!-- ════════════════ NAV ════════════════ -->
 <nav id="nav">
   <a href="#hero" class="logo">
-    <div class="logo-tri"></div>
+    <div class="logo-tri-wrap"><img src="logo.png" alt="관보종합기술단 로고" class="logo-img"/></div>
     <div class="logo-ko"><em>(주)</em>관보종합기술단</div>
   </a>
 
@@ -837,7 +834,7 @@ footer {
     <!-- 헤더 -->
     <div class="modal-header">
       <div class="modal-header-top">
-        <div class="modal-logo-tri"></div>
+        <img src="logo.png" alt="관보종합기술단 로고" class="modal-logo-img"/>
         <div class="modal-co"><em>(주)</em>관보종합기술단</div>
       </div>
       <div class="modal-title">종합정보시스템</div>
@@ -1193,7 +1190,10 @@ footer {
   <div class="footer-in">
     <div class="footer-top">
       <div>
-        <div class="footer-ko"><em>(주)</em>관보종합기술단</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <img src="logo.png" alt="관보종합기술단 로고" style="height:28px;width:auto;opacity:.85;"/>
+          <div class="footer-ko"><em>(주)</em>관보종합기술단</div>
+        </div>
         <div class="footer-en">KWAN BO ENGINEERING CO., LTD.</div>
         <div class="footer-addr">
           부산광역시 연제구 거제대로 270, 705호 (거제동, 종근당빌딩)<br/>
