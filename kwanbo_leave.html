@@ -13,23 +13,23 @@ const {useState,useEffect,useCallback,useRef}=React;
 const SB_URL='https://pxtddjilxwomzfsjhmvn.supabase.co/rest/v1';
 const SB_KEY='sb_publishable_M2fWxHmHFMLfdtRConOuMg_GfIMv9bS';
 
+// ── 공휴일 데이터 (하드코딩 폴백 + Nager.Date API 자동 갱신) ──
 const HOLIDAYS={
-  // 2026 법정공휴일
   '2026-01-01':'신정',
   '2026-01-28':'설날연휴','2026-01-29':'설날','2026-01-30':'설날연휴',
   '2026-03-01':'삼일절',
   '2026-05-05':'어린이날','2026-05-24':'부처님오신날',
   '2026-06-06':'현충일',
+  '2026-07-17':'제헌절',
   '2026-08-15':'광복절',
   '2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴',
   '2026-10-03':'개천절','2026-10-09':'한글날',
   '2026-12-25':'크리스마스',
-  // 2025 법정공휴일
   '2025-01-01':'신정',
   '2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴',
   '2025-03-01':'삼일절',
   '2025-05-05':'어린이날',
-  '2025-06-03':'임시공휴일(지방선거)',
+  '2025-06-03':'임시공휴일(대통령선거)',
   '2025-06-06':'현충일',
   '2025-07-17':'제헌절',
   '2025-08-15':'광복절',
@@ -38,16 +38,63 @@ const HOLIDAYS={
   '2025-10-09':'한글날',
   '2025-12-25':'크리스마스',
 };
-// 대체공휴일 (빨간색 + "대체공휴일" 라벨)
+// 대체공휴일 — 현충일(기념일)은 대체공휴일 미적용
 const SUBSTITUTE={
-  '2025-05-06':'대체공휴일', // 부처님오신날(5/5)·어린이날 겹침
+  '2025-05-06':'대체공휴일', // 부처님오신날·어린이날 겹침
   '2026-03-02':'대체공휴일', // 삼일절(3/1 일)
   '2026-05-25':'대체공휴일', // 부처님오신날(5/24 일)
-  '2026-06-08':'대체공휴일', // 현충일(6/6 토)
   '2026-08-17':'대체공휴일', // 광복절(8/15 토)
   '2026-09-28':'대체공휴일', // 추석(9/27 일)
   '2026-10-05':'대체공휴일', // 개천절(10/3 토)
 };
+
+// Nager.Date에서 공휴일 이름 한글 매핑
+const NAGER_KO={
+  "New Year's Day":'신정',
+  "New Year's Eve":'신정연휴',
+  'Seollal':'설날',
+  'Seollal Holiday':'설날연휴',
+  "Independence Movement Day":'삼일절',
+  "Labor Day":'근로자의날',
+  "Children's Day":'어린이날',
+  "Buddha's Birthday":'부처님오신날',
+  "Memorial Day":'현충일',
+  "Liberation Day":'광복절',
+  "Chuseok":'추석',
+  "Chuseok Holiday":'추석연휴',
+  "National Foundation Day":'개천절',
+  "Hangul Day":'한글날',
+  "Christmas Day":'크리스마스',
+  "Constitution Day":'제헌절',
+  "Substitute Holiday":'대체공휴일',
+};
+
+// 앱 시작 시 Nager.Date API로 공휴일 자동 로드
+async function loadNagerHolidays(){
+  const yr=new Date().getFullYear();
+  const years=[yr-1,yr,yr+1];
+  try{
+    const results=await Promise.all(
+      years.map(y=>fetch(`https://date.nager.at/api/v3/PublicHolidays/${y}/KR`)
+        .then(r=>r.ok?r.json():[])
+        .catch(()=>[]))
+    );
+    let count=0;
+    results.flat().forEach(h=>{
+      if(!h.date)return;
+      const name=NAGER_KO[h.localName]||NAGER_KO[h.name]||h.localName||h.name;
+      if(name==='대체공휴일'){
+        if(!SUBSTITUTE[h.date])SUBSTITUTE[h.date]='대체공휴일';
+      } else {
+        if(!HOLIDAYS[h.date])HOLIDAYS[h.date]=name;
+      }
+      count++;
+    });
+    if(count>0)console.log(`✅ Nager.Date: 공휴일 ${count}건 로드 완료`);
+  }catch(e){
+    console.warn('Nager.Date API 실패, 하드코딩 데이터 사용');
+  }
+}
 
 const COLORS=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16'];
 
@@ -81,13 +128,23 @@ const fmtFull=d=>{if(!d)return'';const[y,m,dd]=d.split('-');return`${y}년 ${+m}
 const fmtPhone=p=>{if(!p)return'';const n=p.replace(/\D/g,'');return n.length===11?`${n.slice(0,3)}-${n.slice(3,7)}-${n.slice(7)}`:p;};
 const fmtDT=s=>{
   if(!s)return'';
-  const d=new Date(s);
-  if(isNaN(d))return'';
-  const u=new Date(d.getTime()+9*60*60*1000);
-  return`${u.getUTCFullYear()}.${String(u.getUTCMonth()+1).padStart(2,'0')}.${String(u.getUTCDate()).padStart(2,'0')} ${String(u.getUTCHours()).padStart(2,'0')}:${String(u.getUTCMinutes()).padStart(2,'0')}`;
+  const t=Date.parse(s);
+  if(isNaN(t))return s;
+  const kst=new Date(t+32400000); // UTC+9 (9*60*60*1000)
+  const yy=kst.getUTCFullYear();
+  const mm=String(kst.getUTCMonth()+1).padStart(2,'0');
+  const dd=String(kst.getUTCDate()).padStart(2,'0');
+  const hh=String(kst.getUTCHours()).padStart(2,'0');
+  const mi=String(kst.getUTCMinutes()).padStart(2,'0');
+  return`${yy}.${mm}.${dd} ${hh}:${mi}`;
 };
 
-const api={
+const calLabel=(p)=>{
+  const d=Number(p.days);
+  const isPartial=d<1;
+  if(p.type==='공가')return isPartial?`${p.name}(공${d})`:p.name;
+  return isPartial?`${p.name}(${d})`:p.name;
+};
   headers:()=>({'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json','Prefer':'return=representation'}),
   get:(t,q='')=>fetch(`${SB_URL}/${t}${q}`,{headers:api.headers()}).then(r=>r.ok?r.json():[]),
   post:(t,b)=>fetch(`${SB_URL}/${t}`,{method:'POST',headers:api.headers(),body:JSON.stringify(b)}).then(r=>r.json()),
@@ -222,7 +279,7 @@ function MiniCal({yr,mo,onPrev,onNext,start,end,hoverDate,onHover,onDayClick,sin
               <div style={{fontSize:12,fontWeight:isSel||isToday?700:400,color:isSel?'white':dc}}>{dn}</div>
               {HOLIDAYS[d]&&<div style={{fontSize:7,color:isSel?'#bfdbfe':'#dc2626',lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{HOLIDAYS[d]}</div>}
               {SUBSTITUTE[d]&&<div style={{fontSize:7,color:isSel?'#bfdbfe':'#dc2626',lineHeight:1.2}}>대체공휴일</div>}
-              {dayPeople.slice(0,2).map((l,j)=>{const u=users.find(x=>x.id===l.user_id);return<div key={j} style={{fontSize:7,background:'#fef9c3',color:'#92400e',borderRadius:2,margin:'1px 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u?.name}</div>;})}
+              {dayPeople.slice(0,2).map((l,j)=>{const u=users.find(x=>x.id===l.user_id);return<div key={j} style={{fontSize:7,background:'#fef9c3',color:'#92400e',borderRadius:2,margin:'1px 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{calLabel({name:u?.name||'',type:l.type,days:l.days})}</div>;})}
               {dayPeople.length>2&&<div style={{fontSize:7,color:'#94a3b8'}}>+{dayPeople.length-2}</div>}
             </div>
           );
@@ -470,7 +527,7 @@ function CalView({users,leaves}){
                     <div style={{fontSize:10,fontWeight:isTday||isHolDay?700:400,color:numColor}}>{dn}</div>
                     {hol&&<div style={{fontSize:8,color:'#dc2626',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>{hol}</div>}
                     {sub&&<div style={{fontSize:8,color:'#dc2626',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>대체공휴일</div>}
-                    {people.slice(0,2).map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:2,padding:'1px 2px',fontSize:8,marginBottom:1,overflow:'hidden',whiteSpace:'nowrap'}}>{p.name}{p.type==='공가'?'(공)':''}</div>)}
+                    {people.slice(0,2).map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:2,padding:'1px 2px',fontSize:8,marginBottom:1,overflow:'hidden',whiteSpace:'nowrap'}}>{calLabel(p)}</div>)}
                     {people.length>2&&<div style={{fontSize:8,color:'#94a3b8'}}>+{people.length-2}</div>}
                   </>)}
                 </div>
@@ -494,7 +551,7 @@ function CalView({users,leaves}){
                   <div style={{fontSize:11,fontWeight:700,color:numColor,marginBottom:2}}>{WD[dow]} {dn}</div>
                   {hol&&<div style={{fontSize:9,color:'#dc2626',fontWeight:600,marginBottom:2}}>{hol}</div>}
                   {sub&&<div style={{fontSize:9,color:'#dc2626',fontWeight:600,marginBottom:2}}>대체공휴일</div>}
-                  {people.map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:3,padding:'2px 5px',fontSize:10,marginBottom:2}}>{p.name}{p.type==='공가'?'(공)':''}</div>)}
+                  {people.map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:3,padding:'2px 5px',fontSize:10,marginBottom:2}}>{calLabel(p)}</div>)}
                   {people.length===0&&!isHolDay&&<div style={{fontSize:10,color:'#cbd5e1'}}>—</div>}
                 </div>
               );
@@ -567,8 +624,23 @@ function AdminApprove({user,users,teams,leaves,onRefresh}){
   const getU=id=>users.find(u=>u.id===id);
   const getTeam=uid=>{const u=users.find(x=>x.id===uid);return teams.find(t=>t.id===u?.team_id)?.name||'-';};
 
-  const approve=async l=>{await api.patch('leave_requests',`?id=eq.${l.id}`,{status:l.status==='cancel_pending'?'cancelled':'approved'});await audit(user.id,'최종승인',l.id,'');onRefresh();};
-  const adminDirectApprove=async l=>{if(!confirm(`${getU(l.user_id)?.name}의 신청을 팀장 결재를 건너뛰고 직접 승인하시겠습니까?`))return;await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'approved'});await audit(user.id,'관리자직접승인',l.id,'팀장 결재 없이 승인');onRefresh();};
+  const approve=async l=>{
+    const lu=getU(l.user_id);
+    const msg=l.status==='cancel_pending'
+      ?`${lu?.name}의 취소 요청을 승인하시겠습니까?`
+      :`${lu?.name}의 ${l.type} ${daysLabel(Number(l.days))} 신청을 최종 승인하시겠습니까?`;
+    if(!confirm(msg))return;
+    await api.patch('leave_requests',`?id=eq.${l.id}`,{status:l.status==='cancel_pending'?'cancelled':'approved'});
+    await audit(user.id,'최종승인',l.id,'');
+    onRefresh();
+  };
+  const adminDirectApprove=async l=>{
+    const lu=getU(l.user_id);
+    if(!confirm(`${lu?.name}의 신청을 팀장 결재 없이 직접 승인하시겠습니까?`))return;
+    await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'approved'});
+    await audit(user.id,'관리자직접승인',l.id,'팀장 결재 없이 승인');
+    onRefresh();
+  };
   const adminDirectReject=async l=>{const reason=prompt('반려 사유 (선택):');if(reason===null)return;await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'rejected',reject_reason:reason||null});await audit(user.id,'관리자직접반려',l.id,reason||'');onRefresh();};
   const reject=async()=>{await api.patch('leave_requests',`?id=eq.${rid}`,{status:'rejected',reject_reason:rr||null});await audit(user.id,'반려',rid,rr||'');setRid(null);setRr('');onRefresh();};
   const delLeave=async l=>{if(!confirm('이 내역을 목록에서 삭제하시겠습니까?'))return;await api.del('leave_requests',`?id=eq.${l.id}`);onRefresh();};
@@ -884,7 +956,7 @@ function App(){
     setLoading(false);
   },[]);
 
-  useEffect(()=>{load();},[]);
+  useEffect(()=>{loadNagerHolidays();load();},[]);
 
   // 30초 자동 폴링 (로그인 상태일 때만)
   useEffect(()=>{
