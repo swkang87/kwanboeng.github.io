@@ -29,7 +29,7 @@ const HOLIDAYS={
   '2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴',
   '2025-03-01':'삼일절',
   '2025-05-05':'어린이날',
-  '2025-06-06':'현충일',
+  '2025-06-03':'임시공휴일(지방선거)',
   '2025-07-17':'제헌절',
   '2025-08-15':'광복절',
   '2025-10-03':'개천절',
@@ -78,8 +78,15 @@ const daysLabel=n=>n===0.25?'반반차(2h)':n===0.5?'반차(4h)':n===0.75?'3/4�
 const fmtDate=d=>{if(!d)return'';const[y,m,dd]=d.split('-');return`${+m}/${+dd}`;};
 const fmtFull=d=>{if(!d)return'';const[y,m,dd]=d.split('-');return`${y}년 ${+m}월 ${+dd}일`;};
 const fmtPhone=p=>{if(!p)return'';const n=p.replace(/\D/g,'');return n.length===11?`${n.slice(0,3)}-${n.slice(3,7)}-${n.slice(7)}`:p;};
-// UTC → KST(+9) 변환 후 포맷
-const fmtDT=s=>{if(!s)return'';const d=new Date(new Date(s).getTime()+9*60*60*1000);return`${d.getUTCFullYear()}.${String(d.getUTCMonth()+1).padStart(2,'0')}.${String(d.getUTCDate()).padStart(2,'0')} ${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;};
+// 항상 서울(KST) 기준으로 출력 — 브라우저 로케일 무관
+const fmtDT=s=>{
+  if(!s)return'';
+  try{
+    const d=new Date(s);
+    if(isNaN(d))return s;
+    return new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(d).replace(/\. /g,'.').replace(/\.$/,'');
+  }catch{return s;}
+};
 
 const api={
   headers:()=>({'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json','Prefer':'return=representation'}),
@@ -292,6 +299,8 @@ function ApplyView({user,users,leaves,onRefresh,onNav}){
     if(type==='공가'&&!reason.trim()){setErr('공가 사유를 입력해 주세요.');return;}
     const endDate=singleMode?start:end;
     if(hasDup(start,endDate)){setErr('해당 기간에 이미 신청된 연차가 있습니다.');return;}
+    const confirmMsg=`${type} 신청을 하시겠습니까?\n\n기간: ${fmtFull(start)}${end&&end!==start?` ~ ${fmtFull(end)}`:''}\n사용: ${daysLabel(pd)}${isRetro?' (사후결재)':''}`;
+    if(!confirm(confirmMsg))return;
     setBusy(true);
     try{
       const res=await api.post('leave_requests',{user_id:user.id,type,start_date:start,end_date:endDate,start_time:singleMode?st:null,end_time:singleMode?et:null,days:pd,reason:reason||null,status:getStatus(),is_retroactive:isRetro,cancel_requested:false});
@@ -586,7 +595,7 @@ function AdminApprove({user,users,leaves,onRefresh}){
             </div>
             <div style={{display:'flex',gap:6,alignItems:'center'}}>
               <Badge s={l.status}/>
-              <button onClick={()=>delLeave(l)} style={{...btn('danger'),padding:'3px 8px',fontSize:11}}>삭제</button>
+              {l.status!=='approved'&&<button onClick={()=>delLeave(l)} style={{...btn('danger'),padding:'3px 8px',fontSize:11}}>삭제</button>}
             </div>
           </div>
         );})}
@@ -648,7 +657,17 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
     await audit(adm.id,'일괄등록',null,`${ok}명 등록`);
     alert(`${ok}명이 등록되었습니다.`);setBulk('');setShowBulk(false);onRefresh();
   };
-  const emp=users.filter(u=>u.role!=='admin');
+  const TEAM_ORDER=['설계1팀','설계2팀','지반팀','관리팀'];
+  const emp=[...users.filter(u=>u.role!=='admin')].sort((a,b)=>{
+    const ta=teams.find(t=>t.id===a.team_id)?.name||'zzz';
+    const tb=teams.find(t=>t.id===b.team_id)?.name||'zzz';
+    const toa=TEAM_ORDER.indexOf(ta)<0?99:TEAM_ORDER.indexOf(ta);
+    const tob=TEAM_ORDER.indexOf(tb)<0?99:TEAM_ORDER.indexOf(tb);
+    if(toa!==tob)return toa-tob;
+    if(a.role==='manager'&&b.role!=='manager')return -1;
+    if(b.role==='manager'&&a.role!=='manager')return 1;
+    return 0;
+  });
   return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:6}}>
@@ -695,7 +714,18 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
 // ── Admin Stats ───────────────────────────────────────────
 function AdminStats({users,teams,leaves}){
   const yr=thisYear();
-  const emp=users.filter(u=>u.role!=='admin');
+  const TEAM_ORDER=['설계1팀','설계2팀','지반팀','관리팀'];
+  const sortEmp=arr=>[...arr].sort((a,b)=>{
+    const ta=teams.find(t=>t.id===a.team_id)?.name||'zzz';
+    const tb=teams.find(t=>t.id===b.team_id)?.name||'zzz';
+    const toa=TEAM_ORDER.indexOf(ta)<0?99:TEAM_ORDER.indexOf(ta);
+    const tob=TEAM_ORDER.indexOf(tb)<0?99:TEAM_ORDER.indexOf(tb);
+    if(toa!==tob)return toa-tob;
+    if(a.role==='manager'&&b.role!=='manager')return -1;
+    if(b.role==='manager'&&a.role!=='manager')return 1;
+    return 0;
+  });
+  const emp=sortEmp(users.filter(u=>u.role!=='admin'));
   const getUsed=uid=>leaves.filter(l=>l.user_id===uid&&l.status==='approved'&&l.type==='연차'&&l.start_date?.startsWith(String(yr))).reduce((s,l)=>s+Number(l.days),0);
   const monthly=Array.from({length:12},(_,i)=>{const mo=String(i+1).padStart(2,'0'),d=leaves.filter(l=>l.status==='approved'&&l.type==='연차'&&l.start_date?.startsWith(`${yr}-${mo}`)).reduce((s,l)=>s+Number(l.days),0);return{m:`${i+1}월`,d};});
   const maxD=Math.max(...monthly.map(x=>x.d),1);
