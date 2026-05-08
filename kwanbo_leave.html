@@ -145,6 +145,8 @@ const calLabel=(p)=>{
   if(p.type==='공가')return isPartial?`${p.name}(공${d})`:p.name;
   return isPartial?`${p.name}(${d})`:p.name;
 };
+
+const api={
   headers:()=>({'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json','Prefer':'return=representation'}),
   get:(t,q='')=>fetch(`${SB_URL}/${t}${q}`,{headers:api.headers()}).then(r=>r.ok?r.json():[]),
   post:(t,b)=>fetch(`${SB_URL}/${t}`,{method:'POST',headers:api.headers(),body:JSON.stringify(b)}).then(r=>r.json()),
