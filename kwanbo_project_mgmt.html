@@ -52,19 +52,22 @@ button{cursor:pointer}
 .alert-success{background:#f0fdf4;color:#059669;border:1px solid #bbf7d0}
 
 /* ── NAV ── */
-.navbar{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);color:#fff;padding:0 16px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;flex-wrap:wrap;gap:6px}
+.navbar{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);color:#fff;padding:8px 14px;display:flex;flex-direction:column;gap:6px;position:sticky;top:0;z-index:100}
+.nav-top{display:flex;align-items:center;justify-content:space-between;width:100%}
 .nav-brand{display:flex;align-items:center;gap:8px}
-.nav-accent{width:5px;height:22px;background:#ef4444;border-radius:2px}
+.nav-accent{width:5px;height:22px;background:#ef4444;border-radius:2px;flex-shrink:0}
 .nav-title{font-size:13px;font-weight:800;letter-spacing:-.5px}
 .nav-sub{font-size:9px;opacity:.45;letter-spacing:1.5px}
-.nav-menu{display:flex;gap:2px;background:rgba(255,255,255,.08);border-radius:7px;padding:2px}
-.nav-btn{padding:5px 11px;border-radius:5px;border:none;background:transparent;color:rgba(255,255,255,.5);font-size:11px;font-weight:500;cursor:pointer;transition:all .2s}
+.nav-bottom{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%}
+.nav-menu{display:flex;gap:2px;background:rgba(255,255,255,.08);border-radius:7px;padding:2px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.nav-menu::-webkit-scrollbar{display:none}
+.nav-btn{padding:5px 10px;border-radius:5px;border:none;background:transparent;color:rgba(255,255,255,.5);font-size:11px;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap;flex-shrink:0}
 .nav-btn.active{background:rgba(255,255,255,.18);color:#fff;font-weight:700}
 .nav-btn.highlight{background:rgba(239,68,68,.25);color:#fca5a5;font-weight:700}
 .nav-btn.highlight.active{background:rgba(239,68,68,.5);color:#fff}
-.nav-user{font-size:11px;color:rgba(255,255,255,.6);display:flex;align-items:center;gap:8px}
+.nav-user{font-size:11px;color:rgba(255,255,255,.6);display:flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0}
 .nav-user span{color:#fff;font-weight:700}
-.logout-btn{padding:4px 10px;border-radius:5px;border:1px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.6);font-size:10px;cursor:pointer}
+.logout-btn{padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.6);font-size:10px;cursor:pointer;white-space:nowrap}
 
 /* ── CARDS & TABLE ── */
 .page{max-width:1200px;margin:0 auto;padding:14px 12px}
@@ -158,13 +161,30 @@ button{cursor:pointer}
 }
 
 /* ── LOGIN ── */
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)}
-.login-box{background:#fff;border-radius:16px;padding:36px;width:360px;box-shadow:0 24px 80px rgba(0,0,0,.4)}
-.login-logo{text-align:center;margin-bottom:28px}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);padding:16px}
+.login-box{background:#fff;border-radius:16px;padding:28px;width:100%;max-width:360px;box-shadow:0 24px 80px rgba(0,0,0,.4)}
+.login-logo{text-align:center;margin-bottom:22px}
 .login-logo-accent{width:6px;height:28px;background:#ef4444;border-radius:2px;display:inline-block;margin-right:8px;vertical-align:middle}
 .login-logo-text{font-size:15px;font-weight:800;color:#0f172a}
 .login-logo-sub{font-size:10px;color:#94a3b8;margin-top:4px}
 .login-title{font-size:18px;font-weight:900;color:#0f172a;margin-bottom:4px}
+
+/* ── MOBILE RESPONSIVE ── */
+@media(max-width:600px){
+  .page{padding:10px 8px}
+  .form-row{grid-template-columns:1fr}
+  .modal-box{padding:16px}
+  .sum-grid{grid-template-columns:1fr 1fr;gap:6px}
+  .sum-val{font-size:18px}
+  .card-p{padding:12px}
+  .proj-card{padding:10px 12px}
+  .my-proj-card{padding:12px}
+  .cal-cell{min-height:44px}
+  .cal-ev{font-size:7px;padding:0 2px}
+  .tbl{font-size:10px}
+  .tbl th,.tbl td{padding:4px 3px}
+  .btn-sm{padding:4px 8px;font-size:10px}
+}
 </style>
 </head>
 <body>
@@ -327,24 +347,28 @@ function App() {
     <div>
       {/* Navbar */}
       <nav className="navbar no-print">
-        <div className="nav-brand">
-          <div className="nav-accent" />
-          <div>
-            <div className="nav-sub">KWANBO ENGINEERING</div>
-            <div className="nav-title">공정관리시스템</div>
+        <div className="nav-top">
+          <div className="nav-brand">
+            <div className="nav-accent" />
+            <div>
+              <div className="nav-sub">KWANBO ENGINEERING</div>
+              <div className="nav-title">공정관리시스템</div>
+            </div>
+          </div>
+          <div className="nav-user">
+            <span>{user.name}</span>님
+            <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
           </div>
         </div>
-        <div className="nav-menu">
-          {menuItems.map(t => (
-            <button key={t.k} onClick={() => nv(t.k)}
-              className={`nav-btn ${t.hl ? 'highlight' : ''} ${(view === t.k || (view === 'project' && t.k === 'projects')) ? 'active' : ''}`}>
-              {t.l}
-            </button>
-          ))}
-        </div>
-        <div className="nav-user">
-          안녕하세요, <span>{user.name}</span>님
-          <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
+        <div className="nav-bottom">
+          <div className="nav-menu">
+            {menuItems.map(t => (
+              <button key={t.k} onClick={() => nv(t.k)}
+                className={`nav-btn ${t.hl ? 'highlight' : ''} ${(view === t.k || (view === 'project' && t.k === 'projects')) ? 'active' : ''}`}>
+                {t.l}
+              </button>
+            ))}
+          </div>
         </div>
       </nav>
 
@@ -463,13 +487,15 @@ function WeeklyReport({ gp, user }) {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
-        <h2 className="section-title" style={{ margin: 0 }}>📋 주간 공정 보고</h2>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <h2 className="section-title" style={{ margin: 0 }}>📋 주간 공정 보고</h2>
+          <button className="btn btn-primary btn-sm" onClick={handlePrint}>🖨 A3 인쇄</button>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button className="btn btn-secondary btn-sm" onClick={() => { const i = allWeeks.indexOf(selWeek); if (i < allWeeks.length - 1) setSelWeek(allWeeks[i+1]); }}>◀</button>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#334155', minWidth: 190, textAlign: 'center' }}>{selWeek ? weekLabel(selWeek) : ''}</span>
+          <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: '#334155', textAlign: 'center' }}>{selWeek ? weekLabel(selWeek) : ''}</span>
           <button className="btn btn-secondary btn-sm" onClick={() => { const i = allWeeks.indexOf(selWeek); if (i > 0) setSelWeek(allWeeks[i-1]); }}>▶</button>
-          <button className="btn btn-primary btn-sm" onClick={handlePrint}>🖨 A3 인쇄</button>
         </div>
       </div>
 
