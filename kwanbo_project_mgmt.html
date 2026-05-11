@@ -460,7 +460,7 @@ function WeeklyReport({ gp, user }) {
       <col style="width:4%"/><col style="width:4%"/><col style="width:19%"/>
       <col style="width:13%"/><col style="width:4%"/>
     </colgroup>`;
-    const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>전주</th><th>금주</th><th>±</th><th>금주 실적</th><th>다음주 계획</th><th>비고</th></tr>`;
+    const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>전주</th><th>금주</th><th>±</th><th>금주 진행사항</th><th>다음주 계획</th><th>비고</th></tr>`;
     const rows = sortedProjects.map((p, i) => {
       const r = getReport(p.id);
       const stopped = p.status === '중지';
@@ -545,79 +545,64 @@ function WeeklyReport({ gp, user }) {
         </div>
       )}
 
-      {/* Progress bars overview */}
-      <div className="card card-p" style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 10 }}>📊 전체 공정률</div>
-        {sortedProjects.map(p => {
-          const r = getReport(p.id);
-          const pct = r?.progress_pct || 0, prev = r?.prev_pct || 0;
-          return (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5, cursor: 'pointer', opacity: p.status === '중지' ? 0.6 : 1 }} onClick={() => gp(p.id)}>
-              <Bd bg={CAT_COLOR[p.category]}>{p.category}</Bd>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#1e40af', width: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{p.name.length > 18 ? p.name.slice(0,18)+'…' : p.name}</span>
-              <div style={{ flex: 1, height: 14, background: '#f1f5f9', borderRadius: 7, overflow: 'hidden', position: 'relative', minWidth: 60 }}>
-                <div style={{ height: '100%', borderRadius: 7, width: `${pct}%`, background: pct>=80?'linear-gradient(90deg,#059669,#10b981)':pct>=50?'linear-gradient(90deg,#2563eb,#60a5fa)':'linear-gradient(90deg,#f59e0b,#fbbf24)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 4, transition: 'width .5s' }}>
-                  {pct >= 18 && <span style={{ fontSize: 9, fontWeight: 800, color: '#fff' }}>{pct}%</span>}
-                </div>
-                {pct < 18 && <span style={{ position: 'absolute', left: `${Math.max(pct+1,2)}%`, top: 2, fontSize: 9, fontWeight: 700, color: '#64748b' }}>{pct}%</span>}
-              </div>
-              <Delta prev={prev} curr={pct} />
-              <span style={{ fontSize: 10, color: '#94a3b8', width: 40, textAlign: 'right', flexShrink: 0 }}>{uName(p.pm_id)}</span>
-            </div>
-          );
-        })}
+      {/* 통합 테이블 */}
+      <div className="card" style={{ overflow: 'auto' }}>
+        <table className="tbl" style={{ minWidth: 900 }}>
+          <thead>
+            <tr>
+              <th style={{ width: 32, textAlign: 'center' }}>번호</th>
+              <th style={{ width: 44 }}>분류</th>
+              <th>용역명</th>
+              <th style={{ width: 88 }}>발주처</th>
+              <th style={{ width: 44, textAlign: 'center' }}>PM</th>
+              <th style={{ width: 36, textAlign: 'center' }}>전주</th>
+              <th style={{ width: 80, textAlign: 'center' }}>공정률</th>
+              <th style={{ width: 32, textAlign: 'center' }}>증감</th>
+              <th style={{ minWidth: 180 }}>금주 진행사항</th>
+              <th style={{ minWidth: 140 }}>다음주 계획</th>
+              <th style={{ width: 80 }}>비고/이슈</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedProjects.map((p, idx) => {
+              const r = getReport(p.id);
+              const pct = r?.progress_pct || 0, prev = r?.prev_pct || 0;
+              const ne = getNextEvent(p.id);
+              const stopped = p.status === '중지';
+              const d = pct - prev;
+              const barColor = pct>=80?'#059669':pct>=50?'#2563eb':'#f59e0b';
+              return (
+                <tr key={p.id} style={{ opacity: stopped ? 0.55 : 1, background: stopped ? '#fafafa' : 'transparent', borderLeft: `3px solid ${CAT_COLOR[p.category]}` }}>
+                  <td className="tc" style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>{idx+1}</td>
+                  <td><Bd bg={CAT_COLOR[p.category]}>{p.category}</Bd>{stopped && <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 1 }}>중지</div>}</td>
+                  <td style={{ cursor: 'pointer' }} onClick={() => gp(p.id)}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: stopped ? '#9ca3af' : '#0f172a', lineHeight: 1.4 }}>{p.name}</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{fs(p.start_date)}~{fs(p.end_date)}</div>
+                  </td>
+                  <td style={{ fontSize: 11, color: '#475569' }}>{p.client}</td>
+                  <td className="tc" style={{ fontSize: 11, fontWeight: 600 }}>{uName(p.pm_id)}</td>
+                  <td className="tc" style={{ fontSize: 11, color: '#64748b' }}>{prev}%</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <div style={{ width: 48, height: 6, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden', flexShrink: 0 }}>
+                        <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 3 }} />
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: barColor, minWidth: 28 }}>{pct}%</span>
+                    </div>
+                  </td>
+                  <td className="tc"><span style={{ fontSize: 11, fontWeight: 700, color: d>0?'#059669':d<0?'#dc2626':'#94a3b8' }}>{d>0?`▲${d}`:d<0?`▼${Math.abs(d)}`:'—'}</span></td>
+                  <td style={{ fontSize: 11, color: '#334155', lineHeight: 1.5 }}>
+                    {r?.isThisWeek ? (r.summary || '—') : (stopped ? <span style={{ color: '#9ca3af' }}>중지 상태</span> : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>)}
+                    {ne && <div style={{ marginTop: 3, padding: '2px 5px', background: ec(ne.type).bg, borderRadius: 3, fontSize: 10, color: ec(ne.type).tx, display: 'inline-block' }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
+                  </td>
+                  <td style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>{r?.isThisWeek ? (r.next_plan || '—') : '—'}</td>
+                  <td style={{ fontSize: 10, color: r?.issues ? '#dc2626' : '#94a3b8' }}>{r?.issues || ''}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-
-      {/* Detail cards */}
-      {sortedProjects.map((p, idx) => {
-        const r = getReport(p.id);
-        const pct = r?.progress_pct || 0, prev = r?.prev_pct || 0;
-        const ne = getNextEvent(p.id);
-        const stopped = p.status === '중지';
-        return (
-          <div key={p.id} style={{ background: '#fff', borderRadius: 10, padding: '12px 14px', boxShadow: '0 1px 3px rgba(0,0,0,.05)', marginBottom: 7, borderLeft: `4px solid ${stopped ? '#d1d5db' : CAT_COLOR[p.category]}`, opacity: stopped ? 0.6 : 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-              <div style={{ cursor: 'pointer' }} onClick={() => gp(p.id)}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>#{idx+1}</span>
-                  <Bd bg={stopped?'#d1d5db':CAT_COLOR[p.category]}>{stopped?'중지':p.category}</Bd>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: stopped ? '#9ca3af' : '#0f172a' }}>{p.name}</span>
-                </div>
-                <div style={{ fontSize: 10, color: '#64748b' }}>{p.client} · PM: {uName(p.pm_id)} · {fs(p.start_date)}~{fs(p.end_date)}</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <PBar pct={pct} w={100} />
-                <Delta prev={prev} curr={pct} />
-              </div>
-            </div>
-            {r?.isThisWeek ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 12 }}>
-                <div style={{ padding: '7px 10px', background: '#f0fdf4', borderRadius: 6 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#059669', marginBottom: 2 }}>금주 실적</div>
-                  {r.summary || '—'}
-                </div>
-                <div style={{ padding: '7px 10px', background: '#eff6ff', borderRadius: 6 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', marginBottom: 2 }}>다음주 계획</div>
-                  {r.next_plan || '—'}
-                </div>
-                {r.issues && <div style={{ gridColumn: '1/-1', padding: '5px 10px', background: '#fef2f2', borderRadius: 6 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#dc2626' }}>⚠ </span>
-                  <span style={{ fontSize: 12, color: '#991b1b' }}>{r.issues}</span>
-                </div>}
-                {ne && <div style={{ gridColumn: '1/-1', padding: '4px 10px', background: ec(ne.type).bg, borderRadius: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontSize: 12 }}>{EV_ICON[ne.type]}</span>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: ec(ne.type).tx }}>다음 주요 공정:</span>
-                  <span style={{ fontSize: 11, color: ec(ne.type).tx }}>{ne.title} ({fs(ne.event_date)})</span>
-                </div>}
-              </div>
-            ) : (
-              <div style={{ padding: '7px 10px', background: stopped ? '#f1f5f9' : '#fef3c7', borderRadius: 6, fontSize: 11, color: stopped ? '#9ca3af' : '#92400e' }}>
-                {stopped ? '⏸ 중지 상태' : '⚠ 금주 보고 미입력'}
-              </div>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -789,6 +774,7 @@ function ProjectDetail({ id, user, gb }) {
   const [reports, setReports] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [editModal, setEditModal] = useState(null);
 
   useEffect(() => { loadAll(); }, [id]);
   const loadAll = async () => {
@@ -840,7 +826,18 @@ function ProjectDetail({ id, user, gb }) {
 
   return (
     <div>
-      <button className="btn btn-secondary btn-sm" style={{ marginBottom: 10 }} onClick={gb}>← 목록</button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <button className="btn btn-secondary btn-sm" onClick={gb}>← 목록</button>
+        {(user?.role === 'admin' || members.some(m => m.user_id === user?.id && m.role === 'pm')) && (
+          <button className="btn btn-success btn-sm" onClick={() => setEditModal('report')}>📝 주간보고 입력</button>
+        )}
+        {(user?.role === 'admin' || members.some(m => m.user_id === user?.id && m.role === 'pm')) && (
+          <button className="btn btn-secondary btn-sm" onClick={() => setEditModal('event')}>📌 주요공정 등록</button>
+        )}
+        {(user?.role === 'admin' || project?.pm_id === user?.id) && (
+          <button className="btn btn-secondary btn-sm" onClick={() => setEditModal('editProject')}>✏️ 프로젝트 수정</button>
+        )}
+      </div>
       {/* Header */}
       <div className="card card-p" style={{ marginBottom: 10, borderLeft: `5px solid ${stopped?'#d1d5db':CAT_COLOR[p.category]}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
@@ -915,6 +912,24 @@ function ProjectDetail({ id, user, gb }) {
           ))
         }
       </div>
+
+      {/* Edit Modals */}
+      {editModal === 'report' && (
+        <WeeklyReportModal projectId={id} userId={user?.id}
+          prevData={reports.slice().reverse()[0]}
+          onClose={() => setEditModal(null)}
+          onSaved={() => { setEditModal(null); loadAll(); }} />
+      )}
+      {editModal === 'event' && (
+        <EventModal projectId={id} userId={user?.id}
+          onClose={() => setEditModal(null)}
+          onSaved={() => { setEditModal(null); loadAll(); }} />
+      )}
+      {editModal === 'editProject' && project && (
+        <EditProjectModal project={project} userId={user?.id}
+          onClose={() => setEditModal(null)}
+          onSaved={() => { setEditModal(null); loadAll(); }} />
+      )}
     </div>
   );
 }
@@ -1072,8 +1087,8 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
         <input type="number" className="form-input" min={0} max={100} value={prevPct} onChange={e => setPrevPct(e.target.value)} />
       </div>
       <div className="form-group">
-        <label className="form-label">금주 실적 *</label>
-        <textarea className="form-input" rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="이번 주에 완료한 주요 업무를 입력하세요" />
+        <label className="form-label">금주 진행사항 *</label>
+        <textarea className="form-input" rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="이번 주 진행사항을 입력하세요" />
       </div>
       <div className="form-group">
         <label className="form-label">다음주 계획</label>
@@ -1246,13 +1261,14 @@ function AdminPanel({ user }) {
     <div>
       <h2 className="section-title">⚙ 관리자 메뉴</h2>
       {msg && <div className="alert alert-success">{msg}</div>}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: '#fff', borderRadius: 8, padding: 4, boxShadow: '0 1px 2px rgba(0,0,0,.06)', width: 'fit-content' }}>
-        {[{k:'create',l:'새 프로젝트 등록'},{k:'members',l:'참여인원 배정'},{k:'userList',l:'직원 목록'}].map(t => (
+      <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: '#fff', borderRadius: 8, padding: 4, boxShadow: '0 1px 2px rgba(0,0,0,.06)', width: 'fit-content', flexWrap: 'wrap' }}>
+        {[{k:'create',l:'새 프로젝트 등록'},{k:'editProj',l:'프로젝트 수정'},{k:'members',l:'참여인원 배정'},{k:'userList',l:'직원 목록'}].map(t => (
           <button key={t.k} onClick={() => setTab(t.k)} className="btn btn-sm" style={{ background: tab===t.k?'#0f172a':'transparent', color: tab===t.k?'#fff':'#64748b', border: 'none' }}>{t.l}</button>
         ))}
       </div>
 
       {tab === 'create' && <CreateProjectForm userId={user.id} users={users} onSaved={() => { loadAll(); showMsg('프로젝트가 등록되었습니다.'); }} />}
+      {tab === 'editProj' && <AdminProjectEdit projects={projects} users={users} onSaved={() => { loadAll(); showMsg('수정되었습니다.'); }} userId={user.id} />}
       {tab === 'members' && <MemberAssign projects={projects} users={users} onSaved={() => { loadAll(); showMsg('참여인원이 업데이트되었습니다.'); }} />}
       {tab === 'userList' && <UserList users={users} onSaved={() => { loadAll(); showMsg('저장되었습니다.'); }} />}
     </div>
@@ -1419,6 +1435,44 @@ function MemberAssign({ projects, users, onSaved }) {
             <button className="btn btn-primary btn-sm" onClick={() => { addMember(newUser, newRole); setNewUser(''); }} disabled={loading || !newUser}>추가</button>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+// ─── Admin Project Edit ───
+function AdminProjectEdit({ projects, users, onSaved, userId }) {
+  const [selPid, setSelPid] = useState('');
+  const [editModal, setEditModal] = useState(false);
+  const [filterText, setFilterText] = useState('');
+
+  const uName = (id) => users.find(u => u.id === id)?.name || '';
+  const filtered = projects.filter(p =>
+    filterText === '' ||
+    p.name.includes(filterText) ||
+    (p.client || '').includes(filterText) ||
+    uName(p.pm_id).includes(filterText)
+  );
+  const selProject = projects.find(p => p.id === selPid);
+
+  return (
+    <div className="card card-p">
+      <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>프로젝트 수정 ({projects.length}건)</div>
+      <input className="form-input" style={{ marginBottom: 10 }} placeholder="용역명 / 발주처 / PM 검색" value={filterText} onChange={e => setFilterText(e.target.value)} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 400, overflowY: 'auto' }}>
+        {filtered.map(p => (
+          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#f8fafc', borderRadius: 6, borderLeft: `3px solid ${CAT_COLOR[p.category]||'#e2e8f0'}`, opacity: p.status==='중지'?0.6:1 }}>
+            <div style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+            <span style={{ fontSize: 10, color: '#64748b', flexShrink: 0 }}>{uName(p.pm_id)}</span>
+            <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
+            <button className="btn btn-secondary btn-sm" onClick={() => { setSelPid(p.id); setEditModal(true); }}>수정</button>
+          </div>
+        ))}
+      </div>
+      {editModal && selProject && (
+        <EditProjectModal project={selProject} userId={userId}
+          onClose={() => setEditModal(false)}
+          onSaved={() => { setEditModal(false); onSaved(); }} />
       )}
     </div>
   );
