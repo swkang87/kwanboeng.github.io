@@ -460,7 +460,7 @@ function WeeklyReport({ gp, user }) {
       <col style="width:4%"/><col style="width:4%"/><col style="width:19%"/>
       <col style="width:13%"/><col style="width:4%"/>
     </colgroup>`;
-    const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>전주</th><th>금주</th><th>±</th><th>금주 진행사항</th><th>다음주 계획</th><th>비고</th></tr>`;
+    const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>전주</th><th>금주</th><th>±</th><th>전주 진행사항</th><th>금주 계획</th><th>비고</th></tr>`;
     const rows = sortedProjects.map((p, i) => {
       const r = getReport(p.id);
       const stopped = p.status === '중지';
@@ -558,8 +558,8 @@ function WeeklyReport({ gp, user }) {
               <th style={{ width: 36, textAlign: 'center' }}>전주</th>
               <th style={{ width: 80, textAlign: 'center' }}>공정률</th>
               <th style={{ width: 32, textAlign: 'center' }}>증감</th>
-              <th style={{ minWidth: 180 }}>금주 진행사항</th>
-              <th style={{ minWidth: 140 }}>다음주 계획</th>
+              <th style={{ minWidth: 180 }}>전주 진행사항</th>
+              <th style={{ minWidth: 140 }}>금주 계획</th>
               <th style={{ width: 80 }}>비고/이슈</th>
             </tr>
           </thead>
@@ -576,7 +576,7 @@ function WeeklyReport({ gp, user }) {
                   <td className="tc" style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>{idx+1}</td>
                   <td><Bd bg={CAT_COLOR[p.category]}>{p.category}</Bd>{stopped && <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 1 }}>중지</div>}</td>
                   <td style={{ cursor: 'pointer' }} onClick={() => gp(p.id)}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: stopped ? '#9ca3af' : '#0f172a', lineHeight: 1.4 }}>{p.name}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>{p.name}</div>
                     <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{fs(p.start_date)}~{fs(p.end_date)}</div>
                   </td>
                   <td style={{ fontSize: 11, color: '#475569' }}>{p.client}</td>
@@ -1087,12 +1087,12 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
         <input type="number" className="form-input" min={0} max={100} value={prevPct} onChange={e => setPrevPct(e.target.value)} />
       </div>
       <div className="form-group">
-        <label className="form-label">금주 진행사항 *</label>
-        <textarea className="form-input" rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="이번 주 진행사항을 입력하세요" />
+        <label className="form-label">전주 진행사항 *</label>
+        <textarea className="form-input" rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="지난 주 진행사항을 입력하세요" />
       </div>
       <div className="form-group">
-        <label className="form-label">다음주 계획</label>
-        <textarea className="form-input" rows={2} value={nextPlan} onChange={e => setNextPlan(e.target.value)} placeholder="다음 주 진행 예정 업무" />
+        <label className="form-label">금주 계획</label>
+        <textarea className="form-input" rows={2} value={nextPlan} onChange={e => setNextPlan(e.target.value)} placeholder="이번 주 진행 예정 업무" />
       </div>
       <div className="form-group">
         <label className="form-label">이슈 / 특이사항</label>
