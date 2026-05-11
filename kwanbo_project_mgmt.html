@@ -419,16 +419,23 @@ function WeeklyReport({ gp, user }) {
   const uName = (id) => users.find(u => u.id === id)?.name || '';
 
   const sortedProjects = (() => {
+    // 1순위: 사급(0) → 관급(1) → 기술지원(2)
     const catOrder = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
-    const active = projects.filter(p => p.status === '진행중' && p.category !== '기술지원');
-    const stopped = projects.filter(p => p.status === '중지');
-    const tech = projects.filter(p => p.category === '기술지원');
-    const byPct = (arr) => arr.sort((a,b) => {
-      const pa = reports.filter(r => r.project_id === a.id && r.week_date <= selWeek).sort((x,y) => y.week_date.localeCompare(x.week_date))[0]?.progress_pct || 0;
-      const pb = reports.filter(r => r.project_id === b.id && r.week_date <= selWeek).sort((x,y) => y.week_date.localeCompare(x.week_date))[0]?.progress_pct || 0;
-      return catOrder(a.category) - catOrder(b.category) || pb - pa;
-    });
-    return [...byPct(active), ...byPct(stopped), ...tech];
+    // 2순위: PM 순서
+    const PM_ORDER = ['김병용','장용기','박호진','윤종수','이규민'];
+    const pmOrder = (pmId) => { const n = users.find(u => u.id === pmId)?.name || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
+    // 3순위: 공정률 내림차순
+    const getPct = (p) => reports.filter(r => r.project_id === p.id && r.week_date <= selWeek).sort((x,y) => y.week_date.localeCompare(x.week_date))[0]?.progress_pct || 0;
+    // 4순위: 진행중(0) → 중지(1)
+    const statusOrder = (s) => s === '진행중' ? 0 : s === '중지' ? 1 : 2;
+    return projects
+      .filter(p => p.status !== '완료')
+      .sort((a,b) =>
+        catOrder(a.category) - catOrder(b.category) ||
+        pmOrder(a.pm_id) - pmOrder(b.pm_id) ||
+        getPct(b) - getPct(a) ||
+        statusOrder(a.status) - statusOrder(b.status)
+      );
   })();
 
   const getReport = (pid) => {
@@ -479,7 +486,15 @@ function WeeklyReport({ gp, user }) {
         <div class="print-col"><table class="ptbl"><thead>${tableHead}</thead><tbody>${renderRows(sortedProjects.slice(0, half), 1)}</tbody></table></div>
         <div class="print-col"><table class="ptbl"><thead>${tableHead}</thead><tbody>${renderRows(sortedProjects.slice(half), half+1)}</tbody></table></div>
       </div>`;
+    // 인쇄 영역만 출력
+    const body = document.body;
+    const allChildren = Array.from(body.children);
+    allChildren.forEach(c => { if (c.id !== 'print-area') c.style.display = 'none'; });
+    el.style.display = 'block';
     window.print();
+    // 복원
+    allChildren.forEach(c => { if (c.id !== 'print-area') c.style.display = ''; });
+    el.style.display = 'none';
   };
 
   if (loading) return <Spinner />;
