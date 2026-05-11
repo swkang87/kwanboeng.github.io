@@ -4,12 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>(주)관보종합기술단 | KWAN BO ENGINEERING CO., LTD.</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<!-- Pretendard -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"/>
-<!-- Playfair Display + Barlow Condensed -->
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+
 <style>
 /* ══════════════════════════════════
    TOKENS — Light Theme
@@ -76,17 +72,18 @@ ul { list-style:none; }
 
 /* Logo */
 .logo { display:flex; align-items:center; gap:10px; }
-.logo-img {
-  height:34px; width:auto; flex-shrink:0;
-  display:block;
-  filter:drop-shadow(0 1px 3px rgba(0,0,0,.2));
+.logo-tri {
+  width:0; height:0;
+  border-left:12px solid transparent;
+  border-right:12px solid transparent;
+  border-bottom:20px solid var(--red);
+  flex-shrink:0;
 }
 .logo-ko {
-  font-family:'Pretendard', sans-serif;
+  font-family:'Pretendard',sans-serif;
   font-size:.98rem; font-weight:800;
   letter-spacing:-.02em; color:#fff;
   transition:color .3s;
-  line-height:1;
 }
 .logo-ko em { color:var(--gold); font-style:normal; }
 
@@ -99,7 +96,7 @@ ul { list-style:none; }
 }
 .nav-link::after {
   content:''; position:absolute; bottom:-3px; left:0; right:0;
-  height:2px; background:var(--gold);
+  height:2px; background:var(--red);
   transform:scaleX(0); transform-origin:left; transition:transform .25s;
 }
 .nav-link:hover { color:#fff; }
@@ -108,15 +105,14 @@ ul { list-style:none; }
 /* Nav right */
 .nav-right { display:flex; align-items:center; gap:10px; }
 
-/* 문의하기 버튼 — 딥 네이비 */
+/* 문의하기 버튼 */
 .nav-contact {
   padding:8px 20px;
-  background:#1a3a6b; border-radius:2px;
+  background:var(--red); border-radius:2px;
   font-size:.78rem; font-weight:700; letter-spacing:.05em;
   color:#fff; transition:background .2s;
-  font-family:'Pretendard',sans-serif;
 }
-.nav-contact:hover { background:#0d2044; }
+.nav-contact:hover { background:#a31515; }
 
 /* ★ 종합정보시스템 버튼 ★ */
 .nav-erp {
@@ -201,21 +197,22 @@ ul { list-style:none; }
   display:flex; align-items:center; gap:10px;
   margin-bottom:6px;
 }
-.modal-logo-img {
-  height:26px; width:auto; flex-shrink:0;
-  display:block;
+.modal-logo-tri {
+  width:0; height:0;
+  border-left:9px solid transparent;
+  border-right:9px solid transparent;
+  border-bottom:15px solid var(--red);
 }
 .modal-co {
-  font-family:'Pretendard', sans-serif;
+  font-family:'Pretendard',sans-serif;
   font-size:.85rem; font-weight:800; color:#fff;
 }
 .modal-co em { color:var(--gold); font-style:normal; }
 .modal-title {
-  font-family:'Pretendard', sans-serif;
-  font-size:1.2rem; font-weight:800; color:#fff;
-  letter-spacing:-.03em;
+  font-size:1.2rem; font-weight:700; color:#fff;
+  letter-spacing:-.01em;
 }
-.modal-sub { font-family:'Pretendard',sans-serif; font-size:.75rem; color:rgba(255,255,255,.5); margin-top:4px; }
+.modal-sub { font-size:.75rem; color:rgba(255,255,255,.5); margin-top:4px; }
 .modal-close {
   position:absolute; top:20px; right:20px;
   width:32px; height:32px; border-radius:50%;
@@ -339,20 +336,18 @@ ul { list-style:none; }
 .hero-btns { display:flex; gap:12px; flex-wrap:wrap; }
 .btn-p {
   display:inline-block; padding:13px 34px;
-  background:#1a3a6b; border-radius:2px;
+  background:var(--red); border-radius:2px;
   font-size:.82rem; font-weight:700; letter-spacing:.05em; color:#fff;
-  font-family:'Pretendard',sans-serif;
   transition:background .2s, transform .15s;
 }
-.btn-p:hover { background:#0d2044; transform:translateY(-2px); }
+.btn-p:hover { background:#a31515; transform:translateY(-2px); }
 .btn-o {
   display:inline-block; padding:13px 34px;
-  border:1.5px solid rgba(255,255,255,.5); border-radius:2px;
-  font-size:.82rem; letter-spacing:.05em; color:#fff;
-  font-family:'Pretendard',sans-serif;
-  transition:border-color .2s, background .2s;
+  border:1.5px solid rgba(255,255,255,.4); border-radius:2px;
+  font-size:.82rem; letter-spacing:.05em; color:rgba(255,255,255,.85);
+  transition:border-color .2s, color .2s;
 }
-.btn-o:hover { border-color:#fff; background:rgba(255,255,255,.1); }
+.btn-o:hover { border-color:#fff; color:#fff; }
 
 /* Dots & counter */
 .hero-dots {
@@ -619,24 +614,45 @@ ul { list-style:none; }
 #certs { padding:100px 6%; background:var(--navy); }
 .certs-in { max-width:1100px; margin:0 auto; }
 .certs-in .stag { color:var(--gold); }
-.certs-in .stitle { color:#fff; margin-bottom:48px; }
+.certs-in .stitle { color:#fff; margin-bottom:52px; }
 .certs-grid {
-  display:grid; grid-template-columns:repeat(4,1fr); gap:16px;
+  display:grid; grid-template-columns:repeat(3,1fr); gap:16px;
 }
 .cert {
   border:1px solid rgba(255,255,255,.1); border-radius:10px;
-  padding:28px 22px;
+  padding:26px 22px;
   background:rgba(255,255,255,.04);
   transition:border-color .25s, background .25s, transform .2s;
+  display:flex; flex-direction:column;
+}
+.cert::before {
+  content:''; display:block; height:3px; border-radius:2px;
+  background:linear-gradient(90deg, var(--gold), transparent);
+  margin-bottom:16px;
 }
 .cert:hover {
-  border-color:rgba(184,144,42,.4);
+  border-color:rgba(100,160,255,.35);
   background:rgba(255,255,255,.08);
   transform:translateY(-4px);
 }
-.cert-ico { font-size:1.8rem; margin-bottom:14px; }
-.cert h4 { font-size:.88rem; font-weight:700; color:#fff; margin-bottom:7px; }
-.cert p { font-size:.74rem; color:rgba(255,255,255,.5); line-height:1.6; }
+.cert-ico { font-size:1.6rem; margin-bottom:10px; }
+.cert h4 {
+  font-family:'Pretendard',sans-serif;
+  font-size:.9rem; font-weight:700; color:#fff;
+  margin-bottom:8px; letter-spacing:-.01em;
+}
+.cert p { font-size:.74rem; color:rgba(255,255,255,.5); line-height:1.65; }
+.cert-tags {
+  display:flex; flex-wrap:wrap; gap:5px; margin-top:10px;
+}
+.cert-tag {
+  font-size:.63rem; font-weight:600; letter-spacing:.02em;
+  padding:3px 10px; border-radius:20px;
+  background:rgba(100,160,255,.12);
+  border:1px solid rgba(100,160,255,.3);
+  color:#89b8ff;
+  line-height:1.5; white-space:nowrap;
+}
 
 /* ══════════════════════════════════
    ── CONTACT ──
@@ -667,12 +683,20 @@ ul { list-style:none; }
 .map-box {
   border:1.5px solid var(--border); border-radius:10px;
   height:360px; overflow:hidden;
-  background:var(--bg);
-  display:flex; flex-direction:column;
-  align-items:center; justify-content:center;
-  gap:10px; text-align:center;
-  color:var(--gray); font-size:.8rem; line-height:1.8;
+  position:relative;
+  box-shadow:0 4px 20px rgba(13,32,68,.08);
 }
+.map-box iframe { width:100%; height:100%; border:none; display:block; }
+.map-naver-btn {
+  position:absolute; bottom:14px; right:14px;
+  background:#03c75a; color:#fff;
+  font-size:.72rem; font-weight:700; letter-spacing:.04em;
+  padding:8px 16px; border-radius:4px;
+  text-decoration:none; display:flex; align-items:center; gap:6px;
+  box-shadow:0 2px 8px rgba(0,0,0,.2);
+  transition:background .2s; z-index:10;
+}
+.map-naver-btn:hover { background:#02a84b; }
 
 /* ══════════════════════════════════
    ── FOOTER ──
@@ -801,13 +825,18 @@ footer {
   .pa { display:none; }
 }
 </style>
+<!-- Pretendard -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"/>
+<!-- Playfair Display + Barlow Condensed -->
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,700&family=Barlow+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 </head>
 <body>
 
 <!-- ════════════════ NAV ════════════════ -->
 <nav id="nav">
   <a href="#hero" class="logo">
-    <img src="logo.png" alt="관보종합기술단 로고" class="logo-img"/>
+    <div class="logo-tri"></div>
     <div class="logo-ko"><em>(주)</em>관보종합기술단</div>
   </a>
 
@@ -846,7 +875,7 @@ footer {
     <!-- 헤더 -->
     <div class="modal-header">
       <div class="modal-header-top">
-        <img src="logo.png" alt="관보로고" class="modal-logo-img"/>
+        <div class="modal-logo-tri"></div>
         <div class="modal-co"><em>(주)</em>관보종합기술단</div>
       </div>
       <div class="modal-title">종합정보시스템</div>
@@ -1161,13 +1190,135 @@ footer {
 <!-- ════════════════ ⑦ CERTS ════════════════ -->
 <section id="certs">
   <div class="certs-in">
-    <span class="stag">CERTIFICATION — 인증현황</span>
-    <h2 class="stitle" style="color:#fff;margin-bottom:48px;">검증된 전문성</h2>
+    <span class="stag">CERTIFICATION — 인증 및 등록 현황</span>
+    <h2 class="stitle" style="color:#fff;margin-bottom:52px;">검증된 전문성</h2>
     <div class="certs-grid">
-      <div class="cert sr" style="transition-delay:.05s"><div class="cert-ico">♿</div><h4>장애인기업 등록</h4><p>장애인기업 종합지원센터 등록 인증</p></div>
-      <div class="cert sr" style="transition-delay:.1s"><div class="cert-ico">👩‍💼</div><h4>여성기업 등록</h4><p>여성기업지원센터 등록 인증</p></div>
-      <div class="cert sr" style="transition-delay:.15s"><div class="cert-ico">🏗️</div><h4>건설엔지니어링업</h4><p>설계·사업관리(일반) 9개 분야</p></div>
-      <div class="cert sr" style="transition-delay:.2s"><div class="cert-ico">🔬</div><h4>지하안전평가</h4><p>지하안전평가 전문기관<br/>안전점검 전문기관(토목)</p></div>
+
+      <!-- 1. 사회적 기업 인증 -->
+      <div class="cert sr" style="transition-delay:.04s">
+        <div class="cert-ico">🏅</div>
+        <h4>사회적 기업 인증</h4>
+        <p>장애인기업 종합지원센터 및 여성기업지원센터 등록 인증 업체</p>
+        <div class="cert-tags">
+          <span class="cert-tag">장애인기업 등록</span>
+          <span class="cert-tag">여성기업 등록</span>
+        </div>
+      </div>
+
+      <!-- 2. 건설엔지니어링업 -->
+      <div class="cert sr" style="transition-delay:.08s">
+        <div class="cert-ico">🏗️</div>
+        <h4>건설엔지니어링업</h4>
+        <p>건설엔지니어링업 설계·사업관리(일반) 등록<br/>신고번호 E-09-000494</p>
+        <div class="cert-tags">
+          <span class="cert-tag">설계</span>
+          <span class="cert-tag">사업관리(일반)</span>
+        </div>
+      </div>
+
+      <!-- 3. 엔지니어링사업자 -->
+      <div class="cert sr" style="transition-delay:.12s">
+        <div class="cert-ico">⚙️</div>
+        <h4>엔지니어링사업자</h4>
+        <p>한국엔지니어링협회 신고 — 건설 등 2개 기술부문, 9개 전문분야</p>
+        <div class="cert-tags">
+          <span class="cert-tag">도로공항</span>
+          <span class="cert-tag">교통</span>
+          <span class="cert-tag">상하수도</span>
+          <span class="cert-tag">구조</span>
+          <span class="cert-tag">도시계획</span>
+          <span class="cert-tag">수자원개발</span>
+          <span class="cert-tag">토질지질</span>
+          <span class="cert-tag">수질관리</span>
+          <span class="cert-tag">조경</span>
+        </div>
+      </div>
+
+      <!-- 4. 측량업 4종 (공공→수치→지하→영상) -->
+      <div class="cert sr" style="transition-delay:.16s">
+        <div class="cert-ico">📐</div>
+        <h4>측량업 등록 (4종)</h4>
+        <p>공간정보의 구축 및 관리 등에 관한 법률에 따른 측량업 등록</p>
+        <div class="cert-tags">
+          <span class="cert-tag">공공측량</span>
+          <span class="cert-tag">수치지도제작</span>
+          <span class="cert-tag">지하시설물측량</span>
+          <span class="cert-tag">영상처리</span>
+        </div>
+      </div>
+
+      <!-- 5. 지하안전영향평가 -->
+      <div class="cert sr" style="transition-delay:.20s">
+        <div class="cert-ico">🛡️</div>
+        <h4>지하안전영향평가 전문기관</h4>
+        <p>지하안전관리에 관한 특별법에 따른 지하안전영향평가 수행 전문기관 지정</p>
+        <div class="cert-tags">
+          <span class="cert-tag">전문기관 지정</span>
+        </div>
+      </div>
+
+      <!-- 6. 안전점검 전문기관 -->
+      <div class="cert sr" style="transition-delay:.24s">
+        <div class="cert-ico">🔍</div>
+        <h4>안전점검 전문기관 (토목)</h4>
+        <p>시설물의 안전 및 유지관리에 관한 특별법에 따른 안전점검 전문기관</p>
+        <div class="cert-tags">
+          <span class="cert-tag">토목분야</span>
+        </div>
+      </div>
+
+      <!-- 7. 초경량비행장치사용사업 -->
+      <div class="cert sr" style="transition-delay:.28s">
+        <div class="cert-ico">🚁</div>
+        <h4>초경량비행장치사용사업</h4>
+        <p>항공사업법에 따른 초경량비행장치사용사업 등록<br/>사업범위: 촬영, 측량</p>
+        <div class="cert-tags">
+          <span class="cert-tag">등록번호 제2025-1116호</span>
+        </div>
+      </div>
+
+      <!-- 8. 상수도관망관리대행업 -->
+      <div class="cert sr" style="transition-delay:.32s">
+        <div class="cert-ico">💧</div>
+        <h4>상수도관망관리대행업</h4>
+        <p>수도법에 따른 상수도관망관리대행업 등록<br/>낙동강유역환경청 제1-18호</p>
+        <div class="cert-tags">
+          <span class="cert-tag">상수도관망 세척</span>
+        </div>
+      </div>
+
+      <!-- 9. 소프트웨어사업자 -->
+      <div class="cert sr" style="transition-delay:.36s">
+        <div class="cert-ico">💻</div>
+        <h4>소프트웨어사업자</h4>
+        <p>소프트웨어 진흥법에 따른 소프트웨어사업자 등록<br/>한국인공지능소프트웨어산업협회</p>
+        <div class="cert-tags">
+          <span class="cert-tag">컴퓨터관련 서비스사업</span>
+        </div>
+      </div>
+
+      <!-- 10. 직접생산확인증명서 -->
+      <div class="cert sr" style="transition-delay:.40s">
+        <div class="cert-ico">✅</div>
+        <h4>직접생산확인증명서</h4>
+        <p>중소벤처기업부 발급 — 3개 품목 직접생산 확인</p>
+        <div class="cert-tags">
+          <span class="cert-tag">공간정보·측량</span>
+          <span class="cert-tag">디자인서비스</span>
+          <span class="cert-tag">지질연구</span>
+        </div>
+      </div>
+
+      <!-- 11. 산업디자인전문회사 -->
+      <div class="cert sr" style="transition-delay:.44s">
+        <div class="cert-ico">🎨</div>
+        <h4>산업디자인전문회사</h4>
+        <p>산업디자인진흥법에 따른 산업디자인전문회사 신고<br/>전문분야: 환경디자인</p>
+        <div class="cert-tags">
+          <span class="cert-tag">신고확인증 제20951호</span>
+        </div>
+      </div>
+
     </div>
   </div>
 </section>
@@ -1179,19 +1330,48 @@ footer {
       <span class="stag">CONTACT — 문의</span>
       <h2 class="stitle" style="margin-bottom:44px;">프로젝트에 대해<br/>상담해 드립니다.</h2>
       <div class="clist">
-        <div class="crow"><div class="cico">📍</div><div><span class="clabel">ADDRESS</span><div class="cval">부산광역시 연제구 거제대로 270, 705호<br/>(거제동, 종근당빌딩)</div></div></div>
-        <div class="crow"><div class="cico">📞</div><div><span class="clabel">TEL / FAX</span><div class="cval">T. <a href="tel:0518532633">051) 853-2633</a> &nbsp;/&nbsp; F. 051) 853-4893</div></div></div>
-        <div class="crow"><div class="cico">✉️</div><div><span class="clabel">E-MAIL</span><div class="cval"><a href="mailto:kwanboeng@naver.com">kwanboeng@naver.com</a> (설계)<br/><a href="mailto:kwanboacc@naver.com">kwanboacc@naver.com</a> (계약)</div></div></div>
+        <div class="crow">
+          <div class="cico">📍</div>
+          <div><span class="clabel">ADDRESS</span>
+          <div class="cval">부산광역시 연제구 거제대로 270, 705호<br/>(거제동, 종근당빌딩)</div></div>
+        </div>
+        <div class="crow">
+          <div class="cico">📱</div>
+          <div><span class="clabel">MOBILE — 강승우 실장</span>
+          <div class="cval"><a href="tel:01093152914">010-9315-2914</a></div></div>
+        </div>
+        <div class="crow">
+          <div class="cico">📞</div>
+          <div><span class="clabel">TEL / FAX</span>
+          <div class="cval">T. <a href="tel:0518532633">051) 853-2633</a> &nbsp;/&nbsp; F. 051) 853-4893</div></div>
+        </div>
+        <div class="crow">
+          <div class="cico">✉️</div>
+          <div><span class="clabel">E-MAIL</span>
+          <div class="cval">
+            <a href="mailto:kwanboeng@naver.com">kwanboeng@naver.com</a> (설계)<br/>
+            <a href="mailto:kwanboacc@naver.com">kwanboacc@naver.com</a> (계약)
+          </div></div>
+        </div>
       </div>
     </div>
+
+    <!-- 네이버 지도 -->
     <div class="sr right" style="transition-delay:.15s">
       <div class="map-box">
-        <!-- TODO: 카카오맵 API iframe 삽입 -->
-        <div style="font-size:2.5rem;opacity:.25">🗺️</div>
-        <div style="font-size:.8rem;color:var(--gray);line-height:1.8;text-align:center;">
-          부산광역시 연제구 거제대로 270<br/>705호, 종근당빌딩<br/>
-          <span style="font-size:.72rem;opacity:.6">지도 API 연동 예정</span>
-        </div>
+        <iframe
+          src="https://map.naver.com/p/entry/address/1145060.0%2C510040.0%2C%EB%B6%80%EC%82%B0%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%97%B0%EC%A0%9C%EA%B5%AC%20%EA%B1%B0%EC%A0%9C%EB%8C%80%EB%A1%9C%20270%2C%20705%ED%98%B8?c=15.00,0,0,0,dh"
+          width="100%" height="360"
+          style="border:none; display:block;"
+          allowfullscreen loading="lazy"
+          title="관보종합기술단 위치">
+        </iframe>
+        <a class="map-naver-btn"
+           href="https://map.naver.com/p/search/%EB%B6%80%EC%82%B0%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%97%B0%EC%A0%9C%EA%B5%AC%20%EA%B1%B0%EC%A0%9C%EB%8C%80%EB%A1%9C%20270%20705%ED%98%B8"
+           target="_blank" rel="noopener">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+          네이버 지도로 보기
+        </a>
       </div>
     </div>
   </div>
@@ -1202,10 +1382,7 @@ footer {
   <div class="footer-in">
     <div class="footer-top">
       <div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-          <img src="logo.png" alt="관보종합기술단 로고" style="height:28px;width:auto;opacity:.8;"/>
-          <div class="footer-ko"><em>(주)</em>관보종합기술단</div>
-        </div>
+        <div class="footer-ko"><em>(주)</em>관보종합기술단</div>
         <div class="footer-en">KWAN BO ENGINEERING CO., LTD.</div>
         <div class="footer-addr">
           부산광역시 연제구 거제대로 270, 705호 (거제동, 종근당빌딩)<br/>
