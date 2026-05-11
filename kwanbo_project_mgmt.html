@@ -425,8 +425,24 @@ function WeeklyReport({ gp, user }) {
     const pmOrder = (pmId) => { const n = users.find(u => u.id === pmId)?.name || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
     const getPct = (p) => reports.filter(r => r.project_id === p.id && r.week_date <= selWeek).sort((x,y) => y.week_date.localeCompare(x.week_date))[0]?.progress_pct || 0;
     const statusOrder = (s) => s === '진행중' ? 0 : s === '중지' ? 1 : 2;
+
     return projects
-      .filter(p => p.status !== '완료')
+      .filter(p => {
+        if (p.status === '완료') return false;
+        // 중지 프로젝트는 무조건 표시
+        if (p.status === '중지') return true;
+        // 준공일이 지난 용역 제외
+        if (p.end_date && p.end_date < selWeek) return false;
+        // 해당 주에 공정률 100% 달성한 용역 제외
+        // (100%에 처음 도달한 주가 selWeek보다 이전이면 제외)
+        const thisWeekReport = reports.find(r => r.project_id === p.id && r.week_date === selWeek);
+        if (!thisWeekReport) {
+          // 이번 주 보고 없을 때 - 이전 최신 보고가 100%면 제외
+          const latestReport = reports.filter(r => r.project_id === p.id && r.week_date < selWeek).sort((a,b) => b.week_date.localeCompare(a.week_date))[0];
+          if (latestReport?.progress_pct === 100) return false;
+        }
+        return true;
+      })
       .sort((a,b) =>
         catOrder(a.category) - catOrder(b.category) ||
         pmOrder(a.pm_id) - pmOrder(b.pm_id) ||
