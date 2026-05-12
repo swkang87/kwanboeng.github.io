@@ -232,13 +232,13 @@ const reportMonday = () => {
   const dow = d.getDay(); // 0=일,1=월,2=화,...
   let daysUntilMonday;
   if (dow === 1) {
-    // 월요일 → 이번 주 월요일 (오늘)
+    // 월요일: 이번 주 월요일
     daysUntilMonday = 0;
   } else if (dow === 0) {
-    // 일요일 → 다음 월요일
+    // 일요일: 다음 월요일
     daysUntilMonday = 1;
   } else {
-    // 화~토 → 다음 월요일
+    // 화~토: 다음 월요일
     daysUntilMonday = 8 - dow;
   }
   d.setDate(d.getDate() + daysUntilMonday);
@@ -1142,7 +1142,7 @@ function ProjectDetail({ id, user, gb }) {
                 <Delta prev={r.prev_pct} curr={r.progress_pct} />
               </div>
               <div style={{ fontSize: 12, color: '#334155' }}>{r.summary}</div>
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>→ {r.next_plan}</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>{"→"} {r.next_plan}</div>
               {r.issues && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 1 }}>⚠ {r.issues}</div>}
             </div>
           ))
