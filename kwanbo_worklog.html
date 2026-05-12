@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>업무일지 · 관보종합기술단</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ─── WHITE-LABEL VARIABLES ─────────────────────────────── */
+:root {
+  --theme:        #0f172a;
+  --accent:       #2563eb;
+  --accent-lt:    #eff6ff;
+  --accent-hover: #1d4ed8;
+  --bg:           #f8fafc;
+  --card:         #ffffff;
+  --border:       #e2e8f0;
+  --border-dark:  #cbd5e1;
+  --text:         #1e293b;
+  --text-sub:     #64748b;
+  --text-muted:   #94a3b8;
+  --green:        #16a34a;
+  --green-bg:     #dcfce7;
+  --green-border: #bbf7d0;
+  --amber:        #b45309;
+  --amber-bg:     #fef9c3;
+  --amber-border: #fef08a;
+  --red:          #dc2626;
+  --red-bg:       #fee2e2;
+  --sidebar-w:    240px;
+  --radius:       10px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+button { cursor: pointer; font-family: inherit; }
+input, textarea, select { font-family: inherit; }
+a { text-decoration: none; }
+
+/* ─── LOGIN ─────────────────────────────────────────────── */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--theme); padding: 20px; }
+.login-box { background: #fff; border-radius: 16px; padding: 40px 36px; width: 100%; max-width: 380px; box-shadow: 0 24px 64px rgba(0,0,0,.35); }
+.login-company { font-size: 11px; font-weight: 700; color: var(--text-sub); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+.login-title { font-size: 24px; font-weight: 900; color: var(--text); margin-bottom: 28px; }
+.login-field { margin-bottom: 12px; }
+.login-input { width: 100%; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; color: var(--text); outline: none; transition: border .2s; }
+.login-input:focus { border-color: var(--accent); }
+.login-error { font-size: 12px; color: var(--red); margin-bottom: 8px; }
+.login-btn { width: 100%; padding: 13px; background: var(--theme); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; margin-top: 4px; transition: background .2s; }
+.login-btn:hover { background: var(--accent); }
+.login-btn:disabled { opacity: .55; cursor: not-allowed; }
+.login-back { margin-top: 16px; text-align: center; }
+.login-back a { font-size: 12px; color: var(--text-muted); }
+.login-back a:hover { color: var(--accent); }
+
+/* ─── APP LAYOUT ─────────────────────────────────────────── */
+.app { display: flex; min-height: 100vh; }
+
+/* ─── SIDEBAR ────────────────────────────────────────────── */
+.sidebar { width: var(--sidebar-w); background: var(--theme); color: #fff; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; }
+.sidebar-top { padding: 22px 18px 18px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.sidebar-company { font-size: 10px; font-weight: 700; color: rgba(255,255,255,.45); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 3px; }
+.sidebar-system { font-size: 18px; font-weight: 900; color: #fff; }
+.sidebar-nav { flex: 1; padding: 14px 10px; display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; border: none; background: transparent; color: rgba(255,255,255,.6); font-size: 13px; font-weight: 500; width: 100%; text-align: left; transition: all .15s; }
+.nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+.nav-item.active { background: var(--accent); color: #fff; }
+.nav-icon { font-size: 15px; flex-shrink: 0; }
+.nav-label { flex: 1; }
+.sidebar-divider { height: 1px; background: rgba(255,255,255,.08); margin: 8px 0; }
+.sidebar-footer { padding: 14px; border-top: 1px solid rgba(255,255,255,.08); }
+.sidebar-user { display: flex; align-items: center; gap: 10px; }
+.sidebar-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.sidebar-user-info { flex: 1; min-width: 0; }
+.sidebar-name { font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebar-role { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 1px; }
+.logout-btn { background: none; border: none; color: rgba(255,255,255,.35); font-size: 16px; padding: 5px; border-radius: 5px; transition: color .15s; }
+.logout-btn:hover { color: #fff; }
+
+/* ─── MAIN CONTENT ───────────────────────────────────────── */
+.main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; }
+
+/* ─── VIEW CONTAINER ─────────────────────────────────────── */
+.view-wrap { max-width: 860px; margin: 0 auto; padding: 28px 24px 40px; }
+.view-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.view-title { font-size: 22px; font-weight: 900; color: var(--text); }
+.view-sub { font-size: 13px; color: var(--text-sub); margin-top: 3px; }
+
+/* ─── DATE NAV ───────────────────────────────────────────── */
+.date-nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.date-nav-btn { padding: 7px 11px; border: 1.5px solid var(--border); background: #fff; border-radius: 6px; font-size: 12px; color: var(--text-sub); transition: all .15s; }
+.date-nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.date-nav-btn:disabled { opacity: .4; cursor: not-allowed; }
+.date-input { padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 6px; font-size: 13px; font-weight: 700; color: var(--text); outline: none; cursor: pointer; transition: border .2s; }
+.date-input:focus { border-color: var(--accent); }
+.today-btn { padding: 7px 12px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; }
+.today-btn:hover { background: var(--accent-hover); }
+
+/* ─── SECTIONS ───────────────────────────────────────────── */
+.log-section { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 14px; }
+.sec-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.sec-title { font-size: 14px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.sec-icon { font-size: 16px; }
+.add-btn { padding: 6px 14px; background: var(--bg); border: 1.5px solid var(--border); border-radius: 6px; font-size: 12px; font-weight: 700; color: var(--text-sub); transition: all .15s; }
+.add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-lt); }
+
+/* ─── TASK ITEM ──────────────────────────────────────────── */
+.task-list { display: flex; flex-direction: column; gap: 7px; }
+.task-item { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 10px; transition: border .15s; }
+.task-item:hover { border-color: var(--border-dark); }
+.task-drag { color: var(--text-muted); font-size: 11px; letter-spacing: -1px; cursor: grab; user-select: none; flex-shrink: 0; }
+.task-input { flex: 1; border: none; background: transparent; font-size: 13px; color: var(--text); outline: none; min-width: 0; }
+.task-input::placeholder { color: var(--text-muted); }
+.status-wrap { display: flex; gap: 4px; flex-shrink: 0; }
+.status-btn { padding: 3px 9px; border-radius: 4px; border: 1.5px solid var(--border); background: #fff; font-size: 11px; font-weight: 600; color: var(--text-sub); transition: all .15s; white-space: nowrap; }
+.status-btn:hover { border-color: var(--border-dark); }
+.status-btn.done-active   { background: var(--green-bg);  color: var(--green);  border-color: var(--green-border); }
+.status-btn.prog-active   { background: var(--accent-lt); color: var(--accent); border-color: #bfdbfe; }
+.status-btn.hold-active   { background: var(--amber-bg);  color: var(--amber);  border-color: var(--amber-border); }
+.task-del { background: none; border: none; color: var(--text-muted); font-size: 12px; padding: 4px 5px; border-radius: 4px; transition: all .15s; flex-shrink: 0; }
+.task-del:hover { background: var(--red-bg); color: var(--red); }
+.empty-hint { padding: 14px; text-align: center; color: var(--text-muted); font-size: 13px; background: var(--bg); border-radius: 7px; border: 1.5px dashed var(--border); }
+
+/* ─── ISSUES TEXTAREA ────────────────────────────────────── */
+.issues-ta { width: 100%; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text); resize: vertical; outline: none; line-height: 1.7; transition: border .2s; }
+.issues-ta:focus { border-color: var(--accent); }
+.issues-ta::placeholder { color: var(--text-muted); }
+
+/* ─── SAVE ROW ───────────────────────────────────────────── */
+.save-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 6px; }
+.saved-msg { font-size: 13px; color: var(--green); font-weight: 600; }
+.save-btn { padding: 11px 26px; background: var(--theme); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; transition: background .2s; }
+.save-btn:hover { background: var(--accent); }
+.save-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ─── LOG CARDS (view) ───────────────────────────────────── */
+.log-card { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 10px; transition: border .15s, box-shadow .15s; }
+.log-card:hover { border-color: var(--border-dark); }
+.log-card.no-entry { opacity: .6; }
+.card-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; cursor: pointer; user-select: none; }
+.card-user { display: flex; align-items: center; gap: 12px; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.avatar.muted { background: var(--border); color: var(--text-muted); }
+.avatar.sm { width: 28px; height: 28px; font-size: 12px; }
+.card-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.card-meta { font-size: 12px; color: var(--text-sub); margin-top: 1px; }
+.card-done { color: var(--green); font-weight: 600; }
+.card-none { color: var(--text-muted); }
+.card-toggle { font-size: 11px; color: var(--text-muted); }
+.card-body { border-top: 1px solid var(--border); padding: 16px; display: flex; flex-direction: column; gap: 16px; background: #fcfcfd; }
+.card-sec {}
+.card-sec-title { font-size: 11px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+.view-task { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+.view-task:last-child { border-bottom: none; }
+.vt-bullet { color: var(--accent); font-weight: 900; font-size: 14px; flex-shrink: 0; line-height: 1; }
+.vt-content { flex: 1; font-size: 13px; color: var(--text); line-height: 1.55; }
+.vt-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; flex-shrink: 0; }
+.vt-done { background: var(--green-bg); color: var(--green); }
+.vt-prog { background: var(--accent-lt); color: var(--accent); }
+.vt-hold { background: var(--amber-bg); color: var(--amber); }
+.issues-view { font-size: 13px; color: var(--text); line-height: 1.75; white-space: pre-wrap; background: #fff; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); }
+.card-empty { font-size: 13px; color: var(--text-muted); padding: 6px 0; }
+
+/* ─── CONTROLS ───────────────────────────────────────────── */
+.ctrl-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+.mode-tabs { display: flex; background: var(--card); border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; }
+.mode-tab { padding: 8px 18px; border: none; background: transparent; font-size: 13px; font-weight: 700; color: var(--text-sub); transition: all .15s; }
+.mode-tab:hover { color: var(--text); }
+.mode-tab.active { background: var(--accent); color: #fff; }
+.date-label { font-size: 14px; font-weight: 700; color: var(--text); padding: 7px 12px; min-width: 130px; text-align: center; }
+
+/* ─── WEEK VIEW ──────────────────────────────────────────── */
+.week-wrap { overflow-x: auto; border-radius: var(--radius); border: 1.5px solid var(--border); background: var(--card); }
+.week-table { min-width: 580px; }
+.week-head, .week-row { display: grid; grid-template-columns: 130px repeat(5, 1fr); border-bottom: 1px solid var(--border); }
+.week-row:last-child { border-bottom: none; }
+.week-cell { padding: 10px 10px; border-right: 1px solid var(--border); font-size: 13px; }
+.week-cell:last-child { border-right: none; }
+.week-head .week-cell { background: var(--bg); font-size: 12px; font-weight: 700; color: var(--text-sub); text-align: center; }
+.week-head .wc-name { text-align: left; }
+.wc-day.today { background: var(--accent-lt); }
+.wc-day-num { font-size: 16px; font-weight: 900; color: var(--text); }
+.wc-day-label { font-size: 10px; color: var(--text-sub); }
+.wc-name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.week-summary { cursor: pointer; padding: 6px 4px; border-radius: 6px; transition: background .15s; text-align: center; }
+.week-summary:hover { background: var(--accent-lt); }
+.ws-count { font-size: 15px; font-weight: 700; color: var(--text); }
+.ws-done { font-size: 11px; color: var(--green); }
+.ws-issue { font-size: 11px; margin-top: 2px; }
+.week-none { text-align: center; color: var(--text-muted); font-size: 18px; }
+
+/* ─── MONTH VIEW ─────────────────────────────────────────── */
+.month-wrap { border-radius: var(--radius); border: 1.5px solid var(--border); overflow: hidden; }
+.month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); }
+.month-day-hdr { background: var(--bg); padding: 8px 4px; text-align: center; font-size: 12px; font-weight: 700; color: var(--text-sub); }
+.month-day { background: var(--card); min-height: 70px; padding: 8px; cursor: pointer; transition: background .15s; }
+.month-day:hover { background: #f0f5ff; }
+.month-day.empty { background: var(--bg); cursor: default; pointer-events: none; }
+.month-day.today { background: var(--accent-lt); }
+.month-day.has-logs { border-top: 2.5px solid var(--accent); }
+.md-num { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: var(--text); }
+.md-num.today { background: var(--accent); color: #fff; }
+.md-info { margin-top: 4px; font-size: 10px; color: var(--accent); font-weight: 700; }
+
+/* ─── MY HISTORY ─────────────────────────────────────────── */
+.history-list { display: flex; flex-direction: column; }
+.history-date-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin: 16px 0 8px; padding-left: 2px; }
+
+/* ─── EMPTY / LOADING ────────────────────────────────────── */
+.empty-state { text-align: center; padding: 60px 20px; }
+.empty-icon { font-size: 48px; margin-bottom: 16px; }
+.empty-text { font-size: 16px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; }
+.empty-sub { font-size: 13px; color: var(--text-muted); }
+.loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+
+/* ─── MOBILE NAV ─────────────────────────────────────────── */
+.mobile-nav { display: none; }
+
+/* ─── RESPONSIVE ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  :root { --sidebar-w: 0px; }
+  .sidebar { display: none; }
+  .main-content { margin-left: 0; padding-bottom: 72px; }
+  .view-wrap { padding: 16px 14px 32px; }
+  .view-header { flex-direction: column; align-items: flex-start; }
+  .status-wrap { display: none; }
+  .task-item { flex-wrap: wrap; }
+  .mobile-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--theme);
+    z-index: 200;
+    padding: 6px 0 14px;
+    border-top: 1px solid rgba(255,255,255,.08);
+  }
+  .mn-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 4px;
+    background: none;
+    border: none;
+    color: rgba(255,255,255,.45);
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .mn-item.active { color: #fff; }
+  .mn-item span:first-child { font-size: 20px; }
+  .week-table { min-width: 520px; }
+  .ctrl-row { flex-direction: column; align-items: flex-start; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+// ─── WHITE-LABEL CONFIG ────────────────────────────────────────────────────
+const CONFIG = {
+  SUPABASE_URL:  'https://pxtddjilxwomzfsjhmvn.supabase.co',
+  SUPABASE_KEY:  'sb_publishable_M2fWxHmHFMLfdtRConOuMg_GfIMv9bS',
+  COMPANY_NAME:  '관보종합기술단',
+  SYSTEM_NAME:   '업무일지',
+  HOME_URL:      'index.html',         // 홈으로 돌아가는 링크
+};
+
+// ─── SUPABASE ──────────────────────────────────────────────────────────────
+const { createClient } = supabase;
+const sb = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+
+// ─── REACT HOOKS ──────────────────────────────────────────────────────────
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ─── CONSTANTS ─────────────────────────────────────────────────────────────
+const VIEWS = { MY_LOG: 'my_log', ALL_LOGS: 'all_logs', HISTORY: 'history' };
+const STATUS = ['완료', '진행중', '보류'];
+const STATUS_CLS = { '완료': 'done-active', '진행중': 'prog-active', '보류': 'hold-active' };
+const STATUS_BADGE = { '완료': 'vt-done', '진행중': 'vt-prog', '보류': 'vt-hold' };
+const DAY_KR = ['일','월','화','수','목','금','토'];
+
+// ─── UTILS ─────────────────────────────────────────────────────────────────
+const todayStr = () => new Date().toISOString().split('T')[0];
+
+const fmtDate = (d) => {
+  const dt = new Date(d + 'T00:00:00');
+  return `${dt.getFullYear()}년 ${dt.getMonth()+1}월 ${dt.getDate()}일`;
+};
+
+const fmtShort = (d) => {
+  const dt = new Date(d + 'T00:00:00');
+  return `${dt.getMonth()+1}/${dt.getDate()}`;
+};
+
+const getWeekDates = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diff);
+  return Array.from({ length: 5 }, (_, i) => {
+    const dd = new Date(mon);
+    dd.setDate(mon.getDate() + i);
+    return dd.toISOString().split('T')[0];
+  });
+};
+
+const getMonthInfo = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  const y = d.getFullYear(), m = d.getMonth();
+  const first = new Date(y, m, 1);
+  const last  = new Date(y, m + 1, 0);
+  return {
+    year: y, month: m,
+    firstDate: first.toISOString().split('T')[0],
+    lastDate:  last.toISOString().split('T')[0],
+    days: last.getDate(),
+    startWeekday: first.getDay(),
+  };
+};
+
+const hashPw = async (pw) => {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+};
+
+const genId = () => Math.random().toString(36).slice(2, 10);
+
+const roleLabel = (r) => r === 'admin' ? '관리자' : r === 'manager' ? '팀장' : '팀원';
+
+// ─── LOGIN SCREEN ──────────────────────────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [phone, setPhone] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const doLogin = async () => {
+    if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
+    setLoading(true); setErr('');
+    try {
+      const hashed = await hashPw(pw);
+      const { data, error } = await sb.from('users')
+        .select('*').eq('phone', phone.trim()).eq('password', hashed).single();
+      if (error || !data) setErr('아이디 또는 비밀번호가 올바르지 않습니다.');
+      else onLogin(data);
+    } catch { setErr('로그인 중 오류가 발생했습니다.'); }
+    setLoading(false);
+  };
+
+  const onKey = (e) => { if (e.key === 'Enter') doLogin(); };
+
+  return (
+    <div className="login-wrap">
+      <div className="login-box">
+        <div className="login-company">{CONFIG.COMPANY_NAME}</div>
+        <div className="login-title">{CONFIG.SYSTEM_NAME}</div>
+        <div className="login-field">
+          <input className="login-input" type="text" placeholder="아이디"
+            value={phone} onChange={e => setPhone(e.target.value)} onKeyDown={onKey} />
+        </div>
+        <div className="login-field">
+          <input className="login-input" type="password" placeholder="비밀번호"
+            value={pw} onChange={e => setPw(e.target.value)} onKeyDown={onKey} />
+        </div>
+        {err && <div className="login-error">{err}</div>}
+        <button className="login-btn" onClick={doLogin} disabled={loading}>
+          {loading ? '로그인 중...' : '로그인'}
+        </button>
+        <div className="login-back"><a href={CONFIG.HOME_URL}>← 홈으로 돌아가기</a></div>
+      </div>
+    </div>
+  );
+}
+
+// ─── TASK ITEM COMPONENT ───────────────────────────────────────────────────
+function TaskItem({ task, onChange, onDelete, showStatus }) {
+  return (
+    <div className="task-item">
+      <span className="task-drag">⋮⋮</span>
+      <input
+        className="task-input"
+        type="text"
+        placeholder="업무 내용을 입력하세요"
+        value={task.content}
+        onChange={e => onChange({ ...task, content: e.target.value })}
+      />
+      {showStatus && (
+        <div className="status-wrap">
+          {STATUS.map(s => (
+            <button
+              key={s}
+              className={`status-btn ${task.status === s ? STATUS_CLS[s] : ''}`}
+              onClick={() => onChange({ ...task, status: s })}
+            >{s}</button>
+          ))}
+        </div>
+      )}
+      <button className="task-del" onClick={onDelete} title="삭제">✕</button>
+    </div>
+  );
+}
+
+// ─── MY LOG VIEW ───────────────────────────────────────────────────────────
+function MyLogView({ user }) {
+  const [date, setDate]     = useState(todayStr());
+  const [tasks, setTasks]   = useState([]);
+  const [tmrw, setTmrw]     = useState([]);
+  const [issues, setIssues] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
+
+  const loadLog = useCallback(async (d) => {
+    setLoading(true);
+    const { data } = await sb.from('work_logs')
+      .select('*').eq('user_id', user.id).eq('log_date', d).maybeSingle();
+    if (data) {
+      setTasks(data.tasks || []);
+      setTmrw(data.tomorrow_tasks || []);
+      setIssues(data.issues || '');
+    } else {
+      setTasks([]); setTmrw([]); setIssues('');
+    }
+    setLoading(false);
+  }, [user.id]);
+
+  useEffect(() => { loadLog(date); }, [date, loadLog]);
+
+  const save = async () => {
+    setSaving(true);
+    const { error } = await sb.from('work_logs').upsert({
+      user_id: user.id,
+      log_date: date,
+      tasks,
+      tomorrow_tasks: tmrw,
+      issues,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,log_date' });
+    setSaving(false);
+    if (!error) {
+      setSavedMsg('저장되었습니다');
+      setTimeout(() => setSavedMsg(''), 2500);
+    }
+  };
+
+  const prevDay = () => {
+    const d = new Date(date + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    setDate(d.toISOString().split('T')[0]);
+  };
+  const nextDay = () => {
+    const d = new Date(date + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    const next = d.toISOString().split('T')[0];
+    if (next <= todayStr()) setDate(next);
+  };
+
+  const addTask  = () => setTasks(p => [...p, { id: genId(), content: '', status: '진행중' }]);
+  const updTask  = (id, t) => setTasks(p => p.map(x => x.id === id ? t : x));
+  const delTask  = (id) => setTasks(p => p.filter(x => x.id !== id));
+  const addTmrw  = () => setTmrw(p => [...p, { id: genId(), content: '' }]);
+  const updTmrw  = (id, t) => setTmrw(p => p.map(x => x.id === id ? t : x));
+  const delTmrw  = (id) => setTmrw(p => p.filter(x => x.id !== id));
+
+  const isToday = date === todayStr();
+  const dayName = DAY_KR[new Date(date + 'T00:00:00').getDay()];
+
+  return (
+    <div className="view-wrap">
+      <div className="view-header">
+        <div>
+          <div className="view-title">📝 내 업무일지</div>
+          <div className="view-sub">{user.name}님 · {fmtDate(date)} ({dayName})</div>
+        </div>
+        <div className="date-nav">
+          <button className="date-nav-btn" onClick={prevDay}>◀</button>
+          <input className="date-input" type="date" value={date}
+            max={todayStr()} onChange={e => setDate(e.target.value)} />
+          <button className="date-nav-btn" onClick={nextDay} disabled={isToday}>▶</button>
+          {!isToday && <button className="today-btn" onClick={() => setDate(todayStr())}>오늘</button>}
+        </div>
+      </div>
+
+      {loading ? <div className="loading">불러오는 중...</div> : (<>
+        {/* 오늘 한 일 */}
+        <div className="log-section">
+          <div className="sec-header">
+            <div className="sec-title"><span className="sec-icon">✅</span>오늘 한 일</div>
+            <button className="add-btn" onClick={addTask}>+ 업무 추가</button>
+          </div>
+          {tasks.length === 0
+            ? <div className="empty-hint">아직 업무가 없습니다. '+ 업무 추가'를 눌러 기록하세요.</div>
+            : <div className="task-list">
+                {tasks.map(t => (
+                  <TaskItem key={t.id} task={t} showStatus={true}
+                    onChange={u => updTask(t.id, u)} onDelete={() => delTask(t.id)} />
+                ))}
+              </div>
+          }
+        </div>
+
+        {/* 내일 할 일 */}
+        <div className="log-section">
+          <div className="sec-header">
+            <div className="sec-title"><span className="sec-icon">📋</span>내일 할 일</div>
+            <button className="add-btn" onClick={addTmrw}>+ 업무 추가</button>
+          </div>
+          {tmrw.length === 0
+            ? <div className="empty-hint">내일 예정 업무를 추가하세요.</div>
+            : <div className="task-list">
+                {tmrw.map(t => (
+                  <TaskItem key={t.id} task={t} showStatus={false}
+                    onChange={u => updTmrw(t.id, u)} onDelete={() => delTmrw(t.id)} />
+                ))}
+              </div>
+          }
+        </div>
+
+        {/* 이슈 / 공유사항 */}
+        <div className="log-section">
+          <div className="sec-header">
+            <div className="sec-title"><span className="sec-icon">💬</span>이슈 / 공유사항</div>
+          </div>
+          <textarea className="issues-ta" rows={4} value={issues}
+            placeholder="공유할 이슈, 리소스 요청, 협업 필요사항 등을 자유롭게 적으세요"
+            onChange={e => setIssues(e.target.value)} />
+        </div>
+
+        <div className="save-row">
+          {savedMsg && <span className="saved-msg">✓ {savedMsg}</span>}
+          <button className="save-btn" onClick={save} disabled={saving}>
+            {saving ? '저장 중...' : '💾 저장'}
+          </button>
+        </div>
+      </>)}
+    </div>
+  );
+}
+
+// ─── LOG CARD (열람용) ─────────────────────────────────────────────────────
+function LogCard({ log, name, defaultOpen }) {
+  const [open, setOpen] = useState(defaultOpen || false);
+  const done  = (log.tasks || []).filter(t => t.status === '완료').length;
+  const total = (log.tasks || []).length;
+
+  return (
+    <div className={`log-card ${!log ? 'no-entry' : ''}`}>
+      <div className="card-head" onClick={() => setOpen(o => !o)}>
+        <div className="card-user">
+          <div className="avatar">{name[0]}</div>
+          <div>
+            <div className="card-name">{name}</div>
+            <div className="card-meta">
+              업무 {total}건
+              {total > 0 && <span className="card-done"> · 완료 {done}건</span>}
+            </div>
+          </div>
+        </div>
+        <span className="card-toggle">{open ? '▲' : '▼'}</span>
+      </div>
+      {open && (
+        <div className="card-body">
+          <div className="card-sec">
+            <div className="card-sec-title">✅ 오늘 한 일</div>
+            {(log.tasks || []).length === 0
+              ? <div className="card-empty">업무 내역 없음</div>
+              : (log.tasks || []).map((t, i) => (
+                  <div key={i} className="view-task">
+                    <span className="vt-bullet">·</span>
+                    <span className="vt-content">{t.content}</span>
+                    <span className={`vt-badge ${STATUS_BADGE[t.status] || ''}`}>{t.status}</span>
+                  </div>
+                ))
+            }
+          </div>
+          {(log.tomorrow_tasks || []).length > 0 && (
+            <div className="card-sec">
+              <div className="card-sec-title">📋 내일 할 일</div>
+              {(log.tomorrow_tasks || []).map((t, i) => (
+                <div key={i} className="view-task">
+                  <span className="vt-bullet">·</span>
+                  <span className="vt-content">{t.content}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {log.issues && (
+            <div className="card-sec">
+              <div className="card-sec-title">💬 이슈 / 공유사항</div>
+              <div className="issues-view">{log.issues}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ALL LOGS VIEW ─────────────────────────────────────────────────────────
+function AllLogsView() {
+  const [mode, setMode] = useState('day');
+  const [selDate, setSelDate] = useState(todayStr());
+  const [logs, setLogs] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    sb.from('users').select('id, name').order('name').then(({ data }) => setUsers(data || []));
+  }, []);
+
+  useEffect(() => {
+    if (!users.length) return;
+    const fetchLogs = async () => {
+      setLoading(true);
+      let start, end;
+      if (mode === 'day') { start = end = selDate; }
+      else if (mode === 'week') { const w = getWeekDates(selDate); start = w[0]; end = w[4]; }
+      else { const m = getMonthInfo(selDate); start = m.firstDate; end = m.lastDate; }
+      const { data } = await sb.from('work_logs')
+        .select('*').gte('log_date', start).lte('log_date', end);
+      setLogs(data || []);
+      setLoading(false);
+    };
+    fetchLogs();
+  }, [selDate, mode, users]);
+
+  const logFor = (uid, d) => logs.find(l => l.user_id === uid && l.log_date === d);
+
+  const shift = (dir) => {
+    const d = new Date(selDate + 'T00:00:00');
+    if (mode === 'day')   d.setDate(d.getDate() + dir);
+    else if (mode === 'week')  d.setDate(d.getDate() + dir * 7);
+    else d.setMonth(d.getMonth() + dir);
+    setSelDate(d.toISOString().split('T')[0]);
+  };
+
+  const rangeLabel = () => {
+    if (mode === 'day')   return fmtDate(selDate);
+    if (mode === 'week')  { const w = getWeekDates(selDate); return `${fmtShort(w[0])} ~ ${fmtShort(w[4])}`; }
+    const { year, month } = getMonthInfo(selDate);
+    return `${year}년 ${month+1}월`;
+  };
+
+  const weekDates = getWeekDates(selDate);
+  const mInfo = getMonthInfo(selDate);
+
+  return (
+    <div className="view-wrap">
+      <div className="view-header">
+        <div>
+          <div className="view-title">👥 전체 업무일지</div>
+          <div className="view-sub">모든 팀원의 업무를 확인합니다</div>
+        </div>
+      </div>
+
+      <div className="ctrl-row">
+        <div className="mode-tabs">
+          {[['day','일별'],['week','주별'],['month','월별']].map(([k,l]) => (
+            <button key={k} className={`mode-tab ${mode===k?'active':''}`} onClick={() => setMode(k)}>{l}</button>
+          ))}
+        </div>
+        <div className="date-nav">
+          <button className="date-nav-btn" onClick={() => shift(-1)}>◀</button>
+          <span className="date-label">{rangeLabel()}</span>
+          <button className="date-nav-btn" onClick={() => shift(1)}>▶</button>
+          <button className="today-btn" onClick={() => setSelDate(todayStr())}>오늘</button>
+        </div>
+      </div>
+
+      {loading ? <div className="loading">불러오는 중...</div> : (<>
+
+        {/* ── 일별 뷰 ── */}
+        {mode === 'day' && (
+          <div>
+            {users.map(u => {
+              const log = logFor(u.id, selDate);
+              return log
+                ? <LogCard key={u.id} log={log} name={u.name} defaultOpen={false} />
+                : (
+                  <div key={u.id} className="log-card no-entry">
+                    <div className="card-head" style={{ cursor: 'default' }}>
+                      <div className="card-user">
+                        <div className="avatar muted">{u.name[0]}</div>
+                        <div>
+                          <div className="card-name">{u.name}</div>
+                          <div className="card-meta card-none">업무일지 미작성</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+            })}
+            {!users.length && <div className="loading">직원 정보 로딩 중...</div>}
+          </div>
+        )}
+
+        {/* ── 주별 뷰 ── */}
+        {mode === 'week' && (
+          <div className="week-wrap">
+            <div className="week-table">
+              {/* 헤더 */}
+              <div className="week-head">
+                <div className="week-cell wc-name">이름</div>
+                {weekDates.map(d => {
+                  const dt = new Date(d + 'T00:00:00');
+                  return (
+                    <div key={d} className={`week-cell wc-day ${d === todayStr() ? 'today' : ''}`}>
+                      <div className="wc-day-num">{dt.getDate()}</div>
+                      <div className="wc-day-label">{DAY_KR[dt.getDay()]}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* 행 */}
+              {users.map(u => (
+                <div key={u.id} className="week-row">
+                  <div className="week-cell wc-name">
+                    <div className="avatar sm">{u.name[0]}</div>
+                    <span>{u.name}</span>
+                  </div>
+                  {weekDates.map(d => {
+                    const log = logFor(u.id, d);
+                    const total = log ? (log.tasks||[]).length : 0;
+                    const done  = log ? (log.tasks||[]).filter(t=>t.status==='완료').length : 0;
+                    return (
+                      <div key={d} className={`week-cell wc-day ${d===todayStr()?'today':''}`}>
+                        {log
+                          ? <div className="week-summary" onClick={() => { setSelDate(d); setMode('day'); }}>
+                              <div className="ws-count">{total}건</div>
+                              <div className="ws-done">{done}완료</div>
+                              {log.issues && <div className="ws-issue">💬</div>}
+                            </div>
+                          : <div className="week-none">—</div>
+                        }
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── 월별 뷰 ── */}
+        {mode === 'month' && (
+          <div className="month-wrap">
+            <div className="month-grid">
+              {DAY_KR.map(d => <div key={d} className="month-day-hdr">{d}</div>)}
+              {Array.from({ length: mInfo.startWeekday }, (_, i) => (
+                <div key={`e${i}`} className="month-day empty" />
+              ))}
+              {Array.from({ length: mInfo.days }, (_, i) => {
+                const day = i + 1;
+                const ds  = `${mInfo.year}-${String(mInfo.month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                const cnt = logs.filter(l => l.log_date === ds).length;
+                const isT = ds === todayStr();
+                return (
+                  <div key={day} className={`month-day ${isT?'today':''} ${cnt>0?'has-logs':''}`}
+                    onClick={() => { setSelDate(ds); setMode('day'); }}>
+                    <div className={`md-num ${isT?'today':''}`}>{day}</div>
+                    {cnt > 0 && <div className="md-info">{cnt}명 작성</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+      </>)}
+    </div>
+  );
+}
+
+// ─── MY HISTORY VIEW ───────────────────────────────────────────────────────
+function MyHistoryView({ user }) {
+  const [logs, setLogs]   = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    sb.from('work_logs').select('*').eq('user_id', user.id)
+      .order('log_date', { ascending: false }).limit(60)
+      .then(({ data }) => { setLogs(data || []); setLoading(false); });
+  }, [user.id]);
+
+  if (loading) return <div className="view-wrap"><div className="loading">불러오는 중...</div></div>;
+  if (!logs.length) return (
+    <div className="view-wrap">
+      <div className="view-header"><div className="view-title">📅 내 기록</div></div>
+      <div className="empty-state">
+        <div className="empty-icon">📝</div>
+        <div className="empty-text">작성된 업무일지가 없습니다</div>
+        <div className="empty-sub">'내 업무일지'에서 오늘의 업무를 기록해보세요</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="view-wrap">
+      <div className="view-header">
+        <div>
+          <div className="view-title">📅 내 기록</div>
+          <div className="view-sub">{user.name}님의 업무일지 기록 (최근 60건)</div>
+        </div>
+      </div>
+      <div className="history-list">
+        {logs.map(log => {
+          const dt = new Date(log.log_date + 'T00:00:00');
+          const label = `${fmtDate(log.log_date)} (${DAY_KR[dt.getDay()]})`;
+          return <LogCard key={log.id} log={log} name={label} defaultOpen={log.log_date === todayStr()} />;
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── SIDEBAR ───────────────────────────────────────────────────────────────
+function Sidebar({ view, setView, user, onLogout }) {
+  const NAV = [
+    { id: VIEWS.MY_LOG,  icon: '📝', label: '내 업무일지' },
+    { id: VIEWS.ALL_LOGS,icon: '👥', label: '전체 업무일지' },
+    { id: VIEWS.HISTORY, icon: '📅', label: '내 기록' },
+  ];
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-top">
+        <div className="sidebar-company">{CONFIG.COMPANY_NAME}</div>
+        <div className="sidebar-system">{CONFIG.SYSTEM_NAME}</div>
+      </div>
+      <nav className="sidebar-nav">
+        {NAV.map(n => (
+          <button key={n.id} className={`nav-item ${view===n.id?'active':''}`} onClick={() => setView(n.id)}>
+            <span className="nav-icon">{n.icon}</span>
+            <span className="nav-label">{n.label}</span>
+          </button>
+        ))}
+        <div className="sidebar-divider" />
+        <a href={CONFIG.HOME_URL} className="nav-item" style={{ color: 'rgba(255,255,255,.45)', display:'flex' }}>
+          <span className="nav-icon">🏠</span>
+          <span className="nav-label">홈으로</span>
+        </a>
+      </nav>
+      <div className="sidebar-footer">
+        <div className="sidebar-user">
+          <div className="sidebar-avatar">{user.name[0]}</div>
+          <div className="sidebar-user-info">
+            <div className="sidebar-name">{user.name}</div>
+            <div className="sidebar-role">{roleLabel(user.role)}</div>
+          </div>
+          <button className="logout-btn" onClick={onLogout} title="로그아웃">⏻</button>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// ─── MOBILE NAV ────────────────────────────────────────────────────────────
+function MobileNav({ view, setView }) {
+  const ITEMS = [
+    { id: VIEWS.MY_LOG,  icon: '📝', label: '내 일지' },
+    { id: VIEWS.ALL_LOGS,icon: '👥', label: '전체' },
+    { id: VIEWS.HISTORY, icon: '📅', label: '기록' },
+  ];
+  return (
+    <nav className="mobile-nav">
+      {ITEMS.map(n => (
+        <button key={n.id} className={`mn-item ${view===n.id?'active':''}`} onClick={() => setView(n.id)}>
+          <span>{n.icon}</span><span>{n.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+// ─── APP ───────────────────────────────────────────────────────────────────
+function App() {
+  const [user, setUser] = useState(null);
+  const [view, setView] = useState(VIEWS.MY_LOG);
+
+  const logout = () => { setUser(null); setView(VIEWS.MY_LOG); };
+
+  if (!user) return <LoginScreen onLogin={setUser} />;
+
+  return (
+    <div className="app">
+      <Sidebar view={view} setView={setView} user={user} onLogout={logout} />
+      <main className="main-content">
+        {view === VIEWS.MY_LOG   && <MyLogView user={user} />}
+        {view === VIEWS.ALL_LOGS && <AllLogsView />}
+        {view === VIEWS.HISTORY  && <MyHistoryView user={user} />}
+      </main>
+      <MobileNav view={view} setView={setView} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
