@@ -1041,7 +1041,13 @@ function ProjectDetail({ id, user, gb }) {
           {p.client_dept && <div><span style={{ fontSize: 9, color: '#94a3b8' }}>발주부서/담당자</span><br/><strong>{p.client_dept} / {p.client_contact}</strong></div>}
           <div><span style={{ fontSize: 9, color: '#94a3b8' }}>PM</span><br/><strong>{uName(p.pm_id)}</strong></div>
           <div><span style={{ fontSize: 9, color: '#94a3b8' }}>기간</span><br/><strong>{ff(p.start_date)} ~ {ff(p.end_date)}</strong></div>
-          <div><span style={{ fontSize: 9, color: '#94a3b8' }}>참여인원</span><br/><strong>{members.map(m => uName(m.user_id)).join(', ')}</strong></div>
+          <div><span style={{ fontSize: 9, color: '#94a3b8' }}>참여인원</span><br/><strong>{
+            (() => {
+              const isPM = user?.role === 'admin' || p.pm_id === user?.id;
+              const visible = members.filter(m => isPM || m.role !== 'contractor');
+              return visible.map(m => uName(m.user_id)).join(', ') || '—';
+            })()
+          }</strong></div>
           <div><span style={{ fontSize: 9, color: '#94a3b8' }}>현재 공정률</span><br/><PBar pct={lp} w={110} /></div>
         </div>
         {p.memo && <div style={{ marginTop: 8, padding: '6px 10px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#64748b' }}>{p.memo}</div>}
@@ -1649,10 +1655,110 @@ function MemberAssign({ projects, users, onSaved }) {
   );
 }
 
+// ─── Inline Project Edit ───
+function InlineProjectEdit({ project, users, userId, onSaved }) {
+  const [form, setForm] = useState({ ...project });
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // Reset form when project changes
+  React.useEffect(() => { setForm({ ...project }); setMsg(''); }, [project.id]);
+
+  const save = async () => {
+    setLoading(true); setMsg('');
+    const oldEndDate = project.end_date, oldContact = project.client_contact;
+    const updates = {
+      name: form.name, client: form.client, client_dept: form.client_dept,
+      client_contact: form.client_contact, start_date: form.start_date,
+      end_date: form.end_date, status: form.status, memo: form.memo,
+      pm_id: form.pm_id || project.pm_id,
+      updated_at: new Date().toISOString(),
+      completed_at: form.status === '완료' && project.status !== '완료'
+        ? new Date().toISOString().split('T')[0]
+        : form.status !== '완료' ? null : (project.completed_at || null),
+    };
+    const { error } = await sb.from('projects').update(updates).eq('id', project.id);
+    if (error) { setMsg('저장 오류: ' + error.message); setLoading(false); return; }
+    const changes = [];
+    if (form.end_date !== oldEndDate) changes.push({ project_id: project.id, field_name: '준공일', old_value: oldEndDate, new_value: form.end_date, changed_by: userId });
+    if (form.client_contact !== oldContact) changes.push({ project_id: project.id, field_name: '발주처 담당자', old_value: oldContact, new_value: form.client_contact, changed_by: userId });
+    if (changes.length > 0) await sb.from('change_logs').insert(changes);
+    setMsg('저장됐습니다.');
+    setTimeout(() => setMsg(''), 2000);
+    onSaved();
+    setLoading(false);
+  };
+
+  return (
+    <div className="card card-p">
+      <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 10 }}>✏️ 프로젝트 정보</div>
+      {msg && <div className="alert alert-success" style={{ padding: '6px 10px', fontSize: 11, marginBottom: 8 }}>{msg}</div>}
+      <div className="form-group">
+        <label className="form-label">용역명</label>
+        <input className="form-input" value={form.name || ''} onChange={e => set('name', e.target.value)} />
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">PM</label>
+          <select className="form-input" value={form.pm_id || ''} onChange={e => set('pm_id', e.target.value)}>
+            <option value="">선택</option>
+            {users.filter(u => u.role !== 'contractor').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">상태</label>
+          <select className="form-input" value={form.status || '진행중'} onChange={e => set('status', e.target.value)}>
+            <option>진행중</option><option>중지</option><option>완료</option>
+          </select>
+        </div>
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">발주처</label>
+          <input className="form-input" value={form.client || ''} onChange={e => set('client', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">발주부서</label>
+          <input className="form-input" value={form.client_dept || ''} onChange={e => set('client_dept', e.target.value)} />
+        </div>
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">발주처 담당자</label>
+          <input className="form-input" value={form.client_contact || ''} onChange={e => set('client_contact', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">분류</label>
+          <select className="form-input" value={form.category || '관급'} onChange={e => set('category', e.target.value)}>
+            <option>관급</option><option>사급</option><option>기술지원</option>
+          </select>
+        </div>
+      </div>
+      <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">착수일</label>
+          <input type="date" className="form-input" value={form.start_date || ''} onChange={e => set('start_date', e.target.value)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">준공일</label>
+          <input type="date" className="form-input" value={form.end_date || ''} onChange={e => set('end_date', e.target.value)} />
+        </div>
+      </div>
+      <div className="form-group">
+        <label className="form-label">비고</label>
+        <input className="form-input" value={form.memo || ''} onChange={e => set('memo', e.target.value)} />
+      </div>
+      <button className="btn btn-primary btn-sm" onClick={save} disabled={loading} style={{ marginTop: 4 }}>
+        {loading ? '저장 중...' : '💾 저장'}
+      </button>
+    </div>
+  );
+}
+
 // ─── Admin Project Edit (with member management) ───
 function AdminProjectEdit({ projects, users, onSaved, userId }) {
   const [selPid, setSelPid] = useState('');
-  const [editModal, setEditModal] = useState(false);
   const [filterText, setFilterText] = useState('');
   const [delConfirm, setDelConfirm] = useState(null);
   const [members, setMembers] = useState([]);
@@ -1724,15 +1830,12 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
 
       {/* 오른쪽: 수정 패널 */}
       {selProject ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div className="card card-p">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 }}>{selProject.name}</div>
-              <button className="btn btn-primary btn-sm" onClick={() => setEditModal(true)}>✏️ 정보 수정</button>
-            </div>
-            <div style={{ fontSize: 11, color: '#64748b' }}>{selProject.client} · PM: {uName(selProject.pm_id)} · {fs(selProject.start_date)}~{fs(selProject.end_date)}</div>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 600, overflowY: 'auto' }}>
+          {/* 인라인 수정 폼 */}
+          <InlineProjectEdit project={selProject} users={users} userId={userId}
+            onSaved={() => { onSaved(); }} />
 
+          {/* 참여인원 */}
           <div className="card card-p">
             <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>👥 참여인원</div>
             {members.length === 0 && <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>배정된 인원이 없습니다.</div>}
@@ -1761,12 +1864,6 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
         <div className="card card-p" style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: 40 }}>
           ← 왼쪽에서 프로젝트를 선택하세요
         </div>
-      )}
-
-      {editModal && selProject && (
-        <EditProjectModal project={selProject} userId={userId} users={users}
-          onClose={() => setEditModal(false)}
-          onSaved={() => { setEditModal(false); onSaved(); }} />
       )}
       {delConfirm && (
         <div className="modal-overlay" onClick={() => setDelConfirm(null)}>
