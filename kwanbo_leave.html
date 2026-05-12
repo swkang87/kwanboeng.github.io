@@ -495,8 +495,9 @@ function CalView({users,teams,leaves}){
   const dim=new Date(yr,mo+1,0).getDate(),fd=new Date(yr,mo,1).getDay(),cells=Math.ceil((fd+dim)/7)*7;
 
   // 주간 뷰 - 오늘이 속한 주 기준으로 시작
-  const getMonday=d=>{const x=new Date(d);const day=x.getDay();const diff=day===0?-6:1-day;x.setDate(x.getDate()+diff);return x;};
-  const [weekStart,setWeekStart]=useState(()=>getMonday(now));
+  // 주간 뷰 - 오늘이 속한 주 일요일부터 시작
+  const getSunday=d=>{const x=new Date(d);x.setDate(x.getDate()-x.getDay());return x;};
+  const [weekStart,setWeekStart]=useState(()=>getSunday(now));
   const getWeekDays=()=>Array.from({length:7},(_,i)=>{const x=new Date(weekStart);x.setDate(weekStart.getDate()+i);return x.toISOString().split('T')[0];});
   const weekDays=getWeekDays();
   const weekLabel=()=>{const s=new Date(weekStart),e=new Date(weekStart);e.setDate(s.getDate()+6);return s.getMonth()===e.getMonth()?`${s.getFullYear()}년 ${s.getMonth()+1}월 ${s.getDate()}일 ~ ${e.getDate()}일`:`${s.getFullYear()}년 ${s.getMonth()+1}월 ${s.getDate()}일 ~ ${e.getMonth()+1}월 ${e.getDate()}일`;};
@@ -560,11 +561,11 @@ function CalView({users,teams,leaves}){
               const bg=isTday?'#fef9c3':isHolDay?'#fff1f2':(dow===0||dow===6)?'#fafafa':'white';
               const numColor=isHolDay?'#dc2626':dow===0?'#ef4444':dow===6?'#3b82f6':'#374151';
               return(
-                <div key={ds} style={{borderRadius:7,border:isTday?'2px solid #f59e0b':'1px solid #f1f5f9',background:bg,padding:6,minHeight:100}}>
+                <div key={ds} style={{borderRadius:7,border:isTday?'2px solid #f59e0b':'1px solid #f1f5f9',background:bg,padding:6,minHeight:80}}>
                   <div style={{fontSize:11,fontWeight:700,color:numColor,marginBottom:2}}>{WD[dow]} {dn}</div>
-                  {hol&&<div style={{fontSize:9,color:'#dc2626',fontWeight:600,marginBottom:2}}>{hol}</div>}
-                  {sub&&<div style={{fontSize:9,color:'#dc2626',fontWeight:600,marginBottom:2}}>대체공휴일</div>}
-                  {people.map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:3,padding:'2px 5px',fontSize:10,marginBottom:2}}>{calLabel(p)}</div>)}
+                  {hol&&<div style={{fontSize:8,color:'#dc2626',fontWeight:600,marginBottom:2}}>{hol}</div>}
+                  {sub&&<div style={{fontSize:8,color:'#dc2626',fontWeight:600,marginBottom:2}}>대체공휴일</div>}
+                  {people.map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:3,padding:'1px 4px',fontSize:9,marginBottom:2}}>{calLabel(p)}</div>)}
                   {people.length===0&&!isHolDay&&<div style={{fontSize:10,color:'#cbd5e1'}}>—</div>}
                 </div>
               );
@@ -572,6 +573,39 @@ function CalView({users,teams,leaves}){
           </div>
         </div>
       )}
+      {/* 주간 상세 목록 - 월~금 휴가 상세 */}
+      {tab==='week'&&(()=>{
+        const workDays=weekDays.filter(ds=>{const dow=new Date(ds+'T12:00:00').getDay();return dow>=1&&dow<=5&&!HOLIDAYS[ds]&&!SUBSTITUTE[ds];});
+        const hasAny=workDays.some(ds=>getDayPeople(ds).length>0);
+        if(!hasAny)return null;
+        return(
+          <div style={{...card,padding:'10px 12px'}}>
+            <p style={{margin:'0 0 10px',fontSize:12,fontWeight:700,color:'#0f172a'}}>주간 휴가 상세</p>
+            {workDays.map(ds=>{
+              const people=getDayPeople(ds);
+              if(people.length===0)return null;
+              const dow=new Date(ds+'T12:00:00').getDay();
+              const dn=parseInt(ds.split('-')[2]);
+              const mo2=parseInt(ds.split('-')[1]);
+              return(
+                <div key={ds} style={{marginBottom:10}}>
+                  <div style={{fontSize:11,fontWeight:700,color:'#374151',marginBottom:5,paddingBottom:3,borderBottom:'1px solid #f1f5f9'}}>
+                    {WD[dow]}요일 ({mo2}월 {dn}일)
+                  </div>
+                  {people.map((p,pi)=>(
+                    <div key={pi} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 0',borderBottom:'1px solid #f8fafc'}}>
+                      <div style={{width:10,height:10,borderRadius:2,background:p.color,flexShrink:0}}/>
+                      <span style={{fontSize:12,fontWeight:600,minWidth:60}}>{p.name}</span>
+                      <span style={{fontSize:11,color:'#64748b'}}>{typeLabel(p.type,p.days)}</span>
+                      {p.time&&<span style={{fontSize:11,color:'#1e40af',fontWeight:600}}>({p.time})</span>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
       {sel&&selPeople.length>0&&(
         <div style={{...card,border:'1px solid #bfdbfe'}}>
           <p style={{margin:'0 0 7px',fontWeight:700,fontSize:12,color:'#1e40af'}}>{fmtFull(sel)}</p>
