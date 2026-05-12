@@ -315,7 +315,6 @@ function App() {
   const isAdmin = user?.role === 'admin';
 
   const [prevView, setPrevView] = useState('weekly');
-  const [pwModal, setPwModal] = useState(false);
   const gp = (id) => {
     history.pushState({ view: 'project', id, from: view }, '', '');
     setPrevView(view);
@@ -340,50 +339,45 @@ function App() {
   if (!user) return <Login onLogin={handleLogin} />;
 
   const menuItems = [
-    { k: 'weekly', l: '주간보고' },
-    { k: 'monthly', l: '월간달력' },
-    { k: 'projects', l: '프로젝트' },
-    { k: 'mine', l: '📁 내 프로젝트', hl: true },
-    ...(isAdmin ? [{ k: 'admin', l: '⚙ 관리', hl: true }] : []),
+    { k: 'weekly', l: '주간보고', i: '📋' },
+    { k: 'monthly', l: '월간달력', i: '📅' },
+    { k: 'projects', l: '프로젝트', i: '📊' },
+    { k: 'mine', l: '내 프로젝트', i: '📁' },
+    ...(isAdmin ? [{ k: 'admin', l: '관리', i: '⚙' }] : []),
+    { k: 'profile', l: '내 정보', i: '👤' },
   ];
 
   return (
     <div>
-      {/* System Switcher */}
-      <div className="no-print" style={{ background: '#0a0f1e', borderBottom: '1px solid rgba(255,255,255,0.12)', padding: '7px 18px', display: 'flex', alignItems: 'center', gap: 16, position: 'sticky', top: 0, zIndex: 101 }}>
-        <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', fontWeight: 700, flexShrink: 0 }}>관보종합기술단</span>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <a href="kwanbo_project_mgmt.html" style={{ padding: '5px 16px', borderRadius: 5, fontSize: 13, fontWeight: 700, background: 'rgba(37,99,235,0.45)', color: '#93c5fd', textDecoration: 'none' }}>📊 공정관리</a>
-          <a href="kwanbo_leave.html" style={{ padding: '5px 16px', borderRadius: 5, fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.45)', textDecoration: 'none' }}>📅 연차관리</a>
+      {/* 1줄: 시스템 전환 + 이름/로그아웃 */}
+      <div className="no-print" style={{ background: '#0f172a', padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, height: 38, borderBottom: '1px solid #1e293b', position: 'sticky', top: 0, zIndex: 102 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', marginRight: 8, letterSpacing: -0.3 }}>(주)관보종합기술단</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px', background: '#1d4ed8', borderRadius: 4, color: 'white', fontSize: 11, fontWeight: 700 }}>📊 공정관리</div>
+          <a href="kwanbo_leave.html" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px', background: '#1e293b', borderRadius: 4, color: '#94a3b8', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>📅 연차관리</a>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: '#94a3b8' }}>{user.name} 님</span>
+          <button onClick={handleLogout} style={{ background: 'transparent', color: '#64748b', border: '1px solid #334155', borderRadius: 4, padding: '3px 10px', fontSize: 11, cursor: 'pointer', fontFamily: "'Noto Sans KR',sans-serif" }}>로그아웃</button>
         </div>
       </div>
-      {/* Navbar */}
-      <nav className="navbar no-print" style={{ position: 'sticky', top: 42, zIndex: 100 }}>
-        <div className="nav-top">
-          <div className="nav-brand">
-            <div className="nav-accent" />
-            <div>
-              <div className="nav-sub">KWANBO ENGINEERING</div>
-              <div className="nav-title">공정관리시스템</div>
-            </div>
-          </div>
-          <div className="nav-user">
-            <span>{user.name}</span>님
-            <button className="logout-btn" onClick={() => setPwModal(true)}>🔒 비밀번호 변경</button>
-            <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
-          </div>
-        </div>
-        <div className="nav-bottom">
-          <div className="nav-menu">
-            {menuItems.map(t => (
-              <button key={t.k} onClick={() => nv(t.k)}
-                className={`nav-btn ${t.hl ? 'highlight' : ''} ${(view === t.k || (view === 'project' && t.k === 'projects')) ? 'active' : ''}`}>
-                {t.l}
-              </button>
-            ))}
-          </div>
-        </div>
-      </nav>
+
+      {/* 2줄: 시스템 제목 */}
+      <div className="no-print" style={{ background: '#0f172a', padding: '6px 18px 8px', flexShrink: 0, borderBottom: '2px solid #1d4ed8', position: 'sticky', top: 38, zIndex: 101 }}>
+        <p style={{ margin: 0, fontSize: 9, color: '#475569', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600 }}>KWANBO ENGINEERING</p>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'white', letterSpacing: -0.3 }}>공정 관리 시스템</p>
+      </div>
+
+      {/* 3줄: 가로 네비 탭 */}
+      <div className="no-print" style={{ background: '#1e293b', padding: '0 14px', display: 'flex', alignItems: 'center', flexShrink: 0, height: 36, gap: 1, borderBottom: '1px solid #0f172a', position: 'sticky', top: 82, zIndex: 100 }}>
+        {menuItems.map(t => (
+          <button key={t.k} onClick={() => nv(t.k)}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 11px', background: (view === t.k || (view === 'project' && t.k === 'projects')) ? '#1d4ed8' : 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', color: (view === t.k || (view === 'project' && t.k === 'projects')) ? 'white' : '#94a3b8', fontFamily: "'Noto Sans KR',sans-serif", fontSize: 11, fontWeight: (view === t.k || (view === 'project' && t.k === 'projects')) ? 700 : 400, whiteSpace: 'nowrap', height: 26 }}>
+            {t.i && <span>{t.i}</span>}
+            <span>{t.l}</span>
+          </button>
+        ))}
+      </div>
 
       {/* Views */}
       <div className="page">
@@ -393,8 +387,9 @@ function App() {
         {view === 'project' && selProject && <ProjectDetail id={selProject} user={user} fromView={prevView} gb={() => { setView(prevView || 'projects'); setSelProject(null); }} />}
         {view === 'mine'   && <MyProjects user={user} gp={gp} />}
         {view === 'admin'  && isAdmin && <AdminPanel user={user} />}
+        {view === 'profile' && <ProfileView user={user} onLogout={handleLogout} />}
       </div>
-      {pwModal && <ChangePasswordModal user={user} onClose={() => setPwModal(false)} />}
+
     </div>
   );
 }
@@ -2020,6 +2015,72 @@ function UserList({ users, onSaved }) {
         </div>
       </div>
       <button className="btn btn-primary btn-sm" onClick={addUser} disabled={loading}>{loading?'추가 중...':'직원 추가'}</button>
+    </div>
+  );
+}
+
+// ─── Profile View ───
+function ProfileView({ user, onLogout }) {
+  const [curr, setCurr] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState(false);
+
+  const savePw = async () => {
+    if (!curr || !next || !confirm) { setErr('모든 항목을 입력해주세요.'); return; }
+    if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
+    if (next.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return; }
+    setLoading(true); setErr('');
+    const { data } = await sb.from('users').select('id').eq('id', user.id).eq('password', curr).single();
+    if (!data) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+    const { error } = await sb.from('users').update({ password: next }).eq('id', user.id);
+    if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
+    setOk(true); setCurr(''); setNext(''); setConfirm('');
+    setLoading(false);
+  };
+
+  const ROLE_LABEL = { admin: '관리자', manager: '팀장', employee: '팀원', contractor: '기술지원' };
+
+  return (
+    <div style={{ maxWidth: 480, margin: '0 auto' }}>
+      {/* 프로필 카드 */}
+      <div className="card card-p" style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
+          <div style={{ width: 52, height: 52, borderRadius: '50%', background: user.role === 'admin' ? '#0f172a' : user.role === 'contractor' ? '#d97706' : '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, fontSize: 22, flexShrink: 0 }}>{user.name[0]}</div>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>{user.name}</div>
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{ROLE_LABEL[user.role] || user.role} · {user.phone}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 비밀번호 변경 */}
+      <div className="card card-p" style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 14 }}>🔒 비밀번호 변경</div>
+        {ok && <div className="alert alert-success" style={{ marginBottom: 12 }}>비밀번호가 변경되었습니다.</div>}
+        {err && <div className="alert alert-error" style={{ marginBottom: 12 }}>{err}</div>}
+        <div className="form-group">
+          <label className="form-label">현재 비밀번호</label>
+          <input type="password" className="form-input" value={curr} onChange={e => setCurr(e.target.value)} placeholder="현재 비밀번호" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">새 비밀번호</label>
+          <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder="새 비밀번호 (4자 이상)" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">새 비밀번호 확인</label>
+          <input type="password" className="form-input" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="새 비밀번호 재입력" onKeyDown={e => e.key === 'Enter' && savePw()} />
+        </div>
+        <button className="btn btn-primary" onClick={savePw} disabled={loading} style={{ marginTop: 4 }}>{loading ? '변경 중...' : '비밀번호 변경'}</button>
+      </div>
+
+      {/* 로그아웃 */}
+      <div className="card card-p">
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 10 }}>계정</div>
+        <button className="btn btn-secondary" onClick={onLogout} style={{ width: '100%' }}>로그아웃</button>
+      </div>
     </div>
   );
 }
