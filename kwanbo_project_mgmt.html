@@ -1318,13 +1318,16 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
     onSaved();
   };
 
-  // 보고 기준일 표시
-  const dateObj = weekDate ? new Date(weekDate + 'T00:00:00') : null;
-  const nextSun = dateObj ? new Date(dateObj) : null;
-  if (nextSun) nextSun.setDate(nextSun.getDate() + 6);
-  const rangeLabel = dateObj && nextSun
-    ? `${dateObj.getMonth()+1}/${dateObj.getDate()}(화) ~ ${nextSun.getMonth()+1}/${nextSun.getDate()}(월) 보고분`
-    : '';
+  // 보고 기준일 표시 (화~월)
+  const getRangeLabel = (wd) => {
+    if (!wd) return '';
+    const s = new Date(wd + 'T00:00:00');
+    // 화요일 = 전날 + 1
+    const tue = new Date(s); tue.setDate(tue.getDate() - 6);
+    const mon = new Date(s);
+    return tue.getMonth()+1 + '/' + tue.getDate() + '(화) ~ ' + (mon.getMonth()+1) + '/' + mon.getDate() + '(월) 보고분';
+  };
+  const rangeLabel = getRangeLabel(weekDate);
 
   return (
     <Modal title="📝 주간 공정 보고 입력" onClose={onClose}>
