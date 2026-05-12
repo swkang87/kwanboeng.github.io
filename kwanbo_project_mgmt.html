@@ -680,7 +680,7 @@ function MonthlyCalendar({ gp, calDate, setCalDate, user }) {
   const autoEvents = projects.flatMap(p => {
     const evs = [];
     if (p.start_date) evs.push({ id: `auto_start_${p.id}`, project_id: p.id, type: 'auto_start', title: '착수', name: p.name, event_date: p.start_date, auto: true });
-    if (p.end_date && p.status !== '완료') evs.push({ id: `auto_end_${p.id}`, project_id: p.id, type: 'auto_end', title: '준공', name: p.name, event_date: p.end_date, auto: true });
+    if (p.end_date) evs.push({ id: `auto_end_${p.id}`, project_id: p.id, type: 'auto_end', title: p.status === '완료' ? '준공(완료)' : '준공', name: p.name, event_date: p.end_date, auto: true, done: p.status === '완료' });
     return evs;
   });
   const allCalEvents = [...events, ...autoEvents];
@@ -1141,7 +1141,7 @@ function MyProjects({ user, gp }) {
     setLoading(true);
     // Get projects where I'm PM or support member
     const [pmProjs, memberProjs, us, rp, ev] = await Promise.all([
-      sb.from('projects').select('*').eq('pm_id', user.id).neq('status', '완료'),
+      sb.from('projects').select('*').eq('pm_id', user.id),
       sb.from('project_members').select('project_id, role').eq('user_id', user.id),
       sb.from('users').select('id, name'),
       sb.from('weekly_reports').select('*').order('week_date', { ascending: false }),
@@ -1152,7 +1152,7 @@ function MyProjects({ user, gp }) {
     const supportIds = (memberProjs.data || []).filter(m => !pmIds.has(m.project_id)).map(m => m.project_id);
     let supportProjs = [];
     if (supportIds.length > 0) {
-      const { data } = await sb.from('projects').select('*').in('id', supportIds).neq('status', '완료');
+      const { data } = await sb.from('projects').select('*').in('id', supportIds);
       supportProjs = data || [];
     }
     const allMine = [...(pmProjs.data || []), ...supportProjs];
@@ -1183,7 +1183,7 @@ function MyProjects({ user, gp }) {
         const ne = getNextEvent(p.id);
         const amPM = isPM(p.id);
         return (
-          <div key={p.id} className="my-proj-card" style={{ borderLeftColor: CAT_COLOR[p.category] }}>
+          <div key={p.id} className="my-proj-card" style={{ borderLeftColor: p.status === '완료' ? '#6b7280' : CAT_COLOR[p.category], opacity: p.status === '완료' ? 0.65 : 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
