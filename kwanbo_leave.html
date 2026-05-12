@@ -481,7 +481,7 @@ function HistoryView({user,leaves,onRefresh}){
 }
 
 // ── Calendar ──────────────────────────────────────────────
-function CalView({users,leaves}){
+function CalView({users,teams,leaves}){
   const now=new Date();
   const [yr,setYr]=useState(now.getFullYear());
   const [mo,setMo]=useState(now.getMonth());
