@@ -72,18 +72,16 @@ ul { list-style:none; }
 
 /* Logo */
 .logo { display:flex; align-items:center; gap:10px; }
-.logo-tri {
-  width:0; height:0;
-  border-left:12px solid transparent;
-  border-right:12px solid transparent;
-  border-bottom:20px solid var(--red);
-  flex-shrink:0;
+.logo-img {
+  height:34px; width:auto; flex-shrink:0;
+  display:block;
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.2));
 }
 .logo-ko {
   font-family:'Pretendard',sans-serif;
   font-size:.98rem; font-weight:800;
   letter-spacing:-.02em; color:#fff;
-  transition:color .3s;
+  transition:color .3s; line-height:1;
 }
 .logo-ko em { color:var(--gold); font-style:normal; }
 
@@ -108,11 +106,11 @@ ul { list-style:none; }
 /* 문의하기 버튼 */
 .nav-contact {
   padding:8px 20px;
-  background:var(--red); border-radius:2px;
+  background:#1a3a6b; border-radius:2px;
   font-size:.78rem; font-weight:700; letter-spacing:.05em;
   color:#fff; transition:background .2s;
 }
-.nav-contact:hover { background:#a31515; }
+.nav-contact:hover { background:#0d2044; }
 
 /* ★ 종합정보시스템 버튼 ★ */
 .nav-erp {
@@ -197,11 +195,8 @@ ul { list-style:none; }
   display:flex; align-items:center; gap:10px;
   margin-bottom:6px;
 }
-.modal-logo-tri {
-  width:0; height:0;
-  border-left:9px solid transparent;
-  border-right:9px solid transparent;
-  border-bottom:15px solid var(--red);
+.modal-logo-img {
+  height:24px; width:auto; flex-shrink:0; display:block;
 }
 .modal-co {
   font-family:'Pretendard',sans-serif;
@@ -336,18 +331,18 @@ ul { list-style:none; }
 .hero-btns { display:flex; gap:12px; flex-wrap:wrap; }
 .btn-p {
   display:inline-block; padding:13px 34px;
-  background:var(--red); border-radius:2px;
+  background:#1a3a6b; border-radius:2px;
   font-size:.82rem; font-weight:700; letter-spacing:.05em; color:#fff;
   transition:background .2s, transform .15s;
 }
-.btn-p:hover { background:#a31515; transform:translateY(-2px); }
+.btn-p:hover { background:#0d2044; transform:translateY(-2px); }
 .btn-o {
   display:inline-block; padding:13px 34px;
-  border:1.5px solid rgba(255,255,255,.4); border-radius:2px;
-  font-size:.82rem; letter-spacing:.05em; color:rgba(255,255,255,.85);
-  transition:border-color .2s, color .2s;
+  border:1.5px solid rgba(255,255,255,.5); border-radius:2px;
+  font-size:.82rem; letter-spacing:.05em; color:#fff;
+  transition:border-color .2s, background .2s;
 }
-.btn-o:hover { border-color:#fff; color:#fff; }
+.btn-o:hover { border-color:#fff; background:rgba(255,255,255,.1); }
 
 /* Dots & counter */
 .hero-dots {
@@ -836,7 +831,7 @@ footer {
 <!-- ════════════════ NAV ════════════════ -->
 <nav id="nav">
   <a href="#hero" class="logo">
-    <div class="logo-tri"></div>
+    <img src="logo.png" alt="관보종합기술단 로고" class="logo-img"/>
     <div class="logo-ko"><em>(주)</em>관보종합기술단</div>
   </a>
 
@@ -875,7 +870,7 @@ footer {
     <!-- 헤더 -->
     <div class="modal-header">
       <div class="modal-header-top">
-        <div class="modal-logo-tri"></div>
+        <img src="logo.png" alt="관보종합기술단 로고" class="modal-logo-img"/>
         <div class="modal-co"><em>(주)</em>관보종합기술단</div>
       </div>
       <div class="modal-title">종합정보시스템</div>
