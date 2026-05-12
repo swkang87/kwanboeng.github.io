@@ -225,27 +225,23 @@ const fs = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return
 const fmt = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${t.getMonth()+1}/${t.getDate()}`; };
 const today = () => new Date().toISOString().split('T')[0];
 const thisMonday = () => { const d = new Date(); d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1)); return d.toISOString().split('T')[0]; };
-// 보고기준일: 화~월 한 주 기준으로 해당 주의 월요일 반환
-// 화(2)~일(0): 다음 월요일 / 월(1): 이번 주 월요일
 const reportMonday = () => {
   const d = new Date();
-  const dow = d.getDay(); // 0=일,1=월,2=화,...
-  let daysUntilMonday;
-  if (dow === 1) {
-    // 월요일: 이번 주 월요일
-    daysUntilMonday = 0;
-  } else if (dow === 0) {
-    // 일요일: 다음 월요일
-    daysUntilMonday = 1;
-  } else {
-    // 화~토: 다음 월요일
-    daysUntilMonday = 8 - dow;
-  }
-  d.setDate(d.getDate() + daysUntilMonday);
-  return d.toISOString().split('T')[0];
+  const dow = d.getDay();
+  let add;
+  if (dow === 1) add = 0;
+  else if (dow === 0) add = 1;
+  else add = 8 - dow;
+  d.setDate(d.getDate() + add);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return yyyy + '-' + mm + '-' + dd;
 };
-// 날짜가 월요일인지 확인
-const isMonday = (dateStr) => new Date(dateStr + 'T00:00:00').getDay() === 1;
+const isMonday = (dateStr) => {
+  if (!dateStr) return false;
+  return new Date(dateStr + 'T00:00:00').getDay() === 1;
+};
 const weekLabel = (d) => { const dt = new Date(d+'T00:00:00'); const s = new Date(dt); s.setDate(s.getDate()-(dt.getDay()===0?6:dt.getDay()-1)); const e = new Date(s); e.setDate(e.getDate()+4); return `${s.getFullYear()}년 ${s.getMonth()+1}월 ${Math.ceil(s.getDate()/7)}주차 (${fmt(s.toISOString().split('T')[0])}~${fmt(e.toISOString().split('T')[0])})`; };
 
 // ─── Shared Components ───
@@ -451,16 +447,17 @@ function WeeklyReport({ gp, user }) {
 
   const uName = (id) => users.find(u => u.id === id)?.name || '';
 
+  // 기술지원은 배정된 프로젝트만 (컴포넌트 레벨에서 정의)
+  const memberPids = user?.role === 'contractor'
+    ? new Set(allMembers.filter(m => m.user_id === user.id).map(m => m.project_id))
+    : null;
+
   const sortedProjects = (() => {
     const catOrder = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
     const PM_ORDER = ['김병용','장용기','박호진','윤종수','이규민'];
     const pmOrder = (pmId) => { const n = users.find(u => u.id === pmId)?.name || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
     const getPct = (p) => reports.filter(r => r.project_id === p.id && r.week_date <= selWeek).sort((x,y) => y.week_date.localeCompare(x.week_date))[0]?.progress_pct || 0;
     const statusOrder = (s) => s === '진행중' ? 0 : s === '중지' ? 1 : 2;
-    // 기술지원은 배정된 프로젝트만
-    const memberPids = user?.role === 'contractor'
-      ? new Set(allMembers.filter(m => m.user_id === user.id).map(m => m.project_id))
-      : null;
 
     return projects
       .filter(p => {
@@ -553,7 +550,7 @@ function WeeklyReport({ gp, user }) {
         <td class="tc">${uName(p.pm_id)}</td>
         <td class="tc">${r?.prev_pct||0}</td>
         <td class="tc" style="font-weight:700">${r?.progress_pct||0}</td>
-        <td class="tc" style="font-weight:700;color:${d>0?'#059669':d<0?'#dc2626':'#999'}">${d>0?`+${d}`:d<0?d:'—'}</td>
+        <td class="tc" style="font-weight:700;color:${d>0?'#059669':d<0?'#dc2626':'#999'}">${d>0?('+'+d):d<0?d:'—'}</td>
         <td style="font-size:6.5pt">${r?.isThisWeek?(r?.summary||''):(stopped?'중지 상태':'—')}</td>
         <td style="font-size:6.5pt">${r?.isThisWeek?(r?.next_plan||''):'—'}</td>
         <td style="font-size:6.5pt">${evHtml || '—'}</td>
@@ -1290,53 +1287,76 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
   const [weekDate, setWeekDate] = useState(defaultDate);
   const [pct, setPct] = useState(prevData?.progress_pct || 0);
   const [prevPct, setPrevPct] = useState(prevData?.progress_pct || 0);
-  // 전주 진행사항/금주 계획은 전주 보고에서 자동 불러오기
-  const [summary, setSummary] = useState(prevData?.summary || '');
-  const [nextPlan, setNextPlan] = useState(prevData?.next_plan || '');
+  const [summary, setSummary] = useState('');
+  const [nextPlan, setNextPlan] = useState('');
   const [issues, setIssues] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+  const [dateErr, setDateErr] = useState('');
+
+  // 전주 보고 데이터 자동 불러오기 (async 안전하게 처리)
+  useEffect(() => {
+    if (!projectId) return;
+    const fetchPrev = async () => {
+      try {
+        const { data } = await sb
+          .from('weekly_reports')
+          .select('summary, next_plan, progress_pct')
+          .eq('project_id', projectId)
+          .order('week_date', { ascending: false })
+          .limit(1)
+          .single();
+        if (data) {
+          setSummary(data.summary || '');
+          setNextPlan(data.next_plan || '');
+          setPrevPct(data.progress_pct || 0);
+          setPct(data.progress_pct || 0);
+        }
+      } catch (e) {
+        // 이전 보고 없음 - 기본값 유지
+      }
+    };
+    fetchPrev();
+  }, [projectId]);
 
   const handleDateChange = (e) => {
     const val = e.target.value;
-    if (val && !isMonday(val)) {
-      setErr('보고 기준일은 월요일만 선택 가능합니다.');
+    if (!val) return;
+    if (!isMonday(val)) {
+      setDateErr('보고 기준일은 월요일만 선택 가능합니다.');
       return;
     }
-    setErr('');
+    setDateErr('');
     setWeekDate(val);
+  };
+
+  const getRangeLabel = (wd) => {
+    if (!wd) return '';
+    const mon = new Date(wd + 'T00:00:00');
+    const tue = new Date(mon); tue.setDate(tue.getDate() - 6);
+    return (tue.getMonth()+1) + '/' + tue.getDate() + '(화) ~ ' + (mon.getMonth()+1) + '/' + mon.getDate() + '(월) 보고분';
   };
 
   const save = async () => {
     if (!summary) { setErr('전주 진행사항을 입력해주세요.'); return; }
     if (!isMonday(weekDate)) { setErr('보고 기준일은 월요일이어야 합니다.'); return; }
     setLoading(true); setErr('');
-    const autoNextPlan = nextPlan.trim() || `(진행없음) ${summary}`;
+    const autoNextPlan = nextPlan.trim() ? nextPlan : ('(진행없음) ' + summary);
     const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: autoNextPlan, issues, reported_by: userId, updated_at: new Date().toISOString() };
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
-    if (error) { setErr('저장 중 오류가 발생했습니다: ' + error.message); setLoading(false); return; }
+    if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
     onSaved();
   };
 
-  // 보고 기준일 표시 (화~월)
-  const getRangeLabel = (wd) => {
-    if (!wd) return '';
-    const s = new Date(wd + 'T00:00:00');
-    // 화요일 = 전날 + 1
-    const tue = new Date(s); tue.setDate(tue.getDate() - 6);
-    const mon = new Date(s);
-    return tue.getMonth()+1 + '/' + tue.getDate() + '(화) ~ ' + (mon.getMonth()+1) + '/' + mon.getDate() + '(월) 보고분';
-  };
-  const rangeLabel = getRangeLabel(weekDate);
-
   return (
-    <Modal title="📝 주간 공정 보고 입력" onClose={onClose}>
+    <Modal title="주간 공정 보고 입력" onClose={onClose}>
       {err && <div className="alert alert-error">{err}</div>}
       <div className="form-row">
         <div className="form-group">
-          <label className="form-label">보고 기준일 (월요일만 선택 가능)</label>
+          <label className="form-label">보고 기준일 (월요일)</label>
           <input type="date" className="form-input" value={weekDate} onChange={handleDateChange} />
-          {rangeLabel && <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>📅 {rangeLabel}</div>}
+          {dateErr && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 2 }}>{dateErr}</div>}
+          {!dateErr && weekDate && <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{getRangeLabel(weekDate)}</div>}
         </div>
         <div className="form-group">
           <label className="form-label">금주 공정률 (%)</label>
@@ -1349,15 +1369,15 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
       </div>
       <div className="form-group">
         <label className="form-label">전주 진행사항 *</label>
-        <textarea className="form-input" rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="지난 주 진행사항을 입력하세요" />
+        <textarea className="form-input" rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="지난 주 진행사항" />
       </div>
       <div className="form-group">
-        <label className="form-label">금주 계획 <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400 }}>(비워두면 전주 내용이 자동 복사됩니다)</span></label>
-        <textarea className="form-input" rows={2} value={nextPlan} onChange={e => setNextPlan(e.target.value)} placeholder="이번 주 진행 예정 업무" />
+        <label className="form-label">금주 계획</label>
+        <textarea className="form-input" rows={2} value={nextPlan} onChange={e => setNextPlan(e.target.value)} placeholder="이번 주 계획 (비우면 전주 내용 자동 복사)" />
       </div>
       <div className="form-group">
-        <label className="form-label">이슈 / 특이사항</label>
-        <textarea className="form-input" rows={2} value={issues} onChange={e => setIssues(e.target.value)} placeholder="문제점, 리스크, 발주처 요청사항 등 (없으면 비워두세요)" />
+        <label className="form-label">이슈</label>
+        <textarea className="form-input" rows={2} value={issues} onChange={e => setIssues(e.target.value)} placeholder="없으면 비워두세요" />
       </div>
       <div className="modal-footer">
         <button className="btn btn-secondary" onClick={onClose}>취소</button>
