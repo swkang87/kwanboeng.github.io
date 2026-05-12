@@ -491,11 +491,17 @@ function CalView({users,teams,leaves}){
   const TEAM_COLORS={'설계1팀':'#2563eb','설계2팀':'#059669','지반팀':'#d97706','관리팀':'#7c3aed'};
   const getTeamColor=uid=>{const u=users.find(x=>x.id===uid);const t=teams.find(t=>t.id===u?.team_id);return TEAM_COLORS[t?.name]||'#94a3b8';};
   const approved=leaves.filter(l=>l.status==='approved');
-  // 팀 미지정 직원은 캘린더에서 제외
   const getDayPeople=ds=>approved.filter(l=>{const u=users.find(x=>x.id===l.user_id);return u?.team_id&&l.start_date<=ds&&(l.end_date||l.start_date)>=ds;}).map(l=>{const u=users.find(x=>x.id===l.user_id);return{name:u?.name||'',color:getTeamColor(l.user_id),type:l.type,days:l.days,time:l.start_time?`${l.start_time.slice(0,5)}~${l.end_time.slice(0,5)}`:null};});
   const dim=new Date(yr,mo+1,0).getDate(),fd=new Date(yr,mo,1).getDay(),cells=Math.ceil((fd+dim)/7)*7;
 
-  const getWeekDays=()=>{const d=new Date(yr,mo,1);while(d.getDay()!==0)d.setDate(d.getDate()-1);return Array.from({length:7},(_,i)=>{const x=new Date(d);x.setDate(d.getDate()+i);return x.toISOString().split('T')[0];})};
+  // 주간 뷰 - 오늘이 속한 주 기준으로 시작
+  const getMonday=d=>{const x=new Date(d);const day=x.getDay();const diff=day===0?-6:1-day;x.setDate(x.getDate()+diff);return x;};
+  const [weekStart,setWeekStart]=useState(()=>getMonday(now));
+  const getWeekDays=()=>Array.from({length:7},(_,i)=>{const x=new Date(weekStart);x.setDate(weekStart.getDate()+i);return x.toISOString().split('T')[0];});
+  const weekDays=getWeekDays();
+  const weekLabel=()=>{const s=new Date(weekStart),e=new Date(weekStart);e.setDate(s.getDate()+6);return s.getMonth()===e.getMonth()?`${s.getFullYear()}년 ${s.getMonth()+1}월 ${s.getDate()}일 ~ ${e.getDate()}일`:`${s.getFullYear()}년 ${s.getMonth()+1}월 ${s.getDate()}일 ~ ${e.getMonth()+1}월 ${e.getDate()}일`;};
+  const prevWeek=()=>{const d=new Date(weekStart);d.setDate(d.getDate()-7);setWeekStart(d);};
+  const nextWeek=()=>{const d=new Date(weekStart);d.setDate(d.getDate()+7);setWeekStart(d);};
 
   const selPeople=sel?getDayPeople(sel):[];
   const todayStr=today();
@@ -510,9 +516,9 @@ function CalView({users,teams,leaves}){
         </div>
       </div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-        <button onClick={()=>{if(mo===0){setYr(y=>y-1);setMo(11);}else setMo(m=>m-1);}} style={{...btn(),padding:'4px 10px'}}>‹</button>
-        <b style={{fontSize:13,color:'#0f172a'}}>{yr}년 {mo+1}월</b>
-        <button onClick={()=>{if(mo===11){setYr(y=>y+1);setMo(0);}else setMo(m=>m+1);}} style={{...btn(),padding:'4px 10px'}}>›</button>
+        <button onClick={()=>tab==='week'?prevWeek():(mo===0?(setYr(y=>y-1),setMo(11)):setMo(m=>m-1))} style={{...btn(),padding:'4px 10px'}}>‹</button>
+        <b style={{fontSize:13,color:'#0f172a'}}>{tab==='week'?weekLabel():`${yr}년 ${mo+1}월`}</b>
+        <button onClick={()=>tab==='week'?nextWeek():(mo===11?(setYr(y=>y+1),setMo(0)):setMo(m=>m+1))} style={{...btn(),padding:'4px 10px'}}>›</button>
       </div>
       {tab==='month'&&(
         <div style={{...card,padding:8}}>
@@ -546,7 +552,7 @@ function CalView({users,teams,leaves}){
       {tab==='week'&&(
         <div style={{...card,padding:8}}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>
-            {getWeekDays().map((ds,i)=>{
+            {weekDays.map((ds,i)=>{
               const people=getDayPeople(ds);
               const hol=HOLIDAYS[ds],sub=SUBSTITUTE[ds];
               const isHolDay=!!(hol||sub);
