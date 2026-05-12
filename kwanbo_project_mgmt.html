@@ -388,7 +388,7 @@ function App() {
       {/* Views */}
       <div className="page">
         {view === 'weekly'  && <WeeklyReport gp={gp} user={user} />}
-        {view === 'monthly' && <MonthlyCalendar gp={gp} calDate={calDate} setCalDate={setCalDate} />}
+        {view === 'monthly' && <MonthlyCalendar gp={gp} calDate={calDate} setCalDate={setCalDate} user={user} />}
         {view === 'projects' && <ProjectList gp={gp} user={user} />}
         {view === 'project' && selProject && <ProjectDetail id={selProject} user={user} fromView={prevView} gb={() => { setView(prevView || 'projects'); setSelProject(null); }} />}
         {view === 'mine'   && <MyProjects user={user} gp={gp} />}
@@ -408,21 +408,24 @@ function WeeklyReport({ gp, user }) {
   const [allWeeks, setAllWeeks] = useState([]);
   const [selWeek, setSelWeek] = useState('');
   const [loading, setLoading] = useState(true);
+  const [allMembers, setAllMembers] = useState([]);
 
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
     setLoading(true);
-    const [pj, rp, ev, us] = await Promise.all([
+    const [pj, rp, ev, us, mb] = await Promise.all([
       sb.from('projects').select('*').neq('status', '완료').order('name'),
       sb.from('weekly_reports').select('*').order('week_date', { ascending: false }),
       sb.from('project_events').select('*'),
       sb.from('users').select('id, name'),
+      sb.from('project_members').select('*'),
     ]);
     setProjects(pj.data || []);
     setReports(rp.data || []);
     setEvents(ev.data || []);
     setUsers(us.data || []);
+    setAllMembers(mb.data || []);
     const weeks = [...new Set((rp.data || []).map(r => r.week_date))].sort((a,b) => b.localeCompare(a));
     if (weeks.length === 0) weeks.push(thisMonday());
     setAllWeeks(weeks);
@@ -438,9 +441,15 @@ function WeeklyReport({ gp, user }) {
     const pmOrder = (pmId) => { const n = users.find(u => u.id === pmId)?.name || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
     const getPct = (p) => reports.filter(r => r.project_id === p.id && r.week_date <= selWeek).sort((x,y) => y.week_date.localeCompare(x.week_date))[0]?.progress_pct || 0;
     const statusOrder = (s) => s === '진행중' ? 0 : s === '중지' ? 1 : 2;
+    // 기술지원은 배정된 프로젝트만
+    const memberPids = user?.role === 'contractor'
+      ? new Set(allMembers.filter(m => m.user_id === user.id).map(m => m.project_id))
+      : null;
 
     return projects
       .filter(p => {
+        // 기술지원: 배정된 프로젝트만
+        if (memberPids !== null && !memberPids.has(p.id)) return false;
         // 완료 처리된 용역: 완료된 다음 주부터 숨김
         if (p.status === '완료') {
           if (!p.completed_at) return false;
@@ -639,21 +648,31 @@ function WeeklyReport({ gp, user }) {
 }
 
 // ─── Monthly Calendar ───
-function MonthlyCalendar({ gp, calDate, setCalDate }) {
+function MonthlyCalendar({ gp, calDate, setCalDate, user }) {
   const [events, setEvents] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [allMembers, setAllMembers] = useState([]);
   const [selDate, setSelDate] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
-    const [ev, pj] = await Promise.all([
+    const [ev, pj, mb] = await Promise.all([
       sb.from('project_events').select('*'),
       sb.from('projects').select('id, name, category, status, start_date, end_date'),
+      sb.from('project_members').select('*'),
     ]);
     setEvents(ev.data || []);
-    setProjects(pj.data || []);
+    setAllMembers(mb.data || []);
+    // 기술지원: 배정된 프로젝트만
+    const pjData = pj.data || [];
+    if (user?.role === 'contractor') {
+      const myPids = new Set(mb.data.filter(m => m.user_id === user.id).map(m => m.project_id));
+      setProjects(pjData.filter(p => myPids.has(p.id)));
+    } else {
+      setProjects(pjData);
+    }
     setLoading(false);
   };
 
