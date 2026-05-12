@@ -142,7 +142,7 @@ const fmtDT=s=>{
 const calLabel=(p)=>{
   const d=Number(p.days);
   if(d>=1)return p.name;
-  const tag=d<=0.25?'반반차':'반차';
+  const tag=d<=0.25?'2H':'4H';
   return p.type==='공가'?`${p.name}(공가·${tag})`:`${p.name}(${tag})`;
 };
 const typeLabel=(type,days)=>{
@@ -488,10 +488,11 @@ function CalView({users,leaves}){
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState('month');
   const WD=['일','월','화','수','목','금','토'];
-  const emp=users.filter(u=>u.role!=='admin');
-  const getColor=uid=>COLORS[emp.findIndex(u=>u.id===uid)%COLORS.length]||'#94a3b8';
+  const TEAM_COLORS={'설계1팀':'#2563eb','설계2팀':'#059669','지반팀':'#d97706','관리팀':'#7c3aed'};
+  const getTeamColor=uid=>{const u=users.find(x=>x.id===uid);const t=teams.find(t=>t.id===u?.team_id);return TEAM_COLORS[t?.name]||'#94a3b8';};
   const approved=leaves.filter(l=>l.status==='approved');
-  const getDayPeople=ds=>approved.filter(l=>l.start_date<=ds&&(l.end_date||l.start_date)>=ds).map(l=>{const u=users.find(x=>x.id===l.user_id);return{name:u?.name||'',color:getColor(l.user_id),type:l.type,days:l.days,time:l.start_time?`${l.start_time}~${l.end_time}`:null};});
+  // 팀 미지정 직원은 캘린더에서 제외
+  const getDayPeople=ds=>approved.filter(l=>{const u=users.find(x=>x.id===l.user_id);return u?.team_id&&l.start_date<=ds&&(l.end_date||l.start_date)>=ds;}).map(l=>{const u=users.find(x=>x.id===l.user_id);return{name:u?.name||'',color:getTeamColor(l.user_id),type:l.type,days:l.days,time:l.start_time?`${l.start_time.slice(0,5)}~${l.end_time.slice(0,5)}`:null};});
   const dim=new Date(yr,mo+1,0).getDate(),fd=new Date(yr,mo,1).getDay(),cells=Math.ceil((fd+dim)/7)*7;
 
   const getWeekDays=()=>{const d=new Date(yr,mo,1);while(d.getDay()!==0)d.setDate(d.getDate()-1);return Array.from({length:7},(_,i)=>{const x=new Date(d);x.setDate(d.getDate()+i);return x.toISOString().split('T')[0];})};
@@ -572,9 +573,14 @@ function CalView({users,leaves}){
         </div>
       )}
       <div style={{...card,marginTop:4}}>
-        <p style={{margin:'0 0 7px',fontSize:11,fontWeight:600,color:'#374151'}}>직원 색상</p>
-        <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
-          {emp.map((u,i)=><div key={u.id} style={{display:'flex',alignItems:'center',gap:4,fontSize:11}}><div style={{width:8,height:8,borderRadius:2,background:COLORS[i%COLORS.length]}}/>{u.name}</div>)}
+        <p style={{margin:'0 0 7px',fontSize:11,fontWeight:600,color:'#374151'}}>팀별 색상</p>
+        <div style={{display:'flex',flexWrap:'wrap',gap:10}}>
+          {[{name:'설계1팀',color:'#2563eb'},{name:'설계2팀',color:'#059669'},{name:'지반팀',color:'#d97706'},{name:'관리팀',color:'#7c3aed'}].map(t=>(
+            <div key={t.name} style={{display:'flex',alignItems:'center',gap:5}}>
+              <div style={{width:10,height:10,borderRadius:3,background:t.color}}/>
+              <span style={{fontSize:11,color:'#374151'}}>{t.name}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -601,7 +607,7 @@ function MgrApprove({user,users,leaves,onRefresh}){
                   <span style={{fontSize:12,color:'#64748b'}}>{typeLabel(l.type,l.days)}</span>
                   {l.is_retroactive&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>사후결재</span>}
                 </div>
-                <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}{l.start_time?` (${l.start_time}~${l.end_time})`:''}</p>
+                <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}{l.start_time&&<span style={{color:'#1e40af',fontWeight:600}}> ({l.start_time.slice(0,5)}~{l.end_time.slice(0,5)})</span>}</p>
                 {l.created_at&&<p style={{margin:'0 0 2px',fontSize:10,color:'#94a3b8'}}>🕐 신청: {fmtDT(l.created_at)}</p>}
                 {l.reason&&<p style={{margin:0,fontSize:11,color:'#64748b'}}>💬 {l.reason}</p>}
               </div>
@@ -664,7 +670,7 @@ function AdminApprove({user,users,teams,leaves,onRefresh}){
               {l.status==='cancel_pending'&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>취소요청</span>}
               {l.is_retroactive&&<span style={{background:'#fff7ed',color:'#c2410c',borderRadius:20,padding:'1px 6px',fontSize:10,fontWeight:700}}>사후결재</span>}
             </div>
-            <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}</p>
+            <p style={{margin:'0 0 2px',fontSize:12,color:'#374151'}}>📅 {fmtFull(l.start_date)}{l.start_date!==l.end_date?` ~ ${fmtFull(l.end_date)}`:''}{l.start_time&&<span style={{color:'#1e40af',fontWeight:600}}> ({l.start_time.slice(0,5)}~{l.end_time.slice(0,5)})</span>}</p>
             {l.created_at&&<p style={{margin:'0 0 2px',fontSize:10,color:'#94a3b8'}}>🕐 신청: {fmtDT(l.created_at)}</p>}
             {l.reason&&<p style={{margin:0,fontSize:11,color:'#64748b'}}>💬 {l.reason}</p>}
           </div>
