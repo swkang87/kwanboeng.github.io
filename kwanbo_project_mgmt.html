@@ -348,8 +348,16 @@ function App() {
 
   return (
     <div>
+      {/* System Switcher */}
+      <div className="no-print" style={{ background: '#0a0f1e', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '4px 14px', display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 101 }}>
+        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, flexShrink: 0 }}>관보종합기술단</span>
+        <div style={{ display: 'flex', gap: 2 }}>
+          <a href="kwanbo_project_mgmt.html" style={{ padding: '3px 10px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: 'rgba(37,99,235,0.4)', color: '#93c5fd', textDecoration: 'none' }}>📊 공정관리</a>
+          <a href="kwanbo_leave.html" style={{ padding: '3px 10px', borderRadius: 4, fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,0.4)', textDecoration: 'none' }}>📅 연차관리</a>
+        </div>
+      </div>
       {/* Navbar */}
-      <nav className="navbar no-print">
+      <nav className="navbar no-print" style={{ position: 'sticky', top: 28, zIndex: 100 }}>
         <div className="nav-top">
           <div className="nav-brand">
             <div className="nav-accent" />
@@ -744,6 +752,84 @@ function MonthlyCalendar({ gp, calDate, setCalDate }) {
           })}
         </div>
       )}
+
+      {/* 주간 할일 목록 */}
+      <WeeklyTaskList allCalEvents={allCalEvents} projects={projects} gp={gp} />
+    </div>
+  );
+}
+
+// ─── Weekly Task List (달력 안 주간 뷰) ───
+function WeeklyTaskList({ allCalEvents, projects, gp }) {
+  const getMonday = (d) => { const dt = new Date(d); dt.setDate(dt.getDate() - (dt.getDay() === 0 ? 6 : dt.getDay() - 1)); return dt; };
+  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
+
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart); d.setDate(d.getDate() + i);
+    return d.toISOString().split('T')[0];
+  });
+  const weekEnd = weekDates[6];
+  const weekLabel = (() => {
+    const s = weekDates[0], e = weekDates[6];
+    const sd = new Date(s+'T00:00:00'), ed = new Date(e+'T00:00:00');
+    return `${sd.getFullYear()}년 ${sd.getMonth()+1}월 ${Math.ceil(sd.getDate()/7)}주 (${sd.getMonth()+1}/${sd.getDate()} ~ ${ed.getMonth()+1}/${ed.getDate()})`;
+  })();
+
+  const weekEvents = allCalEvents
+    .filter(e => e.event_date >= weekDates[0] && e.event_date <= weekEnd)
+    .sort((a,b) => a.event_date.localeCompare(b.event_date));
+
+  return (
+    <div className="card card-p" style={{ marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: 0 }}>📌 주간 일정</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate()-7); setWeekStart(d); }}>◀</button>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#334155', minWidth: 180, textAlign: 'center' }}>{weekLabel}</span>
+          <button className="btn btn-secondary btn-sm" onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate()+7); setWeekStart(d); }}>▶</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => setWeekStart(getMonday(new Date()))} style={{ fontSize: 10 }}>이번주</button>
+        </div>
+      </div>
+      {weekEvents.length === 0 ? (
+        <div style={{ fontSize: 13, color: '#94a3b8', padding: '8px 0' }}>이번 주 등록된 일정이 없습니다.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {weekDates.map(date => {
+            const dayEvs = weekEvents.filter(e => e.event_date === date);
+            if (dayEvs.length === 0) return null;
+            const dt = new Date(date+'T00:00:00');
+            const dayLabel = `${dt.getMonth()+1}/${dt.getDate()} (${['일','월','화','수','목','금','토'][dt.getDay()]})`;
+            return (
+              <div key={date}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 4, paddingBottom: 3, borderBottom: '1px solid #f1f5f9' }}>{dayLabel}</div>
+                {dayEvs.map(e => {
+                  const pn = projects.find(p => p.id === e.project_id)?.name || '';
+                  if (e.auto) {
+                    const isEnd = e.type === 'auto_end';
+                    return (
+                      <div key={e.id} style={{ padding: '6px 10px', borderRadius: 6, background: isEnd?'#f3e8ff':'#dbeafe', borderLeft: `3px solid ${isEnd?'#a855f7':'#3b82f6'}`, marginBottom: 4, cursor: 'pointer' }} onClick={() => gp(e.project_id)}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: isEnd?'#6b21a8':'#1e40af' }}>{isEnd?'📅 준공일':'🚀 착수일'}</div>
+                        <div style={{ fontSize: 12, color: '#334155', fontWeight: 600, marginTop: 1 }}>{pn}</div>
+                      </div>
+                    );
+                  }
+                  const s = ec(e.type);
+                  return (
+                    <div key={e.id} style={{ padding: '6px 10px', borderRadius: 6, background: s.bg, borderLeft: `3px solid ${s.bd}`, marginBottom: 4, cursor: 'pointer' }} onClick={() => gp(e.project_id)}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ fontSize: 13 }}>{EV_ICON[e.type]}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: s.tx }}>{e.title}</span>
+                        <Bd bg={s.bd}>{e.type}</Bd>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>{pn}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -789,7 +875,7 @@ function ProjectList({ gp }) {
       catOrder(a.category) - catOrder(b.category) ||
       pmOrder(a.pm_id) - pmOrder(b.pm_id) ||
       (a.status === '중지' ? 1 : 0) - (b.status === '중지' ? 1 : 0) ||
-      (getLatestPct(b.id) - getLatestPct(a.id))
+      (getPct(b.id) - getPct(a.id))
     );
   const completed = baseFiltered
     .filter(p => p.status === '완료')
@@ -1135,7 +1221,8 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
   const save = async () => {
     if (!summary) { setErr('금주 실적을 입력해주세요.'); return; }
     setLoading(true); setErr('');
-    const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: nextPlan, issues, reported_by: userId, updated_at: new Date().toISOString() };
+    const autoNextPlan = nextPlan.trim() || `(진행없음) ${summary}`;
+    const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: autoNextPlan, issues, reported_by: userId, updated_at: new Date().toISOString() };
     // Upsert by project_id + week_date
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
     if (error) { setErr('저장 중 오류가 발생했습니다: ' + error.message); setLoading(false); return; }
@@ -1530,12 +1617,24 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
   const [delConfirm, setDelConfirm] = useState(null);
 
   const uName = (id) => users.find(u => u.id === id)?.name || '';
-  const filtered = projects.filter(p =>
+  const PM_ORDER_A = ['김병용','장용기','박호진','윤종수','이규민'];
+  const pmOrderA = (pmId) => { const n = uName(pmId); const i = PM_ORDER_A.indexOf(n); return i >= 0 ? i : 99; };
+  const catOrderA = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
+
+  const base = projects.filter(p =>
     filterText === '' ||
     p.name.includes(filterText) ||
     (p.client || '').includes(filterText) ||
     uName(p.pm_id).includes(filterText)
   );
+  const activeA = base.filter(p => p.status !== '완료').sort((a,b) =>
+    catOrderA(a.category) - catOrderA(b.category) ||
+    pmOrderA(a.pm_id) - pmOrderA(b.pm_id) ||
+    (a.status === '중지' ? 1 : 0) - (b.status === '중지' ? 1 : 0)
+  );
+  const completedA = base.filter(p => p.status === '완료')
+    .sort((a,b) => (b.completed_at || b.end_date || '').localeCompare(a.completed_at || a.end_date || ''));
+  const filtered = [...activeA, ...completedA];
   const selProject = projects.find(p => p.id === selPid);
 
   return (
