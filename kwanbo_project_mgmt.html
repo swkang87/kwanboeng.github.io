@@ -428,16 +428,18 @@ function WeeklyReport({ gp, user }) {
 
     return projects
       .filter(p => {
-        if (p.status === '완료') return false;
+        // 완료 처리된 용역: 완료된 다음 주부터 숨김
+        if (p.status === '완료') {
+          if (!p.completed_at) return false;
+          return p.completed_at >= selWeek; // 완료된 주는 표시, 다음 주부터 숨김
+        }
         // 중지 프로젝트는 무조건 표시
         if (p.status === '중지') return true;
         // 준공일이 지난 용역 제외
         if (p.end_date && p.end_date < selWeek) return false;
-        // 해당 주에 공정률 100% 달성한 용역 제외
-        // (100%에 처음 도달한 주가 selWeek보다 이전이면 제외)
+        // 이전 최신 보고가 100%면 제외
         const thisWeekReport = reports.find(r => r.project_id === p.id && r.week_date === selWeek);
         if (!thisWeekReport) {
-          // 이번 주 보고 없을 때 - 이전 최신 보고가 100%면 제외
           const latestReport = reports.filter(r => r.project_id === p.id && r.week_date < selWeek).sort((a,b) => b.week_date.localeCompare(a.week_date))[0];
           if (latestReport?.progress_pct === 100) return false;
         }
@@ -595,7 +597,7 @@ function WeeklyReport({ gp, user }) {
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>{p.name}</div>
                     <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{fs(p.start_date)}~{fs(p.end_date)}</div>
                   </td>
-                  <td style={{ fontSize: 11, color: '#475569' }}>{p.client}</td>
+                  <td style={{ fontSize: 11, color: '#475569', wordBreak: 'keep-all', overflowWrap: 'break-word' }}>{p.client}</td>
                   <td className="tc" style={{ fontSize: 11, fontWeight: 600 }}>{uName(p.pm_id)}</td>
                   <td className="tc" style={{ fontSize: 11, color: '#64748b' }}>{prev}%</td>
                   <td>
@@ -607,11 +609,11 @@ function WeeklyReport({ gp, user }) {
                     </div>
                   </td>
                   <td className="tc"><span style={{ fontSize: 11, fontWeight: 700, color: d>0?'#059669':d<0?'#dc2626':'#94a3b8' }}>{d>0?`▲${d}`:d<0?`▼${Math.abs(d)}`:'—'}</span></td>
-                  <td style={{ fontSize: 11, color: '#334155', lineHeight: 1.5 }}>
+                  <td style={{ fontSize: 11, color: '#334155', lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
                     {r?.isThisWeek ? (r.summary || '—') : (stopped ? <span style={{ color: '#9ca3af' }}>중지 상태</span> : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>)}
                     {ne && <div style={{ marginTop: 3, padding: '2px 5px', background: ec(ne.type).bg, borderRadius: 3, fontSize: 10, color: ec(ne.type).tx, display: 'inline-block' }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
                   </td>
-                  <td style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>{r?.isThisWeek ? (r.next_plan || '—') : '—'}</td>
+                  <td style={{ fontSize: 11, color: '#475569', lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>{r?.isThisWeek ? (r.next_plan || '—') : '—'}</td>
                   <td style={{ fontSize: 10, color: r?.issues ? '#dc2626' : '#94a3b8' }}>{r?.issues || ''}</td>
                 </tr>
               );
@@ -635,12 +637,21 @@ function MonthlyCalendar({ gp, calDate, setCalDate }) {
   const loadAll = async () => {
     const [ev, pj] = await Promise.all([
       sb.from('project_events').select('*'),
-      sb.from('projects').select('id, name, category, status'),
+      sb.from('projects').select('id, name, category, status, start_date, end_date'),
     ]);
     setEvents(ev.data || []);
     setProjects(pj.data || []);
     setLoading(false);
   };
+
+  // 착수일/준공일을 가상 이벤트로 변환
+  const autoEvents = projects.flatMap(p => {
+    const evs = [];
+    if (p.start_date) evs.push({ id: `auto_start_${p.id}`, project_id: p.id, type: '착수보고', title: '착수일', event_date: p.start_date, done: true, auto: true });
+    if (p.end_date && p.status !== '완료') evs.push({ id: `auto_end_${p.id}`, project_id: p.id, type: '납품', title: '준공일', event_date: p.end_date, done: false, auto: true });
+    return evs;
+  });
+  const allCalEvents = [...events, ...autoEvents];
 
   const y = calDate.getFullYear(), m = calDate.getMonth();
   const fd = new Date(y, m, 1).getDay();
@@ -651,7 +662,7 @@ function MonthlyCalendar({ gp, calDate, setCalDate }) {
   for (let d = 1; d <= dm; d++) cells.push(d);
   const ds = (d) => `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 
-  const selEvents = selDate ? events.filter(e => e.event_date === selDate) : [];
+  const selEvents = selDate ? allCalEvents.filter(e => e.event_date === selDate) : [];
 
   if (loading) return <Spinner />;
 
@@ -667,7 +678,7 @@ function MonthlyCalendar({ gp, calDate, setCalDate }) {
           {DK.map((d,i) => <div key={d} className="cal-head" style={{ color: i===0?'#dc2626':i===6?'#2563eb':'#64748b' }}>{d}</div>)}
           {cells.map((d,i) => {
             if (!d) return <div key={`e${i}`} style={{ minHeight: 64, borderBottom: '1px solid #f1f5f9', borderRight: '1px solid #f1f5f9' }} />;
-            const dt = ds(d), ev = events.filter(e => e.event_date === dt);
+            const dt = ds(d), ev = allCalEvents.filter(e => e.event_date === dt);
             const isT = dt === td, isS = dt === selDate, dw = (fd+d-1)%7;
             return (
               <div key={d} className={`cal-cell ${isS?'selected':''} ${isT?'today':''}`} onClick={() => setSelDate(dt === selDate ? null : dt)}>
@@ -721,7 +732,7 @@ function ProjectList({ gp }) {
   useEffect(() => { loadAll(); }, []);
   const loadAll = async () => {
     const [pj, rp, ev, us] = await Promise.all([
-      sb.from('projects').select('*').order('name'),
+      sb.from('projects').select('*, completed_at').order('name'),
       sb.from('weekly_reports').select('project_id, week_date, progress_pct').order('week_date', { ascending: false }),
       sb.from('project_events').select('*'),
       sb.from('users').select('id, name'),
@@ -737,7 +748,24 @@ function ProjectList({ gp }) {
   const getPct = (pid) => reports.filter(r => r.project_id === pid).sort((a,b) => b.week_date.localeCompare(a.week_date))[0]?.progress_pct || 0;
   const getNext = (pid) => events.filter(e => e.project_id === pid && !e.done).sort((a,b) => a.event_date.localeCompare(b.event_date))[0];
 
-  const filtered = projects.filter(p => (sf === 'all' || p.status === sf) && (cf === 'all' || p.category === cf));
+  const PM_ORDER = ['김병용','장용기','박호진','윤종수','이규민'];
+  const pmOrder = (pmId) => { const n = users.find(u => u.id === pmId)?.name || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
+  const catOrder = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
+
+  const baseFiltered = projects.filter(p => (cf === 'all' || p.category === cf));
+  const active = baseFiltered
+    .filter(p => p.status !== '완료')
+    .filter(p => sf === 'all' || p.status === sf)
+    .sort((a,b) =>
+      catOrder(a.category) - catOrder(b.category) ||
+      pmOrder(a.pm_id) - pmOrder(b.pm_id) ||
+      (a.status === '중지' ? 1 : 0) - (b.status === '중지' ? 1 : 0) ||
+      (getLatestPct(b.id) - getLatestPct(a.id))
+    );
+  const completed = baseFiltered
+    .filter(p => p.status === '완료')
+    .sort((a,b) => (b.completed_at || b.end_date || '').localeCompare(a.completed_at || a.end_date || ''));
+  const filtered = sf === '완료' ? completed : sf === 'all' ? [...active, ...completed] : active;
 
   if (loading) return <Spinner />;
 
@@ -1189,7 +1217,16 @@ function EditProjectModal({ project, userId, onClose, onSaved }) {
   const save = async () => {
     setLoading(true); setErr('');
     const oldEndDate = project.end_date, oldContact = project.client_contact;
-    const updates = { name: form.name, client: form.client, client_dept: form.client_dept, client_contact: form.client_contact, start_date: form.start_date, end_date: form.end_date, status: form.status, memo: form.memo, updated_at: new Date().toISOString() };
+    const updates = {
+      name: form.name, client: form.client, client_dept: form.client_dept,
+      client_contact: form.client_contact, start_date: form.start_date,
+      end_date: form.end_date, status: form.status, memo: form.memo,
+      updated_at: new Date().toISOString(),
+      // 완료로 변경 시 오늘 날짜 기록, 완료 해제 시 초기화
+      completed_at: form.status === '완료' && project.status !== '완료'
+        ? new Date().toISOString().split('T')[0]
+        : form.status !== '완료' ? null : (project.completed_at || null),
+    };
     const { error } = await sb.from('projects').update(updates).eq('id', project.id);
     if (error) { setErr('저장 중 오류: ' + error.message); setLoading(false); return; }
     // Log changes
@@ -1262,7 +1299,7 @@ function AdminPanel({ user }) {
   useEffect(() => { loadAll(); }, []);
   const loadAll = async () => {
     const [pj, us] = await Promise.all([
-      sb.from('projects').select('*').order('name'),
+      sb.from('projects').select('*, completed_at').order('name'),
       sb.from('users').select('*').order('name'),
     ]);
     setProjects(pj.data || []);
