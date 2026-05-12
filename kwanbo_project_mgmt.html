@@ -315,6 +315,7 @@ function App() {
   const isAdmin = user?.role === 'admin';
 
   const [prevView, setPrevView] = useState('weekly');
+  const [pwModal, setPwModal] = useState(false);
   const gp = (id) => {
     history.pushState({ view: 'project', id, from: view }, '', '');
     setPrevView(view);
@@ -368,6 +369,7 @@ function App() {
           </div>
           <div className="nav-user">
             <span>{user.name}</span>님
+            <button className="logout-btn" onClick={() => setPwModal(true)}>🔒 비번변경</button>
             <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
           </div>
         </div>
@@ -392,6 +394,7 @@ function App() {
         {view === 'mine'   && <MyProjects user={user} gp={gp} />}
         {view === 'admin'  && isAdmin && <AdminPanel user={user} />}
       </div>
+      {pwModal && <ChangePasswordModal user={user} onClose={() => setPwModal(false)} />}
     </div>
   );
 }
@@ -1696,6 +1699,60 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
   );
 }
 
+// ─── Change Password Modal ───
+function ChangePasswordModal({ user, onClose }) {
+  const [curr, setCurr] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState(false);
+
+  const save = async () => {
+    if (!curr || !next || !confirm) { setErr('모든 항목을 입력해주세요.'); return; }
+    if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
+    if (next.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return; }
+    setLoading(true); setErr('');
+    // Verify current password
+    const { data } = await sb.from('users').select('id').eq('id', user.id).eq('password', curr).single();
+    if (!data) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+    const { error } = await sb.from('users').update({ password: next }).eq('id', user.id);
+    if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
+    setOk(true); setLoading(false);
+  };
+
+  return (
+    <Modal title="🔒 비밀번호 변경" onClose={onClose}>
+      {ok ? (
+        <div>
+          <div className="alert alert-success">비밀번호가 변경되었습니다.</div>
+          <div className="modal-footer"><button className="btn btn-primary" onClick={onClose}>확인</button></div>
+        </div>
+      ) : (
+        <>
+          {err && <div className="alert alert-error">{err}</div>}
+          <div className="form-group">
+            <label className="form-label">현재 비밀번호</label>
+            <input type="password" className="form-input" value={curr} onChange={e => setCurr(e.target.value)} placeholder="현재 비밀번호" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">새 비밀번호</label>
+            <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder="새 비밀번호 (4자 이상)" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">새 비밀번호 확인</label>
+            <input type="password" className="form-input" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="새 비밀번호 재입력" onKeyDown={e => e.key === 'Enter' && save()} />
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-secondary" onClick={onClose}>취소</button>
+            <button className="btn btn-primary" onClick={save} disabled={loading}>{loading ? '변경 중...' : '변경'}</button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 // ─── User List (Admin) ───
 function UserList({ users, onSaved }) {
   const [newUser, setNewUser] = useState({ name:'', phone:'', password:'', role:'employee' });
@@ -1704,41 +1761,68 @@ function UserList({ users, onSaved }) {
   const set = (k,v) => setNewUser(f => ({...f,[k]:v}));
 
   const addUser = async () => {
-    if (!newUser.name || !newUser.phone || !newUser.password) { setErr('이름, 전화번호, 비밀번호는 필수입니다.'); return; }
+    if (!newUser.name || !newUser.phone) { setErr('이름과 전화번호는 필수입니다.'); return; }
     setLoading(true); setErr('');
-    const { error } = await sb.from('users').insert({ ...newUser, join_date: today(), total_days: 0, used_days: 0 });
+    const pw = newUser.password || newUser.phone; // 비번 미입력시 전화번호로
+    const { error } = await sb.from('users').insert({ ...newUser, password: pw, join_date: today(), total_days: 0, used_days: 0 });
     if (error) { setErr('등록 오류: ' + error.message); setLoading(false); return; }
     setNewUser({ name:'', phone:'', password:'', role:'employee' });
     onSaved();
     setLoading(false);
   };
 
+  const ROLE_ORDER = { 'admin': 0, 'manager': 1, 'employee': 2, 'contractor': 3 };
+  const ROLE_LABEL = { 'admin': '관리자', 'manager': '팀장', 'employee': '팀원', 'contractor': '외주' };
+  const ROLE_COLOR = { 'admin': '#0f172a', 'manager': '#6366f1', 'employee': '#2563eb', 'contractor': '#d97706' };
+  const sortedUsers = [...users].sort((a,b) =>
+    (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) ||
+    a.name.localeCompare(b.name, 'ko')
+  );
+
+  const groups = ['admin','manager','employee','contractor'].map(role => ({
+    role, label: ROLE_LABEL[role], color: ROLE_COLOR[role],
+    members: sortedUsers.filter(u => u.role === role)
+  })).filter(g => g.members.length > 0);
+
   return (
     <div className="card card-p">
       <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 14 }}>직원 목록 ({users.length}명)</div>
-      <table className="tbl" style={{ marginBottom: 20 }}>
-        <thead><tr><th>이름</th><th>전화번호(ID)</th><th>권한</th></tr></thead>
-        <tbody>
-          {users.map(u => (
-            <tr key={u.id}>
-              <td style={{ fontWeight: 600 }}>{u.name}</td>
-              <td>{u.phone}</td>
-              <td><Bd bg={u.role==='admin'?'#0f172a':u.role==='contractor'?'#d97706':'#2563eb'}>{u.role==='admin'?'관리자':u.role==='contractor'?'외주':'직원'}</Bd></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 10 }}>새 직원 추가</div>
+      {groups.map(g => (
+        <div key={g.role} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: g.color, marginBottom: 6, paddingBottom: 4, borderBottom: `2px solid ${g.color}` }}>
+            {g.label} ({g.members.length}명)
+          </div>
+          <table className="tbl" style={{ marginBottom: 4 }}>
+            <thead><tr><th>이름</th><th>전화번호(ID)</th><th>권한</th></tr></thead>
+            <tbody>
+              {g.members.map(u => (
+                <tr key={u.id}>
+                  <td style={{ fontWeight: 600 }}>{u.name}</td>
+                  <td>{u.phone}</td>
+                  <td><Bd bg={g.color}>{g.label}</Bd></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: '16px 0 10px' }}>새 직원 추가</div>
       {err && <div className="alert alert-error">{err}</div>}
       <div className="form-row">
         <div className="form-group"><label className="form-label">이름</label><input className="form-input" value={newUser.name} onChange={e => set('name',e.target.value)} /></div>
         <div className="form-group"><label className="form-label">전화번호 (로그인 ID)</label><input className="form-input" value={newUser.phone} onChange={e => set('phone',e.target.value)} placeholder="010-0000-0000" /></div>
       </div>
       <div className="form-row">
-        <div className="form-group"><label className="form-label">초기 비밀번호</label><input className="form-input" value={newUser.password} onChange={e => set('password',e.target.value)} /></div>
+        <div className="form-group">
+          <label className="form-label">초기 비밀번호 <span style={{color:'#94a3b8',fontWeight:400}}>(미입력시 전화번호로 설정)</span></label>
+          <input className="form-input" value={newUser.password} onChange={e => set('password',e.target.value)} placeholder="비워두면 전화번호로 자동설정" />
+        </div>
         <div className="form-group"><label className="form-label">권한</label>
           <select className="form-input" value={newUser.role} onChange={e => set('role',e.target.value)}>
-            <option value="employee">직원</option><option value="admin">관리자</option><option value="contractor">외주</option>
+            <option value="employee">팀원</option>
+            <option value="manager">팀장</option>
+            <option value="admin">관리자</option>
+            <option value="contractor">외주</option>
           </select>
         </div>
       </div>
