@@ -350,15 +350,15 @@ function App() {
   return (
     <div>
       {/* System Switcher */}
-      <div className="no-print" style={{ background: '#0a0f1e', borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '4px 14px', display: 'flex', alignItems: 'center', gap: 12, position: 'sticky', top: 0, zIndex: 101 }}>
-        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: 600, flexShrink: 0 }}>관보종합기술단</span>
-        <div style={{ display: 'flex', gap: 2 }}>
-          <a href="kwanbo_project_mgmt.html" style={{ padding: '3px 10px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: 'rgba(37,99,235,0.4)', color: '#93c5fd', textDecoration: 'none' }}>📊 공정관리</a>
-          <a href="kwanbo_leave.html" style={{ padding: '3px 10px', borderRadius: 4, fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,0.4)', textDecoration: 'none' }}>📅 연차관리</a>
+      <div className="no-print" style={{ background: '#0a0f1e', borderBottom: '1px solid rgba(255,255,255,0.12)', padding: '7px 18px', display: 'flex', alignItems: 'center', gap: 16, position: 'sticky', top: 0, zIndex: 101 }}>
+        <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', fontWeight: 700, flexShrink: 0 }}>관보종합기술단</span>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <a href="kwanbo_project_mgmt.html" style={{ padding: '5px 16px', borderRadius: 5, fontSize: 13, fontWeight: 700, background: 'rgba(37,99,235,0.45)', color: '#93c5fd', textDecoration: 'none' }}>📊 공정관리</a>
+          <a href="kwanbo_leave.html" style={{ padding: '5px 16px', borderRadius: 5, fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.45)', textDecoration: 'none' }}>📅 연차관리</a>
         </div>
       </div>
       {/* Navbar */}
-      <nav className="navbar no-print" style={{ position: 'sticky', top: 28, zIndex: 100 }}>
+      <nav className="navbar no-print" style={{ position: 'sticky', top: 42, zIndex: 100 }}>
         <div className="nav-top">
           <div className="nav-brand">
             <div className="nav-accent" />
@@ -369,7 +369,7 @@ function App() {
           </div>
           <div className="nav-user">
             <span>{user.name}</span>님
-            <button className="logout-btn" onClick={() => setPwModal(true)}>🔒 비번변경</button>
+            <button className="logout-btn" onClick={() => setPwModal(true)}>🔒 비밀번호 변경</button>
             <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
           </div>
         </div>
@@ -389,7 +389,7 @@ function App() {
       <div className="page">
         {view === 'weekly'  && <WeeklyReport gp={gp} user={user} />}
         {view === 'monthly' && <MonthlyCalendar gp={gp} calDate={calDate} setCalDate={setCalDate} />}
-        {view === 'projects' && <ProjectList gp={gp} />}
+        {view === 'projects' && <ProjectList gp={gp} user={user} />}
         {view === 'project' && selProject && <ProjectDetail id={selProject} user={user} fromView={prevView} gb={() => { setView(prevView || 'projects'); setSelProject(null); }} />}
         {view === 'mine'   && <MyProjects user={user} gp={gp} />}
         {view === 'admin'  && isAdmin && <AdminPanel user={user} />}
@@ -838,27 +838,30 @@ function WeeklyTaskList({ allCalEvents, projects, gp }) {
 }
 
 // ─── Project List ───
-function ProjectList({ gp }) {
+function ProjectList({ gp, user }) {
   const [projects, setProjects] = useState([]);
   const [reports, setReports] = useState([]);
   const [events, setEvents] = useState([]);
   const [users, setUsers] = useState([]);
+  const [members, setMembers] = useState([]);
   const [sf, setSf] = useState('진행중');
   const [cf, setCf] = useState('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadAll(); }, []);
   const loadAll = async () => {
-    const [pj, rp, ev, us] = await Promise.all([
+    const [pj, rp, ev, us, mb] = await Promise.all([
       sb.from('projects').select('*, completed_at').order('name'),
       sb.from('weekly_reports').select('project_id, week_date, progress_pct').order('week_date', { ascending: false }),
       sb.from('project_events').select('*'),
       sb.from('users').select('id, name'),
+      sb.from('project_members').select('*'),
     ]);
     setProjects(pj.data || []);
     setReports(rp.data || []);
     setEvents(ev.data || []);
     setUsers(us.data || []);
+    setMembers(mb.data || []);
     setLoading(false);
   };
 
@@ -870,7 +873,14 @@ function ProjectList({ gp }) {
   const pmOrder = (pmId) => { const n = users.find(u => u.id === pmId)?.name || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
   const catOrder = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
 
-  const baseFiltered = projects.filter(p => (cf === 'all' || p.category === cf));
+  // 기술지원(contractor)은 배정된 프로젝트만 표시
+  const memberProjectIds = user?.role === 'contractor'
+    ? new Set((members || []).filter(m => m.user_id === user.id).map(m => m.project_id))
+    : null;
+  const baseFiltered = projects.filter(p =>
+    (cf === 'all' || p.category === cf) &&
+    (memberProjectIds === null || memberProjectIds.has(p.id))
+  );
   const active = baseFiltered
     .filter(p => p.status !== '완료')
     .filter(p => sf === 'all' || p.status === sf)
@@ -1327,7 +1337,7 @@ function EventModal({ projectId, userId, onClose, onSaved }) {
 }
 
 // ─── Edit Project Modal ───
-function EditProjectModal({ project, userId, onClose, onSaved }) {
+function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers }) {
   const [form, setForm] = useState({ ...project });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
@@ -1340,8 +1350,8 @@ function EditProjectModal({ project, userId, onClose, onSaved }) {
       name: form.name, client: form.client, client_dept: form.client_dept,
       client_contact: form.client_contact, start_date: form.start_date,
       end_date: form.end_date, status: form.status, memo: form.memo,
+      pm_id: form.pm_id || project.pm_id,
       updated_at: new Date().toISOString(),
-      // 완료로 변경 시 오늘 날짜 기록, 완료 해제 시 초기화
       completed_at: form.status === '완료' && project.status !== '완료'
         ? new Date().toISOString().split('T')[0]
         : form.status !== '완료' ? null : (project.completed_at || null),
@@ -1359,11 +1369,20 @@ function EditProjectModal({ project, userId, onClose, onSaved }) {
   return (
     <Modal title="✏️ 프로젝트 정보 수정" onClose={onClose} wide>
       {err && <div className="alert alert-error">{err}</div>}
-      <div className="form-group">
-        <label className="form-label">용역명</label>
-        <input className="form-input" value={form.name || ''} onChange={e => set('name', e.target.value)} />
+      <div className="form-row">
+        <div className="form-group" style={{ gridColumn: '1/-1' }}>
+          <label className="form-label">용역명</label>
+          <input className="form-input" value={form.name || ''} onChange={e => set('name', e.target.value)} />
+        </div>
       </div>
       <div className="form-row">
+        <div className="form-group">
+          <label className="form-label">PM</label>
+          <select className="form-input" value={form.pm_id || ''} onChange={e => set('pm_id', e.target.value)}>
+            <option value="">선택</option>
+            {(editUsers || []).filter(u => u.role !== 'contractor').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </div>
         <div className="form-group">
           <label className="form-label">발주처</label>
           <input className="form-input" value={form.client || ''} onChange={e => set('client', e.target.value)} />
@@ -1434,14 +1453,13 @@ function AdminPanel({ user }) {
       <h2 className="section-title">⚙ 관리자 메뉴</h2>
       {msg && <div className="alert alert-success">{msg}</div>}
       <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: '#fff', borderRadius: 8, padding: 4, boxShadow: '0 1px 2px rgba(0,0,0,.06)', width: 'fit-content', flexWrap: 'wrap' }}>
-        {[{k:'create',l:'새 프로젝트 등록'},{k:'editProj',l:'프로젝트 수정'},{k:'members',l:'참여인원 배정'},{k:'userList',l:'직원 목록'}].map(t => (
+        {[{k:'create',l:'새 프로젝트 등록'},{k:'editProj',l:'프로젝트 수정'},{k:'userList',l:'직원 목록'}].map(t => (
           <button key={t.k} onClick={() => setTab(t.k)} className="btn btn-sm" style={{ background: tab===t.k?'#0f172a':'transparent', color: tab===t.k?'#fff':'#64748b', border: 'none' }}>{t.l}</button>
         ))}
       </div>
 
       {tab === 'create' && <CreateProjectForm userId={user.id} users={users} onSaved={() => { loadAll(); showMsg('프로젝트가 등록되었습니다.'); }} />}
       {tab === 'editProj' && <AdminProjectEdit projects={projects} users={users} onSaved={() => { loadAll(); showMsg('수정되었습니다.'); }} userId={user.id} />}
-      {tab === 'members' && <MemberAssign projects={projects} users={users} onSaved={() => { loadAll(); showMsg('참여인원이 업데이트되었습니다.'); }} />}
       {tab === 'userList' && <UserList users={users} onSaved={() => { loadAll(); showMsg('저장되었습니다.'); }} />}
     </div>
   );
@@ -1584,7 +1602,7 @@ function MemberAssign({ projects, users, onSaved }) {
               members.map(m => (
                 <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: '#f8fafc', borderRadius: 6, marginBottom: 4 }}>
                   <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{uName(m.user_id)}</span>
-                  <Bd bg={m.role==='pm'?'#0f172a':m.role==='contractor'?'#d97706':'#64748b'}>{m.role==='pm'?'PM':m.role==='support'?'서포트':'외주'}</Bd>
+                  <Bd bg={m.role==='pm'?'#0f172a':m.role==='contractor'?'#d97706':'#64748b'}>{m.role==='pm'?'PM':m.role==='support'?'서포트':'기술지원'}</Bd>
                   <button className="btn btn-danger btn-sm" onClick={() => removeMember(m.id)} disabled={loading}>제거</button>
                 </div>
               ))
@@ -1601,7 +1619,7 @@ function MemberAssign({ projects, users, onSaved }) {
             <div style={{ width: 100 }}>
               <label className="form-label">역할</label>
               <select className="form-input" value={newRole} onChange={e => setNewRole(e.target.value)}>
-                <option value="pm">PM</option><option value="support">서포트</option><option value="contractor">외주</option>
+                <option value="pm">PM</option><option value="support">서포트</option><option value="contractor">기술지원</option>
               </select>
             </div>
             <button className="btn btn-primary btn-sm" onClick={() => { addMember(newUser, newRole); setNewUser(''); }} disabled={loading || !newUser}>추가</button>
@@ -1612,23 +1630,26 @@ function MemberAssign({ projects, users, onSaved }) {
   );
 }
 
-// ─── Admin Project Edit ───
+// ─── Admin Project Edit (with member management) ───
 function AdminProjectEdit({ projects, users, onSaved, userId }) {
   const [selPid, setSelPid] = useState('');
   const [editModal, setEditModal] = useState(false);
   const [filterText, setFilterText] = useState('');
   const [delConfirm, setDelConfirm] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [newMUser, setNewMUser] = useState('');
+  const [newMRole, setNewMRole] = useState('support');
+  const [mLoading, setMLoading] = useState(false);
 
   const uName = (id) => users.find(u => u.id === id)?.name || '';
   const PM_ORDER_A = ['김병용','장용기','박호진','윤종수','이규민'];
   const pmOrderA = (pmId) => { const n = uName(pmId); const i = PM_ORDER_A.indexOf(n); return i >= 0 ? i : 99; };
   const catOrderA = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
+  const ROLE_DISPLAY = { pm: 'PM', support: '서포트', contractor: '기술지원' };
 
   const base = projects.filter(p =>
-    filterText === '' ||
-    p.name.includes(filterText) ||
-    (p.client || '').includes(filterText) ||
-    uName(p.pm_id).includes(filterText)
+    filterText === '' || p.name.includes(filterText) ||
+    (p.client || '').includes(filterText) || uName(p.pm_id).includes(filterText)
   );
   const activeA = base.filter(p => p.status !== '완료').sort((a,b) =>
     catOrderA(a.category) - catOrderA(b.category) ||
@@ -1640,45 +1661,101 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
   const filtered = [...activeA, ...completedA];
   const selProject = projects.find(p => p.id === selPid);
 
+  const loadMembers = async (pid) => {
+    if (!pid) { setMembers([]); return; }
+    const { data } = await sb.from('project_members').select('*').eq('project_id', pid);
+    setMembers(data || []);
+  };
+  const selectProject = (pid) => { setSelPid(pid); loadMembers(pid); };
+  const addMember = async () => {
+    if (!selPid || !newMUser) return;
+    if (members.find(m => m.user_id === newMUser)) { alert('이미 배정된 인원입니다.'); return; }
+    setMLoading(true);
+    await sb.from('project_members').insert({ project_id: selPid, user_id: newMUser, role: newMRole });
+    await loadMembers(selPid); setNewMUser(''); setMLoading(false); onSaved();
+  };
+  const removeMember = async (id) => {
+    setMLoading(true);
+    await sb.from('project_members').delete().eq('id', id);
+    await loadMembers(selPid); setMLoading(false); onSaved();
+  };
+
   return (
-    <div className="card card-p">
-      <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>프로젝트 수정 ({projects.length}건)</div>
-      <input className="form-input" style={{ marginBottom: 10 }} placeholder="용역명 / 발주처 / PM 검색" value={filterText} onChange={e => setFilterText(e.target.value)} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 400, overflowY: 'auto' }}>
-        {filtered.map(p => {
-          const rc = projects.filter(x => x.id === p.id).length; // placeholder
-          return (
-          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#f8fafc', borderRadius: 6, borderLeft: `3px solid ${CAT_COLOR[p.category]||'#e2e8f0'}`, opacity: p.status==='중지'?0.6:1 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-              <div style={{ fontSize: 10, color: '#94a3b8' }}>{p.client}</div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+      {/* 왼쪽: 프로젝트 목록 */}
+      <div className="card card-p">
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>프로젝트 목록 ({projects.length}건)</div>
+        <input className="form-input" style={{ marginBottom: 8 }} placeholder="용역명 / 발주처 / PM 검색" value={filterText} onChange={e => setFilterText(e.target.value)} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 520, overflowY: 'auto' }}>
+          {filtered.map(p => (
+            <div key={p.id} onClick={() => selectProject(p.id)}
+              style={{ padding: '7px 10px', background: selPid === p.id ? '#eff6ff' : '#f8fafc', borderRadius: 6, borderLeft: `3px solid ${selPid === p.id ? '#2563eb' : (CAT_COLOR[p.category]||'#e2e8f0')}`, opacity: p.status==='중지'?0.65:1, cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                  <div style={{ fontSize: 10, color: '#94a3b8' }}>{p.client} · {uName(p.pm_id)}</div>
+                </div>
+                <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
+                <button className="btn btn-danger btn-sm" onClick={e => { e.stopPropagation(); setDelConfirm(p); }}>삭제</button>
+              </div>
             </div>
-            <span style={{ fontSize: 10, color: '#64748b', flexShrink: 0 }}>{uName(p.pm_id)}</span>
-            <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
-            <button className="btn btn-secondary btn-sm" onClick={() => { setSelPid(p.id); setEditModal(true); }}>수정</button>
-            <button className="btn btn-danger btn-sm" onClick={() => setDelConfirm({...p, _reportCount: 0})}>삭제</button>
-          </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
+
+      {/* 오른쪽: 수정 패널 */}
+      {selProject ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="card card-p">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 8 }}>{selProject.name}</div>
+              <button className="btn btn-primary btn-sm" onClick={() => setEditModal(true)}>✏️ 정보 수정</button>
+            </div>
+            <div style={{ fontSize: 11, color: '#64748b' }}>{selProject.client} · PM: {uName(selProject.pm_id)} · {fs(selProject.start_date)}~{fs(selProject.end_date)}</div>
+          </div>
+
+          <div className="card card-p">
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>👥 참여인원</div>
+            {members.length === 0 && <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>배정된 인원이 없습니다.</div>}
+            {members.map(m => (
+              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: '#f8fafc', borderRadius: 5, marginBottom: 4 }}>
+                <span style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>{uName(m.user_id)}</span>
+                <Bd bg={m.role==='pm'?'#0f172a':m.role==='contractor'?'#d97706':'#64748b'}>{ROLE_DISPLAY[m.role]||m.role}</Bd>
+                <button className="btn btn-danger btn-sm" onClick={() => removeMember(m.id)} disabled={mLoading}>제거</button>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 5, marginTop: 8 }}>
+              <select className="form-input" style={{ flex: 1 }} value={newMUser} onChange={e => setNewMUser(e.target.value)}>
+                <option value="">직원 선택</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+              <select className="form-input" style={{ width: 90 }} value={newMRole} onChange={e => setNewMRole(e.target.value)}>
+                <option value="pm">PM</option>
+                <option value="support">서포트</option>
+                <option value="contractor">기술지원</option>
+              </select>
+              <button className="btn btn-primary btn-sm" onClick={addMember} disabled={mLoading||!newMUser}>추가</button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="card card-p" style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: 40 }}>
+          ← 왼쪽에서 프로젝트를 선택하세요
+        </div>
+      )}
+
       {editModal && selProject && (
-        <EditProjectModal project={selProject} userId={userId}
+        <EditProjectModal project={selProject} userId={userId} users={users}
           onClose={() => setEditModal(false)}
           onSaved={() => { setEditModal(false); onSaved(); }} />
       )}
-
-      {/* 삭제 확인 모달 */}
       {delConfirm && (
         <div className="modal-overlay" onClick={() => setDelConfirm(null)}>
           <div className="modal-box" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-title" style={{ color: '#dc2626' }}>⚠ 프로젝트 삭제 확인</div>
             <div style={{ fontSize: 13, color: '#334155', marginBottom: 16, lineHeight: 1.7 }}>
-              <strong>{delConfirm.name}</strong><br/>
-              을(를) 삭제하시겠습니까?<br/>
-              <span style={{ color: '#dc2626', fontSize: 12 }}>관련 주간보고 및 주요공정 데이터도 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.</span>
-            </div>
-            <div style={{ fontSize: 12, color: '#64748b', background: '#f8fafc', padding: '8px 12px', borderRadius: 6, marginBottom: 16 }}>
-              주간보고 {delConfirm._reportCount || 0}건이 함께 삭제됩니다.
+              <strong>{delConfirm.name}</strong>을(를) 삭제하시겠습니까?<br/>
+              <span style={{ color: '#dc2626', fontSize: 12 }}>관련 주간보고 및 데이터가 모두 삭제됩니다.</span>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setDelConfirm(null)}>취소</button>
@@ -1688,7 +1765,7 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
                 await sb.from('project_members').delete().eq('project_id', delConfirm.id);
                 await sb.from('change_logs').delete().eq('project_id', delConfirm.id);
                 await sb.from('projects').delete().eq('id', delConfirm.id);
-                setDelConfirm(null);
+                setDelConfirm(null); setSelPid(''); setMembers([]);
                 onSaved();
               }}>삭제 확인</button>
             </div>
@@ -1772,7 +1849,7 @@ function UserList({ users, onSaved }) {
   };
 
   const ROLE_ORDER = { 'admin': 0, 'manager': 1, 'employee': 2, 'contractor': 3 };
-  const ROLE_LABEL = { 'admin': '관리자', 'manager': '팀장', 'employee': '팀원', 'contractor': '외주' };
+  const ROLE_LABEL = { 'admin': '관리자', 'manager': '팀장', 'employee': '팀원', 'contractor': '기술지원' };
   const ROLE_COLOR = { 'admin': '#0f172a', 'manager': '#6366f1', 'employee': '#2563eb', 'contractor': '#d97706' };
   const sortedUsers = [...users].sort((a,b) =>
     (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) ||
@@ -1822,7 +1899,7 @@ function UserList({ users, onSaved }) {
             <option value="employee">팀원</option>
             <option value="manager">팀장</option>
             <option value="admin">관리자</option>
-            <option value="contractor">외주</option>
+            <option value="contractor">기술지원</option>
           </select>
         </div>
       </div>
