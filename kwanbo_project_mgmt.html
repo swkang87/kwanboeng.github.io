@@ -225,6 +225,27 @@ const fs = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return
 const fmt = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${t.getMonth()+1}/${t.getDate()}`; };
 const today = () => new Date().toISOString().split('T')[0];
 const thisMonday = () => { const d = new Date(); d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1)); return d.toISOString().split('T')[0]; };
+// 보고기준일: 화~월 한 주 기준으로 해당 주의 월요일 반환
+// 화(2)~일(0): 다음 월요일 / 월(1): 이번 주 월요일
+const reportMonday = () => {
+  const d = new Date();
+  const dow = d.getDay(); // 0=일,1=월,2=화,...
+  let daysUntilMonday;
+  if (dow === 1) {
+    // 월요일 → 이번 주 월요일 (오늘)
+    daysUntilMonday = 0;
+  } else if (dow === 0) {
+    // 일요일 → 다음 월요일
+    daysUntilMonday = 1;
+  } else {
+    // 화~토 → 다음 월요일
+    daysUntilMonday = 8 - dow;
+  }
+  d.setDate(d.getDate() + daysUntilMonday);
+  return d.toISOString().split('T')[0];
+};
+// 날짜가 월요일인지 확인
+const isMonday = (dateStr) => new Date(dateStr + 'T00:00:00').getDay() === 1;
 const weekLabel = (d) => { const dt = new Date(d+'T00:00:00'); const s = new Date(dt); s.setDate(s.getDate()-(dt.getDay()===0?6:dt.getDay()-1)); const e = new Date(s); e.setDate(e.getDate()+4); return `${s.getFullYear()}년 ${s.getMonth()+1}월 ${Math.ceil(s.getDate()/7)}주차 (${fmt(s.toISOString().split('T')[0])}~${fmt(e.toISOString().split('T')[0])})`; };
 
 // ─── Shared Components ───
@@ -485,35 +506,58 @@ function WeeklyReport({ gp, user }) {
   const issueCount = thisWeekReports.filter(r => r.issues).length;
 
   const twoWeeksLater = selWeek ? (() => { const d = new Date(selWeek+'T00:00:00'); d.setDate(d.getDate()+14); return d.toISOString().split('T')[0]; })() : '';
-  const upcomingEvs = events.filter(e => !e.done && selWeek && e.event_date >= selWeek && e.event_date <= twoWeeksLater).sort((a,b) => a.event_date.localeCompare(b.event_date));
+  const upcomingEvs = events.filter(e =>
+    !e.done && selWeek &&
+    e.event_date >= selWeek &&
+    e.event_date <= twoWeeksLater &&
+    (memberPids === null || memberPids.has(e.project_id))
+  ).sort((a,b) => a.event_date.localeCompare(b.event_date));
 
   const handlePrint = () => {
     const el = document.getElementById('print-area');
+    // 이벤트 색상 매핑
+    const evColors = {
+      '착수보고':'#3b82f6','중간보고':'#6366f1','최종보고':'#059669',
+      '위원회':'#ec4899','협의':'#f59e0b','납품':'#a855f7','기타':'#94a3b8'
+    };
+    const evIcons = {'착수보고':'🚀','중간보고':'📋','최종보고':'📦','위원회':'🏛️','협의':'🤝','납품':'📬','기타':'📌'};
     const colgroup = `<colgroup>
-      <col style="width:4%"/><col style="width:6%"/><col style="width:26%"/>
-      <col style="width:10%"/><col style="width:6%"/><col style="width:4%"/>
-      <col style="width:4%"/><col style="width:4%"/><col style="width:19%"/>
-      <col style="width:13%"/><col style="width:4%"/>
+      <col style="width:3%"/><col style="width:5%"/><col style="width:18%"/>
+      <col style="width:8%"/><col style="width:5%"/><col style="width:3%"/>
+      <col style="width:3%"/><col style="width:3%"/><col style="width:16%"/>
+      <col style="width:13%"/><col style="width:15%"/><col style="width:8%"/>
     </colgroup>`;
-    const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>전주</th><th>금주</th><th>±</th><th>전주 진행사항</th><th>금주 계획</th><th>비고</th></tr>`;
+    const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>전주</th><th>금주</th><th>±</th><th>전주 진행사항</th><th>금주 계획</th><th>주요 공정</th><th>비고</th></tr>`;
     const rows = sortedProjects.map((p, i) => {
       const r = getReport(p.id);
       const stopped = p.status === '중지';
       const d = r ? r.progress_pct - r.prev_pct : 0;
       const catColor = CAT_COLOR[p.category] || '#64748b';
       const nameStyle = stopped ? 'color:#9ca3af;font-weight:600' : 'font-weight:600';
+      // 향후 주요 공정 (완료 안 된 것 중 가장 가까운 순 3개)
+      const upEv = events.filter(e => e.project_id === p.id && !e.done)
+        .sort((a,b) => a.event_date.localeCompare(b.event_date))
+        .slice(0, 3);
+      const evHtml = upEv.map(e => {
+        const c = evColors[e.type] || '#94a3b8';
+        const ic = evIcons[e.type] || '📌';
+        const d2 = new Date(e.event_date+'T00:00:00');
+        const ds = `${d2.getMonth()+1}/${d2.getDate()}`;
+        return `<div style="margin-bottom:2px;font-size:6pt;"><span style="background:${c};color:#fff;padding:0 3px;border-radius:2px;font-weight:700;font-size:5.5pt">${e.type}</span> ${e.title} <span style="color:#888">(${ds})</span></div>`;
+      }).join('');
       return `<tr class="${stopped ? 'stopped' : ''}">
         <td class="tc">${i+1}</td>
-        <td class="tc"><span style="background:${catColor};color:#fff;padding:1px 4px;border-radius:2px;font-size:6pt;font-weight:700">${p.category}</span>${stopped?'<br/><span style="font-size:5.5pt;color:#9ca3af">중지</span>':''}</td>
+        <td class="tc"><span style="background:${catColor};color:#fff;padding:1px 3px;border-radius:2px;font-size:5.5pt;font-weight:700">${p.category}</span>${stopped?'<br/><span style="font-size:5pt;color:#9ca3af">중지</span>':''}</td>
         <td style="${nameStyle}">${p.name}</td>
-        <td>${p.client||''}</td>
+        <td style="font-size:6.5pt">${p.client||''}</td>
         <td class="tc">${uName(p.pm_id)}</td>
         <td class="tc">${r?.prev_pct||0}</td>
         <td class="tc" style="font-weight:700">${r?.progress_pct||0}</td>
         <td class="tc" style="font-weight:700;color:${d>0?'#059669':d<0?'#dc2626':'#999'}">${d>0?`+${d}`:d<0?d:'—'}</td>
-        <td>${r?.isThisWeek?(r?.summary||''):(stopped?'중지 상태':'—')}</td>
-        <td>${r?.isThisWeek?(r?.next_plan||''):'—'}</td>
-        <td style="color:${r?.issues?'#dc2626':'inherit'}">${r?.issues||''}</td>
+        <td style="font-size:6.5pt">${r?.isThisWeek?(r?.summary||''):(stopped?'중지 상태':'—')}</td>
+        <td style="font-size:6.5pt">${r?.isThisWeek?(r?.next_plan||''):'—'}</td>
+        <td style="font-size:6.5pt">${evHtml || '—'}</td>
+        <td style="font-size:6.5pt;color:${r?.issues?'#dc2626':'inherit'}">${r?.issues||''}</td>
       </tr>`;
     }).join('');
     el.innerHTML = `
@@ -658,15 +702,15 @@ function MonthlyCalendar({ gp, calDate, setCalDate, user }) {
       sb.from('projects').select('id, name, category, status, start_date, end_date'),
       sb.from('project_members').select('*'),
     ]);
-    setEvents(ev.data || []);
     setAllMembers(mb.data || []);
-    // 기술지원: 배정된 프로젝트만
     const pjData = pj.data || [];
     if (user?.role === 'contractor') {
-      const myPids = new Set(mb.data.filter(m => m.user_id === user.id).map(m => m.project_id));
+      const myPids = new Set((mb.data || []).filter(m => m.user_id === user.id).map(m => m.project_id));
       setProjects(pjData.filter(p => myPids.has(p.id)));
+      setEvents((ev.data || []).filter(e => myPids.has(e.project_id)));
     } else {
       setProjects(pjData);
+      setEvents(ev.data || []);
     }
     setLoading(false);
   };
@@ -1242,33 +1286,54 @@ function MyProjects({ user, gp }) {
 
 // ─── Weekly Report Input Modal ───
 function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
-  const [weekDate, setWeekDate] = useState(thisMonday());
+  const defaultDate = reportMonday();
+  const [weekDate, setWeekDate] = useState(defaultDate);
   const [pct, setPct] = useState(prevData?.progress_pct || 0);
   const [prevPct, setPrevPct] = useState(prevData?.progress_pct || 0);
-  const [summary, setSummary] = useState('');
-  const [nextPlan, setNextPlan] = useState('');
+  // 전주 진행사항/금주 계획은 전주 보고에서 자동 불러오기
+  const [summary, setSummary] = useState(prevData?.summary || '');
+  const [nextPlan, setNextPlan] = useState(prevData?.next_plan || '');
   const [issues, setIssues] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
+  const handleDateChange = (e) => {
+    const val = e.target.value;
+    if (val && !isMonday(val)) {
+      setErr('보고 기준일은 월요일만 선택 가능합니다.');
+      return;
+    }
+    setErr('');
+    setWeekDate(val);
+  };
+
   const save = async () => {
-    if (!summary) { setErr('금주 실적을 입력해주세요.'); return; }
+    if (!summary) { setErr('전주 진행사항을 입력해주세요.'); return; }
+    if (!isMonday(weekDate)) { setErr('보고 기준일은 월요일이어야 합니다.'); return; }
     setLoading(true); setErr('');
     const autoNextPlan = nextPlan.trim() || `(진행없음) ${summary}`;
     const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: autoNextPlan, issues, reported_by: userId, updated_at: new Date().toISOString() };
-    // Upsert by project_id + week_date
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
     if (error) { setErr('저장 중 오류가 발생했습니다: ' + error.message); setLoading(false); return; }
     onSaved();
   };
+
+  // 보고 기준일 표시
+  const dateObj = weekDate ? new Date(weekDate + 'T00:00:00') : null;
+  const nextSun = dateObj ? new Date(dateObj) : null;
+  if (nextSun) nextSun.setDate(nextSun.getDate() + 6);
+  const rangeLabel = dateObj && nextSun
+    ? `${dateObj.getMonth()+1}/${dateObj.getDate()}(화) ~ ${nextSun.getMonth()+1}/${nextSun.getDate()}(월) 보고분`
+    : '';
 
   return (
     <Modal title="📝 주간 공정 보고 입력" onClose={onClose}>
       {err && <div className="alert alert-error">{err}</div>}
       <div className="form-row">
         <div className="form-group">
-          <label className="form-label">보고 기준일 (해당 주 월요일)</label>
-          <input type="date" className="form-input" value={weekDate} onChange={e => setWeekDate(e.target.value)} />
+          <label className="form-label">보고 기준일 (월요일만 선택 가능)</label>
+          <input type="date" className="form-input" value={weekDate} onChange={handleDateChange} />
+          {rangeLabel && <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>📅 {rangeLabel}</div>}
         </div>
         <div className="form-group">
           <label className="form-label">금주 공정률 (%)</label>
@@ -1284,7 +1349,7 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
         <textarea className="form-input" rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="지난 주 진행사항을 입력하세요" />
       </div>
       <div className="form-group">
-        <label className="form-label">금주 계획</label>
+        <label className="form-label">금주 계획 <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400 }}>(비워두면 전주 내용이 자동 복사됩니다)</span></label>
         <textarea className="form-input" rows={2} value={nextPlan} onChange={e => setNextPlan(e.target.value)} placeholder="이번 주 진행 예정 업무" />
       </div>
       <div className="form-group">
