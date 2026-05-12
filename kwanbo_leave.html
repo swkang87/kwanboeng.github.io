@@ -275,7 +275,7 @@ function MiniCal({yr,mo,onPrev,onNext,start,end,hoverDate,onHover,onDayClick,sin
           const isToday=d===todayStr;
           const inR=inRange(d)||inHover(d);
           const dc=getDayColor(d,dow);
-          const dayPeople=teamLeaves.filter(l=>l.start_date<=d&&(l.end_date||l.start_date)>=d&&l.user_id!==myId);
+          const dayPeople=teamLeaves.filter(l=>l.start_date<=d&&(l.end_date||l.start_date)>=d);
           return(
             <div key={i} onClick={()=>onDayClick(d)} onMouseEnter={()=>onHover(d)} onMouseLeave={()=>onHover(null)}
               style={{textAlign:'center',cursor:'pointer',borderRadius:5,
@@ -285,14 +285,14 @@ function MiniCal({yr,mo,onPrev,onNext,start,end,hoverDate,onHover,onDayClick,sin
               <div style={{fontSize:12,fontWeight:isSel||isToday?700:400,color:isSel?'white':dc}}>{dn}</div>
               {HOLIDAYS[d]&&<div style={{fontSize:7,color:isSel?'#bfdbfe':'#dc2626',lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{HOLIDAYS[d]}</div>}
               {SUBSTITUTE[d]&&<div style={{fontSize:7,color:isSel?'#bfdbfe':'#dc2626',lineHeight:1.2}}>대체공휴일</div>}
-              {dayPeople.slice(0,2).map((l,j)=>{const u=users.find(x=>x.id===l.user_id);return<div key={j} style={{fontSize:7,background:'#fef9c3',color:'#92400e',borderRadius:2,margin:'1px 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{calLabel({name:u?.name||'',type:l.type,days:l.days})}</div>;})}
+              {dayPeople.slice(0,2).map((l,j)=>{const u=users.find(x=>x.id===l.user_id);const isMe=l.user_id===myId;return<div key={j} style={{fontSize:7,background:isMe?'#dbeafe':'#fef9c3',color:isMe?'#1e40af':'#92400e',borderRadius:2,margin:'1px 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:isMe?700:400}}>{calLabel({name:u?.name||'',type:l.type,days:l.days})}</div>;})}
               {dayPeople.length>2&&<div style={{fontSize:7,color:'#94a3b8'}}>+{dayPeople.length-2}</div>}
             </div>
           );
         })}
       </div>
       <div style={{display:'flex',gap:8,marginTop:7,flexWrap:'wrap'}}>
-        {[{c:'#dc2626',l:'공휴일/일'},{c:'#2563eb',l:'토'},{c:'#1e40af',l:'선택'},{bg:'#fef9c3',c:'#92400e',l:'팀원휴가'}].map((x,i)=>(
+        {[{c:'#dc2626',l:'공휴일/일'},{c:'#2563eb',l:'토'},{c:'#1e40af',l:'선택'},{bg:'#dbeafe',c:'#1e40af',l:'내 휴가'},{bg:'#fef9c3',c:'#92400e',l:'팀원휴가'}].map((x,i)=>(
           <div key={i} style={{display:'flex',alignItems:'center',gap:3}}>
             <div style={{width:8,height:8,borderRadius:2,background:x.bg||x.c,flexShrink:0}}/>
             <span style={{fontSize:9,color:'#64748b'}}>{x.l}</span>
@@ -372,7 +372,7 @@ function ApplyView({user,users,leaves,onRefresh,onNav}){
     setBusy(false);
   };
 
-  const teamLeaves=leaves.filter(l=>['approved','manager_approved','pending'].includes(l.status)&&users.find(u=>u.id===l.user_id)?.team_id===user.team_id);
+  const teamLeaves=leaves.filter(l=>['approved','manager_approved','pending'].includes(l.status));
 
   if(done)return(
     <div style={{...card,textAlign:'center',padding:'40px 20px'}}>
