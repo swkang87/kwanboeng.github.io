@@ -314,8 +314,10 @@ function App() {
   const handleLogout = () => { localStorage.removeItem('kwanbo_pm_user'); setUser(null); };
   const isAdmin = user?.role === 'admin';
 
+  const [prevView, setPrevView] = useState('weekly');
   const gp = (id) => {
-    history.pushState({ view: 'project', id }, '', '');
+    history.pushState({ view: 'project', id, from: view }, '', '');
+    setPrevView(view);
     setSelProject(id); setView('project');
   };
   const nv = (v) => {
@@ -327,7 +329,7 @@ function App() {
     const onPop = (e) => {
       const s = e.state;
       if (!s) { setView('weekly'); setSelProject(null); return; }
-      if (s.view === 'project' && s.id) { setSelProject(s.id); setView('project'); }
+      if (s.view === 'project' && s.id) { setSelProject(s.id); setView('project'); if (s.from) setPrevView(s.from); }
       else { setView(s.view || 'weekly'); setSelProject(null); }
     };
     window.addEventListener('popstate', onPop);
@@ -378,7 +380,7 @@ function App() {
         {view === 'weekly'  && <WeeklyReport gp={gp} user={user} />}
         {view === 'monthly' && <MonthlyCalendar gp={gp} calDate={calDate} setCalDate={setCalDate} />}
         {view === 'projects' && <ProjectList gp={gp} />}
-        {view === 'project' && selProject && <ProjectDetail id={selProject} user={user} gb={() => nv('projects')} />}
+        {view === 'project' && selProject && <ProjectDetail id={selProject} user={user} fromView={prevView} gb={() => { setView(prevView || 'projects'); setSelProject(null); }} />}
         {view === 'mine'   && <MyProjects user={user} gp={gp} />}
         {view === 'admin'  && isAdmin && <AdminPanel user={user} />}
       </div>
@@ -644,11 +646,11 @@ function MonthlyCalendar({ gp, calDate, setCalDate }) {
     setLoading(false);
   };
 
-  // 착수일/준공일을 가상 이벤트로 변환
+  // 착수일/준공일을 가상 이벤트로 변환 (auto: true 로 구분)
   const autoEvents = projects.flatMap(p => {
     const evs = [];
-    if (p.start_date) evs.push({ id: `auto_start_${p.id}`, project_id: p.id, type: '착수보고', title: '착수일', event_date: p.start_date, done: true, auto: true });
-    if (p.end_date && p.status !== '완료') evs.push({ id: `auto_end_${p.id}`, project_id: p.id, type: '납품', title: '준공일', event_date: p.end_date, done: false, auto: true });
+    if (p.start_date) evs.push({ id: `auto_start_${p.id}`, project_id: p.id, type: 'auto_start', title: '착수', name: p.name, event_date: p.start_date, auto: true });
+    if (p.end_date && p.status !== '완료') evs.push({ id: `auto_end_${p.id}`, project_id: p.id, type: 'auto_end', title: '준공', name: p.name, event_date: p.end_date, auto: true });
     return evs;
   });
   const allCalEvents = [...events, ...autoEvents];
@@ -685,10 +687,20 @@ function MonthlyCalendar({ gp, calDate, setCalDate }) {
                 <div className="cal-date" style={{ color: dw===0?'#dc2626':dw===6?'#2563eb':'#334155', fontWeight: isT?800:500 }}>
                   {d}{isT && <span style={{ fontSize: 7, background: '#f59e0b', color: '#fff', borderRadius: 2, padding: '0 2px', marginLeft: 2, fontWeight: 700 }}>TODAY</span>}
                 </div>
-                {ev.slice(0,2).map(e => (
+                {ev.filter(e => !e.auto).slice(0,2).map(e => (
                   <div key={e.id} className={`cal-ev ev-${e.type}`}>{EV_ICON[e.type]} {e.title}</div>
                 ))}
-                {ev.length > 2 && <div style={{ fontSize: 8, color: '#94a3b8' }}>+{ev.length-2}</div>}
+                {ev.filter(e => !e.auto).length > 2 && <div style={{ fontSize: 8, color: '#94a3b8' }}>+{ev.filter(e=>!e.auto).length-2}</div>}
+                {ev.filter(e => e.auto && e.type === 'auto_end').map(e => (
+                  <div key={e.id} style={{ fontSize: 8, marginTop: 1, padding: '1px 3px', borderRadius: 2, background: '#f3e8ff', color: '#6b21a8', fontWeight: 700, lineHeight: 1.4, wordBreak: 'keep-all' }}>
+                    📅 준공 {e.name && e.name.length > 14 ? e.name.slice(0,14)+'…' : e.name}
+                  </div>
+                ))}
+                {ev.filter(e => e.auto && e.type === 'auto_start').map(e => (
+                  <div key={e.id} style={{ fontSize: 8, marginTop: 1, padding: '1px 3px', borderRadius: 2, background: '#dbeafe', color: '#1e40af', fontWeight: 700, lineHeight: 1.4, wordBreak: 'keep-all' }}>
+                    🚀 착수 {e.name && e.name.length > 14 ? e.name.slice(0,14)+'…' : e.name}
+                  </div>
+                ))}
               </div>
             );
           })}
@@ -700,14 +712,31 @@ function MonthlyCalendar({ gp, calDate, setCalDate }) {
           {selEvents.length === 0 ? (
             <div style={{ fontSize: 13, color: '#94a3b8' }}>등록된 주요 공정이 없습니다.</div>
           ) : selEvents.map(e => {
-            const s = ec(e.type), pn = projects.find(p => p.id === e.project_id)?.name || '';
+            const pn = projects.find(p => p.id === e.project_id)?.name || '';
+            if (e.auto) {
+              const isEnd = e.type === 'auto_end';
+              const bg = isEnd ? '#f3e8ff' : '#dbeafe';
+              const bd = isEnd ? '#a855f7' : '#3b82f6';
+              const tx = isEnd ? '#6b21a8' : '#1e40af';
+              const icon = isEnd ? '📅' : '🚀';
+              const label = isEnd ? '준공일' : '착수일';
+              return (
+                <div key={e.id} className="upcoming-card" style={{ background: bg, borderColor: bd, marginBottom: 6, cursor: 'pointer' }} onClick={() => gp(e.project_id)}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 15 }}>{icon}</span>
+                    <span style={{ fontWeight: 700, fontSize: 12, color: tx }}>{label}</span>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: tx, marginTop: 2 }}>{pn}</div>
+                </div>
+              );
+            }
+            const s = ec(e.type);
             return (
               <div key={e.id} className="upcoming-card" style={{ background: s.bg, borderColor: s.bd, marginBottom: 6 }} onClick={() => gp(e.project_id)}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 15 }}>{EV_ICON[e.type]}</span>
                   <span style={{ fontWeight: 800, fontSize: 13, color: s.tx }}>{e.title}</span>
                   <Bd bg={s.bd}>{e.type}</Bd>
-                  {e.done ? <Bd bg="#059669">완료</Bd> : <Bd bg="#f59e0b">예정</Bd>}
                 </div>
                 <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{pn}</div>
               </div>
