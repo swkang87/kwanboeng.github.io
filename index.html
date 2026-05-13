@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>(주)관보종합기술단 | KWAN BO ENGINEERING CO., LTD.</title>
 <script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 
 <style>
@@ -872,7 +873,7 @@ footer {
     <div class="modal-header">
       <div class="modal-header-top">
         <img id="modalLogoImg" src="logo.png" alt="회사 로고" class="modal-logo-img"/>
-        <div class="modal-co" id="modalCoName"><em>(주)</em>관보종합기술단</div>
+        <a href="index.html" id="modalCoName" class="modal-co" style="text-decoration:none;cursor:pointer;"><em>(주)</em>관보종합기술단</a>
       </div>
       <div class="modal-title">종합정보시스템</div>
       <div class="modal-sub">임직원 전용 내부 시스템</div>
@@ -881,6 +882,13 @@ footer {
 
     <!-- 메뉴 그리드 (config.js에서 동적 생성) -->
     <div class="modal-body">
+
+      <!-- 로그인 / 사용자 섹션 -->
+      <div id="modalLoginSection">
+        <!-- JS로 동적 생성 (로그인 폼 or 로그인 상태 표시) -->
+      </div>
+
+      <div class="modal-divider"></div>
       <div class="modal-menu-label">빠른 메뉴</div>
       <div class="modal-grid" id="erpMenuGrid">
         <!-- JS로 동적 생성 -->
@@ -1385,7 +1393,7 @@ footer {
   var logoImg = document.getElementById('modalLogoImg');
   if (logoImg) { logoImg.src = APP_CONFIG.LOGO_URL; logoImg.alt = APP_CONFIG.COMPANY_KO + ' 로고'; }
   var coName = document.getElementById('modalCoName');
-  if (coName) { coName.textContent = APP_CONFIG.COMPANY_KO; }
+  if (coName) { coName.textContent = APP_CONFIG.COMPANY_KO; coName.href = APP_CONFIG.HOME_URL; }
 
   APP_CONFIG.MENUS.forEach(function(menu) {
     if (menu.active) {
@@ -1413,6 +1421,94 @@ footer {
   });
 })();
 
+/* ── 모달 로그인 / SSO ── */
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+
+function renderLoginSection(user) {
+  const sec = document.getElementById('modalLoginSection');
+  if (!sec) return;
+
+  if (user) {
+    // 로그인 상태 → 이름 + 로그아웃 버튼
+    sec.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;' +
+      'background:#f1f5f9;border:1.5px solid var(--border);border-radius:8px;' +
+      'padding:12px 16px;margin-bottom:4px;">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<div style="width:34px;height:34px;border-radius:50%;background:var(--navy);' +
+          'color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;">' +
+            user.name[0] +
+          '</div>' +
+          '<div>' +
+            '<div style="font-size:.85rem;font-weight:700;color:var(--ink);">' + user.name + ' 님</div>' +
+            '<div style="font-size:.71rem;color:var(--gray);">로그인 중</div>' +
+          '</div>' +
+        '</div>' +
+        '<button id="modalLogoutBtn" style="padding:7px 14px;border:1.5px solid var(--border);' +
+        'border-radius:6px;background:#fff;font-size:.78rem;font-weight:600;' +
+        'color:var(--gray);cursor:pointer;font-family:inherit;">로그아웃</button>' +
+      '</div>';
+    document.getElementById('modalLogoutBtn').addEventListener('click', function() {
+      localStorage.removeItem('kwanbo_session');
+      localStorage.removeItem('kwanbo_pm_user');
+      renderLoginSection(null);
+    });
+  } else {
+    // 미로그인 → 로그인 폼
+    sec.innerHTML =
+      '<div class="modal-form">' +
+        '<input class="modal-input" id="mPhone" type="text" placeholder="아이디 (전화번호)" autocomplete="username"/>' +
+        '<input class="modal-input" id="mPw" type="password" placeholder="비밀번호" autocomplete="current-password"/>' +
+        '<div id="mErr" style="font-size:.75rem;color:#e11d48;min-height:18px;"></div>' +
+        '<button class="modal-login-btn" id="mLoginBtn">로그인 후 공정관리로 이동</button>' +
+      '</div>';
+
+    var loginBtn = document.getElementById('mLoginBtn');
+    var errEl = document.getElementById('mErr');
+
+    function doLogin() {
+      var phone = document.getElementById('mPhone').value.trim();
+      var pw    = document.getElementById('mPw').value;
+      if (!phone || !pw) { errEl.textContent = '아이디와 비밀번호를 입력하세요.'; return; }
+      loginBtn.disabled = true;
+      loginBtn.textContent = '로그인 중...';
+      errEl.textContent = '';
+      sb.from('users').select('*').eq('phone', phone).eq('password', pw).single()
+        .then(function(res) {
+          if (res.error || !res.data) {
+            errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
+            loginBtn.disabled = false;
+            loginBtn.textContent = '로그인 후 공정관리로 이동';
+          } else {
+            var u = res.data;
+            localStorage.setItem('kwanbo_session', JSON.stringify({ userId: u.id }));
+            localStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
+            window.location.href = 'project.html';
+          }
+        });
+    }
+
+    loginBtn.addEventListener('click', doLogin);
+    document.getElementById('mPhone').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('mPw').focus(); });
+    document.getElementById('mPw').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+  }
+}
+
+// 모달 열릴 때 세션 체크 후 로그인 섹션 렌더
+function initModalLogin() {
+  var raw = localStorage.getItem('kwanbo_session');
+  if (raw) {
+    try {
+      var userId = JSON.parse(raw).userId;
+      sb.from('users').select('*').eq('id', userId).single().then(function(res) {
+        renderLoginSection(res.data || null);
+      });
+    } catch(e) { renderLoginSection(null); }
+  } else {
+    renderLoginSection(null);
+  }
+}
+
 /* NAV */
 const nav = document.getElementById('nav');
 window.addEventListener('scroll', () => {
@@ -1429,7 +1525,7 @@ document.querySelectorAll('.ml').forEach(a => {
 
 /* ERP 모달 */
 const modal = document.getElementById('erp-modal');
-function openErp() { modal.classList.add('open'); document.body.style.overflow='hidden'; }
+function openErp() { modal.classList.add('open'); document.body.style.overflow='hidden'; initModalLogin(); }
 function closeErp(){ modal.classList.remove('open'); document.body.style.overflow=''; }
 document.getElementById('erpBtn').addEventListener('click', openErp);
 document.getElementById('mobErpBtn').addEventListener('click', () => { mob.classList.remove('open'); openErp(); });
