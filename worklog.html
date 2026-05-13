@@ -13,7 +13,7 @@
 <style>
 /* ─── SYSTEM SWITCHER BAR ────────────────────────────────── */
 .sys-bar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+  position: sticky; top: 0; z-index: 300;
   background: #0f172a; height: 38px;
   display: flex; align-items: center;
   padding: 0 16px; gap: 4px;
@@ -35,7 +35,7 @@
 
 /* ─── TOP NAV TAB ────────────────────────────────────── */
 .top-nav-bar {
-  position: fixed; top: 38px; left: 0; right: 0; z-index: 200;
+  position: sticky; top: 38px; z-index: 200;
   background: #1e293b; height: 38px;
   display: flex; align-items: center;
   padding: 0 14px; gap: 1px;
@@ -112,7 +112,7 @@ a { text-decoration: none; }
 
 /* ─── APP LAYOUT ─────────────────────────────────────────── */
 .app { display: flex; flex-direction: column; min-height: 100vh; }
-.app-inner { display: flex; flex: 1; padding-top: 76px; }
+.app-inner { display: flex; flex: 1; }
 
 /* ─── SIDEBAR ────────────────────────────────────────────── */
 .sidebar { width: var(--sidebar-w); background: var(--theme); color: #fff; display: flex; flex-direction: column; position: fixed; top: 38px; left: 0; height: calc(100vh - 38px); z-index: 100; }
@@ -674,14 +674,13 @@ function AllLogsView({ user }) {
       setTeams(allTeams);
       const { data: userData } = await sb.from('users').select('id, name, team_id, role').order('name');
       const allUsers = userData || [];
-      if (user?.role === 'admin') {
-        setUsers(allUsers.filter(u => u.role !== 'contractor'));
-      } else {
-        const allowedTeamIds = allTeams
-          .filter(t => ALLOWED_TEAMS.includes(t.name))
-          .map(t => t.id);
-        setUsers(allUsers.filter(u => allowedTeamIds.includes(u.team_id)));
-      }
+      // admin 포함 모두 동일하게 허용 팀만 표시 (contractor 제외)
+      const allowedTeamIds = allTeams
+        .filter(t => ALLOWED_TEAMS.includes(t.name))
+        .map(t => t.id);
+      setUsers(allUsers.filter(u =>
+        u.role !== 'contractor' && allowedTeamIds.includes(u.team_id)
+      ));
     };
     load();
   }, [user]);
