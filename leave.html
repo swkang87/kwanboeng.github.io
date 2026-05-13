@@ -1064,20 +1064,6 @@ function App(){
     );
   }
 
-  // ── 기술지원(contractor) 접근 차단 ────────────────────────
-  if(cu.role==='contractor'){
-    return(
-      <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:"'Noto Sans KR',sans-serif"}}>
-        <div style={{background:'white',borderRadius:18,padding:'40px 32px',width:'100%',maxWidth:360,boxShadow:'0 25px 70px rgba(0,0,0,.45)',textAlign:'center'}}>
-          <div style={{fontSize:48,marginBottom:16}}>🚫</div>
-          <p style={{margin:'0 0 8px',fontSize:17,fontWeight:800,color:'#0f172a'}}>접근 권한 없음</p>
-          <p style={{margin:'0 0 24px',fontSize:13,color:'#64748b',lineHeight:1.6}}>기술지원 계정은 연차관리 시스템을<br/>이용할 수 없습니다.</p>
-          <a href="project.html" style={{display:'inline-block',padding:'11px 28px',background:'#0f172a',color:'white',borderRadius:8,fontSize:13,fontWeight:700,textDecoration:'none'}}>공정관리로 돌아가기</a>
-        </div>
-      </div>
-    );
-  }
-
   const pendingCount=leaves.filter(l=>['manager_approved','cancel_pending','pending'].includes(l.status)).length;
   const mgrPending=leaves.filter(l=>{const lu=users.find(u=>u.id===l.user_id);return lu?.team_id===cu.team_id&&lu?.id!==cu.id&&l.status==='pending';}).length;
 
