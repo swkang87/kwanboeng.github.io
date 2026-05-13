@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>(주)관보종합기술단 | KWAN BO ENGINEERING CO., LTD.</title>
+<script src="config.js"></script>
 
 
 <style>
@@ -870,49 +871,19 @@ footer {
     <!-- 헤더 -->
     <div class="modal-header">
       <div class="modal-header-top">
-        <img src="logo.png" alt="관보종합기술단 로고" class="modal-logo-img"/>
-        <div class="modal-co"><em>(주)</em>관보종합기술단</div>
+        <img id="modalLogoImg" src="logo.png" alt="회사 로고" class="modal-logo-img"/>
+        <div class="modal-co" id="modalCoName"><em>(주)</em>관보종합기술단</div>
       </div>
       <div class="modal-title">종합정보시스템</div>
       <div class="modal-sub">임직원 전용 내부 시스템</div>
       <button class="modal-close" id="modalClose">✕</button>
     </div>
 
-    <!-- 메뉴 그리드 -->
+    <!-- 메뉴 그리드 (config.js에서 동적 생성) -->
     <div class="modal-body">
       <div class="modal-menu-label">빠른 메뉴</div>
-      <div class="modal-grid">
-        <a href="kwanbo_project_mgmt.html" class="modal-item">
-          <div class="modal-item-ico">📊</div>
-          <div class="modal-item-name">공정관리</div>
-          <div class="modal-item-desc">주간보고·프로젝트 공정 현황</div>
-        </a>
-        <a href="kwanbo_leave.html" class="modal-item">
-          <div class="modal-item-ico">📅</div>
-          <div class="modal-item-name">연차관리</div>
-          <div class="modal-item-desc">연차 신청·조회·잔여일수 확인</div>
-        </a>
-        <a href="kwanbo_worklog.html" class="modal-item">
-          <div class="modal-item-ico">📝</div>
-          <div class="modal-item-name">업무일지</div>
-          <div class="modal-item-desc">일·주간 업무 기록 및 팀 현황 공유</div>
-        </a>
-        <a class="modal-item" style="opacity:.45;cursor:default;pointer-events:none;">
-          <div class="modal-item-ico">✅</div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <div class="modal-item-name">전자결재</div>
-            <span style="font-size:.6rem;background:var(--gray);color:#fff;border-radius:3px;padding:1px 5px;font-weight:600;">준비중</span>
-          </div>
-          <div class="modal-item-desc">기안·결재·문서함 관리</div>
-        </a>
-        <a class="modal-item" style="opacity:.45;cursor:default;pointer-events:none;">
-          <div class="modal-item-ico">🕐</div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <div class="modal-item-name">근태관리</div>
-            <span style="font-size:.6rem;background:var(--gray);color:#fff;border-radius:3px;padding:1px 5px;font-weight:600;">준비중</span>
-          </div>
-          <div class="modal-item-desc">출퇴근 기록 및 초과근무 신청</div>
-        </a>
+      <div class="modal-grid" id="erpMenuGrid">
+        <!-- JS로 동적 생성 -->
       </div>
 
       <div class="modal-note" style="margin-top:4px;">
@@ -1402,6 +1373,46 @@ footer {
 
 <!-- ════════════════ JS ════════════════ -->
 <script>
+/* ── config.js 기반 동적 메뉴 생성 ── */
+(function() {
+  const grid = document.getElementById('erpMenuGrid');
+  if (!grid || typeof APP_CONFIG === 'undefined') return;
+
+  // 페이지 title 동적 설정
+  document.title = APP_CONFIG.COMPANY_KO + ' | ' + APP_CONFIG.COMPANY_EN;
+
+  // 모달 헤더 동적 설정
+  var logoImg = document.getElementById('modalLogoImg');
+  if (logoImg) { logoImg.src = APP_CONFIG.LOGO_URL; logoImg.alt = APP_CONFIG.COMPANY_KO + ' 로고'; }
+  var coName = document.getElementById('modalCoName');
+  if (coName) { coName.textContent = APP_CONFIG.COMPANY_KO; }
+
+  APP_CONFIG.MENUS.forEach(function(menu) {
+    if (menu.active) {
+      const a = document.createElement('a');
+      a.href = menu.url;
+      a.className = 'modal-item';
+      a.innerHTML =
+        '<div class="modal-item-ico">' + menu.icon + '</div>' +
+        '<div class="modal-item-name">' + menu.name + '</div>' +
+        '<div class="modal-item-desc">' + menu.desc + '</div>';
+      grid.appendChild(a);
+    } else {
+      const a = document.createElement('a');
+      a.className = 'modal-item';
+      a.style.cssText = 'opacity:.45;cursor:default;pointer-events:none;';
+      a.innerHTML =
+        '<div class="modal-item-ico">' + menu.icon + '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;">' +
+          '<div class="modal-item-name">' + menu.name + '</div>' +
+          '<span style="font-size:.6rem;background:var(--gray);color:#fff;border-radius:3px;padding:1px 5px;font-weight:600;">준비중</span>' +
+        '</div>' +
+        '<div class="modal-item-desc">' + menu.desc + '</div>';
+      grid.appendChild(a);
+    }
+  });
+})();
+
 /* NAV */
 const nav = document.getElementById('nav');
 window.addEventListener('scroll', () => {
