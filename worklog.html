@@ -32,6 +32,37 @@
 }
 .sys-link.active { background: #1d4ed8; color: #fff; font-weight: 700; cursor: default; }
 
+
+/* ─── TOP NAV TAB ────────────────────────────────────── */
+.top-nav-bar {
+  position: fixed; top: 38px; left: 0; right: 0; z-index: 200;
+  background: #1e293b; height: 38px;
+  display: flex; align-items: center;
+  padding: 0 14px; gap: 1px;
+  border-bottom: 1px solid #0f172a;
+}
+.top-nav-btn {
+  display: flex; align-items: center; gap: 4px;
+  padding: 5px 11px; height: 26px;
+  background: transparent; border: none; border-radius: 4px;
+  color: #94a3b8; font-family: 'Noto Sans KR', sans-serif;
+  font-size: 11px; font-weight: 400; cursor: pointer;
+  transition: all .15s; white-space: nowrap;
+}
+.top-nav-btn:hover { background: rgba(255,255,255,.06); color: #cbd5e1; }
+.top-nav-btn.active { background: #1d4ed8; color: #fff; font-weight: 700; }
+.top-nav-right {
+  margin-left: auto; display: flex; align-items: center; gap: 8px;
+}
+.top-nav-user { font-size: 11px; color: #94a3b8; }
+.top-nav-logout {
+  background: transparent; color: #64748b;
+  border: 1px solid #334155; border-radius: 4px;
+  padding: 3px 10px; font-size: 11px; cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.top-nav-logout:hover { color: #94a3b8; }
+
 /* ─── WHITE-LABEL VARIABLES ─────────────────────────────── */
 :root {
   --theme:        #0f172a;
@@ -81,7 +112,7 @@ a { text-decoration: none; }
 
 /* ─── APP LAYOUT ─────────────────────────────────────────── */
 .app { display: flex; flex-direction: column; min-height: 100vh; }
-.app-inner { display: flex; flex: 1; padding-top: 38px; }
+.app-inner { display: flex; flex: 1; padding-top: 76px; }
 
 /* ─── SIDEBAR ────────────────────────────────────────────── */
 .sidebar { width: var(--sidebar-w); background: var(--theme); color: #fff; display: flex; flex-direction: column; position: fixed; top: 38px; left: 0; height: calc(100vh - 38px); z-index: 100; }
@@ -105,7 +136,7 @@ a { text-decoration: none; }
 .logout-btn:hover { color: #fff; }
 
 /* ─── MAIN CONTENT ───────────────────────────────────────── */
-.main-content { margin-left: var(--sidebar-w); flex: 1; min-height: calc(100vh - 38px); }
+.main-content { margin-left: 0; flex: 1; min-height: calc(100vh - 38px); }
 
 /* ─── VIEW CONTAINER ─────────────────────────────────────── */
 .view-wrap { max-width: 860px; margin: 0 auto; padding: 28px 24px 40px; }
@@ -426,7 +457,7 @@ function TaskItem({ task, onChange, onDelete, showStatus }) {
 }
 
 // ─── MY LOG VIEW ───────────────────────────────────────────────────────────
-function MyLogView({ user }) {
+function MyLogView({ user, canWrite }) {
   const [date, setDate]     = useState(todayStr());
   const [tasks, setTasks]   = useState([]);
   const [tmrw, setTmrw]     = useState([]);
@@ -552,8 +583,10 @@ function MyLogView({ user }) {
         </div>
 
         <div className="save-row">
+          {!canWrite && <span style={{ fontSize:12, color:'#f59e0b', fontWeight:600 }}>⚠️ 조회 전용 계정입니다 (작성 권한 없음)</span>}
           {savedMsg && <span className="saved-msg">✓ {savedMsg}</span>}
-          <button className="save-btn" onClick={save} disabled={saving}>
+          <button className="save-btn" onClick={save} disabled={saving || !canWrite}
+            title={!canWrite ? '작성 권한이 없습니다' : ''}>
             {saving ? '저장 중...' : '💾 저장'}
           </button>
         </div>
@@ -622,16 +655,33 @@ function LogCard({ log, name, defaultOpen }) {
 }
 
 // ─── ALL LOGS VIEW ─────────────────────────────────────────────────────────
-function AllLogsView() {
+function AllLogsView({ user }) {
   const [mode, setMode] = useState('day');
   const [selDate, setSelDate] = useState(todayStr());
   const [logs, setLogs] = useState([]);
   const [users, setUsers] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // 팀 정보 로드 후 허용 팀 소속 유저만 필터링 (admin은 전체)
   useEffect(() => {
-    sb.from('users').select('id, name').order('name').then(({ data }) => setUsers(data || []));
-  }, []);
+    const load = async () => {
+      const { data: teamData } = await sb.from('teams').select('id, name');
+      const allTeams = teamData || [];
+      setTeams(allTeams);
+      const { data: userData } = await sb.from('users').select('id, name, team_id, role').order('name');
+      const allUsers = userData || [];
+      if (user?.role === 'admin') {
+        setUsers(allUsers.filter(u => u.role !== 'contractor'));
+      } else {
+        const allowedTeamIds = allTeams
+          .filter(t => ALLOWED_TEAMS.includes(t.name))
+          .map(t => t.id);
+        setUsers(allUsers.filter(u => allowedTeamIds.includes(u.team_id)));
+      }
+    };
+    load();
+  }, [user]);
 
   useEffect(() => {
     if (!users.length) return;
@@ -839,43 +889,27 @@ function MyHistoryView({ user }) {
   );
 }
 
-// ─── SIDEBAR ───────────────────────────────────────────────────────────────
-function Sidebar({ view, setView, user, onLogout }) {
+// ─── TOP NAV BAR ───────────────────────────────────────────────────────────
+function TopNavBar({ view, setView, user, onLogout, canWrite }) {
   const NAV = [
-    { id: VIEWS.MY_LOG,  icon: '📝', label: '내 업무일지' },
-    { id: VIEWS.ALL_LOGS,icon: '👥', label: '전체 업무일지' },
-    { id: VIEWS.HISTORY, icon: '📅', label: '내 기록' },
+    { id: VIEWS.MY_LOG,   icon: '📝', label: '내 업무일지' },
+    { id: VIEWS.ALL_LOGS, icon: '👥', label: '전체 업무일지' },
+    { id: VIEWS.HISTORY,  icon: '📅', label: '내 기록' },
   ];
   return (
-    <aside className="sidebar">
-      <div className="sidebar-top">
-        <div className="sidebar-company">{CONFIG.COMPANY_NAME}</div>
-        <div className="sidebar-system">{CONFIG.SYSTEM_NAME}</div>
+    <div className="top-nav-bar">
+      {NAV.map(n => (
+        <button key={n.id}
+          className={`top-nav-btn ${view === n.id ? 'active' : ''}`}
+          onClick={() => setView(n.id)}>
+          {n.icon} {n.label}
+        </button>
+      ))}
+      <div className="top-nav-right">
+        <span className="top-nav-user">{user.name} 님</span>
+        <button className="top-nav-logout" onClick={onLogout}>로그아웃</button>
       </div>
-      <nav className="sidebar-nav">
-        {NAV.map(n => (
-          <button key={n.id} className={`nav-item ${view===n.id?'active':''}`} onClick={() => setView(n.id)}>
-            <span className="nav-icon">{n.icon}</span>
-            <span className="nav-label">{n.label}</span>
-          </button>
-        ))}
-        <div className="sidebar-divider" />
-        <a href={CONFIG.HOME_URL} className="nav-item" style={{ color: 'rgba(255,255,255,.45)', display:'flex' }}>
-          <span className="nav-icon">🏠</span>
-          <span className="nav-label">홈으로</span>
-        </a>
-      </nav>
-      <div className="sidebar-footer">
-        <div className="sidebar-user">
-          <div className="sidebar-avatar">{user.name[0]}</div>
-          <div className="sidebar-user-info">
-            <div className="sidebar-name">{user.name}</div>
-            <div className="sidebar-role">{roleLabel(user.role)}</div>
-          </div>
-          <button className="logout-btn" onClick={onLogout} title="로그아웃">⏻</button>
-        </div>
-      </div>
-    </aside>
+    </div>
   );
 }
 
@@ -902,6 +936,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState(VIEWS.MY_LOG);
   const [ssoChecked, setSsoChecked] = useState(false);
+  const [userTeamName, setUserTeamName] = useState('');
 
   // SSO 초기화 — 다른 시스템에서 로그인한 경우 자동 로그인
   useEffect(() => {
@@ -915,6 +950,13 @@ function App() {
       });
     } catch { setSsoChecked(true); }
   }, []);
+
+  // 팀명 조회 — canWrite 판단용
+  useEffect(() => {
+    if (!user?.team_id) return;
+    sb.from('teams').select('name').eq('id', user.team_id).single()
+      .then(({ data }) => { if (data) setUserTeamName(data.name); });
+  }, [user?.team_id]);
 
   const handleLogin = (u) => {
     localStorage.setItem('kwanbo_session', JSON.stringify({ userId: u.id }));
@@ -949,20 +991,23 @@ function App() {
     );
   }
 
+  const canWrite = user?.role === 'admin' || ALLOWED_TEAMS.includes(userTeamName);
+
   return (
     <div className="app">
       {/* 시스템 전환 바 */}
       <div className="sys-bar">
-        <span className="sys-bar-co">{APP_CONFIG.COMPANY_KO}</span>
+        <a href={APP_CONFIG.HOME_URL} style={{ fontSize:11, fontWeight:800, color:'#94a3b8', marginRight:8, letterSpacing:-0.3, textDecoration:'none', whiteSpace:'nowrap' }}>{APP_CONFIG.COMPANY_KO}</a>
         <a href="project.html" className="sys-link">📊 공정관리</a>
         <a href="leave.html"   className="sys-link">📅 연차관리</a>
         <div className="sys-link active">📝 업무일지</div>
       </div>
+      {/* 상단 네비탭 */}
+      <TopNavBar view={view} setView={setView} user={user} onLogout={logout} canWrite={canWrite} />
       <div className="app-inner">
-        <Sidebar view={view} setView={setView} user={user} onLogout={logout} />
         <main className="main-content">
-          {view === VIEWS.MY_LOG   && <MyLogView user={user} />}
-          {view === VIEWS.ALL_LOGS && <AllLogsView />}
+          {view === VIEWS.MY_LOG   && <MyLogView user={user} canWrite={canWrite} />}
+          {view === VIEWS.ALL_LOGS && <AllLogsView user={user} />}
           {view === VIEWS.HISTORY  && <MyHistoryView user={user} />}
         </main>
         <MobileNav view={view} setView={setView} />
