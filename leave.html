@@ -1008,7 +1008,10 @@ function App(){
       const us=Array.isArray(u)?u:[];
       setUsers(us);setTeams(Array.isArray(t)?t:[]);setLeaves(Array.isArray(l)?l:[]);setAuditLogs(Array.isArray(a)?a:[]);
       const savedId=sessionStorage.getItem('kwanbo_uid');
-      if(savedId){const saved=us.find(x=>x.id===savedId);if(saved&&saved.role!=='contractor')setCu(saved);}
+      const sharedRaw=localStorage.getItem('kwanbo_session');
+      const sharedId=sharedRaw?JSON.parse(sharedRaw).userId:null;
+      const autoId=savedId||sharedId;
+      if(autoId){const saved=us.find(x=>x.id===autoId);if(saved&&saved.role!=='contractor'){setCu(saved);if(!savedId)sessionStorage.setItem('kwanbo_uid',saved.id);}}
       else setCu(prev=>prev?us.find(x=>x.id===prev.id&&x.role!=='contractor')||null:null);
     }catch(e){console.error(e);}
     setLoading(false);
@@ -1031,8 +1034,8 @@ function App(){
     setSyncing(false);
   };
 
-  const login=()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits)&&x.password===pw);if(u){if(u.role==='contractor'){setErr('연차 관리 시스템 접근 권한이 없습니다.');return;}setCu(u);setErr('');setView('dashboard');sessionStorage.setItem('kwanbo_uid',u.id);}else setErr('아이디 또는 비밀번호가 올바르지 않습니다.');};
-  const logout=()=>{setCu(null);setView('dashboard');sessionStorage.removeItem('kwanbo_uid');};
+  const login=()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits)&&x.password===pw);if(u){if(u.role==='contractor'){setErr('연차 관리 시스템 접근 권한이 없습니다.');return;}setCu(u);setErr('');setView('dashboard');sessionStorage.setItem('kwanbo_uid',u.id);localStorage.setItem('kwanbo_session',JSON.stringify({userId:u.id}));}else setErr('아이디 또는 비밀번호가 올바르지 않습니다.');};
+  const logout=()=>{setCu(null);setView('dashboard');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_session');};
   const refresh=()=>load();
 
   // ── 로그인 화면 ──────────────────────────────────────────
@@ -1146,6 +1149,11 @@ function App(){
           </a>
           <div style={{display:'flex',alignItems:'center',gap:4,padding:'4px 12px',background:'#1d4ed8',borderRadius:4,color:'white',fontSize:11,fontWeight:700}}>
             📅 연차관리
+          </div>
+          <a href="worklog.html"
+            style={{display:'flex',alignItems:'center',gap:4,padding:'4px 12px',background:'#1e293b',borderRadius:4,color:'#94a3b8',fontSize:11,fontWeight:600,textDecoration:'none'}}>
+            📝 업무일지
+          </a>
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>

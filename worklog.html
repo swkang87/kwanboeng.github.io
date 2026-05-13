@@ -11,6 +11,27 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+/* ─── SYSTEM SWITCHER BAR ────────────────────────────────── */
+.sys-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+  background: #0f172a; height: 38px;
+  display: flex; align-items: center;
+  padding: 0 16px; gap: 4px;
+  border-bottom: 1px solid #1e293b;
+}
+.sys-bar-co {
+  font-size: 11px; font-weight: 800; color: #94a3b8;
+  margin-right: 8px; letter-spacing: -0.3px; white-space: nowrap;
+}
+.sys-link {
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 12px; border-radius: 4px;
+  font-size: 11px; font-weight: 600;
+  text-decoration: none; color: #94a3b8;
+  background: #1e293b; white-space: nowrap;
+}
+.sys-link.active { background: #1d4ed8; color: #fff; font-weight: 700; cursor: default; }
+
 /* ─── WHITE-LABEL VARIABLES ─────────────────────────────── */
 :root {
   --theme:        #0f172a;
@@ -59,10 +80,11 @@ a { text-decoration: none; }
 .login-back a:hover { color: var(--accent); }
 
 /* ─── APP LAYOUT ─────────────────────────────────────────── */
-.app { display: flex; min-height: 100vh; }
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+.app-inner { display: flex; flex: 1; padding-top: 38px; }
 
 /* ─── SIDEBAR ────────────────────────────────────────────── */
-.sidebar { width: var(--sidebar-w); background: var(--theme); color: #fff; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; }
+.sidebar { width: var(--sidebar-w); background: var(--theme); color: #fff; display: flex; flex-direction: column; position: fixed; top: 38px; left: 0; height: calc(100vh - 38px); z-index: 100; }
 .sidebar-top { padding: 22px 18px 18px; border-bottom: 1px solid rgba(255,255,255,.08); }
 .sidebar-company { font-size: 10px; font-weight: 700; color: rgba(255,255,255,.45); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 3px; }
 .sidebar-system { font-size: 18px; font-weight: 900; color: #fff; }
@@ -83,7 +105,7 @@ a { text-decoration: none; }
 .logout-btn:hover { color: #fff; }
 
 /* ─── MAIN CONTENT ───────────────────────────────────────── */
-.main-content { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; }
+.main-content { margin-left: var(--sidebar-w); flex: 1; min-height: calc(100vh - 38px); }
 
 /* ─── VIEW CONTAINER ─────────────────────────────────────── */
 .view-wrap { max-width: 860px; margin: 0 auto; padding: 28px 24px 40px; }
@@ -884,20 +906,58 @@ function MobileNav({ view, setView }) {
 function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState(VIEWS.MY_LOG);
+  const [ssoChecked, setSsoChecked] = useState(false);
 
-  const logout = () => { setUser(null); setView(VIEWS.MY_LOG); };
+  // SSO 초기화 — 다른 시스템에서 로그인한 경우 자동 로그인
+  useEffect(() => {
+    const raw = localStorage.getItem('kwanbo_session');
+    if (!raw) { setSsoChecked(true); return; }
+    try {
+      const { userId } = JSON.parse(raw);
+      sb.from('users').select('*').eq('id', userId).single().then(({ data }) => {
+        if (data) setUser(data);
+        setSsoChecked(true);
+      });
+    } catch { setSsoChecked(true); }
+  }, []);
 
-  if (!user) return <LoginScreen onLogin={setUser} />;
+  const handleLogin = (u) => {
+    localStorage.setItem('kwanbo_session', JSON.stringify({ userId: u.id }));
+    setUser(u);
+  };
+
+  const logout = () => {
+    localStorage.removeItem('kwanbo_session');
+    setUser(null);
+    setView(VIEWS.MY_LOG);
+  };
+
+  if (!ssoChecked) return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#0f172a', color:'#94a3b8', fontSize:14 }}>
+      로딩 중...
+    </div>
+  );
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
 
   return (
     <div className="app">
-      <Sidebar view={view} setView={setView} user={user} onLogout={logout} />
-      <main className="main-content">
-        {view === VIEWS.MY_LOG   && <MyLogView user={user} />}
-        {view === VIEWS.ALL_LOGS && <AllLogsView />}
-        {view === VIEWS.HISTORY  && <MyHistoryView user={user} />}
-      </main>
-      <MobileNav view={view} setView={setView} />
+      {/* 시스템 전환 바 */}
+      <div className="sys-bar">
+        <span className="sys-bar-co">{APP_CONFIG.COMPANY_KO}</span>
+        <a href="project.html" className="sys-link">📊 공정관리</a>
+        <a href="leave.html"   className="sys-link">📅 연차관리</a>
+        <div className="sys-link active">📝 업무일지</div>
+      </div>
+      <div className="app-inner">
+        <Sidebar view={view} setView={setView} user={user} onLogout={logout} />
+        <main className="main-content">
+          {view === VIEWS.MY_LOG   && <MyLogView user={user} />}
+          {view === VIEWS.ALL_LOGS && <AllLogsView />}
+          {view === VIEWS.HISTORY  && <MyHistoryView user={user} />}
+        </main>
+        <MobileNav view={view} setView={setView} />
+      </div>
     </div>
   );
 }
