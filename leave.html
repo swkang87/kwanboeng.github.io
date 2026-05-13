@@ -983,7 +983,7 @@ function App(){
   const [leaves,setLeaves]=useState([]);
   const [auditLogs,setAuditLogs]=useState([]);
   const [cu,setCu]=useState(null);
-  const [view,setView]=useState('dashboard');
+  const [view,setView]=useState('calendar');
   const [phone,setPhone]=useState('');
   const [pw,setPw]=useState('');
   const [err,setErr]=useState('');
@@ -1029,7 +1029,7 @@ function App(){
     setSyncing(false);
   };
 
-  const login=()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits)&&x.password===pw);if(u){if(u.role==='contractor'){setErr('연차 관리 시스템 접근 권한이 없습니다.');return;}setCu(u);setErr('');setView('dashboard');sessionStorage.setItem('kwanbo_uid',u.id);localStorage.setItem('kwanbo_session',JSON.stringify({userId:u.id}));}else setErr('아이디 또는 비밀번호가 올바르지 않습니다.');};
+  const login=()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits)&&x.password===pw);if(u){if(u.role==='contractor'){setErr('연차 관리 시스템 접근 권한이 없습니다.');return;}setCu(u);setErr('');setView('calendar');sessionStorage.setItem('kwanbo_uid',u.id);localStorage.setItem('kwanbo_session',JSON.stringify({userId:u.id}));}else setErr('아이디 또는 비밀번호가 올바르지 않습니다.');};
   const logout=()=>{setCu(null);setView('dashboard');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_session');localStorage.removeItem('kwanbo_pm_user');};
   const refresh=()=>load();
 
@@ -1064,14 +1064,28 @@ function App(){
     );
   }
 
+  // ── 기술지원(contractor) 접근 차단 ────────────────────────
+  if(cu.role==='contractor'){
+    return(
+      <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:"'Noto Sans KR',sans-serif"}}>
+        <div style={{background:'white',borderRadius:18,padding:'40px 32px',width:'100%',maxWidth:360,boxShadow:'0 25px 70px rgba(0,0,0,.45)',textAlign:'center'}}>
+          <div style={{fontSize:48,marginBottom:16}}>🚫</div>
+          <p style={{margin:'0 0 8px',fontSize:17,fontWeight:800,color:'#0f172a'}}>접근 권한 없음</p>
+          <p style={{margin:'0 0 24px',fontSize:13,color:'#64748b',lineHeight:1.6}}>기술지원 계정은 연차관리 시스템을<br/>이용할 수 없습니다.</p>
+          <a href="project.html" style={{display:'inline-block',padding:'11px 28px',background:'#0f172a',color:'white',borderRadius:8,fontSize:13,fontWeight:700,textDecoration:'none'}}>공정관리로 돌아가기</a>
+        </div>
+      </div>
+    );
+  }
+
   const pendingCount=leaves.filter(l=>['manager_approved','cancel_pending','pending'].includes(l.status)).length;
   const mgrPending=leaves.filter(l=>{const lu=users.find(u=>u.id===l.user_id);return lu?.team_id===cu.team_id&&lu?.id!==cu.id&&l.status==='pending';}).length;
 
   const navItems=cu.role==='admin'
-    ?[{k:'dashboard',l:'대시보드',i:'📊'},{k:'admin_approve',l:'승인 관리',i:'✅',b:pendingCount},{k:'admin_teams',l:'팀 관리',i:'🏢'},{k:'admin_users',l:'직원 관리',i:'👥'},{k:'admin_stats',l:'통계',i:'📈'},{k:'admin_audit',l:'감사 로그',i:'📋'},{k:'calendar',l:'캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}]
+    ?[{k:'calendar',l:'캘린더',i:'📅'},{k:'dashboard',l:'대시보드',i:'📊'},{k:'admin_approve',l:'승인 관리',i:'✅',b:pendingCount},{k:'admin_teams',l:'팀 관리',i:'🏢'},{k:'admin_users',l:'직원 관리',i:'👥'},{k:'admin_stats',l:'통계',i:'📈'},{k:'admin_audit',l:'감사 로그',i:'📋'},{k:'profile',l:'내 정보',i:'👤'}]
     :cu.role==='manager'
-    ?[{k:'dashboard',l:'대시보드',i:'🏠'},{k:'team_approve',l:'팀원 결재',i:'✅',b:mgrPending},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'calendar',l:'캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}]
-    :[{k:'dashboard',l:'대시보드',i:'🏠'},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'calendar',l:'캘린더',i:'📅'},{k:'profile',l:'내 정보',i:'👤'}];
+    ?[{k:'calendar',l:'캘린더',i:'📅'},{k:'dashboard',l:'대시보드',i:'🏠'},{k:'team_approve',l:'팀원 결재',i:'✅',b:mgrPending},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'profile',l:'내 정보',i:'👤'}]
+    :[{k:'calendar',l:'캘린더',i:'📅'},{k:'dashboard',l:'대시보드',i:'🏠'},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'profile',l:'내 정보',i:'👤'}];
 
   const props={user:cu,users,teams,leaves,auditLogs,onRefresh:load,onNav:setView};
   const renderView=()=>{
