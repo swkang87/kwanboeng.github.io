@@ -1,23 +1,18 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>연차관리 시스템</title>
 <style>*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}body{margin:0;padding:0;font-size:16px;}</style>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet"/>
+<div id="app"></div>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-</head>
-<body>
-<div id="app"></div>
 <script type="text/babel" data-presets="react">
 const {useState,useEffect,useCallback,useRef}=React;
 
-const SB_URL = APP_CONFIG.SUPABASE_URL + '/rest/v1';
-const SB_KEY = APP_CONFIG.SUPABASE_KEY;
+const SB_URL=APP_CONFIG.SUPABASE_URL+'/rest/v1';
+const SB_KEY=APP_CONFIG.SUPABASE_KEY;
 
 // ── 공휴일 데이터 (하드코딩 폴백 + Nager.Date API 자동 갱신) ──
 const HOLIDAYS={
@@ -1035,7 +1030,7 @@ function App(){
   };
 
   const login=()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits)&&x.password===pw);if(u){if(u.role==='contractor'){setErr('연차 관리 시스템 접근 권한이 없습니다.');return;}setCu(u);setErr('');setView('dashboard');sessionStorage.setItem('kwanbo_uid',u.id);localStorage.setItem('kwanbo_session',JSON.stringify({userId:u.id}));}else setErr('아이디 또는 비밀번호가 올바르지 않습니다.');};
-  const logout=()=>{setCu(null);setView('dashboard');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_session');};
+  const logout=()=>{setCu(null);setView('dashboard');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_session');localStorage.removeItem('kwanbo_pm_user');};
   const refresh=()=>load();
 
   // ── 로그인 화면 ──────────────────────────────────────────
@@ -1044,7 +1039,7 @@ function App(){
       <div style={{background:'white',borderRadius:18,padding:'34px 28px',width:'100%',maxWidth:340,boxShadow:'0 25px 70px rgba(0,0,0,.45)'}}>
         <div style={{textAlign:'center',marginBottom:24}}>
           <div style={{width:54,height:54,background:'linear-gradient(135deg,#1e40af,#3b82f6)',borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px',fontSize:24}}>📅</div>
-          <p style={{margin:'0 0 2px',fontSize:16,fontWeight:800,color:'#0f172a'}}>{APP_CONFIG.COMPANY_KO}</p>
+          <p style={{margin:'0 0 2px',fontSize:16,fontWeight:800,color:'#0f172a'}}>'+APP_CONFIG.COMPANY_KO+'</p>
           <p style={{margin:0,fontSize:13,color:'#64748b'}}>연차 관리 시스템</p>
         </div>
         {loading?<p style={{textAlign:'center',color:'#94a3b8',fontSize:14}}>연결 중...</p>:<>
@@ -1105,7 +1100,7 @@ function App(){
         {/* 상단 헤더 */}
         <div style={{background:'#0f172a',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,paddingTop:'max(12px,env(safe-area-inset-top))'}}>
           <div>
-            <p style={{margin:0,fontSize:13,fontWeight:800,color:'white',lineHeight:1.3}}>{APP_CONFIG.COMPANY_KO}</p>
+            <p style={{margin:0,fontSize:13,fontWeight:800,color:'white',lineHeight:1.3}}>'+APP_CONFIG.COMPANY_KO+'</p>
             <p style={{margin:0,fontSize:10,color:'#64748b'}}>연차 관리 시스템</p>
           </div>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -1154,7 +1149,6 @@ function App(){
             style={{display:'flex',alignItems:'center',gap:4,padding:'4px 12px',background:'#1e293b',borderRadius:4,color:'#94a3b8',fontSize:11,fontWeight:600,textDecoration:'none'}}>
             📝 업무일지
           </a>
-          </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <span style={{fontSize:11,color:'#94a3b8'}}>{cu.name} 님</span>
@@ -1197,5 +1191,3 @@ function App(){
 
 ReactDOM.createRoot(document.getElementById('app')).render(<App/>);
 </script>
-</body>
-</html>
