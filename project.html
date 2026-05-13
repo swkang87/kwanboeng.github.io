@@ -332,6 +332,7 @@ function App() {
   const [view, setView] = useState('weekly');
   const [selProject, setSelProject] = useState(null);
   const [calDate, setCalDate] = useState(new Date());
+  const [noPermModal, setNoPermModal] = useState(false);
 
   const handleLogin = (u) => {
     localStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
@@ -397,7 +398,6 @@ function App() {
   ];
 
   const isContractor = user?.role === 'contractor';
-  const [noPermModal, setNoPermModal] = useState(false);
 
   return (
     <div>
