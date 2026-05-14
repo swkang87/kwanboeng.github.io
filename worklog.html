@@ -1003,6 +1003,9 @@ function App() {
         <a href="project.html" className="sys-link">📊 공정관리</a>
         <a href="leave.html"   className="sys-link">📅 연차관리</a>
         <div className="sys-link active">📝 업무일지</div>
+        {(user.role === 'admin' || user.role === 'manager' || user.role === 'employee') && (
+          <a href="admin-portal.html" className="sys-link">🏢 관리포털</a>
+        )}
       </div>
       {/* 상단 네비탭 */}
       <TopNavBar view={view} setView={setView} user={user} onLogout={logout} canWrite={canWrite} />

@@ -430,6 +430,9 @@ function App() {
           ) : (
             <a href="worklog.html" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px', background: '#1e293b', borderRadius: 4, color: '#94a3b8', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>📝 업무일지</a>
           )}
+          {!isContractor && (
+            <a href="admin-portal.html" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px', background: '#1e293b', borderRadius: 4, color: '#94a3b8', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>🏢 관리포털</a>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 11, color: '#94a3b8' }}>{user.name} 님</span>
