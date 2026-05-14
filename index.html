@@ -1422,7 +1422,9 @@ footer {
 })();
 
 /* ── 모달 로그인 / SSO ── */
-const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+function getSb() {
+  return supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+}
 
 function renderLoginSection(user) {
   const sec = document.getElementById('modalLoginSection');
@@ -1473,7 +1475,7 @@ function renderLoginSection(user) {
       loginBtn.disabled = true;
       loginBtn.textContent = '로그인 중...';
       errEl.textContent = '';
-      sb.from('users').select('*').eq('phone', phone).eq('password', pw).single()
+      getSb().from('users').select('*').eq('phone', phone).eq('password', pw).single()
         .then(function(res) {
           if (res.error || !res.data) {
             errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
@@ -1500,7 +1502,7 @@ function initModalLogin() {
   if (raw) {
     try {
       var userId = JSON.parse(raw).userId;
-      sb.from('users').select('*').eq('id', userId).single().then(function(res) {
+      getSb().from('users').select('*').eq('id', userId).single().then(function(res) {
         renderLoginSection(res.data || null);
       });
     } catch(e) { renderLoginSection(null); }
