@@ -1132,7 +1132,7 @@ function App(){
           <a href="project.html" className="sys-link">📊 공정관리</a>
           <div className="sys-link active">📅 연차관리</div>
           <a href="worklog.html" className="sys-link">📝 업무일지</a>
-          {cu.role !== 'contractor' && <a href="admin-portal.html" className="sys-link">🏢 관리포털</a>}
+          {(cu.role === 'admin' || teams.find(t => t.id === cu.team_id)?.name === '관리팀') && <a href="admin-portal.html" className="sys-link">🏢 관리포털</a>}
           <div className="sys-right">
             <button onClick={logout} className="sys-logout">로그아웃</button>
           </div>
@@ -1170,7 +1170,7 @@ function App(){
         <a href="project.html" className="sys-link">📊 공정관리</a>
         <div className="sys-link active">📅 연차관리</div>
         <a href="worklog.html" className="sys-link">📝 업무일지</a>
-        {cu.role !== 'contractor' && (
+        {(cu.role === 'admin' || teams.find(t => t.id === cu.team_id)?.name === '관리팀') && (
           <a href="admin-portal.html" className="sys-link">🏢 관리포털</a>
         )}
         <div className="sys-right">

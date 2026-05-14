@@ -360,6 +360,14 @@ function App() {
     setUser(null);
   };
   const isAdmin = user?.role === 'admin';
+  const isContractor = user?.role === 'contractor';
+
+  const [userTeamName, setUserTeamName] = useState('');
+  useEffect(() => {
+    if (!user?.team_id) return;
+    sb.from('teams').select('name').eq('id', user.team_id).single()
+      .then(({ data }) => { if (data) setUserTeamName(data.name); });
+  }, [user?.team_id]);
 
   const [prevView, setPrevView] = useState('weekly');
   const gp = (id) => {
@@ -412,8 +420,6 @@ function App() {
     { k: 'profile', l: '내 정보', i: '👤' },
   ];
 
-  const isContractor = user?.role === 'contractor';
-
   return (
     <div>
       {/* 권한 없음 모달 */}
@@ -444,7 +450,7 @@ function App() {
         ) : (
           <a href="worklog.html" className="sys-link">📝 업무일지</a>
         )}
-        {!isContractor && (
+        {(isAdmin || userTeamName === '관리팀') && (
           <a href="admin-portal.html" className="sys-link">🏢 관리포털</a>
         )}
         <div className="sys-right">

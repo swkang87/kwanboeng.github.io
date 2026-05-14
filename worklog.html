@@ -1011,7 +1011,7 @@ function App() {
         <a href="project.html" className="sys-link">📊 공정관리</a>
         <a href="leave.html"   className="sys-link">📅 연차관리</a>
         <div className="sys-link active">📝 업무일지</div>
-        {(user.role === 'admin' || user.role === 'manager' || user.role === 'employee') && (
+        {(user.role === 'admin' || userTeamName === '관리팀') && (
           <a href="admin-portal.html" className="sys-link">🏢 관리포털</a>
         )}
         <div className="sys-right">
