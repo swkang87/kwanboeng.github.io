@@ -33,11 +33,15 @@
 .sys-link.active { background: #1d4ed8; color: #fff; font-weight: 700; cursor: default; }
 .sys-right { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .sys-user { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+.sys-logout { background: transparent; color: #64748b; border: 1px solid #334155; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: 'Noto Sans KR', sans-serif; white-space: nowrap; flex-shrink: 0; }
 @media(max-width:640px) {
   .sys-bar { padding: 0 4px; gap: 2px; }
   .sys-bar-co { display: none; }
   .sys-link { flex: 1; padding: 4px 1px; font-size: 10px; gap: 1px; }
   .sys-user { display: none; }
+  .sys-logout { padding: 3px 6px; font-size: 10px; }
+  .top-nav-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .top-nav-bar::-webkit-scrollbar { display: none; }
 }
 
 
@@ -915,10 +919,6 @@ function TopNavBar({ view, setView, user, onLogout, canWrite }) {
           {n.icon} {n.label}
         </button>
       ))}
-      <div className="top-nav-right">
-        <span className="top-nav-user">{user.name} 님</span>
-        <button className="top-nav-logout" onClick={onLogout}>로그아웃</button>
-      </div>
     </div>
   );
 }
@@ -1014,6 +1014,10 @@ function App() {
         {(user.role === 'admin' || user.role === 'manager' || user.role === 'employee') && (
           <a href="admin-portal.html" className="sys-link">🏢 관리포털</a>
         )}
+        <div className="sys-right">
+          <span className="sys-user">{user.name} 님</span>
+          <button className="sys-logout" onClick={logout}>로그아웃</button>
+        </div>
       </div>
       {/* 시스템 제목 바 */}
       <div style={{ background:'#0f172a', padding:'6px 18px 8px', flexShrink:0, borderBottom:'2px solid #1d4ed8', position:'sticky', top:38, zIndex:250 }}>

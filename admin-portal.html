@@ -19,11 +19,16 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font
 .sys-link.active{background:#7c3aed;color:#fff;font-weight:700;}
 .sys-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .sys-user{font-size:11px;color:#94a3b8;white-space:nowrap;}
+.sys-logout{background:transparent;color:#64748b;border:1px solid #334155;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;flex-shrink:0;}
 @media(max-width:640px){
   .sys-bar{padding:0 4px;gap:2px;}
   .sys-co{display:none;}
   .sys-link{flex:1;padding:4px 1px;font-size:10px;gap:1px;}
   .sys-user{display:none;}
+  .sys-logout{padding:3px 6px;font-size:10px;}
+  .top-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .top-nav::-webkit-scrollbar{display:none;}
+  .nav-right{display:none;}
 }
 .top-nav{position:sticky;top:74px;z-index:200;background:#1e293b;height:42px;display:flex;align-items:center;padding:0 16px;gap:2px;border-bottom:2px solid #7c3aed;}
 .nav-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border:none;background:transparent;border-radius:6px;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:500;color:#94a3b8;cursor:pointer;white-space:nowrap;}
@@ -1179,6 +1184,10 @@ function App() {
         <a href="leave.html" className="sys-link">📅 연차관리</a>
         <a href="worklog.html" className="sys-link">📝 업무일지</a>
         <div className="sys-link active">🏢 관리포털</div>
+        <div className="sys-right">
+          <span className="sys-user">{user.name} 님 ({teamName})</span>
+          <button className="sys-logout" onClick={logout}>로그아웃</button>
+        </div>
       </div>
       {/* 시스템 제목 바 */}
       <div style={{background:'#0f172a',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #7c3aed',position:'sticky',top:38,zIndex:250}}>
@@ -1190,10 +1199,6 @@ function App() {
         <button className={view===VIEWS.PF?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.PF);}}>📊 실적관리</button>
         {canSal && <button className={view===VIEWS.SL?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.SL);}}>💼 급여대장</button>}
         <button className={view===VIEWS.ST?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.ST);}}>👥 직원관리</button>
-        <div className="nav-right">
-          <span className="nav-user">{user.name} 님 ({teamName})</span>
-          <button className="nav-logout" onClick={logout}>로그아웃</button>
-        </div>
       </div>
       {view === VIEWS.WL && <WorklogView user={user} />}
       {view === VIEWS.PF && <PerfView user={user} />}
