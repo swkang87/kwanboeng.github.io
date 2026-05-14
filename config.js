@@ -75,6 +75,9 @@ const APP_CONFIG = {
       url:  'admin-portal.html',
       active: true,
     },
+    {
+      icon: '✅',
+      name: '전자결재',
       desc: '기안·결재·문서함 관리',
       url:  null,
       active: false,
