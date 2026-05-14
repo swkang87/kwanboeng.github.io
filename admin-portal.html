@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>관리포털</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;}
+.sys-bar{position:sticky;top:0;z-index:300;background:#0f172a;height:38px;display:flex;align-items:center;padding:0 16px;gap:4px;border-bottom:1px solid #1e293b;}
+.sys-link{display:flex;align-items:center;gap:4px;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;color:#94a3b8;background:#1e293b;white-space:nowrap;}
+.sys-link.active{background:#7c3aed;color:#fff;font-weight:700;}
+.top-nav{position:sticky;top:38px;z-index:200;background:#1e293b;height:42px;display:flex;align-items:center;padding:0 16px;gap:2px;border-bottom:2px solid #7c3aed;}
+.nav-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border:none;background:transparent;border-radius:6px;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:500;color:#94a3b8;cursor:pointer;white-space:nowrap;}
+.nav-btn.active{background:#7c3aed;color:#fff;font-weight:700;}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.nav-user{font-size:11px;color:#94a3b8;}
+.nav-logout{background:transparent;color:#64748b;border:1px solid #334155;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+.page{padding:24px;max-width:1200px;margin:0 auto;}
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:20px;margin-bottom:16px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;}
+.stat{border-radius:12px;padding:20px;color:#fff;}
+.stat.purple{background:linear-gradient(135deg,#7c3aed,#6d28d9);}
+.stat.blue{background:linear-gradient(135deg,#1d4ed8,#1e40af);}
+.stat.green{background:linear-gradient(135deg,#059669,#047857);}
+.stat.amber{background:linear-gradient(135deg,#d97706,#b45309);}
+.stat-l{font-size:11px;font-weight:600;opacity:.8;margin-bottom:6px;}
+.stat-v{font-size:26px;font-weight:800;}
+.stat-s{font-size:11px;opacity:.7;margin-top:4px;}
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0;}
+table{width:100%;border-collapse:collapse;}
+thead{background:#f8fafc;}
+th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:1px solid #e2e8f0;}
+td{padding:11px 14px;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#f8fafc;}
+.tr{text-align:right;}
+.tc{text-align:center;}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;}
+.bg{background:#dcfce7;color:#166534;}
+.bb{background:#dbeafe;color:#1e40af;}
+.ba{background:#fef3c7;color:#92400e;}
+.br{background:#fee2e2;color:#991b1b;}
+.bgr{background:#f1f5f9;color:#64748b;}
+.bp{background:#f3e8ff;color:#6b21a8;}
+.fl{display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
+.fi{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#0f172a;outline:none;}
+.fi:focus{border-color:#7c3aed;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;}
+.btn-p{background:#7c3aed;color:#fff;}
+.btn-s{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;}
+.btn-d{background:#fee2e2;color:#991b1b;}
+.btn-sm{padding:5px 10px;font-size:11px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.ph{margin-bottom:24px;}
+.pt{font-size:22px;font-weight:800;color:#0f172a;margin-bottom:4px;}
+.ps{font-size:13px;color:#64748b;}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.st{font-size:14px;font-weight:700;color:#0f172a;}
+.itabs{display:flex;gap:4px;margin-bottom:16px;background:#f1f5f9;padding:4px;border-radius:10px;width:fit-content;}
+.itab{padding:6px 14px;border:none;background:transparent;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:600;color:#64748b;cursor:pointer;}
+.itab.active{background:#fff;color:#7c3aed;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;}
+.mbox{background:#fff;border-radius:16px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.3);}
+.mh{padding:20px 24px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;}
+.mht{font-size:15px;font-weight:800;color:#0f172a;}
+.mc{background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;}
+.mb{padding:20px 24px;}
+.mf{padding:16px 24px;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;gap:8px;}
+.empty{text-align:center;padding:48px 24px;color:#94a3b8;}
+.ei{font-size:36px;margin-bottom:12px;}
+.et{font-size:14px;font-weight:600;color:#64748b;margin-bottom:4px;}
+.es{font-size:12px;}
+.al{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;}
+.al-e{background:#fee2e2;color:#991b1b;}
+.al-s{background:#dcfce7;color:#166534;}
+.al-i{background:#dbeafe;color:#1e40af;}
+.loading{text-align:center;padding:32px;color:#94a3b8;font-size:13px;}
+.lc{padding:12px 16px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;}
+.lu{display:flex;align-items:center;gap:10px;}
+.lav{width:32px;height:32px;border-radius:50%;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ln{font-size:13px;font-weight:700;}
+.lm{font-size:11px;color:#94a3b8;}
+.lb{padding:14px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;}
+.tr-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid #e2e8f0;}
+.tr-row:last-child{border-bottom:none;}
+.ti{flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:13px;outline:none;}
+.ss{padding:4px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:11px;font-family:'Noto Sans KR',sans-serif;outline:none;background:#fff;}
+.sr{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px;}
+.pb{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-top:4px;}
+.pbf{height:100%;background:linear-gradient(90deg,#7c3aed,#a855f7);border-radius:3px;}
+.sal-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.sal-sec{background:#f8fafc;border-radius:8px;padding:14px;}
+.sal-st{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px;}
+.sal-tot{display:flex;justify-content:space-between;align-items:center;padding:12px 0 0;margin-top:4px;border-top:2px solid #0f172a;}
+.sal-tl{font-size:13px;font-weight:800;}
+.sal-tv{font-size:18px;font-weight:800;color:#7c3aed;}
+.sal-frow{margin-bottom:10px;}
+.lwrap{min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 50%,#4c1d95 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
+.lbox{background:#fff;border-radius:20px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 32px 80px rgba(0,0,0,.5);}
+.llogo{width:56px;height:56px;background:linear-gradient(135deg,#7c3aed,#4c1d95);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;}
+.ltit{font-size:18px;font-weight:800;color:#0f172a;text-align:center;margin-bottom:4px;}
+.lsub{font-size:12px;color:#94a3b8;text-align:center;margin-bottom:24px;}
+@media(max-width:768px){.g2,.g3{grid-template-columns:1fr;}.sal-row{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+const { createClient } = supabase;
+const sb = createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+
+const VIEWS = { WL:'wl', PF:'pf', SL:'sl', ST:'st' };
+const TODAY = () => new Date().toISOString().split('T')[0];
+const fmtN = (n) => n ? Number(n).toLocaleString('ko-KR') : '0';
+const fmtD = (d) => {
+  if (!d) return '-';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.getFullYear() + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + String(dt.getDate()).padStart(2,'0');
+};
+const genId = () => Math.random().toString(36).slice(2, 10);
+const WSTATUS = ['완료','진행중','보류'];
+const SCLS = { '완료':'bg','진행중':'bb','보류':'ba' };
+
+// ── 인풋 컴포넌트 ─────────────────────────────────────────────────────────
+function FI({ label, field, form, set, type }) {
+  return (
+    <div className="sal-frow">
+      <label className="fl">{label}</label>
+      <input
+        className="fi"
+        type={type || 'text'}
+        value={form[field] || ''}
+        placeholder="0"
+        onChange={function(e) { set(function(p) { var o = {}; Object.assign(o, p); o[field] = e.target.value; return o; }); }}
+      />
+    </div>
+  );
+}
+
+// ── 업무일지 ──────────────────────────────────────────────────────────────
+function WorklogView({ user }) {
+  const [tab, setTab] = useState('my');
+  const [date, setDate] = useState(TODAY());
+  const [tasks, setTasks] = useState([]);
+  const [tmrw, setTmrw] = useState([]);
+  const [issues, setIssues] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [allLogs, setAllLogs] = useState([]);
+  const [selDate, setSelDate] = useState(TODAY());
+
+  useEffect(function() {
+    if (tab !== 'my') return;
+    setLoading(true);
+    sb.from('work_logs').select('*').eq('user_id', user.id).eq('log_date', date).single()
+      .then(function(r) {
+        if (r.data) {
+          setTasks(r.data.tasks || []);
+          setTmrw(r.data.tomorrow_tasks || []);
+          setIssues(r.data.issues || '');
+        } else {
+          setTasks([]); setTmrw([]); setIssues('');
+        }
+        setLoading(false);
+      });
+  }, [date, tab]);
+
+  useEffect(function() {
+    if (tab !== 'all') return;
+    setLoading(true);
+    sb.from('teams').select('id,name').then(function(tr) {
+      var teams = tr.data || [];
+      var mgmt = teams.find(function(t) { return t.name === '관리팀'; });
+      sb.from('users').select('id,name,team_id').then(function(ur) {
+        var filtered = (ur.data || []).filter(function(u) {
+          return mgmt && u.team_id === mgmt.id;
+        });
+        setAllUsers(filtered);
+        sb.from('work_logs').select('*').eq('log_date', selDate).then(function(lr) {
+          setAllLogs(lr.data || []);
+          setLoading(false);
+        });
+      });
+    });
+  }, [tab, selDate]);
+
+  function save() {
+    setSaving(true);
+    sb.from('work_logs').upsert({
+      user_id: user.id, log_date: date,
+      tasks: tasks, tomorrow_tasks: tmrw, issues: issues,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,log_date' }).then(function(r) {
+      setSaving(false);
+      if (!r.error) { setMsg('저장됐습니다'); setTimeout(function() { setMsg(''); }, 2500); }
+    });
+  }
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <div className="pt">📝 관리팀 업무일지</div>
+        <div className="ps">관리팀 전용 업무 기록</div>
+      </div>
+      <div className="itabs">
+        <button className={tab === 'my' ? 'itab active' : 'itab'} onClick={function() { setTab('my'); }}>내 업무일지</button>
+        <button className={tab === 'all' ? 'itab active' : 'itab'} onClick={function() { setTab('all'); }}>전체 조회</button>
+      </div>
+
+      {tab === 'my' && (
+        <div className="card">
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+            <span style={{fontSize:15,fontWeight:800}}>✏️ {user.name}님 업무일지</span>
+            <input type="date" className="fi" value={date} max={TODAY()} onChange={function(e) { setDate(e.target.value); }} style={{width:'auto'}} />
+          </div>
+          {loading ? <div className="loading">불러오는 중...</div> : (
+            <div>
+              <div className="sh">
+                <span className="st">오늘 한 일</span>
+                <button className="btn btn-s btn-sm" onClick={function() { setTasks(function(p) { return p.concat([{id:genId(),content:'',status:'진행중'}]); }); }}>+ 추가</button>
+              </div>
+              {tasks.length === 0 && <div style={{color:'#94a3b8',fontSize:13,marginBottom:12}}>업무를 추가하세요.</div>}
+              {tasks.map(function(t) {
+                return (
+                  <div key={t.id} className="tr-row">
+                    <select className="ss" value={t.status} onChange={function(e) { setTasks(function(p) { return p.map(function(x) { return x.id === t.id ? Object.assign({},x,{status:e.target.value}) : x; }); }); }}>
+                      {WSTATUS.map(function(s) { return <option key={s}>{s}</option>; })}
+                    </select>
+                    <input className="ti" value={t.content} placeholder="업무 내용"
+                      onChange={function(e) { setTasks(function(p) { return p.map(function(x) { return x.id === t.id ? Object.assign({},x,{content:e.target.value}) : x; }); }); }} />
+                    <button className="btn btn-d btn-sm" onClick={function() { setTasks(function(p) { return p.filter(function(x) { return x.id !== t.id; }); }); }}>✕</button>
+                  </div>
+                );
+              })}
+              <div className="sh" style={{marginTop:12}}>
+                <span className="st">내일 할 일</span>
+                <button className="btn btn-s btn-sm" onClick={function() { setTmrw(function(p) { return p.concat([{id:genId(),content:''}]); }); }}>+ 추가</button>
+              </div>
+              {tmrw.length === 0 && <div style={{color:'#94a3b8',fontSize:13,marginBottom:12}}>내일 예정 업무를 추가하세요.</div>}
+              {tmrw.map(function(t) {
+                return (
+                  <div key={t.id} className="tr-row">
+                    <input className="ti" value={t.content} placeholder="업무 내용"
+                      onChange={function(e) { setTmrw(function(p) { return p.map(function(x) { return x.id === t.id ? Object.assign({},x,{content:e.target.value}) : x; }); }); }} />
+                    <button className="btn btn-d btn-sm" onClick={function() { setTmrw(function(p) { return p.filter(function(x) { return x.id !== t.id; }); }); }}>✕</button>
+                  </div>
+                );
+              })}
+              <div style={{marginTop:12}}>
+                <div className="st" style={{marginBottom:8}}>공유 사항 / 이슈</div>
+                <textarea className="fi" rows={3} value={issues} placeholder="공유할 사항이나 이슈를 입력하세요" onChange={function(e) { setIssues(e.target.value); }} style={{resize:'vertical'}} />
+              </div>
+              <div className="sr">
+                {msg && <span style={{fontSize:12,color:'#059669',fontWeight:600}}>✓ {msg}</span>}
+                <button className="btn btn-p" onClick={save} disabled={saving}>{saving ? '저장 중...' : '💾 저장'}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'all' && (
+        <div className="card">
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+            <span style={{fontSize:15,fontWeight:800}}>👥 관리팀 전체</span>
+            <input type="date" className="fi" value={selDate} max={TODAY()} onChange={function(e) { setSelDate(e.target.value); }} style={{width:'auto'}} />
+          </div>
+          {loading ? <div className="loading">불러오는 중...</div> : allUsers.map(function(u) {
+            var log = allLogs.find(function(l) { return l.user_id === u.id; });
+            return (
+              <div key={u.id} className="lc">
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div className="lu">
+                    <div className="lav">{u.name[0]}</div>
+                    <div>
+                      <div className="ln">{u.name}</div>
+                      <div className="lm">{log ? '업무 ' + (log.tasks||[]).length + '건' : '미작성'}</div>
+                    </div>
+                  </div>
+                  <span className={log ? 'badge bg' : 'badge bgr'}>{log ? '작성완료' : '미작성'}</span>
+                </div>
+                {log && (
+                  <div className="lb">
+                    {(log.tasks||[]).map(function(t, i) {
+                      return (
+                        <div key={i} className="tr-row">
+                          <span className={'badge ' + (SCLS[t.status] || 'bgr')}>{t.status}</span>
+                          <span style={{flex:1,fontSize:13}}>{t.content}</span>
+                        </div>
+                      );
+                    })}
+                    {log.issues && <div style={{marginTop:8,padding:'6px 10px',background:'#fef3c7',borderRadius:6,fontSize:12,color:'#92400e'}}>💬 {log.issues}</div>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 실적 관리 ─────────────────────────────────────────────────────────────
+function PerfView({ user }) {
+  const [tab, setTab] = useState('col');
+  const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [cols, setCols] = useState([]);
+  const [perfs, setPerfs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState('');
+  const [editItem, setEditItem] = useState(null);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const [year, setYear] = useState(String(new Date().getFullYear()));
+
+  function load() {
+    setLoading(true);
+    Promise.all([
+      sb.from('projects').select('id,name,client,pm_id,status').order('name'),
+      sb.from('users').select('id,name').neq('role','contractor').order('name'),
+      sb.from('collections').select('*').order('collected_at', { ascending: false }),
+      sb.from('performance').select('*'),
+    ]).then(function(results) {
+      setProjects(results[0].data || []);
+      setUsers(results[1].data || []);
+      setCols(results[2].data || []);
+      setPerfs(results[3].data || []);
+      setLoading(false);
+    });
+  }
+
+  useEffect(function() { load(); }, []);
+
+  function uName(id) { var u = users.find(function(x) { return x.id === id; }); return u ? u.name : '-'; }
+  function pName(id) { var p = projects.find(function(x) { return x.id === id; }); return p ? p.name : '-'; }
+
+  var yCols = cols.filter(function(c) { return c.collected_at && c.collected_at.startsWith(year); });
+  var totCol = yCols.reduce(function(s,c) { return s + (c.amount||0); }, 0);
+  var totNet = yCols.reduce(function(s,c) { return s + (c.amount||0) - (c.outsource_cost||0); }, 0);
+
+  var projSummary = projects.map(function(p) {
+    var pc = yCols.filter(function(c) { return c.project_id === p.id; });
+    var tc = pc.reduce(function(s,c) { return s + (c.amount||0); }, 0);
+    var to = pc.reduce(function(s,c) { return s + (c.outsource_cost||0); }, 0);
+    return { id:p.id, name:p.name, client:p.client, pm_id:p.pm_id, tc:tc, to:to, net:tc-to };
+  }).filter(function(p) { return p.tc > 0; }).sort(function(a,b) { return b.net - a.net; });
+
+  var userSummary = users.map(function(u) {
+    var myP = perfs.filter(function(p) { return p.user_id === u.id && p.year === Number(year); });
+    var total = myP.reduce(function(s, pf) {
+      var net = yCols.filter(function(c) { return c.project_id === pf.project_id; })
+        .reduce(function(a,c) { return a + (c.amount||0) - (c.outsource_cost||0); }, 0);
+      return s + net * (pf.contribution_rate||0) / 100;
+    }, 0);
+    return { id:u.id, name:u.name, total:total, cnt:myP.length };
+  }).filter(function(u) { return u.total > 0; }).sort(function(a,b) { return b.total - a.total; });
+
+  var maxPerf = userSummary.length > 0 ? userSummary[0].total : 1;
+
+  function numV(v) { return Number(String(v||0).replace(/,/g,'')) || 0; }
+
+  function saveCol() {
+    if (!form.project_id || !form.amount || !form.collected_at) { setErr('프로젝트, 금액, 수금일은 필수입니다.'); return; }
+    setSaving(true); setErr('');
+    var payload = {
+      project_id: form.project_id,
+      amount: numV(form.amount),
+      outsource_cost: numV(form.outsource_cost),
+      collected_at: form.collected_at,
+      memo: form.memo || '',
+    };
+    var p = editItem
+      ? sb.from('collections').update(payload).eq('id', editItem.id)
+      : sb.from('collections').insert(payload);
+    p.then(function(r) {
+      setSaving(false);
+      if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
+      setModal(''); setEditItem(null); setForm({});
+      load();
+    });
+  }
+
+  function savePerf() {
+    if (!form.project_id || !form.user_id || form.contribution_rate === undefined) { setErr('필수 항목을 입력하세요.'); return; }
+    var rate = Number(form.contribution_rate);
+    if (rate < 0 || rate > 100) { setErr('기여율은 0~100 사이여야 합니다.'); return; }
+    setSaving(true); setErr('');
+    var payload = { project_id: form.project_id, user_id: form.user_id, contribution_rate: rate, year: Number(year) };
+    sb.from('performance').upsert(payload, { onConflict:'project_id,user_id,year' }).then(function(r) {
+      setSaving(false);
+      if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
+      setModal(''); setForm({});
+      load();
+    });
+  }
+
+  if (loading) return <div className="page"><div className="loading">로딩 중...</div></div>;
+
+  return (
+    <div className="page">
+      <div className="ph" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+        <div>
+          <div className="pt">📊 실적 관리</div>
+          <div className="ps">수금 내역 및 직원별 성과급 기초 데이터</div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <label className="fl" style={{margin:0}}>연도</label>
+          <select className="fi" value={year} onChange={function(e) { setYear(e.target.value); }} style={{width:100}}>
+            {[2023,2024,2025,2026].map(function(y) { return <option key={y}>{y}</option>; })}
+          </select>
+        </div>
+      </div>
+
+      <div className="g3">
+        <div className="stat blue"><div className="stat-l">총 수금액</div><div className="stat-v">{fmtN(totCol)}</div><div className="stat-s">원 ({year}년)</div></div>
+        <div className="stat purple"><div className="stat-l">순 실적금액</div><div className="stat-v">{fmtN(totNet)}</div><div className="stat-s">원 (외주비 차감)</div></div>
+        <div className="stat green"><div className="stat-l">수금 건수</div><div className="stat-v">{yCols.length}</div><div className="stat-s">건</div></div>
+      </div>
+
+      <div className="itabs">
+        <button className={tab==='col'?'itab active':'itab'} onClick={function(){setTab('col');}}>수금 내역</button>
+        <button className={tab==='proj'?'itab active':'itab'} onClick={function(){setTab('proj');}}>프로젝트별</button>
+        <button className={tab==='user'?'itab active':'itab'} onClick={function(){setTab('user');}}>직원별 실적</button>
+        <button className={tab==='pf'?'itab active':'itab'} onClick={function(){setTab('pf');}}>기여율 관리</button>
+      </div>
+
+      {tab === 'col' && (
+        <div className="card">
+          <div className="sh">
+            <span className="st">수금 내역 ({year}년)</span>
+            <button className="btn btn-p btn-sm" onClick={function(){setModal('col');setEditItem(null);setForm({collected_at:TODAY()});}}>+ 수금 입력</button>
+          </div>
+          {yCols.length === 0 ? (
+            <div className="empty"><div className="ei">💰</div><div className="et">수금 내역이 없습니다</div></div>
+          ) : (
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th>프로젝트</th><th>수금일</th><th className="tr">수금액</th><th className="tr">외주비</th><th className="tr">순 실적</th><th>메모</th><th></th></tr></thead>
+                <tbody>
+                  {yCols.map(function(c) {
+                    return (
+                      <tr key={c.id}>
+                        <td><span style={{fontWeight:600}}>{pName(c.project_id)}</span></td>
+                        <td>{fmtD(c.collected_at)}</td>
+                        <td className="tr" style={{fontWeight:700,color:'#1d4ed8'}}>{fmtN(c.amount)}원</td>
+                        <td className="tr" style={{color:'#dc2626'}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
+                        <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN((c.amount||0)-(c.outsource_cost||0))}원</td>
+                        <td style={{color:'#64748b',fontSize:12}}>{c.memo||'-'}</td>
+                        <td><button className="btn btn-s btn-sm" onClick={function(){setEditItem(c);setForm(Object.assign({},c));setModal('col');}}>수정</button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'proj' && (
+        <div className="card">
+          <div className="st" style={{marginBottom:14}}>프로젝트별 현황 ({year}년)</div>
+          {projSummary.length === 0 ? (
+            <div className="empty"><div className="ei">📁</div><div className="et">수금 데이터가 없습니다</div></div>
+          ) : (
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th>프로젝트</th><th>발주처</th><th>PM</th><th className="tr">수금액</th><th className="tr">외주비</th><th className="tr">순 실적</th></tr></thead>
+                <tbody>
+                  {projSummary.map(function(p) {
+                    return (
+                      <tr key={p.id}>
+                        <td style={{fontWeight:600}}>{p.name}</td>
+                        <td style={{color:'#64748b'}}>{p.client}</td>
+                        <td>{uName(p.pm_id)}</td>
+                        <td className="tr">{fmtN(p.tc)}원</td>
+                        <td className="tr" style={{color:'#dc2626'}}>{p.to > 0 ? fmtN(p.to)+'원' : '-'}</td>
+                        <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(p.net)}원</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'user' && (
+        <div className="card">
+          <div className="st" style={{marginBottom:14}}>직원별 실적 ({year}년)</div>
+          {userSummary.length === 0 ? (
+            <div className="empty"><div className="ei">👥</div><div className="et">기여율 데이터가 없습니다</div></div>
+          ) : userSummary.map(function(u, i) {
+            return (
+              <div key={u.id} style={{padding:'14px 0',borderBottom:'1px solid #f1f5f9'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{width:28,height:28,borderRadius:'50%',background:'#7c3aed',color:'#fff',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>{i+1}</div>
+                    <span style={{fontWeight:700}}>{u.name}</span>
+                    <span style={{fontSize:11,color:'#94a3b8'}}>{u.cnt}개 프로젝트</span>
+                  </div>
+                  <span style={{fontWeight:800,color:'#7c3aed',fontSize:15}}>{fmtN(Math.round(u.total))}원</span>
+                </div>
+                <div className="pb"><div className="pbf" style={{width: Math.round(u.total/maxPerf*100) + '%'}}></div></div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab === 'pf' && (
+        <div className="card">
+          <div className="sh">
+            <span className="st">기여율 입력 ({year}년)</span>
+            <button className="btn btn-p btn-sm" onClick={function(){setModal('pf');setForm({year:Number(year)});}}>+ 기여율 입력</button>
+          </div>
+          {perfs.filter(function(p) { return p.year === Number(year); }).length === 0 ? (
+            <div className="empty"><div className="ei">📐</div><div className="et">입력된 기여율이 없습니다</div></div>
+          ) : (
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th>프로젝트</th><th>직원</th><th className="tr">기여율</th><th className="tr">적용 실적</th><th></th></tr></thead>
+                <tbody>
+                  {perfs.filter(function(p) { return p.year === Number(year); }).map(function(pf) {
+                    var net = yCols.filter(function(c) { return c.project_id === pf.project_id; })
+                      .reduce(function(s,c) { return s + (c.amount||0) - (c.outsource_cost||0); }, 0);
+                    var my = Math.round(net * (pf.contribution_rate||0) / 100);
+                    return (
+                      <tr key={pf.id || (pf.project_id + '-' + pf.user_id)}>
+                        <td style={{fontWeight:600}}>{pName(pf.project_id)}</td>
+                        <td>{uName(pf.user_id)}</td>
+                        <td className="tr"><span className="badge bp">{pf.contribution_rate}%</span></td>
+                        <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(my)}원</td>
+                        <td><button className="btn btn-s btn-sm" onClick={function(){setEditItem(pf);setForm(Object.assign({},pf));setModal('pf');}}>수정</button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {modal === 'col' && (
+        <div className="mbg" onClick={function(){setModal('');}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}}>
+            <div className="mh"><span className="mht">💰 {editItem ? '수금 수정' : '수금 입력'}</span><button className="mc" onClick={function(){setModal('');}}>×</button></div>
+            <div className="mb">
+              {err && <div className="al al-e">{err}</div>}
+              <div style={{marginBottom:12}}>
+                <label className="fl">프로젝트 *</label>
+                <select className="fi" value={form.project_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{project_id:e.target.value});});}}>
+                  <option value="">선택하세요</option>
+                  {projects.map(function(p) { return <option key={p.id} value={p.id}>{p.name}</option>; })}
+                </select>
+              </div>
+              <div className="g2">
+                <div>
+                  <label className="fl">수금일 *</label>
+                  <input type="date" className="fi" value={form.collected_at||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{collected_at:e.target.value});});}} />
+                </div>
+                <div>
+                  <label className="fl">수금액 (원) *</label>
+                  <input className="fi" value={form.amount||''} placeholder="0" onChange={function(e){setForm(function(p){return Object.assign({},p,{amount:e.target.value});});}} />
+                </div>
+              </div>
+              <div className="g2">
+                <div>
+                  <label className="fl">외주비 (원)</label>
+                  <input className="fi" value={form.outsource_cost||''} placeholder="0" onChange={function(e){setForm(function(p){return Object.assign({},p,{outsource_cost:e.target.value});});}} />
+                </div>
+                <div>
+                  <label className="fl">메모</label>
+                  <input className="fi" value={form.memo||''} placeholder="계약금, 중도금 등" onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
+                </div>
+              </div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setModal('');}}>취소</button>
+              <button className="btn btn-p" onClick={saveCol} disabled={saving}>{saving?'저장 중...':'저장'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal === 'pf' && (
+        <div className="mbg" onClick={function(){setModal('');}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}}>
+            <div className="mh"><span className="mht">📐 기여율 입력</span><button className="mc" onClick={function(){setModal('');}}>×</button></div>
+            <div className="mb">
+              {err && <div className="al al-e">{err}</div>}
+              <div style={{marginBottom:12}}>
+                <label className="fl">프로젝트 *</label>
+                <select className="fi" value={form.project_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{project_id:e.target.value});});}}>
+                  <option value="">선택하세요</option>
+                  {projects.map(function(p) { return <option key={p.id} value={p.id}>{p.name}</option>; })}
+                </select>
+              </div>
+              <div className="g2">
+                <div>
+                  <label className="fl">직원 *</label>
+                  <select className="fi" value={form.user_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{user_id:e.target.value});});}}>
+                    <option value="">선택하세요</option>
+                    {users.map(function(u) { return <option key={u.id} value={u.id}>{u.name}</option>; })}
+                  </select>
+                </div>
+                <div>
+                  <label className="fl">기여율 (%) *</label>
+                  <input type="number" min="0" max="100" className="fi" value={form.contribution_rate||''} placeholder="0~100" onChange={function(e){setForm(function(p){return Object.assign({},p,{contribution_rate:e.target.value});});}} />
+                </div>
+              </div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setModal('');}}>취소</button>
+              <button className="btn btn-p" onClick={savePerf} disabled={saving}>{saving?'저장 중...':'저장'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 급여 대장 ─────────────────────────────────────────────────────────────
+function SalaryView({ user }) {
+  const [users, setUsers] = useState([]);
+  const [sals, setSals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(false);
+  const [selU, setSelU] = useState(null);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const [month, setMonth] = useState(new Date().toISOString().slice(0,7));
+  const [emMsg, setEmMsg] = useState('');
+
+  function load() {
+    setLoading(true);
+    Promise.all([
+      sb.from('users').select('id,name,email,position,team_id').neq('role','contractor').order('name'),
+      sb.from('salaries').select('*').eq('month', month),
+      sb.from('teams').select('id,name'),
+    ]).then(function(results) {
+      var ud = results[0].data || [];
+      var sd = results[1].data || [];
+      var td = results[2].data || [];
+      var tmap = {};
+      td.forEach(function(t) { tmap[t.id] = t.name; });
+      setUsers(ud.map(function(u) { return Object.assign({}, u, {teamName: tmap[u.team_id]||'-'}); }));
+      setSals(sd);
+      setLoading(false);
+    });
+  }
+
+  useEffect(function() { load(); }, [month]);
+
+  function getSal(uid) { return sals.find(function(s) { return s.user_id === uid; }); }
+
+  function numV(v) { return Number(String(v||0).replace(/,/g,'')) || 0; }
+
+  function calc(f) {
+    var inc = numV(f.base_salary) + numV(f.position_allowance) + numV(f.meal_allowance) +
+              numV(f.transport_allowance) + numV(f.overtime_pay) + numV(f.performance_bonus) + numV(f.other_income);
+    var ded = numV(f.national_pension) + numV(f.health_insurance) + numV(f.employment_insurance) +
+              numV(f.income_tax) + numV(f.local_income_tax) + numV(f.other_deduction);
+    return { inc: inc, ded: ded, net: inc - ded };
+  }
+
+  function openEdit(u) {
+    var s = getSal(u.id) || {};
+    setSelU(u);
+    setForm({
+      base_salary: s.base_salary||'', position_allowance: s.position_allowance||'',
+      meal_allowance: s.meal_allowance||'', transport_allowance: s.transport_allowance||'',
+      overtime_pay: s.overtime_pay||'', performance_bonus: s.performance_bonus||'',
+      other_income: s.other_income||'', national_pension: s.national_pension||'',
+      health_insurance: s.health_insurance||'', employment_insurance: s.employment_insurance||'',
+      income_tax: s.income_tax||'', local_income_tax: s.local_income_tax||'',
+      other_deduction: s.other_deduction||'', memo: s.memo||'',
+    });
+    setErr(''); setModal(true);
+  }
+
+  function saveSal() {
+    if (!selU) return;
+    setSaving(true); setErr('');
+    var c = calc(form);
+    var payload = Object.assign({}, {
+      user_id: selU.id, month: month, memo: form.memo||'',
+      total_income: c.inc, total_deduction: c.ded, net_pay: c.net,
+    });
+    var fields = ['base_salary','position_allowance','meal_allowance','transport_allowance',
+      'overtime_pay','performance_bonus','other_income','national_pension','health_insurance',
+      'employment_insurance','income_tax','local_income_tax','other_deduction'];
+    fields.forEach(function(k) { payload[k] = numV(form[k]) || null; });
+    var existing = getSal(selU.id);
+    var p = existing
+      ? sb.from('salaries').update(payload).eq('id', existing.id)
+      : sb.from('salaries').insert(payload);
+    p.then(function(r) {
+      setSaving(false);
+      if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
+      setModal(false); load();
+    });
+  }
+
+  function sendSlip(u) {
+    var s = getSal(u.id);
+    if (!s) { alert('급여 데이터를 먼저 입력해주세요.'); return; }
+    if (!u.email) { alert('직원 이메일 주소가 없습니다.'); return; }
+    if (!window.emailjs || !APP_CONFIG.EMAILJS_SERVICE_ID) {
+      alert('EmailJS 설정이 필요합니다.\nconfig.js에 EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, EMAILJS_PUBLIC_KEY를 추가해주세요.');
+      return;
+    }
+    setEmMsg('발송 중...');
+    var c = calc(s);
+    window.emailjs.send(APP_CONFIG.EMAILJS_SERVICE_ID, APP_CONFIG.EMAILJS_TEMPLATE_ID, {
+      to_email: u.email, to_name: u.name, month: month,
+      company: APP_CONFIG.COMPANY_KO,
+      base_salary: fmtN(s.base_salary),
+      total_income: fmtN(c.inc), total_deduction: fmtN(c.ded), net_pay: fmtN(c.net),
+    }).then(function() {
+      setEmMsg('발송 완료 ✓');
+      setTimeout(function() { setEmMsg(''); }, 3000);
+    }).catch(function(e) {
+      alert('발송 실패: ' + e.message);
+      setEmMsg('');
+    });
+  }
+
+  if (loading) return <div className="page"><div className="loading">로딩 중...</div></div>;
+
+  var totals = sals.reduce(function(acc, s) {
+    return { inc: acc.inc + (s.total_income||0), ded: acc.ded + (s.total_deduction||0), net: acc.net + (s.net_pay||0) };
+  }, { inc:0, ded:0, net:0 });
+
+  var cv = calc(form);
+
+  return (
+    <div className="page">
+      <div className="ph" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+        <div><div className="pt">💼 급여 대장</div><div className="ps">관리자 전용</div></div>
+        <input type="month" className="fi" value={month} onChange={function(e){setMonth(e.target.value);}} style={{width:'auto'}} />
+      </div>
+
+      <div className="g3">
+        <div className="stat blue"><div className="stat-l">총 지급액</div><div className="stat-v">{fmtN(totals.inc)}</div><div className="stat-s">원</div></div>
+        <div className="stat amber"><div className="stat-l">총 공제액</div><div className="stat-v">{fmtN(totals.ded)}</div><div className="stat-s">원</div></div>
+        <div className="stat purple"><div className="stat-l">총 실수령액</div><div className="stat-v">{fmtN(totals.net)}</div><div className="stat-s">원</div></div>
+      </div>
+
+      {emMsg && <div className="al al-s">{emMsg}</div>}
+
+      <div className="card">
+        <div className="tbl-wrap">
+          <table>
+            <thead><tr><th>직원</th><th>팀</th><th className="tr">기본급</th><th className="tr">총 지급</th><th className="tr">총 공제</th><th className="tr">실수령액</th><th className="tc">상태</th><th className="tc">관리</th></tr></thead>
+            <tbody>
+              {users.map(function(u) {
+                var s = getSal(u.id);
+                var c = s ? calc(s) : { inc:0, ded:0, net:0 };
+                return (
+                  <tr key={u.id}>
+                    <td>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <div style={{width:28,height:28,borderRadius:'50%',background:'#7c3aed',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name[0]}</div>
+                        <div><div style={{fontWeight:600}}>{u.name}</div><div style={{fontSize:11,color:'#94a3b8'}}>{u.position||''}</div></div>
+                      </div>
+                    </td>
+                    <td style={{color:'#64748b'}}>{u.teamName}</td>
+                    <td className="tr">{s ? fmtN(s.base_salary)+'원' : '-'}</td>
+                    <td className="tr" style={{color:'#1d4ed8',fontWeight:600}}>{s ? fmtN(c.inc)+'원' : '-'}</td>
+                    <td className="tr" style={{color:'#dc2626'}}>{s ? fmtN(c.ded)+'원' : '-'}</td>
+                    <td className="tr" style={{fontWeight:700,color:'#7c3aed',fontSize:14}}>{s ? fmtN(c.net)+'원' : '-'}</td>
+                    <td className="tc">{s ? <span className="badge bg">입력완료</span> : <span className="badge bgr">미입력</span>}</td>
+                    <td className="tc">
+                      <div style={{display:'flex',gap:4,justifyContent:'center'}}>
+                        <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>입력</button>
+                        {s && <button className="btn btn-p btn-sm" onClick={function(){sendSlip(u);}}>📧</button>}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {modal && selU && (
+        <div className="mbg" onClick={function(){setModal(false);}}>
+          <div className="mbox" style={{maxWidth:620}} onClick={function(e){e.stopPropagation();}}>
+            <div className="mh">
+              <span className="mht">💼 {selU.name} 급여 입력 ({month})</span>
+              <button className="mc" onClick={function(){setModal(false);}}>×</button>
+            </div>
+            <div className="mb">
+              {err && <div className="al al-e">{err}</div>}
+              <div className="sal-row">
+                <div className="sal-sec">
+                  <div className="sal-st">지급 항목</div>
+                  <FI label="기본급" field="base_salary" form={form} set={setForm} />
+                  <FI label="직책수당" field="position_allowance" form={form} set={setForm} />
+                  <FI label="식대" field="meal_allowance" form={form} set={setForm} />
+                  <FI label="교통비" field="transport_allowance" form={form} set={setForm} />
+                  <FI label="초과근무수당" field="overtime_pay" form={form} set={setForm} />
+                  <FI label="성과급" field="performance_bonus" form={form} set={setForm} />
+                  <FI label="기타 지급" field="other_income" form={form} set={setForm} />
+                  <div className="sal-tot"><span className="sal-tl">총 지급액</span><span className="sal-tv">{fmtN(cv.inc)}원</span></div>
+                </div>
+                <div className="sal-sec">
+                  <div className="sal-st">공제 항목</div>
+                  <FI label="국민연금" field="national_pension" form={form} set={setForm} />
+                  <FI label="건강보험" field="health_insurance" form={form} set={setForm} />
+                  <FI label="고용보험" field="employment_insurance" form={form} set={setForm} />
+                  <FI label="소득세" field="income_tax" form={form} set={setForm} />
+                  <FI label="지방소득세" field="local_income_tax" form={form} set={setForm} />
+                  <FI label="기타 공제" field="other_deduction" form={form} set={setForm} />
+                  <div className="sal-tot"><span className="sal-tl">총 공제액</span><span className="sal-tv" style={{color:'#dc2626'}}>{fmtN(cv.ded)}원</span></div>
+                </div>
+              </div>
+              <div style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',borderRadius:10,padding:'16px 20px',color:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                <span style={{fontWeight:700}}>실수령액</span>
+                <span style={{fontSize:22,fontWeight:800}}>{fmtN(cv.net)}원</span>
+              </div>
+              <div>
+                <label className="fl">메모</label>
+                <input className="fi" value={form.memo||''} placeholder="메모" onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
+              </div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setModal(false);}}>취소</button>
+              <button className="btn btn-p" onClick={saveSal} disabled={saving}>{saving?'저장 중...':'저장'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 직원 관리 ─────────────────────────────────────────────────────────────
+function StaffView({ user }) {
+  const [users, setUsers] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(false);
+  const [editU, setEditU] = useState(null);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const [q, setQ] = useState('');
+
+  function load() {
+    setLoading(true);
+    Promise.all([
+      sb.from('users').select('*').order('name'),
+      sb.from('teams').select('*').order('name'),
+    ]).then(function(r) {
+      setUsers(r[0].data||[]);
+      setTeams(r[1].data||[]);
+      setLoading(false);
+    });
+  }
+
+  useEffect(function() { load(); }, []);
+
+  function tName(id) { var t = teams.find(function(x){return x.id===id;}); return t?t.name:'-'; }
+  function roleL(r) { return ({admin:'관리자',manager:'팀장',staff:'팀원',contractor:'기술지원'})[r]||r; }
+  function roleCls(r) { return ({admin:'bp',manager:'bb',staff:'bg',contractor:'ba'})[r]||'bgr'; }
+
+  function openEdit(u) {
+    setEditU(u);
+    setForm({name:u.name,phone:u.phone,email:u.email||'',position:u.position||'',team_id:u.team_id||'',role:u.role,memo:u.memo||''});
+    setErr(''); setModal(true);
+  }
+  function openNew() {
+    setEditU(null);
+    setForm({name:'',phone:'',email:'',position:'',team_id:'',role:'staff',memo:''});
+    setErr(''); setModal(true);
+  }
+
+  function save() {
+    if (!form.name||!form.phone) { setErr('이름과 전화번호는 필수입니다.'); return; }
+    setSaving(true); setErr('');
+    var p = editU
+      ? sb.from('users').update(form).eq('id', editU.id)
+      : sb.from('users').insert(Object.assign({}, form, {password: form.phone}));
+    p.then(function(r) {
+      setSaving(false);
+      if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
+      setModal(false); load();
+    });
+  }
+
+  var filtered = users.filter(function(u) { return (u.name||'').includes(q)||(u.phone||'').includes(q); });
+
+  if (loading) return <div className="page"><div className="loading">로딩 중...</div></div>;
+
+  return (
+    <div className="page">
+      <div className="ph"><div className="pt">👥 직원 관리</div><div className="ps">전체 직원 정보 조회 및 관리</div></div>
+      <div className="card">
+        <div className="sh">
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <input className="fi" value={q} onChange={function(e){setQ(e.target.value);}} placeholder="이름 또는 전화번호 검색" style={{width:220}} />
+            <span style={{fontSize:12,color:'#94a3b8'}}>총 {filtered.length}명</span>
+          </div>
+          {user.role === 'admin' && <button className="btn btn-p btn-sm" onClick={openNew}>+ 직원 등록</button>}
+        </div>
+        <div className="tbl-wrap">
+          <table>
+            <thead><tr><th>이름</th><th>팀</th><th>직책</th><th>역할</th><th>전화번호</th><th>이메일</th>{user.role==='admin'&&<th className="tc">관리</th>}</tr></thead>
+            <tbody>
+              {filtered.map(function(u) {
+                return (
+                  <tr key={u.id}>
+                    <td>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <div style={{width:28,height:28,borderRadius:'50%',background:'#1e293b',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name?.[0]}</div>
+                        <span style={{fontWeight:600}}>{u.name}</span>
+                      </div>
+                    </td>
+                    <td>{tName(u.team_id)}</td>
+                    <td style={{color:'#475569'}}>{u.position||'-'}</td>
+                    <td><span className={'badge ' + roleCls(u.role)}>{roleL(u.role)}</span></td>
+                    <td style={{color:'#64748b'}}>{u.phone}</td>
+                    <td style={{color:'#64748b',fontSize:12}}>{u.email||'-'}</td>
+                    {user.role==='admin'&&<td className="tc"><button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>수정</button></td>}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {modal && (
+        <div className="mbg" onClick={function(){setModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}}>
+            <div className="mh"><span className="mht">{editU?'직원 정보 수정':'직원 등록'}</span><button className="mc" onClick={function(){setModal(false);}}>×</button></div>
+            <div className="mb">
+              {err && <div className="al al-e">{err}</div>}
+              <div className="g2" style={{marginBottom:12}}>
+                <div><label className="fl">이름 *</label><input className="fi" value={form.name||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{name:e.target.value});});}} /></div>
+                <div><label className="fl">전화번호 *</label><input className="fi" value={form.phone||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{phone:e.target.value});});}} /></div>
+              </div>
+              <div className="g2" style={{marginBottom:12}}>
+                <div><label className="fl">팀</label>
+                  <select className="fi" value={form.team_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{team_id:e.target.value});});}}>
+                    <option value="">선택</option>
+                    {teams.map(function(t){return <option key={t.id} value={t.id}>{t.name}</option>;})}
+                  </select>
+                </div>
+                <div><label className="fl">직책</label><input className="fi" value={form.position||''} placeholder="실장, 팀장 등" onChange={function(e){setForm(function(p){return Object.assign({},p,{position:e.target.value});});}} /></div>
+              </div>
+              <div className="g2" style={{marginBottom:12}}>
+                <div><label className="fl">역할</label>
+                  <select className="fi" value={form.role||'staff'} onChange={function(e){setForm(function(p){return Object.assign({},p,{role:e.target.value});});}}>
+                    <option value="staff">팀원</option><option value="manager">팀장</option>
+                    <option value="admin">관리자</option><option value="contractor">기술지원</option>
+                  </select>
+                </div>
+                <div><label className="fl">이메일</label><input className="fi" type="email" value={form.email||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{email:e.target.value});});}} /></div>
+              </div>
+              {!editU && <div className="al al-i" style={{fontSize:12}}>초기 비밀번호는 전화번호로 설정됩니다.</div>}
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setModal(false);}}>취소</button>
+              <button className="btn btn-p" onClick={save} disabled={saving}>{saving?'저장 중...':'저장'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 로그인 ────────────────────────────────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [phone, setPhone] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  function doLogin() {
+    if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
+    setLoading(true); setErr('');
+    sb.from('users').select('*').eq('phone', phone.trim()).eq('password', pw).single().then(function(r) {
+      setLoading(false);
+      if (r.error||!r.data) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); return; }
+      onLogin(r.data);
+    });
+  }
+
+  return (
+    <div className="lwrap">
+      <div className="lbox">
+        <div className="llogo">🏢</div>
+        <div className="ltit">{APP_CONFIG.COMPANY_SHORT}</div>
+        <div className="lsub">관리포털 · 관리팀/관리자 전용</div>
+        {err && <div className="al al-e">{err}</div>}
+        <div style={{marginBottom:12}}>
+          <label className="fl">아이디 (전화번호)</label>
+          <input className="fi" value={phone} placeholder="전화번호 입력" onChange={function(e){setPhone(e.target.value);}} onKeyDown={function(e){if(e.key==='Enter')document.getElementById('ap-pw').focus();}} />
+        </div>
+        <div style={{marginBottom:20}}>
+          <label className="fl">비밀번호</label>
+          <input id="ap-pw" type="password" className="fi" value={pw} placeholder="비밀번호 입력" onChange={function(e){setPw(e.target.value);}} onKeyDown={function(e){if(e.key==='Enter')doLogin();}} />
+        </div>
+        <button className="btn btn-p" onClick={doLogin} disabled={loading} style={{width:'100%',justifyContent:'center',padding:'12px'}}>
+          {loading?'로그인 중...':'로그인'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────
+function App() {
+  const [user, setUser] = useState(null);
+  const [view, setView] = useState(VIEWS.WL);
+  const [ssoChecked, setSsoChecked] = useState(false);
+  const [teamName, setTeamName] = useState('');
+  const [hasAccess, setHasAccess] = useState(false);
+
+  useEffect(function() {
+    var raw = localStorage.getItem('kwanbo_session');
+    if (!raw) { setSsoChecked(true); return; }
+    try {
+      var userId = JSON.parse(raw).userId;
+      sb.from('users').select('*').eq('id', userId).single().then(function(r) {
+        if (r.data) setUser(r.data);
+        setSsoChecked(true);
+      });
+    } catch(e) { setSsoChecked(true); }
+  }, []);
+
+  useEffect(function() {
+    if (!user) return;
+    if (user.role === 'admin') { setTeamName('관리자'); setHasAccess(true); return; }
+    if (!user.team_id) { setHasAccess(false); return; }
+    sb.from('teams').select('name').eq('id', user.team_id).single().then(function(r) {
+      var name = r.data ? r.data.name : '';
+      setTeamName(name);
+      setHasAccess(name === '관리팀');
+    });
+  }, [user ? user.id : null]);
+
+  function handleLogin(u) {
+    localStorage.setItem('kwanbo_session', JSON.stringify({userId: u.id}));
+    localStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
+    setUser(u);
+  }
+
+  function logout() {
+    localStorage.removeItem('kwanbo_session');
+    localStorage.removeItem('kwanbo_pm_user');
+    setUser(null); setTeamName(''); setHasAccess(false);
+  }
+
+  if (!ssoChecked) return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#0f172a',color:'#94a3b8',fontSize:14}}>
+      로딩 중...
+    </div>
+  );
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
+
+  if (user.role !== 'admin' && !hasAccess) return (
+    <div className="lwrap">
+      <div className="lbox" style={{textAlign:'center'}}>
+        <div style={{fontSize:48,marginBottom:16}}>🚫</div>
+        <div className="ltit" style={{marginBottom:8}}>접근 권한 없음</div>
+        <p style={{fontSize:13,color:'#64748b',lineHeight:1.6,marginBottom:24}}>관리포털은 관리팀 및 관리자만<br/>이용할 수 있습니다.</p>
+        <a href="project.html" className="btn btn-s" style={{justifyContent:'center'}}>공정관리로 돌아가기</a>
+      </div>
+    </div>
+  );
+
+  var canSal = user.role === 'admin';
+
+  return (
+    <div>
+      <div className="sys-bar">
+        <a href={APP_CONFIG.HOME_URL} style={{fontSize:11,fontWeight:800,color:'#94a3b8',marginRight:8,letterSpacing:-0.3,textDecoration:'none',whiteSpace:'nowrap'}}>{APP_CONFIG.COMPANY_KO}</a>
+        <a href="project.html" className="sys-link">📊 공정관리</a>
+        <a href="leave.html" className="sys-link">📅 연차관리</a>
+        <a href="worklog.html" className="sys-link">📝 업무일지</a>
+        <div className="sys-link active">🏢 관리포털</div>
+      </div>
+      <div className="top-nav">
+        <button className={view===VIEWS.WL?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.WL);}}>📝 업무일지</button>
+        <button className={view===VIEWS.PF?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.PF);}}>📊 실적관리</button>
+        {canSal && <button className={view===VIEWS.SL?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.SL);}}>💼 급여대장</button>}
+        <button className={view===VIEWS.ST?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.ST);}}>👥 직원관리</button>
+        <div className="nav-right">
+          <span className="nav-user">{user.name} 님 ({teamName})</span>
+          <button className="nav-logout" onClick={logout}>로그아웃</button>
+        </div>
+      </div>
+      {view === VIEWS.WL && <WorklogView user={user} />}
+      {view === VIEWS.PF && <PerfView user={user} />}
+      {view === VIEWS.SL && canSal && <SalaryView user={user} />}
+      {view === VIEWS.ST && <StaffView user={user} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

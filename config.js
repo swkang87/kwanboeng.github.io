@@ -69,8 +69,12 @@ const APP_CONFIG = {
       active: true,
     },
     {
-      icon: '✅',
-      name: '전자결재',
+      icon: '🏢',
+      name: '관리포털',
+      desc: '실적·급여·직원관리 (관리팀 전용)',
+      url:  'admin-portal.html',
+      active: true,
+    },
       desc: '기안·결재·문서함 관리',
       url:  null,
       active: false,
@@ -86,5 +90,11 @@ const APP_CONFIG = {
 
   // ── 시스템 내부 링크 ──────────────────────────────────────────
   HOME_URL: 'index.html',
+
+  // ── EmailJS (급여명세서 발송용) ───────────────────────────────
+  // https://www.emailjs.com 에서 가입 후 설정값 입력
+  EMAILJS_SERVICE_ID:  '',   // 예: 'service_xxxxxxx'
+  EMAILJS_TEMPLATE_ID: '',   // 예: 'template_xxxxxxx'
+  EMAILJS_PUBLIC_KEY:  '',   // 예: 'xxxxxxxxxxxxxxx'
 
 };
