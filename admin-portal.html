@@ -1047,7 +1047,7 @@ function App() {
       sb.from('users').select('*').eq('id', userId).single().then(function(r) {
         if (r.data) setUser(r.data);
         setSsoChecked(true);
-      });
+      }).catch(function() { setSsoChecked(true); });
     } catch(e) { setSsoChecked(true); }
   }, []);
 

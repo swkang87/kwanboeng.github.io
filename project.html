@@ -381,7 +381,7 @@ function App() {
           setUser(data);
         }
         setSsoChecked(true);
-      });
+      }).catch(() => setSsoChecked(true));
     } catch { setSsoChecked(true); }
   }, []);
 

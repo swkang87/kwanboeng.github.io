@@ -949,7 +949,7 @@ function App() {
       sb.from('users').select('*').eq('id', userId).single().then(({ data }) => {
         if (data) setUser(data);
         setSsoChecked(true);
-      });
+      }).catch(() => setSsoChecked(true));
     } catch { setSsoChecked(true); }
   }, []);
 
