@@ -1475,14 +1475,14 @@ function renderLoginSection(user) {
       loginBtn.disabled = true;
       loginBtn.textContent = '로그인 중...';
       errEl.textContent = '';
-      getSb().from('users').select('*').eq('phone', phone).eq('password', pw).single()
+      getSb().from('users').select('*').eq('phone', phone).eq('password', pw)
         .then(function(res) {
-          if (res.error || !res.data) {
+          if (res.error || !res.data || res.data.length === 0) {
             errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
             loginBtn.disabled = false;
             loginBtn.textContent = '로그인 후 공정관리로 이동';
           } else {
-            var u = res.data;
+            var u = res.data[0];
             localStorage.setItem('kwanbo_session', JSON.stringify({ userId: u.id }));
             localStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
             window.location.href = 'project.html';
@@ -1502,8 +1502,9 @@ function initModalLogin() {
   if (raw) {
     try {
       var userId = JSON.parse(raw).userId;
-      getSb().from('users').select('*').eq('id', userId).single().then(function(res) {
-        renderLoginSection(res.data || null);
+      getSb().from('users').select('*').eq('id', userId).then(function(res) {
+        var u = res.data && res.data.length > 0 ? res.data[0] : null;
+        renderLoginSection(u);
       });
     } catch(e) { renderLoginSection(null); }
   } else {
