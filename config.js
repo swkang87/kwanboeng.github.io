@@ -17,7 +17,7 @@ const APP_CONFIG = {
   // ── 회사 정보 (Company Info) ──────────────────────────────────
   COMPANY_KO:     '(주)관보종합기술단',
   COMPANY_KO_EM:  '관보종합기술단',    // em태그 강조 없는 버전
-  COMPANY_EN:     'KWAN BO ENGINEERING CO., LTD.',
+  COMPANY_EN:     'KWANBO ENGINEERING CO., LTD.',
   COMPANY_SHORT:  '관보종합기술단',    // 짧은 이름 (시스템 헤더 등)
   LOGO_URL:       'logo.png',
   SINCE:          '1987',             // 설립연도

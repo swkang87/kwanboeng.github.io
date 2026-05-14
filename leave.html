@@ -1,7 +1,22 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>연차관리 시스템</title>
-<style>*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}body{margin:0;padding:0;font-size:16px;}</style>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}body{margin:0;padding:0;font-size:16px;}
+.sys-bar{position:sticky;top:0;z-index:300;background:#0f172a;height:38px;display:flex;align-items:center;padding:0 10px;gap:3px;border-bottom:1px solid #1e293b;}
+.sys-co{font-size:11px;font-weight:800;color:#94a3b8;margin-right:6px;letter-spacing:-.3px;white-space:nowrap;text-decoration:none;flex-shrink:0;}
+.sys-link{display:flex;align-items:center;justify-content:center;gap:3px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;color:#94a3b8;background:#1e293b;white-space:nowrap;flex-shrink:0;border:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+.sys-link.active{background:#1d4ed8;color:#fff;font-weight:700;}
+.sys-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.sys-user{font-size:11px;color:#94a3b8;white-space:nowrap;}
+.sys-logout{background:transparent;color:#64748b;border:1px solid #334155;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;}
+@media(max-width:640px){
+  .sys-bar{padding:0 4px;gap:2px;}
+  .sys-co{display:none;}
+  .sys-link{flex:1;padding:4px 1px;font-size:10px;gap:1px;}
+  .sys-user{display:none;}
+}
+</style>
 <div id="app"></div>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
 <script src="config.js"></script>
@@ -1149,31 +1164,18 @@ function App(){
     <div style={{display:'flex',flexDirection:'column',minHeight:'100vh',fontFamily:"'Noto Sans KR',sans-serif",background:'#f1f5f9'}}>
 
       {/* 1줄: 시스템 전환 바 */}
-      <div style={{background:'#0f172a',padding:'0 16px',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0,height:38,borderBottom:'1px solid #1e293b'}}>
-        <div style={{display:'flex',alignItems:'center',gap:2}}>
-          <a href={APP_CONFIG.HOME_URL} style={{fontSize:11,fontWeight:800,color:'#94a3b8',marginRight:8,letterSpacing:-0.3,textDecoration:'none',whiteSpace:'nowrap'}}>{APP_CONFIG.COMPANY_KO}</a>
-          <a href="project.html"
-            style={{display:'flex',alignItems:'center',gap:4,padding:'4px 12px',background:'#1e293b',borderRadius:4,color:'#94a3b8',fontSize:11,fontWeight:600,textDecoration:'none'}}>
-            📋 공정관리
-          </a>
-          <div style={{display:'flex',alignItems:'center',gap:4,padding:'4px 12px',background:'#1d4ed8',borderRadius:4,color:'white',fontSize:11,fontWeight:700}}>
-            📅 연차관리
-          </div>
-          <a href="worklog.html"
-            style={{display:'flex',alignItems:'center',gap:4,padding:'4px 12px',background:'#1e293b',borderRadius:4,color:'#94a3b8',fontSize:11,fontWeight:600,textDecoration:'none'}}>
-            📝 업무일지
-          </a>
-          {cu.role !== 'contractor' && (
-            <a href="admin-portal.html"
-              style={{display:'flex',alignItems:'center',gap:4,padding:'4px 12px',background:'#1e293b',borderRadius:4,color:'#94a3b8',fontSize:11,fontWeight:600,textDecoration:'none'}}>
-              🏢 관리포털
-            </a>
-          )}
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <span style={{fontSize:11,color:'#94a3b8'}}>{cu.name} 님</span>
-          <button onClick={manualRefresh} disabled={syncing} style={{background:'transparent',color:syncing?'#f59e0b':'#64748b',border:'none',padding:'2px 6px',fontSize:12,cursor:'pointer'}}>{syncing?'⏳':'🔄'}</button>
-          <button onClick={logout} style={{background:'transparent',color:'#64748b',border:'1px solid #334155',borderRadius:4,padding:'3px 10px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif"}}>로그아웃</button>
+      <div className="sys-bar">
+        <a href={APP_CONFIG.HOME_URL} className="sys-co">{APP_CONFIG.COMPANY_KO}</a>
+        <a href="project.html" className="sys-link">📊 공정관리</a>
+        <div className="sys-link active">📅 연차관리</div>
+        <a href="worklog.html" className="sys-link">📝 업무일지</a>
+        {cu.role !== 'contractor' && (
+          <a href="admin-portal.html" className="sys-link">🏢 관리포털</a>
+        )}
+        <div className="sys-right">
+          <span className="sys-user">{cu.name} 님</span>
+          <button onClick={manualRefresh} disabled={syncing} style={{background:'transparent',color:syncing?'#f59e0b':'#64748b',border:'none',padding:'2px 4px',fontSize:12,cursor:'pointer'}}>{syncing?'⏳':'🔄'}</button>
+          <button onClick={logout} className="sys-logout">로그아웃</button>
         </div>
       </div>
 
