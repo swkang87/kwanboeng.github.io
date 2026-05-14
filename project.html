@@ -33,18 +33,17 @@ button{cursor:pointer}
 .form-group{margin-bottom:14px}
 /* ── SYS-BAR ── */
 .sys-bar{position:sticky;top:0;z-index:300;background:#0f172a;height:38px;display:flex;align-items:center;padding:0 10px;gap:3px;border-bottom:1px solid #1e293b;}
-.sys-co{font-size:11px;font-weight:800;color:#94a3b8;margin-right:6px;letter-spacing:-.3px;white-space:nowrap;text-decoration:none;flex-shrink:0;}
 .sys-link{display:flex;align-items:center;justify-content:center;gap:3px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;color:#94a3b8;background:#1e293b;white-space:nowrap;flex-shrink:0;border:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
 .sys-link.active{background:#1d4ed8;color:#fff;font-weight:700;}
 .sys-link.disabled{color:#475569;}
 .sys-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .sys-user{font-size:11px;color:#94a3b8;white-space:nowrap;}
-.sys-logout{background:transparent;color:#64748b;border:1px solid #334155;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;}
+.sys-logout{background:transparent;color:#64748b;border:1px solid #334155;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;}
 @media(max-width:640px){
   .sys-bar{padding:0 4px;gap:2px;}
-  .sys-co{display:none;}
   .sys-link{flex:1;padding:4px 1px;font-size:10px;gap:1px;}
   .sys-user{display:none;}
+  .sys-logout{padding:3px 5px;font-size:10px;}
 }
 .form-label{font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;display:block}
 .form-input{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;color:#1e293b;outline:none;transition:border .2s}
@@ -360,16 +359,9 @@ function App() {
     setUser(null);
   };
   const isAdmin = user?.role === 'admin';
-  const isContractor = user?.role === 'contractor';
-
-  const [userTeamName, setUserTeamName] = useState('');
-  useEffect(() => {
-    if (!user?.team_id) return;
-    sb.from('teams').select('name').eq('id', user.team_id).single()
-      .then(({ data }) => { if (data) setUserTeamName(data.name); });
-  }, [user?.team_id]);
 
   const [prevView, setPrevView] = useState('weekly');
+  const [userTeamName, setUserTeamName] = useState('');
   const gp = (id) => {
     history.pushState({ view: 'project', id, from: view }, '', '');
     setPrevView(view);
@@ -408,6 +400,12 @@ function App() {
     } catch { setSsoChecked(true); }
   }, []);
 
+  useEffect(() => {
+    if (!user || !user.team_id) return;
+    sb.from('teams').select('name').eq('id', user.team_id).single()
+      .then(function(r) { if (r.data) setUserTeamName(r.data.name); });
+  }, [user ? user.team_id : null]);
+
   if (!ssoChecked) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#0f172a', color:'#94a3b8', fontSize:14 }}>로딩 중...</div>;
   if (!user) return <Login onLogin={handleLogin} />;
 
@@ -419,6 +417,8 @@ function App() {
     ...(isAdmin ? [{ k: 'admin', l: '관리', i: '⚙' }] : []),
     { k: 'profile', l: '내 정보', i: '👤' },
   ];
+
+  const isContractor = user?.role === 'contractor';
 
   return (
     <div>
@@ -839,12 +839,12 @@ function MonthlyCalendar({ gp, calDate, setCalDate, user }) {
                 {ev.filter(e => !e.auto).length > 2 && <div style={{ fontSize: 8, color: '#94a3b8' }}>+{ev.filter(e=>!e.auto).length-2}</div>}
                 {ev.filter(e => e.auto && e.type === 'auto_end').map(e => (
                   <div key={e.id} style={{ fontSize: 8, marginTop: 1, padding: '1px 3px', borderRadius: 2, background: '#f3e8ff', color: '#6b21a8', fontWeight: 700, lineHeight: 1.4, wordBreak: 'keep-all' }}>
-                    📅 준공 {e.name && e.name.length > 14 ? e.name.slice(0,14)+'…' : e.name}
+                    [준공] {e.name && e.name.length > 12 ? e.name.slice(0,12)+'…' : e.name}
                   </div>
                 ))}
                 {ev.filter(e => e.auto && e.type === 'auto_start').map(e => (
                   <div key={e.id} style={{ fontSize: 8, marginTop: 1, padding: '1px 3px', borderRadius: 2, background: '#dbeafe', color: '#1e40af', fontWeight: 700, lineHeight: 1.4, wordBreak: 'keep-all' }}>
-                    🚀 착수 {e.name && e.name.length > 14 ? e.name.slice(0,14)+'…' : e.name}
+                    [착수] {e.name && e.name.length > 12 ? e.name.slice(0,12)+'…' : e.name}
                   </div>
                 ))}
               </div>
@@ -1082,6 +1082,18 @@ function ProjectDetail({ id, user, gb }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(null);
+  const [delEvId, setDelEvId] = useState(null);
+  const [editEvData, setEditEvData] = useState(null);
+
+  const deleteEvent = async (evId) => {
+    if (delEvId === evId) {
+      await sb.from('project_events').delete().eq('id', evId);
+      setDelEvId(null); loadAll();
+    } else {
+      setDelEvId(evId);
+      setTimeout(() => setDelEvId(null), 3000);
+    }
+  };
 
   useEffect(() => { loadAll(); }, [id]);
   const loadAll = async () => {
@@ -1181,6 +1193,10 @@ function ProjectDetail({ id, user, gb }) {
                 <span style={{ fontSize: 15 }}>{EV_ICON[e.type]}</span>
                 <span style={{ fontWeight: 800, fontSize: 13, color: s.tx }}>{e.title}</span>
                 <Bd bg={s.bd}>{e.type}</Bd>
+                <div style={{ marginLeft:'auto', display:'flex', gap:4, flexShrink:0 }}>
+                  <button onClick={() => setEditEvData(e)} style={{ background:'transparent', color:'#3b82f6', border:'1px solid #bfdbfe', borderRadius:4, padding:'2px 7px', fontSize:10, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif", fontWeight:600 }}>수정</button>
+                  <button onClick={() => deleteEvent(e.id)} style={{ background:delEvId===e.id?'#ef4444':'transparent', color:delEvId===e.id?'#fff':'#94a3b8', border:'1px solid '+(delEvId===e.id?'#ef4444':'#cbd5e1'), borderRadius:4, padding:'2px 7px', fontSize:10, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif", fontWeight:600 }}>{delEvId===e.id?'삭제확인':'삭제'}</button>
+                </div>
               </div>
               <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>📅 {ff(e.event_date)} · {uName(e.registered_by)}{e.memo ? ' · ' + e.memo : ''}</div>
             </div>
@@ -1197,8 +1213,16 @@ function ProjectDetail({ id, user, gb }) {
             {de.map(e => { const s = ec(e.type); return (
               <div key={e.id} className="timeline-item">
                 <div className="timeline-dot" style={{ background: s.bd, boxShadow: `0 0 0 2px ${s.bd}` }} />
-                <div style={{ padding: '6px 10px', borderRadius: 6, background: s.bg }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span>{EV_ICON[e.type]}</span><span style={{ fontWeight: 700, fontSize: 12, color: s.tx }}>{e.title}</span><Bd bg={s.bd}>{e.type}</Bd></div>
+                <div style={{ padding: '6px 10px', borderRadius: 6, background: s.bg, flex:1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap:'wrap' }}>
+                    <span>{EV_ICON[e.type]}</span>
+                    <span style={{ fontWeight: 700, fontSize: 12, color: s.tx }}>{e.title}</span>
+                    <Bd bg={s.bd}>{e.type}</Bd>
+                    <div style={{ marginLeft:'auto', display:'flex', gap:4, flexShrink:0 }}>
+                      <button onClick={() => setEditEvData(e)} style={{ background:'transparent', color:'#3b82f6', border:'1px solid #bfdbfe', borderRadius:4, padding:'2px 7px', fontSize:10, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif", fontWeight:600 }}>수정</button>
+                      <button onClick={() => deleteEvent(e.id)} style={{ background:delEvId===e.id?'#ef4444':'transparent', color:delEvId===e.id?'#fff':'#94a3b8', border:'1px solid '+(delEvId===e.id?'#ef4444':'#cbd5e1'), borderRadius:4, padding:'2px 7px', fontSize:10, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif", fontWeight:600 }}>{delEvId===e.id?'삭제확인':'삭제'}</button>
+                    </div>
+                  </div>
                   <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{ff(e.event_date)} · {uName(e.registered_by)}{e.memo ? ' · ' + e.memo : ''}</div>
                 </div>
               </div>
@@ -1234,9 +1258,14 @@ function ProjectDetail({ id, user, gb }) {
           onSaved={() => { setEditModal(null); loadAll(); }} />
       )}
       {editModal === 'event' && (
-        <EventModal projectId={id} userId={user?.id}
+        <EventModal projectId={id} userId={user && user.id}
           onClose={() => setEditModal(null)}
           onSaved={() => { setEditModal(null); loadAll(); }} />
+      )}
+      {editEvData && (
+        <EventModal projectId={id} userId={user && user.id} eventData={editEvData}
+          onClose={() => setEditEvData(null)}
+          onSaved={() => { setEditEvData(null); loadAll(); }} />
       )}
       {editModal === 'editProject' && project && (
         <EditProjectModal project={project} userId={user?.id}
@@ -1467,28 +1496,35 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
   );
 }
 
-// ─── Event Modal ───
-function EventModal({ projectId, userId, onClose, onSaved }) {
-  const [type, setType] = useState('착수보고');
-  const [title, setTitle] = useState('');
-  const [eventDate, setEventDate] = useState(today());
-  const [done, setDone] = useState(false);
-  const [memo, setMemo] = useState('');
+// ─── Event Modal (등록 + 수정 공용) ───
+function EventModal({ projectId, userId, onClose, onSaved, eventData }) {
+  const isEdit = !!eventData;
+  const [type, setType] = useState(isEdit ? eventData.type : '착수보고');
+  const [title, setTitle] = useState(isEdit ? eventData.title : '');
+  const [eventDate, setEventDate] = useState(isEdit ? eventData.event_date : today());
+  const [done, setDone] = useState(isEdit ? !!eventData.done : false);
+  const [memo, setMemo] = useState(isEdit ? (eventData.memo || '') : '');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
-  useEffect(() => { setTitle(type); }, [type]);
+  useEffect(() => { if (!isEdit) setTitle(type); }, [type]);
 
   const save = async () => {
     if (!title || !eventDate) { setErr('제목과 일정일을 입력해주세요.'); return; }
     setLoading(true); setErr('');
-    const { error } = await sb.from('project_events').insert({ project_id: projectId, type, title, event_date: eventDate, done, registered_by: userId, memo });
-    if (error) { setErr('저장 중 오류: ' + error.message); setLoading(false); return; }
+    const payload = { type: type, title: title, event_date: eventDate, done: done, memo: memo };
+    var result;
+    if (isEdit) {
+      result = await sb.from('project_events').update(payload).eq('id', eventData.id);
+    } else {
+      result = await sb.from('project_events').insert(Object.assign({}, payload, { project_id: projectId, registered_by: userId }));
+    }
+    if (result.error) { setErr('저장 중 오류: ' + result.error.message); setLoading(false); return; }
     onSaved();
   };
 
   return (
-    <Modal title="📌 주요 공정 등록" onClose={onClose}>
+    <Modal title={isEdit ? '✏️ 주요 공정 수정' : '📌 주요 공정 등록'} onClose={onClose}>
       {err && <div className="alert alert-error">{err}</div>}
       <div className="form-row">
         <div className="form-group">
@@ -1518,7 +1554,7 @@ function EventModal({ projectId, userId, onClose, onSaved }) {
       </div>
       <div className="modal-footer">
         <button className="btn btn-secondary" onClick={onClose}>취소</button>
-        <button className="btn btn-primary" onClick={save} disabled={loading}>{loading ? '저장 중...' : '등록'}</button>
+        <button className="btn btn-primary" onClick={save} disabled={loading}>{loading ? '저장 중...' : (isEdit ? '수정' : '등록')}</button>
       </div>
     </Modal>
   );
