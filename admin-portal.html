@@ -133,7 +133,7 @@ const { createClient } = supabase;
 const sb = createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
 
 const VIEWS = { WL:'wl', PF:'pf', SL:'sl', ST:'st' };
-const TODAY = () => new Date().toISOString().split('T')[0];
+const TODAY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const fmtN = (n) => n ? Number(n).toLocaleString('ko-KR') : '0';
 const fmtD = (d) => {
   if (!d) return '-';
