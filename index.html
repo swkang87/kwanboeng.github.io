@@ -1475,28 +1475,33 @@ function renderLoginSection(user) {
       loginBtn.disabled = true;
       loginBtn.textContent = '로그인 중...';
       errEl.textContent = '';
-      getSb().from('users').select('*').eq('phone', phone).eq('password', pw)
-        .then(function(res) {
-          if (res.error) {
-            errEl.textContent = 'DB 오류: ' + res.error.message;
-            loginBtn.disabled = false;
-            loginBtn.textContent = '로그인 후 공정관리로 이동';
-          } else if (!res.data || res.data.length === 0) {
-            errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
-            loginBtn.disabled = false;
-            loginBtn.textContent = '로그인 후 공정관리로 이동';
-          } else {
-            var u = res.data[0];
-            localStorage.setItem('kwanbo_session', JSON.stringify({ userId: u.id }));
-            localStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
-            window.location.href = 'project.html';
-          }
-        })
-        .catch(function(e) {
-          errEl.textContent = '네트워크 오류: ' + e.message;
+
+      var url = APP_CONFIG.SUPABASE_URL + '/rest/v1/users?phone=eq.' + encodeURIComponent(phone) + '&password=eq.' + encodeURIComponent(pw) + '&select=*';
+      fetch(url, {
+        headers: {
+          'apikey': APP_CONFIG.SUPABASE_KEY,
+          'Authorization': 'Bearer ' + APP_CONFIG.SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data || data.length === 0) {
+          errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
           loginBtn.disabled = false;
           loginBtn.textContent = '로그인 후 공정관리로 이동';
-        });
+        } else {
+          var u = data[0];
+          localStorage.setItem('kwanbo_session', JSON.stringify({ userId: u.id }));
+          localStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
+          window.location.href = 'project.html';
+        }
+      })
+      .catch(function(e) {
+        errEl.textContent = '오류: ' + e.message;
+        loginBtn.disabled = false;
+        loginBtn.textContent = '로그인 후 공정관리로 이동';
+      });
     }
 
     loginBtn.addEventListener('click', doLogin);
