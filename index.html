@@ -718,6 +718,8 @@ footer {
   color:rgba(255,255,255,.35); margin-bottom:12px;
 }
 .footer-addr { font-size:.74rem; color:rgba(255,255,255,.3); line-height:1.9; }
+.footer-logo-wrap { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.footer-logo-img { height:30px; width:auto; filter:brightness(0) invert(1); opacity:.7; }
 .footer-nav { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-start; }
 .footer-nav a { font-size:.74rem; color:rgba(255,255,255,.35); transition:color .2s; }
 .footer-nav a:hover { color:#fff; }
@@ -1307,11 +1309,6 @@ footer {
           <div class="cval">부산광역시 연제구 거제대로 270, 705호<br/>(거제동, 종근당빌딩)</div></div>
         </div>
         <div class="crow">
-          <div class="cico">📱</div>
-          <div><span class="clabel">MOBILE — 강승우 실장</span>
-          <div class="cval"><a href="tel:01093152914">010-9315-2914</a></div></div>
-        </div>
-        <div class="crow">
           <div class="cico">📞</div>
           <div><span class="clabel">TEL / FAX</span>
           <div class="cval">T. <a href="tel:0518532633">051) 853-2633</a> &nbsp;/&nbsp; F. 051) 853-4893</div></div>
@@ -1327,21 +1324,22 @@ footer {
       </div>
     </div>
 
-    <!-- 네이버 지도 -->
+    <!-- 카카오 지도 -->
     <div class="sr right" style="transition-delay:.15s">
       <div class="map-box">
         <iframe
-          src="https://map.naver.com/p/entry/address/1145060.0%2C510040.0%2C%EB%B6%80%EC%82%B0%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%97%B0%EC%A0%9C%EA%B5%AC%20%EA%B1%B0%EC%A0%9C%EB%8C%80%EB%A1%9C%20270%2C%20705%ED%98%B8?c=15.00,0,0,0,dh"
+          src="https://map.kakao.com/link/map/관보종합기술단,35.179636,129.075600/embed"
           width="100%" height="360"
           style="border:none; display:block;"
           allowfullscreen loading="lazy"
           title="관보종합기술단 위치">
         </iframe>
         <a class="map-naver-btn"
-           href="https://map.naver.com/p/search/%EB%B6%80%EC%82%B0%EA%B4%91%EC%97%AD%EC%8B%9C%20%EC%97%B0%EC%A0%9C%EA%B5%AC%20%EA%B1%B0%EC%A0%9C%EB%8C%80%EB%A1%9C%20270%20705%ED%98%B8"
-           target="_blank" rel="noopener">
+           href="https://map.kakao.com/link/map/관보종합기술단,35.179636,129.075600"
+           target="_blank" rel="noopener"
+           style="background:#FAE100; color:#3C1E1E;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-          네이버 지도로 보기
+          카카오맵으로 보기
         </a>
       </div>
     </div>
@@ -1353,7 +1351,10 @@ footer {
   <div class="footer-in">
     <div class="footer-top">
       <div>
-        <div class="footer-ko"><em>(주)</em>관보종합기술단</div>
+        <div class="footer-logo-wrap">
+          <img src="logo.png" alt="관보종합기술단 로고" class="footer-logo-img"/>
+          <div class="footer-ko"><em>(주)</em>관보종합기술단</div>
+        </div>
         <div class="footer-en">KWAN BO ENGINEERING CO., LTD.</div>
         <div class="footer-addr">
           부산광역시 연제구 거제대로 270, 705호 (거제동, 종근당빌딩)<br/>
