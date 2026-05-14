@@ -1477,7 +1477,11 @@ function renderLoginSection(user) {
       errEl.textContent = '';
       getSb().from('users').select('*').eq('phone', phone).eq('password', pw)
         .then(function(res) {
-          if (res.error || !res.data || res.data.length === 0) {
+          if (res.error) {
+            errEl.textContent = 'DB 오류: ' + res.error.message;
+            loginBtn.disabled = false;
+            loginBtn.textContent = '로그인 후 공정관리로 이동';
+          } else if (!res.data || res.data.length === 0) {
             errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
             loginBtn.disabled = false;
             loginBtn.textContent = '로그인 후 공정관리로 이동';
@@ -1487,6 +1491,11 @@ function renderLoginSection(user) {
             localStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
             window.location.href = 'project.html';
           }
+        })
+        .catch(function(e) {
+          errEl.textContent = '네트워크 오류: ' + e.message;
+          loginBtn.disabled = false;
+          loginBtn.textContent = '로그인 후 공정관리로 이동';
         });
     }
 
