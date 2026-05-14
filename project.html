@@ -1832,7 +1832,7 @@ function InlineProjectEdit({ project, users, userId, onSaved }) {
     setLoading(true); setMsg('');
     const oldEndDate = project.end_date, oldContact = project.client_contact;
     const updates = {
-      name: form.name, client: form.client, client_dept: form.client_dept,
+      name: form.name, category: form.category, client: form.client, client_dept: form.client_dept,
       client_contact: form.client_contact, start_date: form.start_date,
       end_date: form.end_date, status: form.status, memo: form.memo,
       pm_id: form.pm_id || project.pm_id,
