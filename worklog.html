@@ -35,7 +35,7 @@
 
 /* ─── TOP NAV TAB ────────────────────────────────────── */
 .top-nav-bar {
-  position: sticky; top: 38px; z-index: 200;
+  position: sticky; top: 74px; z-index: 200;
   background: #1e293b; height: 38px;
   display: flex; align-items: center;
   padding: 0 14px; gap: 1px;
@@ -1006,6 +1006,11 @@ function App() {
         {(user.role === 'admin' || user.role === 'manager' || user.role === 'employee') && (
           <a href="admin-portal.html" className="sys-link">🏢 관리포털</a>
         )}
+      </div>
+      {/* 시스템 제목 바 */}
+      <div style={{ background:'#0f172a', padding:'6px 18px 8px', flexShrink:0, borderBottom:'2px solid #1d4ed8', position:'sticky', top:38, zIndex:250 }}>
+        <p style={{ margin:0, fontSize:9, color:'#475569', letterSpacing:1, textTransform:'uppercase', fontWeight:600 }}>{APP_CONFIG.COMPANY_EN}</p>
+        <p style={{ margin:0, fontSize:14, fontWeight:800, color:'white', letterSpacing:-0.3 }}>업무일지 시스템</p>
       </div>
       {/* 상단 네비탭 */}
       <TopNavBar view={view} setView={setView} user={user} onLogout={logout} canWrite={canWrite} />

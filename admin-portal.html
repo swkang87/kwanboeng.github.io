@@ -16,7 +16,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font
 .sys-bar{position:sticky;top:0;z-index:300;background:#0f172a;height:38px;display:flex;align-items:center;padding:0 16px;gap:4px;border-bottom:1px solid #1e293b;}
 .sys-link{display:flex;align-items:center;gap:4px;padding:4px 12px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;color:#94a3b8;background:#1e293b;white-space:nowrap;}
 .sys-link.active{background:#7c3aed;color:#fff;font-weight:700;}
-.top-nav{position:sticky;top:38px;z-index:200;background:#1e293b;height:42px;display:flex;align-items:center;padding:0 16px;gap:2px;border-bottom:2px solid #7c3aed;}
+.top-nav{position:sticky;top:74px;z-index:200;background:#1e293b;height:42px;display:flex;align-items:center;padding:0 16px;gap:2px;border-bottom:2px solid #7c3aed;}
 .nav-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;border:none;background:transparent;border-radius:6px;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:500;color:#94a3b8;cursor:pointer;white-space:nowrap;}
 .nav-btn.active{background:#7c3aed;color:#fff;font-weight:700;}
 .nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
@@ -866,6 +866,10 @@ function StaffView({ user }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
+  const [sortBy, setSortBy] = useState('role');
+  const [sortDir, setSortDir] = useState(1); // 1=오름차순, -1=내림차순
+
+  var ROLE_ORDER = {admin:0, manager:1, employee:2, staff:2, contractor:3};
 
   function load() {
     setLoading(true);
@@ -911,6 +915,36 @@ function StaffView({ user }) {
 
   var filtered = users.filter(function(u) { return (u.name||'').includes(q)||(u.phone||'').includes(q); });
 
+  function handleSort(key) {
+    if (sortBy === key) setSortDir(function(d){return d*-1;});
+    else { setSortBy(key); setSortDir(1); }
+  }
+  function sortIcon(key) { return sortBy===key ? (sortDir===1?' ▲':' ▼') : ' ↕'; }
+
+  filtered = filtered.slice().sort(function(a, b) {
+    var av, bv;
+    if (sortBy === 'role') {
+      av = ROLE_ORDER[a.role] ?? 9;
+      bv = ROLE_ORDER[b.role] ?? 9;
+      if (av !== bv) return (av - bv) * sortDir;
+      return (a.name||'').localeCompare(b.name||'', 'ko');
+    }
+    if (sortBy === 'name') {
+      return (a.name||'').localeCompare(b.name||'', 'ko') * sortDir;
+    }
+    if (sortBy === 'team') {
+      av = tName(a.team_id); bv = tName(b.team_id);
+      var tc = av.localeCompare(bv, 'ko') * sortDir;
+      return tc !== 0 ? tc : (a.name||'').localeCompare(b.name||'', 'ko');
+    }
+    if (sortBy === 'position') {
+      av = a.position||''; bv = b.position||'';
+      var pc = av.localeCompare(bv, 'ko') * sortDir;
+      return pc !== 0 ? pc : (a.name||'').localeCompare(b.name||'', 'ko');
+    }
+    return 0;
+  });
+
   if (loading) return <div className="page"><div className="loading">로딩 중...</div></div>;
 
   return (
@@ -926,7 +960,13 @@ function StaffView({ user }) {
         </div>
         <div className="tbl-wrap">
           <table>
-            <thead><tr><th>이름</th><th>팀</th><th>직책</th><th>역할</th><th>전화번호</th><th>이메일</th>{user.role==='admin'&&<th className="tc">관리</th>}</tr></thead>
+            <thead><tr>
+              <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('name');}}>이름{sortIcon('name')}</th>
+              <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('team');}}>팀{sortIcon('team')}</th>
+              <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('position');}}>직책{sortIcon('position')}</th>
+              <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('role');}}>역할{sortIcon('role')}</th>
+              <th>전화번호</th><th>이메일</th>{user.role==='admin'&&<th className="tc">관리</th>}
+            </tr></thead>
             <tbody>
               {filtered.map(function(u) {
                 return (
@@ -1103,6 +1143,11 @@ function App() {
         <a href="leave.html" className="sys-link">📅 연차관리</a>
         <a href="worklog.html" className="sys-link">📝 업무일지</a>
         <div className="sys-link active">🏢 관리포털</div>
+      </div>
+      {/* 시스템 제목 바 */}
+      <div style={{background:'#0f172a',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #7c3aed',position:'sticky',top:38,zIndex:250}}>
+        <p style={{margin:0,fontSize:9,color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
+        <p style={{margin:0,fontSize:14,fontWeight:800,color:'white',letterSpacing:-0.3}}>관리 포털</p>
       </div>
       <div className="top-nav">
         <button className={view===VIEWS.WL?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.WL);}}>📝 업무일지</button>
