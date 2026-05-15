@@ -1170,7 +1170,7 @@ function ProjectDetail({ id, user, gb }) {
   const deleteEvent = async (evId) => {
     if (delEvId === evId) {
       const evTarget = events.find(e => e.id === evId);
-      if (evTarget) await sb.from('change_logs').insert({ project_id: evTarget.project_id, field_name: '주요공정 삭제', old_value: evTarget.type + ' | ' + evTarget.title + ' | ' + evTarget.event_date, new_value: '', changed_by: user?.id });
+      if (evTarget) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: evTarget.project_id, field_name: '주요공정 삭제', old_value: evTarget.type + ' | ' + evTarget.title + ' | ' + evTarget.event_date, new_value: '', changed_by: user?.id }); if (clErr) console.error('change_log insert error:', clErr.message); }
       await sb.from('project_events').delete().eq('id', evId);
       setDelEvId(null); loadAll();
     } else {
@@ -1565,7 +1565,7 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
     const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: '', issues, reported_by: userId, updated_at: new Date().toISOString() };
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
     if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
-    await sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%', new_value: String(parseInt(pct)) + '% | ' + weekDate, changed_by: userId });
+    { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%', new_value: String(parseInt(pct)) + '% | ' + weekDate, changed_by: userId }); if (clErr) console.error('change_log insert error:', clErr.message); }
     onSaved();
   };
 
@@ -1624,10 +1624,10 @@ function EventModal({ projectId, userId, onClose, onSaved, eventData }) {
     var result;
     if (isEdit) {
       result = await sb.from('project_events').update(payload).eq('id', eventData.id);
-      if (!result.error) await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 수정', old_value: eventData.type + ' | ' + eventData.title + ' | ' + eventData.event_date, new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId });
+      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 수정', old_value: eventData.type + ' | ' + eventData.title + ' | ' + eventData.event_date, new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId }); if (clErr) console.error('change_log insert error:', clErr.message); }
     } else {
       result = await sb.from('project_events').insert(Object.assign({}, payload, { project_id: projectId, registered_by: userId }));
-      if (!result.error) await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 등록', old_value: '', new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId });
+      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 등록', old_value: '', new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId }); if (clErr) console.error('change_log insert error:', clErr.message); }
     }
     if (result.error) { setErr('저장 중 오류: ' + result.error.message); setLoading(false); return; }
     onSaved();
@@ -1774,7 +1774,14 @@ function ChangeLogPanel({ projects, users }) {
 
   const loadLogs = async () => {
     setLoading(true);
-    const { data } = await sb.from('change_logs').select('*').order('created_at', { ascending: false }).limit(2000);
+    // created_at 으로 먼저 시도, 실패하면 id로 폴백
+    let { data, error } = await sb.from('change_logs').select('*').order('created_at', { ascending: false }).limit(2000);
+    if (error) {
+      const res2 = await sb.from('change_logs').select('*').order('id', { ascending: false }).limit(2000);
+      data = res2.data;
+      error = res2.error;
+    }
+    if (error) setDelMsg('로그 불러오기 오류: ' + error.message);
     setLogs(data || []);
     setLoading(false);
   };
@@ -1796,8 +1803,8 @@ function ChangeLogPanel({ projects, users }) {
   const filtered = logs.filter(l => {
     if (filterUser !== 'all' && l.changed_by !== filterUser) return false;
     if (filterType !== 'all' && l.field_name !== filterType) return false;
-    if (filterFrom && l.created_at < filterFrom) return false;
-    if (filterTo && l.created_at > filterTo + 'T23:59:59') return false;
+    if (filterFrom && l.created_at && l.created_at < filterFrom) return false;
+    if (filterTo && l.created_at && l.created_at > filterTo + 'T23:59:59') return false;
     return true;
   });
 
@@ -1808,7 +1815,7 @@ function ChangeLogPanel({ projects, users }) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - delDays);
     const { error } = await sb.from('change_logs').delete().lt('created_at', cutoff.toISOString());
-    if (error) { setDelMsg('삭제 오류: ' + error.message); return; }
+    if (error) { setDelMsg('삭제 오류: ' + error.message + ' (created_at 컬럼이 없으면 Supabase에서 추가 필요)'); return; }
     setDelMsg(`${delDays}일 이전 로그 삭제 완료`);
     setDelMode(false);
     setTimeout(() => setDelMsg(''), 3000);
