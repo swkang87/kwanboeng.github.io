@@ -1166,6 +1166,8 @@ function ProjectDetail({ id, user, gb }) {
 
   const deleteEvent = async (evId) => {
     if (delEvId === evId) {
+      const evTarget = events.find(e => e.id === evId);
+      if (evTarget) await sb.from('change_logs').insert({ project_id: evTarget.project_id, field_name: '주요공정 삭제', old_value: evTarget.type + ' | ' + evTarget.title + ' | ' + evTarget.event_date, new_value: '', changed_by: user?.id });
       await sb.from('project_events').delete().eq('id', evId);
       setDelEvId(null); loadAll();
     } else {
@@ -1560,6 +1562,7 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
     const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: '', issues, reported_by: userId, updated_at: new Date().toISOString() };
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
     if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
+    await sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%', new_value: String(parseInt(pct)) + '% | ' + weekDate, changed_by: userId });
     onSaved();
   };
 
@@ -1618,8 +1621,10 @@ function EventModal({ projectId, userId, onClose, onSaved, eventData }) {
     var result;
     if (isEdit) {
       result = await sb.from('project_events').update(payload).eq('id', eventData.id);
+      if (!result.error) await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 수정', old_value: eventData.type + ' | ' + eventData.title + ' | ' + eventData.event_date, new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId });
     } else {
       result = await sb.from('project_events').insert(Object.assign({}, payload, { project_id: projectId, registered_by: userId }));
+      if (!result.error) await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 등록', old_value: '', new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId });
     }
     if (result.error) { setErr('저장 중 오류: ' + result.error.message); setLoading(false); return; }
     onSaved();
@@ -1684,11 +1689,6 @@ function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers 
     };
     const { error } = await sb.from('projects').update(updates).eq('id', project.id);
     if (error) { setErr('저장 중 오류: ' + error.message); setLoading(false); return; }
-    // Log changes
-    const changes = [];
-    if (form.end_date !== oldEndDate) changes.push({ project_id: project.id, field_name: '준공일', old_value: oldEndDate, new_value: form.end_date, changed_by: userId });
-    if (form.client_contact !== oldContact) changes.push({ project_id: project.id, field_name: '발주처 담당자', old_value: oldContact, new_value: form.client_contact, changed_by: userId });
-    if (changes.length > 0) await sb.from('change_logs').insert(changes);
     onSaved();
   };
 
@@ -1752,6 +1752,183 @@ function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers 
   );
 }
 
+
+// ─── Change Log Panel ───
+function ChangeLogPanel({ projects, users }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterUser, setFilterUser] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [filterFrom, setFilterFrom] = useState('');
+  const [filterTo, setFilterTo] = useState('');
+  const [page, setPage] = useState(0);
+  const [delMode, setDelMode] = useState(false);
+  const [delDays, setDelDays] = useState(30);
+  const [delMsg, setDelMsg] = useState('');
+  const PAGE_SIZE = 50;
+
+  useEffect(() => { loadLogs(); }, []);
+
+  const loadLogs = async () => {
+    setLoading(true);
+    const { data } = await sb.from('change_logs').select('*').order('created_at', { ascending: false }).limit(2000);
+    setLogs(data || []);
+    setLoading(false);
+  };
+
+  const uName = (id) => users.find(u => u.id === id)?.name || id || '—';
+  const pName = (id) => { const p = projects.find(p => p.id === id); return p ? (p.name.length > 28 ? p.name.slice(0,28)+'…' : p.name) : '—'; };
+  const fmtDt = (s) => { if (!s) return '—'; const d = new Date(s); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+
+  const TYPE_BADGE = {
+    '주간보고':   { bg:'#2563eb', label:'주간보고' },
+    '주요공정 등록': { bg:'#059669', label:'공정 등록' },
+    '주요공정 수정': { bg:'#d97706', label:'공정 수정' },
+    '주요공정 삭제': { bg:'#dc2626', label:'공정 삭제' },
+  };
+
+  const allTypes = ['all','주간보고','주요공정 등록','주요공정 수정','주요공정 삭제'];
+  const staffUsers = users.filter(u => u.role !== 'admin');
+
+  const filtered = logs.filter(l => {
+    if (filterUser !== 'all' && l.changed_by !== filterUser) return false;
+    if (filterType !== 'all' && l.field_name !== filterType) return false;
+    if (filterFrom && l.created_at < filterFrom) return false;
+    if (filterTo && l.created_at > filterTo + 'T23:59:59') return false;
+    return true;
+  });
+
+  const paged = filtered.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+
+  const handleDelete = async () => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - delDays);
+    const { error } = await sb.from('change_logs').delete().lt('created_at', cutoff.toISOString());
+    if (error) { setDelMsg('삭제 오류: ' + error.message); return; }
+    setDelMsg(`${delDays}일 이전 로그 삭제 완료`);
+    setDelMode(false);
+    setTimeout(() => setDelMsg(''), 3000);
+    loadLogs();
+  };
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div>
+      {/* 필터 */}
+      <div className="card card-p" style={{ marginBottom: 12 }}>
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-end' }}>
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, color:'#94a3b8', marginBottom:3 }}>직원</div>
+            <select className="form-input" style={{ fontSize:12, padding:'6px 10px' }} value={filterUser} onChange={e => { setFilterUser(e.target.value); setPage(0); }}>
+              <option value="all">전체</option>
+              {staffUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, color:'#94a3b8', marginBottom:3 }}>유형</div>
+            <select className="form-input" style={{ fontSize:12, padding:'6px 10px' }} value={filterType} onChange={e => { setFilterType(e.target.value); setPage(0); }}>
+              {allTypes.map(t => <option key={t} value={t}>{t==='all'?'전체':t}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, color:'#94a3b8', marginBottom:3 }}>시작일</div>
+            <input type="date" className="form-input" style={{ fontSize:12, padding:'6px 10px' }} value={filterFrom} onChange={e => { setFilterFrom(e.target.value); setPage(0); }} />
+          </div>
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, color:'#94a3b8', marginBottom:3 }}>종료일</div>
+            <input type="date" className="form-input" style={{ fontSize:12, padding:'6px 10px' }} value={filterTo} onChange={e => { setFilterTo(e.target.value); setPage(0); }} />
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => { setFilterUser('all'); setFilterType('all'); setFilterFrom(''); setFilterTo(''); setPage(0); }}>초기화</button>
+          <div style={{ marginLeft:'auto' }}>
+            <button className="btn btn-sm" style={{ background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca' }} onClick={() => setDelMode(m => !m)}>🗑 로그 삭제</button>
+          </div>
+        </div>
+        {delMode && (
+          <div style={{ marginTop:12, padding:'12px 14px', background:'#fef2f2', borderRadius:8, border:'1px solid #fecaca', display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+            <span style={{ fontSize:12, color:'#dc2626', fontWeight:700 }}>⚠ 오래된 로그 삭제</span>
+            <select className="form-input" style={{ fontSize:12, padding:'5px 10px', width:'auto' }} value={delDays} onChange={e => setDelDays(+e.target.value)}>
+              <option value={30}>30일 이전</option>
+              <option value={60}>60일 이전</option>
+              <option value={90}>90일 이전</option>
+              <option value={180}>6개월 이전</option>
+              <option value={365}>1년 이전</option>
+            </select>
+            <button className="btn btn-sm" style={{ background:'#dc2626', color:'#fff', border:'none' }} onClick={handleDelete}>삭제 실행</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setDelMode(false)}>취소</button>
+          </div>
+        )}
+        {delMsg && <div className="alert alert-success" style={{ marginTop:10, padding:'6px 12px' }}>{delMsg}</div>}
+      </div>
+
+      {/* 통계 */}
+      <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        {['주간보고','주요공정 등록','주요공정 수정','주요공정 삭제'].map(t => {
+          const cnt = filtered.filter(l => l.field_name === t).length;
+          const b = TYPE_BADGE[t];
+          return (
+            <div key={t} style={{ background:'#fff', borderRadius:8, padding:'10px 16px', borderLeft:`3px solid ${b.bg}`, boxShadow:'0 1px 3px rgba(0,0,0,.06)', minWidth:100 }}>
+              <div style={{ fontSize:18, fontWeight:900, color:b.bg }}>{cnt}</div>
+              <div style={{ fontSize:10, color:'#94a3b8', marginTop:2 }}>{b.label}</div>
+            </div>
+          );
+        })}
+        <div style={{ background:'#fff', borderRadius:8, padding:'10px 16px', borderLeft:'3px solid #64748b', boxShadow:'0 1px 3px rgba(0,0,0,.06)', minWidth:100 }}>
+          <div style={{ fontSize:18, fontWeight:900, color:'#334155' }}>{filtered.length}</div>
+          <div style={{ fontSize:10, color:'#94a3b8', marginTop:2 }}>전체 건수</div>
+        </div>
+      </div>
+
+      {/* 테이블 */}
+      <div className="card" style={{ overflow:'auto' }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding:24, textAlign:'center', color:'#94a3b8', fontSize:13 }}>조건에 맞는 로그가 없습니다.</div>
+        ) : (
+          <>
+            <table className="tbl" style={{ minWidth:700 }}>
+              <thead>
+                <tr>
+                  <th style={{ width:130, whiteSpace:'nowrap' }}>일시</th>
+                  <th style={{ width:60 }}>직원</th>
+                  <th style={{ width:80 }}>유형</th>
+                  <th>용역명</th>
+                  <th style={{ minWidth:120 }}>이전</th>
+                  <th style={{ minWidth:160 }}>변경 내용</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paged.map((l, i) => {
+                  const b = TYPE_BADGE[l.field_name] || { bg:'#94a3b8', label:l.field_name };
+                  return (
+                    <tr key={l.id || i}>
+                      <td style={{ fontSize:11, color:'#64748b', whiteSpace:'nowrap' }}>{fmtDt(l.created_at)}</td>
+                      <td style={{ fontSize:12, fontWeight:700 }}>{uName(l.changed_by)}</td>
+                      <td><span style={{ display:'inline-block', padding:'2px 7px', borderRadius:4, background:b.bg, color:'#fff', fontSize:10, fontWeight:700, whiteSpace:'nowrap' }}>{b.label}</span></td>
+                      <td style={{ fontSize:11, color:'#0f172a', fontWeight:600, wordBreak:'keep-all' }}>{pName(l.project_id)}</td>
+                      <td style={{ fontSize:11, color:'#94a3b8' }}>{l.old_value || '—'}</td>
+                      <td style={{ fontSize:11, color:'#1e293b', fontWeight:500 }}>{l.new_value || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {totalPages > 1 && (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:6, padding:'12px 0', borderTop:'1px solid #f1f5f9' }}>
+                <button className="btn btn-secondary btn-sm" disabled={page===0} onClick={() => setPage(0)}>«</button>
+                <button className="btn btn-secondary btn-sm" disabled={page===0} onClick={() => setPage(p => p-1)}>‹</button>
+                <span style={{ fontSize:12, color:'#64748b' }}>{page+1} / {totalPages} 페이지 ({filtered.length}건)</span>
+                <button className="btn btn-secondary btn-sm" disabled={page>=totalPages-1} onClick={() => setPage(p => p+1)}>›</button>
+                <button className="btn btn-secondary btn-sm" disabled={page>=totalPages-1} onClick={() => setPage(totalPages-1)}>»</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Admin Panel ───
 function AdminPanel({ user }) {
   const [tab, setTab] = useState('create');
@@ -1779,7 +1956,7 @@ function AdminPanel({ user }) {
       <h2 className="section-title">⚙ 관리자 메뉴</h2>
       {msg && <div className="alert alert-success">{msg}</div>}
       <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: '#fff', borderRadius: 8, padding: 4, boxShadow: '0 1px 2px rgba(0,0,0,.06)', width: 'fit-content', flexWrap: 'wrap' }}>
-        {[{k:'create',l:'새 프로젝트 등록'},{k:'editProj',l:'프로젝트 수정'},{k:'userList',l:'직원 목록'}].map(t => (
+        {[{k:'create',l:'새 프로젝트 등록'},{k:'editProj',l:'프로젝트 수정'},{k:'userList',l:'직원 목록'},{k:'logs',l:'📋 수정 로그'}].map(t => (
           <button key={t.k} onClick={() => setTab(t.k)} className="btn btn-sm" style={{ background: tab===t.k?'#0f172a':'transparent', color: tab===t.k?'#fff':'#64748b', border: 'none' }}>{t.l}</button>
         ))}
       </div>
@@ -1787,6 +1964,7 @@ function AdminPanel({ user }) {
       {tab === 'create' && <CreateProjectForm userId={user.id} users={users} onSaved={() => { loadAll(); showMsg('프로젝트가 등록되었습니다.'); }} />}
       {tab === 'editProj' && <AdminProjectEdit projects={projects} users={users} onSaved={() => { loadAll(); showMsg('수정되었습니다.'); }} userId={user.id} />}
       {tab === 'userList' && <UserList users={users} onSaved={() => { loadAll(); showMsg('저장되었습니다.'); }} />}
+      {tab === 'logs' && <ChangeLogPanel projects={projects} users={users} />}
     </div>
   );
 }
@@ -1981,10 +2159,6 @@ function InlineProjectEdit({ project, users, userId, onSaved }) {
     };
     const { error } = await sb.from('projects').update(updates).eq('id', project.id);
     if (error) { setMsg('저장 오류: ' + error.message); setLoading(false); return; }
-    const changes = [];
-    if (form.end_date !== oldEndDate) changes.push({ project_id: project.id, field_name: '준공일', old_value: oldEndDate, new_value: form.end_date, changed_by: userId });
-    if (form.client_contact !== oldContact) changes.push({ project_id: project.id, field_name: '발주처 담당자', old_value: oldContact, new_value: form.client_contact, changed_by: userId });
-    if (changes.length > 0) await sb.from('change_logs').insert(changes);
     setMsg('저장됐습니다.');
     setTimeout(() => setMsg(''), 2000);
     onSaved();
