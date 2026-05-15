@@ -1120,7 +1120,7 @@ function App() {
   const [accessChecked, setAccessChecked] = useState(false);
 
   useEffect(function() {
-    var raw = localStorage.getItem('kwanbo_session');
+    var raw = sessionStorage.getItem('kwanbo_session');
     if (!raw) { setSsoChecked(true); return; }
     try {
       var userId = JSON.parse(raw).userId;
@@ -1144,14 +1144,15 @@ function App() {
   }, [user ? user.id : null]);
 
   function handleLogin(u) {
-    localStorage.setItem('kwanbo_session', JSON.stringify({userId: u.id}));
-    localStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
+    sessionStorage.setItem('kwanbo_session', JSON.stringify({userId: u.id}));
+    sessionStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
     setUser(u);
   }
 
   function logout() {
-    localStorage.removeItem('kwanbo_session');
-    localStorage.removeItem('kwanbo_pm_user');
+    sessionStorage.removeItem('kwanbo_session');
+    sessionStorage.removeItem('kwanbo_pm_user');
+    sessionStorage.removeItem('kwanbo_uid');
     setUser(null); setTeamName(''); setHasAccess(false);
   }
 
