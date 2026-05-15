@@ -981,6 +981,8 @@ function ProjectList({ gp, user }) {
   const [members, setMembers] = useState([]);
   const [sf, setSf] = useState('진행중');
   const [cf, setCf] = useState('all');
+  const [sortKey, setSortKey] = useState('default');
+  const [sortDir, setSortDir] = useState(1);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { loadAll(); }, []);
@@ -1003,10 +1005,57 @@ function ProjectList({ gp, user }) {
   const uName = (id) => users.find(u => u.id === id)?.name || '';
   const getPct = (pid) => reports.filter(r => r.project_id === pid).sort((a,b) => b.week_date.localeCompare(a.week_date))[0]?.progress_pct || 0;
   const getNext = (pid) => events.filter(e => e.project_id === pid && !e.done).sort((a,b) => a.event_date.localeCompare(b.event_date))[0];
+  const hasReportThisWeek = (pid) => {
+    const mn = thisMonday();
+    return reports.some(r => r.project_id === pid && r.week_date >= mn);
+  };
 
   const PM_ORDER = ['김병용','장용기','박호진','윤종수','이규민'];
   const pmOrder = (pmId) => { const n = users.find(u => u.id === pmId)?.name || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
   const catOrder = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
+
+  const handleSort = (key) => {
+    if (key === 'default') { setSortKey('default'); setSortDir(1); return; }
+    if (sortKey === key) setSortDir(d => d * -1);
+    else { setSortKey(key); setSortDir(1); }
+  };
+
+  const SORT_OPTIONS = [
+    { key: 'default',    label: '기본순',   noToggle: true },
+    { key: 'progress',   label: '공정률'  },
+    { key: 'start_date', label: '착수일순' },
+    { key: 'end_date',   label: '준공일순' },
+    { key: 'name',       label: '이름순'  },
+    { key: 'unreported', label: '미보고우선' },
+    { key: 'client',     label: '발주처순' },
+    { key: 'pm',         label: 'PM순'    },
+  ];
+
+  const applySort = (list) => {
+    if (sortKey === 'default') return list;
+    return [...list].sort((a, b) => {
+      switch (sortKey) {
+        case 'progress':
+          return (getPct(b.id) - getPct(a.id)) * sortDir;
+        case 'start_date':
+          return (a.start_date || '').localeCompare(b.start_date || '') * sortDir;
+        case 'end_date':
+          return (a.end_date || '').localeCompare(b.end_date || '') * sortDir;
+        case 'name':
+          return a.name.localeCompare(b.name) * sortDir;
+        case 'unreported': {
+          const ua = hasReportThisWeek(a.id) ? 1 : 0;
+          const ub = hasReportThisWeek(b.id) ? 1 : 0;
+          return (ua - ub) * sortDir;
+        }
+        case 'client':
+          return (a.client || '').localeCompare(b.client || '') * sortDir;
+        case 'pm':
+          return uName(a.pm_id).localeCompare(uName(b.pm_id)) * sortDir;
+        default: return 0;
+      }
+    });
+  };
 
   // 기술지원(contractor)은 배정된 프로젝트만 표시
   const memberProjectIds = user?.role === 'contractor'
@@ -1016,15 +1065,18 @@ function ProjectList({ gp, user }) {
     (cf === 'all' || p.category === cf) &&
     (memberProjectIds === null || memberProjectIds.has(p.id))
   );
-  const active = baseFiltered
-    .filter(p => p.status !== '완료')
-    .filter(p => sf === 'all' || p.status === sf)
-    .sort((a,b) =>
-      catOrder(a.category) - catOrder(b.category) ||
-      pmOrder(a.pm_id) - pmOrder(b.pm_id) ||
-      (a.status === '중지' ? 1 : 0) - (b.status === '중지' ? 1 : 0) ||
-      (getPct(b.id) - getPct(a.id))
-    );
+  const active = applySort(
+    baseFiltered
+      .filter(p => p.status !== '완료')
+      .filter(p => sf === 'all' || p.status === sf)
+      .sort((a,b) =>
+        sortKey !== 'default' ? 0 :
+        catOrder(a.category) - catOrder(b.category) ||
+        pmOrder(a.pm_id) - pmOrder(b.pm_id) ||
+        (a.status === '중지' ? 1 : 0) - (b.status === '중지' ? 1 : 0) ||
+        (getPct(b.id) - getPct(a.id))
+      )
+  );
   const completed = baseFiltered
     .filter(p => p.status === '완료')
     .sort((a,b) => (b.completed_at || b.end_date || '').localeCompare(a.completed_at || a.end_date || ''));
@@ -1034,7 +1086,8 @@ function ProjectList({ gp, user }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
+      {/* 제목 + 상태/분류 필터 */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
         <h2 className="section-title" style={{ margin: 0 }}>📊 프로젝트 목록</h2>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 2 }}>
@@ -1049,6 +1102,35 @@ function ProjectList({ gp, user }) {
           </div>
         </div>
       </div>
+
+      {/* 정렬 버튼 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginBottom: 10, padding: '7px 10px', background: '#fff', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,.05)' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', marginRight: 2, whiteSpace: 'nowrap' }}>정렬</span>
+        {SORT_OPTIONS.map(opt => {
+          const isActive = sortKey === opt.key;
+          const dirIcon = isActive && !opt.noToggle ? (sortDir === 1 ? ' ▲' : ' ▼') : '';
+          return (
+            <button
+              key={opt.key}
+              onClick={() => handleSort(opt.key)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 5,
+                border: isActive ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
+                background: isActive ? '#eff6ff' : '#f8fafc',
+                color: isActive ? '#1d4ed8' : '#64748b',
+                fontSize: 11,
+                fontWeight: isActive ? 700 : 500,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all .15s',
+                fontFamily: "'Noto Sans KR', sans-serif",
+              }}
+            >{opt.label}{dirIcon}</button>
+          );
+        })}
+      </div>
+
       {filtered.map(p => {
         const pct = getPct(p.id), ne = getNext(p.id);
         const stopped = p.status === '중지';
@@ -1306,7 +1388,12 @@ function MyProjects({ user, gp }) {
       const { data } = await sb.from('projects').select('*').in('id', supportIds);
       supportProjs = data || [];
     }
-    const allMine = [...(pmProjs.data || []), ...supportProjs];
+    const STATUS_ORDER = { '진행중': 0, '중지': 1, '완료': 2 };
+    const allMine = [...(pmProjs.data || []), ...supportProjs]
+      .sort((a, b) =>
+        (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9) ||
+        (a.name || '').localeCompare(b.name || '', 'ko')
+      );
     setMyProjects(allMine);
     setUsers(us.data || []);
     setReports(rp.data || []);
