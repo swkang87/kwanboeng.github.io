@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📥 주간보고 일괄 가져오기</title>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;color:#1e293b;padding:24px;min-height:100vh}
+.wrap{max-width:1200px;margin:0 auto}
+h1{font-size:20px;font-weight:900;color:#0f172a;margin-bottom:4px}
+.sub{font-size:12px;color:#94a3b8;margin-bottom:22px}
+.card{background:#fff;border-radius:12px;padding:22px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:16px}
+.card h2{font-size:14px;font-weight:800;color:#0f172a;margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid #f1f5f9;display:flex;align-items:center;gap:8px}
+.badge-step{background:#0f172a;color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;flex-shrink:0}
+.btn{padding:9px 18px;border-radius:7px;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:.15s}
+.btn-primary{background:#0f172a;color:#fff}.btn-primary:hover{background:#1e3a5f}
+.btn-success{background:#059669;color:#fff}.btn-success:hover{background:#047857}
+.btn-secondary{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}.btn-secondary:hover{background:#e2e8f0}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.upload-zone{border:2px dashed #cbd5e1;border-radius:10px;padding:48px 24px;text-align:center;cursor:pointer;transition:.2s}
+.upload-zone:hover{border-color:#2563eb;background:#f0f9ff}
+.upload-zone.drag{border-color:#2563eb;background:#eff6ff}
+input[type=file]{display:none}
+label{font-size:11px;font-weight:700;color:#64748b;margin-bottom:5px;display:block}
+input[type=date],select.field-sel{padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;font-family:'Noto Sans KR',sans-serif;outline:none}
+input[type=date]:focus,select.field-sel:focus{border-color:#2563eb}
+.field-row{display:flex;gap:16px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap}
+.field-group{display:flex;flex-direction:column;gap:4px}
+.badge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;color:#fff;line-height:18px;white-space:nowrap}
+.bg-green{background:#059669}.bg-blue{background:#2563eb}.bg-yellow{background:#d97706}
+.bg-gray{background:#94a3b8}.bg-red{background:#dc2626}.bg-dark{background:#0f172a}
+.stat-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.stat{background:#f8fafc;border-radius:8px;padding:12px 16px;flex:1;min-width:100px;border-left:3px solid #e2e8f0}
+.stat.s-green{border-color:#059669}.stat.s-blue{border-color:#2563eb}.stat.s-gray{border-color:#94a3b8}.stat.s-red{border-color:#dc2626}
+.stat-val{font-size:26px;font-weight:900;line-height:1}
+.stat-label{font-size:10px;color:#94a3b8;margin-top:3px}
+.alert{padding:10px 14px;border-radius:7px;font-size:12px;margin-bottom:12px}
+.alert-info{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.alert-success{background:#f0fdf4;color:#059669;border:1px solid #bbf7d0}
+.alert-error{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{padding:8px 6px;background:#f8fafc;border-bottom:2px solid #e2e8f0;text-align:left;font-size:10px;font-weight:700;color:#64748b;white-space:nowrap}
+td{padding:6px 6px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:hover td{background:#fafbfc}
+tr.is-new td{background:#f0f9ff}
+.pbar-wrap{display:flex;align-items:center;gap:4px}
+.pbar{height:5px;background:#e2e8f0;border-radius:3px;overflow:hidden;width:44px;flex-shrink:0}
+.pfill{height:100%;border-radius:3px}
+select.cat-sel{padding:3px 6px;font-size:11px;border-radius:5px;border:1px solid #e2e8f0;font-family:'Noto Sans KR',sans-serif;cursor:pointer}
+input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#2563eb}
+.log{background:#0f172a;border-radius:8px;padding:14px;font-family:'Courier New',monospace;font-size:11px;color:#94a3b8;max-height:220px;overflow-y:auto;margin-top:12px;line-height:1.6}
+.log .ok{color:#4ade80}.log .err{color:#f87171}.log .info{color:#60a5fa}.log .warn{color:#fbbf24}
+.footer-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid #f1f5f9}
+.name-cell{font-size:11px;font-weight:700;color:#0f172a;word-break:keep-all;max-width:220px}
+.db-name{font-size:9px;color:#94a3b8;font-weight:400;margin-top:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>📥 주간보고 일괄 가져오기</h1>
+  <p class="sub">엑셀 주간업무보고 → 시스템 반영 | B안: 주간보고 등록 + 프로젝트 날짜/정보 업데이트 + 신규 프로젝트 생성</p>
+
+  <!-- ① 설정 -->
+  <div class="card" id="card-settings">
+    <h2><span class="badge-step">1</span> 파일 및 설정</h2>
+    <div class="field-row">
+      <div class="field-group">
+        <label>주간보고 기준 주 (월요일)</label>
+        <input type="date" id="weekDate" value="2026-05-11">
+      </div>
+      <div class="field-group">
+        <label>신규 프로젝트 기본 분류</label>
+        <select id="defaultCat" class="field-sel">
+          <option value="관급">관급</option>
+          <option value="사급">사급</option>
+          <option value="기술지원">기술지원</option>
+        </select>
+      </div>
+    </div>
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+      <div style="font-size:36px;margin-bottom:10px">📄</div>
+      <div style="font-size:14px;font-weight:700;color:#334155">엑셀 파일을 클릭하거나 드래그</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:5px">.xlsx 파일만 지원 · 주간업무보고 형식</div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx">
+  </div>
+
+  <!-- ② 미리보기 -->
+  <div class="card" id="card-preview" style="display:none">
+    <h2><span class="badge-step">2</span> 매칭 결과 확인 <span id="previewCount" style="font-size:11px;color:#94a3b8;font-weight:400;margin-left:4px"></span></h2>
+    <div class="stat-row" id="stats"></div>
+    <div class="alert alert-info">
+      ✅ <strong>업데이트</strong>: 기존 프로젝트에 주간보고 등록 + 착수일/준공일 갱신 &nbsp;|&nbsp;
+      🆕 <strong>신규</strong>: 새 프로젝트 생성 후 주간보고 등록 &nbsp;|&nbsp;
+      체크박스 해제 시 해당 행 건너뜀
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:30px;text-align:center">포함</th>
+            <th style="width:72px">구분</th>
+            <th style="width:30px">번호</th>
+            <th>용역명</th>
+            <th style="width:100px">발주처</th>
+            <th style="width:80px">분류</th>
+            <th style="width:60px">PM</th>
+            <th style="width:72px">전주</th>
+            <th style="width:72px">금주</th>
+            <th style="width:86px">착수일</th>
+            <th style="width:86px">준공일</th>
+            <th>과업진행사항</th>
+          </tr>
+        </thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+    <div class="footer-btns">
+      <button class="btn btn-secondary" onclick="reset()">↩ 다시 선택</button>
+      <button class="btn btn-success" id="importBtn" onclick="executeImport()">✅ 선택 항목 가져오기 실행</button>
+    </div>
+  </div>
+
+  <!-- ③ 결과 -->
+  <div class="card" id="card-result" style="display:none">
+    <h2><span class="badge-step">3</span> 가져오기 결과</h2>
+    <div class="stat-row" id="resultStats"></div>
+    <div id="resultMsg"></div>
+    <div class="log" id="log"></div>
+    <div class="footer-btns">
+      <button class="btn btn-primary" onclick="window.location.href='index.html'">시스템으로 돌아가기</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── Supabase ───
+const { createClient } = supabase;
+const sb = createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+
+// ─── State ───
+let existingProjects = [];
+let existingUsers    = [];
+let matchResults     = [];
+
+// ─── DB Load ───
+async function loadDB() {
+  const [pj, us] = await Promise.all([
+    sb.from('projects').select('*'),
+    sb.from('users').select('id, name'),
+  ]);
+  existingProjects = pj.data || [];
+  existingUsers    = us.data || [];
+}
+
+// ─── Helpers ───
+function parseXlDate(val) {
+  if (val === null || val === undefined || val === '') return null;
+  // Date object from xlsx with cellDates:false → number
+  if (typeof val === 'number' && val > 1000) {
+    // Windows Excel epoch: Dec 30 1899
+    const ms = (val - 25569) * 86400 * 1000;
+    const d = new Date(ms);
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth()+1).padStart(2,'0');
+    const dd = String(d.getUTCDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+  if (typeof val === 'string') {
+    const clean = val.replace(/\([^)]*\)/g,'').replace(/\s+/g,'').trim();
+    const m = clean.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  }
+  if (val instanceof Date) {
+    return val.toISOString().split('T')[0];
+  }
+  return null;
+}
+
+function hasStopNote(val) {
+  return val !== null && val !== undefined && String(val).includes('용역중지');
+}
+
+function parsePct(val) {
+  if (val === null || val === undefined || val === '') return null;
+  const n = parseFloat(val);
+  if (isNaN(n)) return null;
+  // Excel stores 0.85 → convert to 85
+  return Math.round(n > 1.5 ? n : n * 100);
+}
+
+function parsePM(val) {
+  if (!val) return '';
+  // "김병용  (유현수)" or "장용기\n(이창환)" → take first part
+  return String(val).split(/[\n(]/)[0].replace(/\s+/g,' ').trim();
+}
+
+// normalize for matching (remove whitespace, special chars)
+function norm(s) {
+  return (s||'').replace(/\s+/g,'').replace(/[㈜(（）)]/g,'').toLowerCase();
+}
+
+function matchProject(name) {
+  if (!name) return null;
+  const n = norm(name);
+  // 1. Exact normalized match
+  let found = existingProjects.find(p => norm(p.name) === n);
+  if (found) return { project: found, confidence: 'exact' };
+  // 2. Substring: Excel name ⊆ DB or DB ⊆ Excel
+  found = existingProjects.find(p => {
+    const dn = norm(p.name);
+    return n.length >= 10 && (dn.includes(n) || n.includes(dn));
+  });
+  if (found) return { project: found, confidence: 'partial' };
+  return null;
+}
+
+function findUser(pmRaw) {
+  const nm = parsePM(pmRaw);
+  return existingUsers.find(u => u.name === nm) || null;
+}
+
+// ─── Parse Excel ───
+async function parseExcel(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array', raw: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+        const rows = [];
+        // Row 0: 주간 업무 보고 제목
+        // Row 1: 컬럼 헤더
+        // Row 2: 서브헤더 (관보/건축/구청 등)
+        // Row 3+: 데이터
+        for (let i = 3; i < data.length; i++) {
+          const r = data[i];
+          if (!r || r.every(c => c === null || c === '')) continue;
+          const name = r[2] ? String(r[2]).trim() : null;
+          if (!name || name.length < 3) continue;
+
+          rows.push({
+            no:       r[0] !== null ? String(r[0]) : '—',
+            client:   r[1] ? String(r[1]).replace(/\s+/g,' ').replace(/\n/g,' ').trim() : '',
+            name:     name,
+            summary:  r[3] ? String(r[3]).trim() : '',
+            prevPct:  parsePct(r[4]),
+            currPct:  parsePct(r[5]),
+            startRaw: r[6],
+            endRaw:   r[7],
+            startDate: parseXlDate(r[6]),
+            endDate:   parseXlDate(r[7]),
+            pmRaw:    r[8] ? String(r[8]) : '',
+            stopped:  hasStopNote(r[7]),
+          });
+        }
+        resolve(rows);
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// ─── Build match results ───
+function buildMatches(rows) {
+  const defaultCat = document.getElementById('defaultCat').value;
+  return rows.map(row => {
+    const res = matchProject(row.name);
+    const pmUser = findUser(row.pmRaw);
+    return {
+      ...row,
+      matchResult: res,
+      matched:     res?.project || null,
+      confidence:  res?.confidence || null,
+      isNew:       !res,
+      skip:        false,
+      category:    defaultCat,
+      pmUser,
+    };
+  });
+}
+
+// ─── Render preview ───
+function renderPreview(results) {
+  const tbody = document.getElementById('previewBody');
+  tbody.innerHTML = '';
+  let nUpdate = 0, nNew = 0;
+
+  results.forEach((r, idx) => {
+    r.isNew ? nNew++ : nUpdate++;
+    const pct = r.currPct;
+    const barColor = pct >= 80 ? '#059669' : pct >= 50 ? '#2563eb' : '#f59e0b';
+
+    const catOpts = ['관급','사급','기술지원'].map(c =>
+      `<option value="${c}" ${r.category===c?'selected':''}>${c}</option>`
+    ).join('');
+
+    const tr = document.createElement('tr');
+    if (r.isNew) tr.className = 'is-new';
+    tr.innerHTML = `
+      <td style="text-align:center">
+        <input type="checkbox" class="row-cb" data-idx="${idx}" checked>
+      </td>
+      <td>
+        ${r.isNew
+          ? '<span class="badge bg-blue">🆕 신규</span>'
+          : r.confidence === 'partial'
+            ? '<span class="badge bg-green">✅ 업데이트</span><br><span style="font-size:9px;color:#d97706">부분매칭</span>'
+            : '<span class="badge bg-green">✅ 업데이트</span>'
+        }
+      </td>
+      <td style="color:#94a3b8;font-size:10px;text-align:center">${r.no}</td>
+      <td>
+        <div class="name-cell">${r.name}</div>
+        ${r.matched ? `<div class="db-name">↳ DB: ${r.matched.name.length > 35 ? r.matched.name.slice(0,35)+'…' : r.matched.name}</div>` : ''}
+      </td>
+      <td style="font-size:11px;color:#475569;word-break:keep-all">${r.client}</td>
+      <td>
+        ${r.isNew
+          ? `<select class="cat-sel" data-idx="${idx}">${catOpts}</select>`
+          : `<span class="badge ${r.matched.category==='관급'?'bg-blue':r.matched.category==='사급'?'bg-green':'bg-yellow'}">${r.matched.category}</span>`
+        }
+      </td>
+      <td style="font-size:11px;white-space:nowrap">
+        ${r.pmUser?.name || (parsePM(r.pmRaw) || '—')}
+        ${!r.pmUser && parsePM(r.pmRaw) ? '<span style="font-size:9px;color:#f59e0b;display:block">미매칭</span>' : ''}
+      </td>
+      <td>
+        ${r.prevPct !== null
+          ? `<div class="pbar-wrap"><div class="pbar"><div class="pfill" style="width:${r.prevPct}%;background:${barColor}"></div></div><span style="font-size:11px;font-weight:700;color:${barColor}">${r.prevPct}%</span></div>`
+          : '<span style="color:#94a3b8;font-size:11px">—</span>'}
+      </td>
+      <td>
+        ${r.currPct !== null
+          ? `<div class="pbar-wrap"><div class="pbar"><div class="pfill" style="width:${r.currPct}%;background:${barColor}"></div></div><span style="font-size:11px;font-weight:700;color:${barColor}">${r.currPct}%</span></div>`
+          : '<span style="color:#94a3b8;font-size:11px">—</span>'}
+      </td>
+      <td style="font-size:11px;color:#475569;white-space:nowrap">${r.startDate || '—'}</td>
+      <td style="font-size:11px;color:#475569;white-space:nowrap">
+        ${r.endDate || '—'}
+        ${r.stopped ? ' <span class="badge bg-gray" style="font-size:8px">중지</span>' : ''}
+      </td>
+      <td style="font-size:10px;color:#475569;max-width:200px;word-break:keep-all;line-height:1.5">
+        ${r.summary ? (r.summary.length > 50 ? r.summary.slice(0,50)+'…' : r.summary) : '—'}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Bind checkbox
+  document.querySelectorAll('.row-cb').forEach(cb => {
+    cb.addEventListener('change', e => {
+      matchResults[+e.target.dataset.idx].skip = !e.target.checked;
+    });
+  });
+  // Bind category select
+  document.querySelectorAll('.cat-sel').forEach(sel => {
+    sel.addEventListener('change', e => {
+      matchResults[+e.target.dataset.idx].category = e.target.value;
+    });
+  });
+
+  document.getElementById('previewCount').textContent = `(총 ${results.length}건)`;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat s-green"><div class="stat-val">${nUpdate}</div><div class="stat-label">기존 프로젝트 업데이트</div></div>
+    <div class="stat s-blue"><div class="stat-val">${nNew}</div><div class="stat-label">신규 프로젝트 생성</div></div>
+    <div class="stat s-gray"><div class="stat-val">${results.length}</div><div class="stat-label">전체 용역 수</div></div>
+  `;
+}
+
+// ─── Execute import ───
+async function executeImport() {
+  const btn = document.getElementById('importBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ 가져오는 중...';
+
+  const weekDate = document.getElementById('weekDate').value;
+  const logEl = document.getElementById('log');
+  const logAdd = (msg, cls = '') => {
+    const d = document.createElement('div');
+    d.className = cls; d.textContent = msg;
+    logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+  };
+
+  document.getElementById('card-result').style.display = 'block';
+  document.getElementById('card-result').scrollIntoView({ behavior: 'smooth' });
+  logEl.innerHTML = '';
+  logAdd(`[시작] 주간보고 기준일: ${weekDate}`, 'info');
+
+  const toProcess = matchResults.filter(r => !r.skip);
+  logAdd(`[대상] 총 ${toProcess.length}건 처리 예정 (${matchResults.filter(r=>r.skip).length}건 제외)`, 'info');
+
+  let okCount = 0, errCount = 0;
+
+  for (const r of toProcess) {
+    try {
+      let projectId;
+
+      if (r.isNew) {
+        // ── 신규 프로젝트 생성 ──
+        const { data, error } = await sb.from('projects').insert({
+          name:       r.name,
+          client:     r.client,
+          category:   r.category,
+          status:     r.stopped ? '중지' : '진행중',
+          start_date: r.startDate || null,
+          end_date:   r.endDate   || null,
+          pm_id:      r.pmUser?.id || null,
+        }).select('id').single();
+        if (error) throw error;
+        projectId = data.id;
+        logAdd(`🆕 신규 생성: ${r.name.slice(0,40)}`, 'ok');
+
+      } else {
+        // ── 기존 프로젝트 업데이트 ──
+        projectId = r.matched.id;
+        const upd = {};
+        if (r.startDate && r.startDate !== r.matched.start_date) upd.start_date = r.startDate;
+        if (r.endDate   && r.endDate   !== r.matched.end_date)   upd.end_date   = r.endDate;
+        if (r.client    && r.client    !== r.matched.client)      upd.client     = r.client;
+        if (r.stopped && r.matched.status !== '중지')             upd.status     = '중지';
+
+        if (Object.keys(upd).length > 0) {
+          const { error } = await sb.from('projects').update(upd).eq('id', projectId);
+          if (error) throw error;
+          logAdd(`✅ 프로젝트 업데이트: ${r.name.slice(0,40)} [${Object.keys(upd).join(', ')}]`, 'ok');
+        } else {
+          logAdd(`✅ 프로젝트 변동없음: ${r.name.slice(0,40)}`, 'ok');
+        }
+      }
+
+      // ── 주간보고 upsert ──
+      if (r.currPct !== null || r.summary) {
+        const report = {
+          project_id:   projectId,
+          week_date:    weekDate,
+          progress_pct: r.currPct ?? 0,
+          prev_pct:     r.prevPct ?? 0,
+          summary:      r.summary || '',
+        };
+        // Try upsert; if no unique constraint, do delete+insert
+        const { error: upsertErr } = await sb.from('weekly_reports')
+          .upsert(report, { onConflict: 'project_id,week_date' });
+        if (upsertErr) {
+          await sb.from('weekly_reports')
+            .delete().eq('project_id', projectId).eq('week_date', weekDate);
+          const { error: insErr } = await sb.from('weekly_reports').insert(report);
+          if (insErr) throw insErr;
+        }
+        logAdd(`   └ 주간보고 등록: ${weekDate} | 공정률 ${r.prevPct ?? '?'}% → ${r.currPct ?? '?'}%`, 'ok');
+      } else {
+        logAdd(`   └ 주간보고 없음 (공정률/진행사항 미기재, 건너뜀)`, 'warn');
+      }
+
+      okCount++;
+    } catch(err) {
+      errCount++;
+      logAdd(`❌ 오류 [${r.name.slice(0,25)}]: ${err.message}`, 'err');
+    }
+  }
+
+  const skipCount = matchResults.filter(r => r.skip).length;
+  logAdd(`────────────────────────────────`, 'info');
+  logAdd(`[완료] 성공: ${okCount}건 | 오류: ${errCount}건 | 제외: ${skipCount}건`, 'info');
+
+  document.getElementById('resultStats').innerHTML = `
+    <div class="stat s-green"><div class="stat-val">${okCount}</div><div class="stat-label">성공</div></div>
+    <div class="stat ${errCount>0?'s-red':'s-gray'}"><div class="stat-val">${errCount}</div><div class="stat-label">오류</div></div>
+    <div class="stat s-gray"><div class="stat-val">${skipCount}</div><div class="stat-label">제외</div></div>
+  `;
+  document.getElementById('resultMsg').innerHTML = errCount === 0
+    ? `<div class="alert alert-success">✅ 가져오기가 완료되었습니다. 시스템에서 내용을 확인해주세요.</div>`
+    : `<div class="alert alert-error">⚠ 일부 항목에서 오류가 발생했습니다. 아래 로그를 확인해주세요.</div>`;
+
+  btn.textContent = '✅ 완료';
+}
+
+// ─── File upload ───
+async function handleFile(file) {
+  if (!file?.name.endsWith('.xlsx')) { alert('.xlsx 파일만 지원합니다.'); return; }
+  setUploadUI('loading', '파일 분석 중...');
+  try {
+    await loadDB();
+    const rows = await parseExcel(file);
+    matchResults = buildMatches(rows);
+    renderPreview(matchResults);
+    document.getElementById('card-preview').style.display = 'block';
+    document.getElementById('card-preview').scrollIntoView({ behavior: 'smooth' });
+    setUploadUI('done', `${file.name} · ${rows.length}개 행 파싱 완료`);
+  } catch(err) {
+    setUploadUI('error', `파일 읽기 오류: ${err.message}`);
+    console.error(err);
+  }
+}
+
+function setUploadUI(state, msg) {
+  const zone = document.getElementById('uploadZone');
+  const icons = { loading:'⏳', done:'✅', error:'❌' };
+  const colors = { loading:'#64748b', done:'#059669', error:'#dc2626' };
+  zone.innerHTML = `
+    <div style="font-size:36px;margin-bottom:10px">${icons[state]}</div>
+    <div style="font-size:13px;font-weight:700;color:${colors[state]}">${msg}</div>
+  `;
+}
+
+function reset() {
+  document.getElementById('card-preview').style.display = 'none';
+  document.getElementById('card-result').style.display = 'none';
+  document.getElementById('uploadZone').innerHTML = `
+    <div style="font-size:36px;margin-bottom:10px">📄</div>
+    <div style="font-size:14px;font-weight:700;color:#334155">엑셀 파일을 클릭하거나 드래그</div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:5px">.xlsx 파일만 지원 · 주간업무보고 형식</div>
+  `;
+  matchResults = [];
+}
+
+// ─── Event bindings ───
+document.getElementById('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+zone.addEventListener('drop',      e => {
+  e.preventDefault(); zone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+</script>
+</body>
+</html>
