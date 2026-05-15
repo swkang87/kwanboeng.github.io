@@ -601,10 +601,10 @@ function WeeklyReport({ gp, user }) {
     const colgroup = `<colgroup>
       <col style="width:3%"/><col style="width:5%"/><col style="width:18%"/>
       <col style="width:8%"/><col style="width:5%"/><col style="width:3%"/>
-      <col style="width:3%"/><col style="width:3%"/><col style="width:16%"/>
-      <col style="width:13%"/><col style="width:15%"/><col style="width:8%"/>
+      <col style="width:3%"/><col style="width:3%"/><col style="width:29%"/>
+      <col style="width:15%"/><col style="width:8%"/>
     </colgroup>`;
-    const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>전주</th><th>금주</th><th>±</th><th>전주 진행사항</th><th>금주 계획</th><th>주요 공정</th><th>비고</th></tr>`;
+    const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>전주</th><th>금주</th><th>±</th><th>과업진행사항</th><th>주요 공정</th><th>비고</th></tr>`;
     const rows = sortedProjects.map((p, i) => {
       const r = getReport(p.id);
       const stopped = p.status === '중지';
@@ -632,7 +632,6 @@ function WeeklyReport({ gp, user }) {
         <td class="tc" style="font-weight:700">${r?.progress_pct||0}</td>
         <td class="tc" style="font-weight:700;color:${d>0?'#059669':d<0?'#dc2626':'#999'}">${d>0?('+'+d):d<0?d:'—'}</td>
         <td style="font-size:6.5pt">${r?.isThisWeek?(r?.summary||''):(stopped?'중지 상태':'—')}</td>
-        <td style="font-size:6.5pt">${r?.isThisWeek?(r?.next_plan||''):'—'}</td>
         <td style="font-size:6.5pt">${evHtml || '—'}</td>
         <td style="font-size:6.5pt;color:${r?.issues?'#dc2626':'inherit'}">${r?.issues||''}</td>
       </tr>`;
@@ -714,8 +713,7 @@ function WeeklyReport({ gp, user }) {
               <th style={{ width: 36, textAlign: 'center' }}>전주</th>
               <th style={{ width: 80, textAlign: 'center' }}>공정률</th>
               <th style={{ width: 32, textAlign: 'center' }}>증감</th>
-              <th style={{ minWidth: 180 }}>전주 진행사항</th>
-              <th style={{ minWidth: 140 }}>금주 계획</th>
+              <th style={{ minWidth: 280 }}>과업진행사항</th>
               <th style={{ width: 80 }}>비고/이슈</th>
             </tr>
           </thead>
@@ -751,7 +749,6 @@ function WeeklyReport({ gp, user }) {
                     {r?.isThisWeek ? (r.summary || '—') : (stopped ? <span style={{ color: '#9ca3af' }}>중지 상태</span> : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>)}
                     {ne && <div style={{ marginTop: 3, padding: '2px 5px', background: ec(ne.type).bg, borderRadius: 3, fontSize: 10, color: ec(ne.type).tx, display: 'inline-block' }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
                   </td>
-                  <td style={{ fontSize: 11, color: '#475569', lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>{r?.isThisWeek ? (r.next_plan || '—') : '—'}</td>
                   <td style={{ fontSize: 10, color: r?.issues ? '#dc2626' : '#94a3b8' }}>{r?.issues || ''}</td>
                 </tr>
               );
@@ -1229,7 +1226,7 @@ function ProjectDetail({ id, user, gb }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <button className="btn btn-secondary btn-sm" onClick={gb}>← 목록</button>
-        {(user?.role === 'admin' || members.some(m => m.user_id === user?.id && m.role === 'pm')) && (
+        {(user?.role === 'admin' || members.some(m => m.user_id === user?.id)) && (
           <button className="btn btn-success btn-sm" onClick={() => setEditModal('report')}>📝 주간보고 입력</button>
         )}
         {(user?.role === 'admin' || members.some(m => m.user_id === user?.id && m.role === 'pm')) && (
@@ -1262,6 +1259,31 @@ function ProjectDetail({ id, user, gb }) {
         </div>
         {p.memo && <div style={{ marginTop: 8, padding: '6px 10px', background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#64748b' }}>{p.memo}</div>}
       </div>
+
+      {/* 최신 과업진행사항 */}
+      {(() => {
+        const lr = reports.length > 0 ? reports[reports.length-1] : null;
+        if (!lr) return null;
+        const barColor = lr.progress_pct>=80?'#059669':lr.progress_pct>=50?'#2563eb':'#f59e0b';
+        return (
+          <div className="card card-p" style={{ marginBottom: 10, borderLeft: '4px solid #3b82f6' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>📋 최근 과업진행사항</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 52, height: 6, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${lr.progress_pct}%`, height: '100%', background: barColor, borderRadius: 3 }} />
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: barColor }}>{lr.progress_pct}%</span>
+                </div>
+                <span style={{ fontSize: 11, color: '#94a3b8' }}>{ff(lr.week_date)} 기준</span>
+              </div>
+            </div>
+            <div style={{ fontSize: 13, color: '#334155', lineHeight: 1.7, wordBreak: 'keep-all' }}>{lr.summary || '—'}</div>
+            {lr.issues && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 6, padding: '4px 8px', background: '#fef2f2', borderRadius: 5 }}>⚠ {lr.issues}</div>}
+          </div>
+        );
+      })()}
 
       {renderChart()}
 
@@ -1324,8 +1346,7 @@ function ProjectDetail({ id, user, gb }) {
                 <PBar pct={r.progress_pct} w={55} />
                 <Delta prev={r.prev_pct} curr={r.progress_pct} />
               </div>
-              <div style={{ fontSize: 12, color: '#334155' }}>{r.summary}</div>
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>{"→"} {r.next_plan}</div>
+              <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.6 }}>{r.summary}</div>
               {r.issues && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 1 }}>⚠ {r.issues}</div>}
             </div>
           ))
@@ -1484,27 +1505,26 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
   const [pct, setPct] = useState(prevData?.progress_pct || 0);
   const [prevPct, setPrevPct] = useState(prevData?.progress_pct || 0);
   const [summary, setSummary] = useState('');
-  const [nextPlan, setNextPlan] = useState('');
   const [issues, setIssues] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [dateErr, setDateErr] = useState('');
 
-  // 전주 보고 데이터 자동 불러오기 (async 안전하게 처리)
+  // 직전 보고 데이터 자동 불러오기
   useEffect(() => {
     if (!projectId) return;
     const fetchPrev = async () => {
       try {
         const { data } = await sb
           .from('weekly_reports')
-          .select('summary, next_plan, progress_pct')
+          .select('summary, progress_pct, issues')
           .eq('project_id', projectId)
           .order('week_date', { ascending: false })
           .limit(1)
           .single();
         if (data) {
           setSummary(data.summary || '');
-          setNextPlan(data.next_plan || '');
+          setIssues(data.issues || '');
           setPrevPct(data.progress_pct || 0);
           setPct(data.progress_pct || 0);
         }
@@ -1534,11 +1554,10 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
   };
 
   const save = async () => {
-    if (!summary) { setErr('전주 진행사항을 입력해주세요.'); return; }
+    if (!summary) { setErr('과업진행사항을 입력해주세요.'); return; }
     if (!isMonday(weekDate)) { setErr('보고 기준일은 월요일이어야 합니다.'); return; }
     setLoading(true); setErr('');
-    const autoNextPlan = nextPlan.trim() ? nextPlan : ('(진행없음) ' + summary);
-    const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: autoNextPlan, issues, reported_by: userId, updated_at: new Date().toISOString() };
+    const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: '', issues, reported_by: userId, updated_at: new Date().toISOString() };
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
     if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
     onSaved();
@@ -1564,12 +1583,8 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
         <input type="number" className="form-input" min={0} max={100} value={prevPct} onChange={e => setPrevPct(e.target.value)} />
       </div>
       <div className="form-group">
-        <label className="form-label">전주 진행사항 *</label>
-        <textarea className="form-input" rows={3} value={summary} onChange={e => setSummary(e.target.value)} placeholder="지난 주 진행사항" />
-      </div>
-      <div className="form-group">
-        <label className="form-label">금주 계획</label>
-        <textarea className="form-input" rows={2} value={nextPlan} onChange={e => setNextPlan(e.target.value)} placeholder="이번 주 계획 (비우면 전주 내용 자동 복사)" />
+        <label className="form-label">과업진행사항 *</label>
+        <textarea className="form-input" rows={5} value={summary} onChange={e => setSummary(e.target.value)} placeholder="과업 진행사항을 입력하세요" />
       </div>
       <div className="form-group">
         <label className="form-label">이슈</label>
