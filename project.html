@@ -1170,7 +1170,7 @@ function ProjectDetail({ id, user, gb }) {
   const deleteEvent = async (evId) => {
     if (delEvId === evId) {
       const evTarget = events.find(e => e.id === evId);
-      if (evTarget) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: evTarget.project_id, field_name: '주요공정 삭제', old_value: evTarget.type + ' | ' + evTarget.title + ' | ' + evTarget.event_date, new_value: '', changed_by: user?.id }); if (clErr) console.error('change_log insert error:', clErr.message); }
+      if (evTarget) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: evTarget.project_id, field_name: '주요공정 삭제', old_value: evTarget.type + ' | ' + evTarget.title + ' | ' + evTarget.event_date, new_value: '', changed_by: user?.id, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
       await sb.from('project_events').delete().eq('id', evId);
       setDelEvId(null); loadAll();
     } else {
@@ -1565,7 +1565,7 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
     const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: '', issues, reported_by: userId, updated_at: new Date().toISOString() };
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
     if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
-    { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%', new_value: String(parseInt(pct)) + '% | ' + weekDate, changed_by: userId }); if (clErr) console.error('change_log insert error:', clErr.message); }
+    { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%', new_value: String(parseInt(pct)) + '% | ' + weekDate, changed_by: userId, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
     onSaved();
   };
 
@@ -1624,10 +1624,10 @@ function EventModal({ projectId, userId, onClose, onSaved, eventData }) {
     var result;
     if (isEdit) {
       result = await sb.from('project_events').update(payload).eq('id', eventData.id);
-      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 수정', old_value: eventData.type + ' | ' + eventData.title + ' | ' + eventData.event_date, new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId }); if (clErr) console.error('change_log insert error:', clErr.message); }
+      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 수정', old_value: eventData.type + ' | ' + eventData.title + ' | ' + eventData.event_date, new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
     } else {
       result = await sb.from('project_events').insert(Object.assign({}, payload, { project_id: projectId, registered_by: userId }));
-      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 등록', old_value: '', new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId }); if (clErr) console.error('change_log insert error:', clErr.message); }
+      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 등록', old_value: '', new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
     }
     if (result.error) { setErr('저장 중 오류: ' + result.error.message); setLoading(false); return; }
     onSaved();
