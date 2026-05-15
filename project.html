@@ -550,8 +550,6 @@ function WeeklyReport({ gp, user }) {
         }
         // 중지 프로젝트는 무조건 표시
         if (p.status === '중지') return true;
-        // 준공일이 지난 용역 제외
-        if (p.end_date && p.end_date < selWeek) return false;
         // 이전 최신 보고가 100%면 제외
         const thisWeekReport = reports.find(r => r.project_id === p.id && r.week_date === selWeek);
         if (!thisWeekReport) {
@@ -749,7 +747,12 @@ function WeeklyReport({ gp, user }) {
                     {r?.isThisWeek ? (r.summary || '—') : (stopped ? <span style={{ color: '#9ca3af' }}>중지 상태</span> : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>)}
                     {ne && <div style={{ marginTop: 3, padding: '2px 5px', background: ec(ne.type).bg, borderRadius: 3, fontSize: 10, color: ec(ne.type).tx, display: 'inline-block' }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
                   </td>
-                  <td style={{ fontSize: 10, color: r?.issues ? '#dc2626' : '#94a3b8' }}>{r?.issues || ''}</td>
+                  <td style={{ fontSize: 10 }}>
+                    {p.end_date && p.end_date < selWeek && p.status !== '완료' && (
+                      <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: r?.issues ? 3 : 0 }}>⚠ 준공일 초과</div>
+                    )}
+                    {r?.issues && <div style={{ color: '#dc2626' }}>{r.issues}</div>}
+                  </td>
                 </tr>
               );
             })}
@@ -1680,7 +1683,7 @@ function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers 
     const updates = {
       name: form.name, client: form.client, client_dept: form.client_dept,
       client_contact: form.client_contact, start_date: form.start_date,
-      end_date: form.end_date, status: form.status, memo: form.memo,
+      end_date: form.end_date || null, status: form.status, memo: form.memo,
       pm_id: form.pm_id || project.pm_id,
       updated_at: new Date().toISOString(),
       completed_at: form.status === '완료' && project.status !== '완료'
@@ -1931,7 +1934,7 @@ function ChangeLogPanel({ projects, users }) {
 
 // ─── Admin Panel ───
 function AdminPanel({ user }) {
-  const [tab, setTab] = useState('create');
+  const [tab, setTab] = useState('editProj');
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1956,7 +1959,7 @@ function AdminPanel({ user }) {
       <h2 className="section-title">⚙ 관리자 메뉴</h2>
       {msg && <div className="alert alert-success">{msg}</div>}
       <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: '#fff', borderRadius: 8, padding: 4, boxShadow: '0 1px 2px rgba(0,0,0,.06)', width: 'fit-content', flexWrap: 'wrap' }}>
-        {[{k:'create',l:'새 프로젝트 등록'},{k:'editProj',l:'프로젝트 수정'},{k:'userList',l:'직원 목록'},{k:'logs',l:'📋 수정 로그'}].map(t => (
+        {[{k:'editProj',l:'프로젝트 수정'},{k:'create',l:'새 프로젝트 등록'},{k:'userList',l:'직원 목록'},{k:'logs',l:'📋 수정 로그'}].map(t => (
           <button key={t.k} onClick={() => setTab(t.k)} className="btn btn-sm" style={{ background: tab===t.k?'#0f172a':'transparent', color: tab===t.k?'#fff':'#64748b', border: 'none' }}>{t.l}</button>
         ))}
       </div>
@@ -1979,7 +1982,8 @@ function CreateProjectForm({ userId, users, onSaved }) {
   const save = async () => {
     if (!form.name || !form.client || !form.pm_id) { setErr('용역명, 발주처, PM은 필수입니다.'); return; }
     setLoading(true); setErr('');
-    const { data, error } = await sb.from('projects').insert({ ...form }).select().single();
+    const insertPayload = { ...form, start_date: form.start_date || null, end_date: form.end_date || null };
+    const { data, error } = await sb.from('projects').insert(insertPayload).select().single();
     if (error) { setErr('등록 중 오류: ' + error.message); setLoading(false); return; }
     // Auto-add PM as project_member
     await sb.from('project_members').insert({ project_id: data.id, user_id: form.pm_id, role: 'pm' });
@@ -2036,11 +2040,11 @@ function CreateProjectForm({ userId, users, onSaved }) {
       <div className="form-row">
         <div className="form-group">
           <label className="form-label">착수일</label>
-          <input type="date" className="form-input" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
+          <input type="date" className="form-input" value={form.start_date || ''} onChange={e => set('start_date', e.target.value)} />
         </div>
         <div className="form-group">
           <label className="form-label">준공일</label>
-          <input type="date" className="form-input" value={form.end_date} onChange={e => set('end_date', e.target.value)} />
+          <input type="date" className="form-input" value={form.end_date || ''} onChange={e => set('end_date', e.target.value)} />
         </div>
       </div>
       <div className="form-group">
@@ -2150,7 +2154,7 @@ function InlineProjectEdit({ project, users, userId, onSaved }) {
     const updates = {
       name: form.name, category: form.category, client: form.client, client_dept: form.client_dept,
       client_contact: form.client_contact, start_date: form.start_date,
-      end_date: form.end_date, status: form.status, memo: form.memo,
+      end_date: form.end_date || null, status: form.status, memo: form.memo,
       pm_id: form.pm_id || project.pm_id,
       updated_at: new Date().toISOString(),
       completed_at: form.status === '완료' && project.status !== '완료'
