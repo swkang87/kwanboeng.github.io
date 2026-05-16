@@ -1,22 +1,12 @@
 /**
- * ╔══════════════════════════════════════════════════════════════╗
- * ║              SYSBAR MODULE  v2.0                             ║
- * ║  모든 페이지 공통: 상단 네비바 CSS + React 컴포넌트             ║
- * ╚══════════════════════════════════════════════════════════════╝
+ * SYSBAR MODULE v2.1
+ * 모든 페이지 공통: 상단 네비바 CSS + React 컴포넌트
  *
- * 사용법 (각 HTML 파일):
+ * 사용법:
  *   <script src="config.js"></script>
  *   <script src="sysbar.js"></script>
- *
  *   const SysBar = Sysbar.createComponent(React);
- *   <SysBar
- *     activeKey="project"       // 'project'|'leave'|'worklog'|'admin'
- *     user={user}
- *     teamName={userTeamName}   // 관리포털 접근 판단용
- *     onLogout={handleLogout}
- *     onDisabledClick={fn}      // 기술지원 비활성 클릭 시 (선택)
- *     noPrint={true}            // no-print 클래스 추가 (선택)
- *   />
+ *   <SysBar activeKey="leave" user={user} teamName={teamName} onLogout={fn} />
  */
 (function(global) {
   'use strict';
@@ -30,8 +20,10 @@
     { key:'admin',   icon:'🏢', label:'관리포털', url:'admin-portal.html', adminOnly:true },
   ];
 
+  var CSS_INJECTED = false;
+
   function injectCss() {
-    if (document.getElementById('sysbar-css')) return;
+    if (CSS_INJECTED || document.getElementById('sysbar-css')) { CSS_INJECTED = true; return; }
     var s = document.createElement('style');
     s.id = 'sysbar-css';
     s.textContent =
@@ -51,12 +43,28 @@
         '.sys-user{display:none;}' +
         '.sys-logout{padding:3px 6px;font-size:10px;}' +
       '}';
-    document.head.appendChild(s);
+    // head가 준비됐으면 바로, 아니면 DOMContentLoaded 때 삽입
+    if (document.head) {
+      document.head.appendChild(s);
+    } else {
+      document.addEventListener('DOMContentLoaded', function() {
+        document.head.appendChild(s);
+      });
+    }
+    CSS_INJECTED = true;
+  }
+
+  // 페이지 로드 즉시 CSS 주입 (React 컴포넌트 실행 전에도 스타일 적용)
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectCss);
+  } else {
+    injectCss();
   }
 
   function createComponent(React) {
-    if (!React) return null;
-    injectCss();
+    if (!React) { console.error('[sysbar] React가 없습니다.'); return null; }
+    injectCss(); // 한 번 더 보장
+
     return function SysBar(props) {
       var cfg        = global.APP_CONFIG || {};
       var user       = props.user;
@@ -80,7 +88,9 @@
           return e('a', {key:m.key, href:m.url, className:'sys-link'}, label);
         });
 
-      var userLabel = user ? (user.name + ' 님' + (teamName ? ' ('+teamName+')' : '')) : '';
+      var userLabel = user
+        ? (user.name + ' 님' + (teamName ? ' ('+teamName+')' : ''))
+        : '';
 
       return e('div', {className:'sys-bar'+(noPrint?' no-print':'')},
         e('a', {key:'co', href:cfg.HOME_URL||'index.html', className:'sys-co'}, cfg.COMPANY_KO||''),
@@ -93,5 +103,11 @@
     };
   }
 
-  global.Sysbar = { SESSION_KEY:SESSION_KEY, SYS_MENUS:SYS_MENUS, injectCss:injectCss, createComponent:createComponent };
+  global.Sysbar = {
+    SESSION_KEY: SESSION_KEY,
+    SYS_MENUS:   SYS_MENUS,
+    injectCss:   injectCss,
+    createComponent: createComponent,
+  };
+
 })(window);
