@@ -16,7 +16,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font
 .sys-bar{position:sticky;top:0;z-index:300;background:#0f172a;height:38px;display:flex;align-items:center;padding:0 10px;gap:3px;border-bottom:1px solid #1e293b;}
 .sys-co{font-size:11px;font-weight:800;color:#94a3b8;margin-right:6px;letter-spacing:-.3px;white-space:nowrap;text-decoration:none;flex-shrink:0;}
 .sys-link{display:flex;align-items:center;justify-content:center;gap:3px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;color:#94a3b8;background:#1e293b;white-space:nowrap;flex-shrink:0;}
-.sys-link.active{background:#1d4ed8;color:#fff;font-weight:700;}
+.sys-link.active{background:#7c3aed;color:#fff;font-weight:700;}
 .sys-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .sys-user{font-size:11px;color:#94a3b8;white-space:nowrap;}
 .sys-logout{background:transparent;color:#64748b;border:1px solid #334155;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;flex-shrink:0;}
@@ -130,7 +130,39 @@ tr:hover td{background:#f8fafc;}
 <script type="text/babel">
 const { useState, useEffect } = React;
 const { createClient } = supabase;
-const sb = createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+// RLS용: 로그인 후 user 헤더를 포함한 Supabase 클라이언트 생성
+function _makeSb(userId, userRole) {
+  const extraHeaders = {};
+  if (userId) {
+    extraHeaders['x-user-id'] = String(userId);
+    extraHeaders['x-user-role'] = userRole || '';
+  }
+  return createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY, {
+    global: { headers: extraHeaders }
+  });
+}
+// ─── 비밀번호 해싱 (PBKDF2 + SHA-256, 100k iter, Web Crypto API) ──
+async function hashPassword(plain){
+  const salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');
+  const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return 'pbkdf2$'+salt+'$'+hash;
+}
+async function verifyPassword(plain,stored){
+  if(!stored||plain==null)return false;
+  if(!String(stored).startsWith('pbkdf2$'))return plain===stored;
+  const parts=stored.split('$');if(parts.length!==3)return false;
+  const salt=parts[1];const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return stored==='pbkdf2$'+salt+'$'+hash;
+}
+function isPlainPassword(stored){return stored&&!String(stored).startsWith('pbkdf2$');}
+
+let sb = _makeSb();
 
 const VIEWS = { WL:'wl', PF:'pf', SL:'sl', ST:'st' };
 const TODAY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -922,17 +954,26 @@ function StaffView({ user }) {
     setErr(''); setModal(true);
   }
 
-  function save() {
+  async function save() {
     if (!form.name||!form.phone) { setErr('이름과 전화번호는 필수입니다.'); return; }
     setSaving(true); setErr('');
-    var p = editU
-      ? sb.from('users').update(form).eq('id', editU.id)
-      : sb.from('users').insert(Object.assign({}, form, {password: form.phone}));
-    p.then(function(r) {
+    try {
+      var p;
+      if (editU) {
+        p = sb.from('users').update(form).eq('id', editU.id);
+      } else {
+        // 신규 등록: 기본 비밀번호(전화번호) 해싱
+        var hashedPw = await hashPassword(form.phone);
+        p = sb.from('users').insert(Object.assign({}, form, {password: hashedPw}));
+      }
+      var r = await p;
       setSaving(false);
       if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
       setModal(false); load();
-    });
+    } catch (e) {
+      setSaving(false);
+      setErr('저장 중 오류가 발생했습니다.');
+    }
   }
 
   var filtered = users.filter(function(u) { return (u.name||'').includes(q)||(u.phone||'').includes(q); });
@@ -1077,14 +1118,28 @@ function LoginScreen({ onLogin }) {
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
 
-  function doLogin() {
+  async function doLogin() {
     if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
     setLoading(true); setErr('');
-    sb.from('users').select('*').eq('phone', phone.trim()).eq('password', pw).single().then(function(r) {
+    try {
+      const r = await sb.from('users').select('*').eq('phone', phone.trim()).single();
+      if (r.error||!r.data) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+      const ok = await verifyPassword(pw, r.data.password);
+      if (!ok) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+      // Lazy migration: 평문이면 해시로 업그레이드
+      if (isPlainPassword(r.data.password)) {
+        try {
+          const h = await hashPassword(pw);
+          const tmpSb = _makeSb(r.data.id, r.data.role);
+          await tmpSb.from('users').update({ password: h }).eq('id', r.data.id);
+        } catch (e) { console.error('pw migration failed', e); }
+      }
       setLoading(false);
-      if (r.error||!r.data) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); return; }
       onLogin(r.data);
-    });
+    } catch (e) {
+      setLoading(false);
+      setErr('로그인 중 오류가 발생했습니다.');
+    }
   }
 
   return (
@@ -1120,12 +1175,16 @@ function App() {
   const [accessChecked, setAccessChecked] = useState(false);
 
   useEffect(function() {
-    var raw = sessionStorage.getItem('kwanbo_session');
+    var raw = localStorage.getItem('kwanbo_session');
     if (!raw) { setSsoChecked(true); return; }
     try {
       var userId = JSON.parse(raw).userId;
       sb.from('users').select('*').eq('id', userId).single().then(function(r) {
-        if (r.data) setUser(r.data);
+        if (r.data) {
+          sb = _makeSb(r.data.id, r.data.role);
+          var safeU = Object.assign({}, r.data); delete safeU.password;
+          setUser(safeU);
+        }
         setSsoChecked(true);
       }).catch(function() { setSsoChecked(true); });
     } catch(e) { setSsoChecked(true); }
@@ -1144,15 +1203,17 @@ function App() {
   }, [user ? user.id : null]);
 
   function handleLogin(u) {
-    sessionStorage.setItem('kwanbo_session', JSON.stringify({userId: u.id}));
-    sessionStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
-    setUser(u);
+    sb = _makeSb(u.id, u.role);
+    var safeU = Object.assign({}, u); delete safeU.password;
+    localStorage.setItem('kwanbo_session', JSON.stringify({userId: u.id}));
+    localStorage.setItem('kwanbo_pm_user', JSON.stringify(safeU));
+    setUser(safeU);
   }
 
   function logout() {
-    sessionStorage.removeItem('kwanbo_session');
-    sessionStorage.removeItem('kwanbo_pm_user');
-    sessionStorage.removeItem('kwanbo_uid');
+    sb = _makeSb();
+    localStorage.removeItem('kwanbo_session');
+    localStorage.removeItem('kwanbo_pm_user');
     setUser(null); setTeamName(''); setHasAccess(false);
   }
 
@@ -1180,7 +1241,7 @@ function App() {
   return (
     <div>
       <div className="sys-bar">
-        <a href={APP_CONFIG.HOME_URL} className="sys-co">{APP_CONFIG.COMPANY_KO}</a>
+        <a href={APP_CONFIG.HOME_URL} style={{fontSize:11,fontWeight:800,color:'#94a3b8',marginRight:8,letterSpacing:-0.3,textDecoration:'none',whiteSpace:'nowrap'}}>{APP_CONFIG.COMPANY_KO}</a>
         <a href="project.html" className="sys-link">📊 공정관리</a>
         <a href="leave.html" className="sys-link">📅 연차관리</a>
         <a href="worklog.html" className="sys-link">📝 업무일지</a>

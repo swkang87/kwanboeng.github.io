@@ -15,7 +15,6 @@
   .sys-co{display:none;}
   .sys-link{flex:1;padding:4px 1px;font-size:10px;gap:1px;}
   .sys-user{display:none;}
-  .sys-logout{padding:3px 5px;font-size:10px;}
 }
 </style>
 <div id="app"></div>
@@ -167,8 +166,36 @@ const typeLabel=(type,days)=>{
   return d<1?daysLabel(d):`${type} ${daysLabel(d)}`;
 };
 
+// ─── 비밀번호 해싱 (PBKDF2 + SHA-256, 100k iter, Web Crypto API) ──
+async function hashPassword(plain){
+  const salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');
+  const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return 'pbkdf2$'+salt+'$'+hash;
+}
+async function verifyPassword(plain,stored){
+  if(!stored||plain==null)return false;
+  if(!String(stored).startsWith('pbkdf2$'))return plain===stored; // 평문 호환 (점진 마이그레이션)
+  const parts=stored.split('$');if(parts.length!==3)return false;
+  const salt=parts[1];const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return stored==='pbkdf2$'+salt+'$'+hash;
+}
+function isPlainPassword(stored){return stored&&!String(stored).startsWith('pbkdf2$');}
+
+// RLS용 인증 컨텍스트 (로그인/로그아웃 시 갱신)
+let _authCtx = { id: null, role: null };
+
 const api={
-  headers:()=>({'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json','Prefer':'return=representation'}),
+  headers:()=>{
+    const h={'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json','Prefer':'return=representation'};
+    if(_authCtx.id){h['x-user-id']=String(_authCtx.id);h['x-user-role']=_authCtx.role||'';}
+    return h;
+  },
   get:(t,q='')=>fetch(`${SB_URL}/${t}${q}`,{headers:api.headers()}).then(r=>r.ok?r.json():[]),
   post:(t,b)=>fetch(`${SB_URL}/${t}`,{method:'POST',headers:api.headers(),body:JSON.stringify(b)}).then(r=>r.json()),
   patch:(t,q,b)=>fetch(`${SB_URL}/${t}${q}`,{method:'PATCH',headers:api.headers(),body:JSON.stringify(b)}),
@@ -826,7 +853,8 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
     if(!form.name||!form.phone){alert('이름과 전화번호를 입력해 주세요.');return;}
     const ph=form.phone.replace(/\D/g,'');
     if(users.find(u=>u.phone===ph)){alert('이미 등록된 전화번호입니다.');return;}
-    await api.post('users',{...form,phone:ph,total_days:Number(form.total_days)||15});
+    const hashedPw=await hashPassword(form.password||'1234');
+    await api.post('users',{...form,phone:ph,password:hashedPw,total_days:Number(form.total_days)||15});
     await audit(adm.id,'직원추가',null,form.name);
     setShowAdd(false);setForm({name:'',phone:'',password:'1234',role:'employee',team_id:'',join_date:today(),total_days:15});onRefresh();
   };
@@ -834,7 +862,7 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
     await api.patch('users',`?id=eq.${editU.id}`,{name:editU.name,phone:editU.phone.replace(/\D/g,''),role:editU.role,team_id:editU.team_id||null,total_days:Number(editU.total_days),join_date:editU.join_date});
     await audit(adm.id,'직원수정',editU.id,editU.name);setEditU(null);onRefresh();
   };
-  const resetPw=async u=>{const pw=prompt(`${u.name}의 새 비밀번호 입력:\n(빈칸으로 확인 시 생년월일 6자리로 초기화)`);if(pw===null)return;await api.patch('users',`?id=eq.${u.id}`,{password:pw.trim()||u.phone.slice(0,6)});alert('비밀번호가 변경되었습니다.');};
+  const resetPw=async u=>{const pw=prompt(`${u.name}의 새 비밀번호 입력:\n(빈칸으로 확인 시 생년월일 6자리로 초기화)`);if(pw===null)return;const plain=pw.trim()||u.phone.slice(0,6);const h=await hashPassword(plain);await api.patch('users',`?id=eq.${u.id}`,{password:h});alert('비밀번호가 변경되었습니다.');};
   const processBulk=async()=>{
     let ok=0;
     for(const row of bulk.trim().split('\n').filter(r=>r.trim())){
@@ -843,7 +871,8 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
       const ph=phone.replace(/\D/g,'');
       if(users.find(u=>u.phone===ph))continue;
       const team=teams.find(t=>t.name===teamName);
-      await api.post('users',{name,phone:ph,password:'1234',role:roleLabel==='팀장'?'manager':'employee',team_id:team?.id||null,join_date:joinDate||today(),total_days:Number(daysStr)||15});
+      const hashedPw=await hashPassword('1234');
+      await api.post('users',{name,phone:ph,password:hashedPw,role:roleLabel==='팀장'?'manager':'employee',team_id:team?.id||null,join_date:joinDate||today(),total_days:Number(daysStr)||15});
       ok++;
     }
     await audit(adm.id,'일괄등록',null,`${ok}명 등록`);
@@ -959,7 +988,7 @@ function AdminAudit({user,users,auditLogs,onRefresh}){
 // ── Profile ───────────────────────────────────────────────
 function ProfileView({user,onLogout,onRefresh}){
   const [cur,setCur]=useState(''),[nw,setNw]=useState(''),[cf,setCf]=useState(''),[msg,setMsg]=useState('');
-  const change=async()=>{if(cur!==user.password){setMsg('현재 비밀번호가 올바르지 않습니다.');return;}if(nw.length<4){setMsg('새 비밀번호는 4자 이상이어야 합니다.');return;}if(nw!==cf){setMsg('새 비밀번호가 일치하지 않습니다.');return;}await api.patch('users',`?id=eq.${user.id}`,{password:nw});setMsg('done');setCur('');setNw('');setCf('');onRefresh();};
+  const change=async()=>{const ok=await verifyPassword(cur,user.password);if(!ok){setMsg('현재 비밀번호가 올바르지 않습니다.');return;}if(nw.length<4){setMsg('새 비밀번호는 4자 이상이어야 합니다.');return;}if(nw!==cf){setMsg('새 비밀번호가 일치하지 않습니다.');return;}const h=await hashPassword(nw);await api.patch('users',`?id=eq.${user.id}`,{password:h});setMsg('done');setCur('');setNw('');setCf('');onRefresh();};
   return(
     <div>
       <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>내 정보</p>
@@ -1015,15 +1044,20 @@ function App(){
 
   const load=useCallback(async()=>{
     try{
-      const [u,t,l,a]=await Promise.all([api.get('users','?order=name'),api.get('teams','?order=name'),api.get('leave_requests','?order=created_at.desc'),api.get('audit_logs','?order=created_at.desc&limit=200')]);
+      // 1단계: 로그인 검증에 필요한 users/teams 먼저 조회 (RLS: 누구나 SELECT 허용)
+      const [u,t]=await Promise.all([api.get('users','?order=name'),api.get('teams','?order=name')]);
       const us=Array.isArray(u)?u:[];
-      setUsers(us);setTeams(Array.isArray(t)?t:[]);setLeaves(Array.isArray(l)?l:[]);setAuditLogs(Array.isArray(a)?a:[]);
+      setUsers(us);setTeams(Array.isArray(t)?t:[]);
+      // 2단계: 자동로그인 처리 → _authCtx 설정
       const savedId=sessionStorage.getItem('kwanbo_uid');
       const sharedRaw=localStorage.getItem('kwanbo_session');
       const sharedId=sharedRaw?JSON.parse(sharedRaw).userId:null;
       const autoId=savedId||sharedId;
-      if(autoId){const saved=us.find(x=>x.id===autoId);if(saved&&saved.role!=='contractor'){setCu(saved);if(!savedId)sessionStorage.setItem('kwanbo_uid',saved.id);}}
+      if(autoId){const saved=us.find(x=>x.id===autoId);if(saved&&saved.role!=='contractor'){_authCtx={id:saved.id,role:saved.role};setCu(saved);if(!savedId)sessionStorage.setItem('kwanbo_uid',saved.id);}}
       else setCu(prev=>prev?us.find(x=>x.id===prev.id&&x.role!=='contractor')||null:null);
+      // 3단계: RLS 보호 테이블은 _authCtx 설정 이후에 조회
+      const [l,a]=await Promise.all([api.get('leave_requests','?order=created_at.desc'),api.get('audit_logs','?order=created_at.desc&limit=200')]);
+      setLeaves(Array.isArray(l)?l:[]);setAuditLogs(Array.isArray(a)?a:[]);
     }catch(e){console.error(e);}
     setLoading(false);
   },[]);
@@ -1045,8 +1079,8 @@ function App(){
     setSyncing(false);
   };
 
-  const login=()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits)&&x.password===pw);if(u){if(u.role==='contractor'){setErr('연차 관리 시스템 접근 권한이 없습니다.');return;}setCu(u);setErr('');setView('calendar');sessionStorage.setItem('kwanbo_uid',u.id);localStorage.setItem('kwanbo_session',JSON.stringify({userId:u.id}));}else setErr('아이디 또는 비밀번호가 올바르지 않습니다.');};
-  const logout=()=>{setCu(null);setView('dashboard');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_session');localStorage.removeItem('kwanbo_pm_user');};
+  const login=async()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits));if(!u){setErr('아이디 또는 비밀번호가 올바르지 않습니다.');return;}if(u.role==='contractor'){setErr('연차 관리 시스템 접근 권한이 없습니다.');return;}const ok=await verifyPassword(pw,u.password);if(!ok){setErr('아이디 또는 비밀번호가 올바르지 않습니다.');return;}_authCtx={id:u.id,role:u.role};if(isPlainPassword(u.password)){try{const h=await hashPassword(pw);await api.patch('users',`?id=eq.${u.id}`,{password:h});}catch(e){console.error('pw migration failed',e);}}setCu(u);setErr('');setView('calendar');sessionStorage.setItem('kwanbo_uid',u.id);localStorage.setItem('kwanbo_session',JSON.stringify({userId:u.id}));load();};
+  const logout=()=>{_authCtx={id:null,role:null};setCu(null);setView('dashboard');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_session');localStorage.removeItem('kwanbo_pm_user');};
   const refresh=()=>load();
 
   // ── 로그인 화면 ──────────────────────────────────────────
@@ -1128,8 +1162,8 @@ function App(){
     return(
       <div style={{display:'flex',flexDirection:'column',height:'100dvh',fontFamily:"'Noto Sans KR',sans-serif",background:'#f1f5f9',overflow:'hidden'}}>
         {/* sys-bar */}
-        <div className="sys-bar">
-          <a href={APP_CONFIG.HOME_URL} className="sys-co">{APP_CONFIG.COMPANY_KO}</a>
+        <div className="sys-bar" style={{flexShrink:0,position:'relative'}}>
+          <a href={APP_CONFIG.HOME_URL} style={{fontSize:11,fontWeight:800,color:'#94a3b8',marginRight:8,letterSpacing:-0.3,textDecoration:'none',whiteSpace:'nowrap'}}>{APP_CONFIG.COMPANY_KO}</a>
           <a href="project.html" className="sys-link">📊 공정관리</a>
           <div className="sys-link active">📅 연차관리</div>
           <a href="worklog.html" className="sys-link">📝 업무일지</a>
@@ -1167,7 +1201,7 @@ function App(){
 
       {/* 1줄: 시스템 전환 바 */}
       <div className="sys-bar">
-        <a href={APP_CONFIG.HOME_URL} className="sys-co">{APP_CONFIG.COMPANY_KO}</a>
+        <a href={APP_CONFIG.HOME_URL} style={{fontSize:11,fontWeight:800,color:'#94a3b8',marginRight:8,letterSpacing:-0.3,textDecoration:'none',whiteSpace:'nowrap'}}>{APP_CONFIG.COMPANY_KO}</a>
         <a href="project.html" className="sys-link">📊 공정관리</a>
         <div className="sys-link active">📅 연차관리</div>
         <a href="worklog.html" className="sys-link">📝 업무일지</a>

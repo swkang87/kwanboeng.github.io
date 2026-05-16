@@ -33,7 +33,6 @@ button{cursor:pointer}
 .form-group{margin-bottom:14px}
 /* ── SYS-BAR ── */
 .sys-bar{position:sticky;top:0;z-index:300;background:#0f172a;height:38px;display:flex;align-items:center;padding:0 10px;gap:3px;border-bottom:1px solid #1e293b;}
-.sys-co{font-size:11px;font-weight:800;color:#94a3b8;margin-right:6px;letter-spacing:-.3px;white-space:nowrap;text-decoration:none;flex-shrink:0;}
 .sys-link{display:flex;align-items:center;justify-content:center;gap:3px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;color:#94a3b8;background:#1e293b;white-space:nowrap;flex-shrink:0;border:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
 .sys-link.active{background:#1d4ed8;color:#fff;font-weight:700;}
 .sys-link.disabled{color:#475569;}
@@ -42,7 +41,6 @@ button{cursor:pointer}
 .sys-logout{background:transparent;color:#64748b;border:1px solid #334155;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;}
 @media(max-width:640px){
   .sys-bar{padding:0 4px;gap:2px;}
-  .sys-co{display:none;}
   .sys-link{flex:1;padding:4px 1px;font-size:10px;gap:1px;}
   .sys-user{display:none;}
   .sys-logout{padding:3px 5px;font-size:10px;}
@@ -214,10 +212,39 @@ const { useState, useEffect, useCallback, useRef } = React;
 
 // ─── Supabase ───
 const { createClient } = supabase;
-const sb = createClient(
-  APP_CONFIG.SUPABASE_URL,
-  APP_CONFIG.SUPABASE_KEY
-);
+// RLS용: 로그인 후 user 헤더를 포함한 Supabase 클라이언트 생성
+function _makeSb(userId, userRole) {
+  const extraHeaders = {};
+  if (userId) {
+    extraHeaders['x-user-id'] = String(userId);
+    extraHeaders['x-user-role'] = userRole || '';
+  }
+  return createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY, {
+    global: { headers: extraHeaders }
+  });
+}
+// ─── 비밀번호 해싱 (PBKDF2 + SHA-256, 100k iter, Web Crypto API) ──
+async function hashPassword(plain){
+  const salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');
+  const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return 'pbkdf2$'+salt+'$'+hash;
+}
+async function verifyPassword(plain,stored){
+  if(!stored||plain==null)return false;
+  if(!String(stored).startsWith('pbkdf2$'))return plain===stored;
+  const parts=stored.split('$');if(parts.length!==3)return false;
+  const salt=parts[1];const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return stored==='pbkdf2$'+salt+'$'+hash;
+}
+function isPlainPassword(stored){return stored&&!String(stored).startsWith('pbkdf2$');}
+
+let sb = _makeSb();
 
 // ─── Constants ───
 const CAT_COLOR = { '관급': '#2563eb', '사급': '#059669', '기술지원': '#d97706' };
@@ -302,9 +329,23 @@ function Login({ onLogin }) {
     if (!phone || !pw) { setErr('전화번호와 비밀번호를 입력해주세요.'); return; }
     setLoading(true); setErr('');
     try {
-      const { data, error } = await sb.from('users').select('*').eq('phone', phone).eq('password', pw).single();
+      const { data, error } = await sb.from('users').select('*').eq('phone', phone).single();
       if (error || !data) { setErr('전화번호 또는 비밀번호가 올바르지 않습니다.'); }
-      else { onLogin(data); }
+      else {
+        const ok = await verifyPassword(pw, data.password);
+        if (!ok) { setErr('전화번호 또는 비밀번호가 올바르지 않습니다.'); }
+        else {
+          // Lazy migration: 평문이면 해시로 업그레이드
+          if (isPlainPassword(data.password)) {
+            try {
+              const h = await hashPassword(pw);
+              const tmpSb = _makeSb(data.id, data.role);
+              await tmpSb.from('users').update({ password: h }).eq('id', data.id);
+            } catch (e) { console.error('pw migration failed', e); }
+          }
+          onLogin(data);
+        }
+      }
     } catch { setErr('서버 오류가 발생했습니다.'); }
     setLoading(false);
   };
@@ -339,8 +380,12 @@ function App() {
   const [user, setUser] = useState(() => {
     try {
       const pm = localStorage.getItem('kwanbo_pm_user');
-      if (pm) return JSON.parse(pm);
-      // SSO: 다른 시스템에서 로그인한 경우 → useEffect에서 Supabase 조회
+      if (pm) {
+        const u = JSON.parse(pm);
+        if (u.password) { delete u.password; localStorage.setItem('kwanbo_pm_user', JSON.stringify(u)); }
+        sb = _makeSb(u.id, u.role); // RLS 헤더 복원
+        return u;
+      }
       return null;
     } catch { return null; }
   });
@@ -351,11 +396,14 @@ function App() {
   const [noPermModal, setNoPermModal] = useState(false);
 
   const handleLogin = (u) => {
-    localStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
+    sb = _makeSb(u.id, u.role);
+    const safeU = {...u}; delete safeU.password;
+    localStorage.setItem('kwanbo_pm_user', JSON.stringify(safeU));
     localStorage.setItem('kwanbo_session', JSON.stringify({ userId: u.id }));
-    setUser(u);
+    setUser(safeU);
   };
   const handleLogout = () => {
+    sb = _makeSb();
     localStorage.removeItem('kwanbo_pm_user');
     localStorage.removeItem('kwanbo_session');
     setUser(null);
@@ -394,8 +442,10 @@ function App() {
       const { userId } = JSON.parse(raw);
       sb.from('users').select('*').eq('id', userId).single().then(({ data }) => {
         if (data) {
-          localStorage.setItem('kwanbo_pm_user', JSON.stringify(data));
-          setUser(data);
+          sb = _makeSb(data.id, data.role); // RLS 헤더 복원
+          const safeU = {...data}; delete safeU.password;
+          localStorage.setItem('kwanbo_pm_user', JSON.stringify(safeU));
+          setUser(safeU);
         }
         setSsoChecked(true);
       }).catch(() => setSsoChecked(true));
@@ -440,7 +490,7 @@ function App() {
 
       {/* 1줄: 시스템 전환 + 이름/로그아웃 */}
       <div className="sys-bar no-print">
-        <a href={APP_CONFIG.HOME_URL} className="sys-co">{APP_CONFIG.COMPANY_KO}</a>
+        <a href={APP_CONFIG.HOME_URL} style={{ fontSize:11, fontWeight:800, color:'#94a3b8', marginRight:8, letterSpacing:-0.3, textDecoration:'none', whiteSpace:'nowrap' }}>{APP_CONFIG.COMPANY_KO}</a>
         <div className="sys-link active">📊 공정관리</div>
         {isContractor ? (
           <div className="sys-link disabled" onClick={() => setNoPermModal(true)}>📅 연차관리</div>
@@ -2395,9 +2445,12 @@ function ChangePasswordModal({ user, onClose }) {
     if (next.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
     // Verify current password
-    const { data } = await sb.from('users').select('id').eq('id', user.id).eq('password', curr).single();
-    if (!data) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
-    const { error } = await sb.from('users').update({ password: next }).eq('id', user.id);
+    const { data: u } = await sb.from('users').select('password').eq('id', user.id).single();
+    if (!u) { setErr('사용자 정보를 찾을 수 없습니다.'); setLoading(false); return; }
+    const ok = await verifyPassword(curr, u.password);
+    if (!ok) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+    const hashed = await hashPassword(next);
+    const { error } = await sb.from('users').update({ password: hashed }).eq('id', user.id);
     if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
     setOk(true); setLoading(false);
   };
@@ -2445,7 +2498,8 @@ function UserList({ users, onSaved }) {
     if (!newUser.name || !newUser.phone) { setErr('이름과 전화번호는 필수입니다.'); return; }
     setLoading(true); setErr('');
     const pw = newUser.password || newUser.phone; // 비번 미입력시 전화번호로
-    const { error } = await sb.from('users').insert({ ...newUser, password: pw, join_date: today(), total_days: 0, used_days: 0 });
+    const hashedPw = await hashPassword(pw);
+    const { error } = await sb.from('users').insert({ ...newUser, password: hashedPw, join_date: today(), total_days: 0, used_days: 0 });
     if (error) { setErr('등록 오류: ' + error.message); setLoading(false); return; }
     setNewUser({ name:'', phone:'', password:'', role:'employee' });
     onSaved();
@@ -2526,9 +2580,12 @@ function ProfileView({ user, onLogout }) {
     if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
     if (next.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
-    const { data } = await sb.from('users').select('id').eq('id', user.id).eq('password', curr).single();
-    if (!data) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
-    const { error } = await sb.from('users').update({ password: next }).eq('id', user.id);
+    const { data: u } = await sb.from('users').select('password').eq('id', user.id).single();
+    if (!u) { setErr('사용자 정보를 찾을 수 없습니다.'); setLoading(false); return; }
+    const ok = await verifyPassword(curr, u.password);
+    if (!ok) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+    const hashed = await hashPassword(next);
+    const { error } = await sb.from('users').update({ password: hashed }).eq('id', user.id);
     if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
     setOk(true); setCurr(''); setNext(''); setConfirm('');
     setLoading(false);

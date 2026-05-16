@@ -143,7 +143,29 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#2563eb}
 <script>
 // ─── Supabase ───
 const { createClient } = supabase;
-const sb = createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+// RLS용: 로그인된 user의 헤더를 포함한 Supabase 클라이언트 생성
+function _makeSb(userId, userRole) {
+  const extraHeaders = {};
+  if (userId) {
+    extraHeaders['x-user-id'] = String(userId);
+    extraHeaders['x-user-role'] = userRole || '';
+  }
+  return createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY, {
+    global: { headers: extraHeaders }
+  });
+}
+// localStorage에서 SSO 세션 복원 (project.html 등에서 진입한 경우)
+let _ssoUser = null;
+try {
+  const pmRaw = localStorage.getItem('kwanbo_pm_user');
+  if (pmRaw) _ssoUser = JSON.parse(pmRaw);
+} catch(e) {}
+let sb = _makeSb(_ssoUser?.id, _ssoUser?.role);
+// 세션이 없으면 RLS에 의해 모든 호출이 막힘 → 페이지 진입 자체를 차단
+if (!_ssoUser) {
+  alert('로그인이 필요합니다. 메인 화면에서 다시 진입해주세요.');
+  window.location.href = APP_CONFIG.HOME_URL || 'index.html';
+}
 
 // ─── State ───
 let existingProjects = [];
