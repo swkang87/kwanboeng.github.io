@@ -19,6 +19,10 @@
 </style>
 <div id="app"></div>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -1048,13 +1052,40 @@ function App(){
       const [u,t]=await Promise.all([api.get('users','?order=name'),api.get('teams','?order=name')]);
       const us=Array.isArray(u)?u:[];
       setUsers(us);setTeams(Array.isArray(t)?t:[]);
-      // 2단계: 자동로그인 처리 → _authCtx 설정
-      const savedId=sessionStorage.getItem('kwanbo_uid');
-      const sharedRaw=localStorage.getItem('kwanbo_session');
-      const sharedId=sharedRaw?JSON.parse(sharedRaw).userId:null;
-      const autoId=savedId||sharedId;
-      if(autoId){const saved=us.find(x=>x.id===autoId);if(saved&&saved.role!=='contractor'){_authCtx={id:saved.id,role:saved.role};setCu(saved);if(!savedId)sessionStorage.setItem('kwanbo_uid',saved.id);}}
-      else setCu(prev=>prev?us.find(x=>x.id===prev.id&&x.role!=='contractor')||null:null);
+      // 2단계: 통합 세션(kwanbo_session)에서 자동로그인
+      const sessRaw = localStorage.getItem('kwanbo_session');
+      // 마이그레이션: 구버전 sessionStorage('kwanbo_uid') 키도 확인
+      const legacyUid = sessionStorage.getItem('kwanbo_uid');
+      let autoUser = null;
+      if (sessRaw) {
+        try {
+          const v = JSON.parse(sessRaw);
+          // 신규: user 객체 전체 / 구버전: {userId} 형태
+          if (v && v.id) autoUser = v;
+          else if (v && v.userId) autoUser = us.find(x => x.id === v.userId) || null;
+        } catch(e) {}
+      } else if (legacyUid) {
+        autoUser = us.find(x => x.id === legacyUid) || null;
+      }
+      if (autoUser && autoUser.role !== 'contractor') {
+        // 항상 DB의 최신 정보로 동기화 (역할 변경 등 반영)
+        const fresh = us.find(x => x.id === autoUser.id) || autoUser;
+        if (fresh.role === 'contractor') {
+          // 권한이 사라진 경우 세션 정리
+          localStorage.removeItem('kwanbo_session');
+          sessionStorage.removeItem('kwanbo_uid');
+        } else {
+          _authCtx = { id: fresh.id, role: fresh.role };
+          setCu(fresh);
+          // 통합 세션으로 재저장 (password 제외)
+          const safeU = {...fresh}; delete safeU.password;
+          localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+          // 구버전 키 정리
+          sessionStorage.removeItem('kwanbo_uid');
+        }
+      } else {
+        setCu(prev => prev ? us.find(x => x.id === prev.id && x.role !== 'contractor') || null : null);
+      }
       // 3단계: RLS 보호 테이블은 _authCtx 설정 이후에 조회
       const [l,a]=await Promise.all([api.get('leave_requests','?order=created_at.desc'),api.get('audit_logs','?order=created_at.desc&limit=200')]);
       setLeaves(Array.isArray(l)?l:[]);setAuditLogs(Array.isArray(a)?a:[]);
@@ -1079,8 +1110,8 @@ function App(){
     setSyncing(false);
   };
 
-  const login=async()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits));if(!u){setErr('아이디 또는 비밀번호가 올바르지 않습니다.');return;}if(u.role==='contractor'){setErr('연차 관리 시스템 접근 권한이 없습니다.');return;}const ok=await verifyPassword(pw,u.password);if(!ok){setErr('아이디 또는 비밀번호가 올바르지 않습니다.');return;}_authCtx={id:u.id,role:u.role};if(isPlainPassword(u.password)){try{const h=await hashPassword(pw);await api.patch('users',`?id=eq.${u.id}`,{password:h});}catch(e){console.error('pw migration failed',e);}}setCu(u);setErr('');setView('calendar');sessionStorage.setItem('kwanbo_uid',u.id);localStorage.setItem('kwanbo_session',JSON.stringify({userId:u.id}));load();};
-  const logout=()=>{_authCtx={id:null,role:null};setCu(null);setView('dashboard');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_session');localStorage.removeItem('kwanbo_pm_user');};
+  const login=async()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits));if(!u){setErr('아이디 또는 비밀번호가 올바르지 않습니다.');return;}if(u.role==='contractor'){setErr('연차 관리 시스템 접근 권한이 없습니다.');return;}const ok=await verifyPassword(pw,u.password);if(!ok){setErr('아이디 또는 비밀번호가 올바르지 않습니다.');return;}_authCtx={id:u.id,role:u.role};if(isPlainPassword(u.password)){try{const h=await hashPassword(pw);await api.patch('users',`?id=eq.${u.id}`,{password:h});}catch(e){console.error('pw migration failed',e);}}setCu(u);setErr('');setView('calendar');const safeU={...u};delete safeU.password;localStorage.setItem('kwanbo_session',JSON.stringify(safeU));sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_pm_user');load();};
+  const logout=()=>{_authCtx={id:null,role:null};setCu(null);setView('dashboard');localStorage.removeItem('kwanbo_session');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_pm_user');};
   const refresh=()=>load();
 
   // ── 로그인 화면 ──────────────────────────────────────────

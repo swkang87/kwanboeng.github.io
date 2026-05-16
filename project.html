@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>공정관리 시스템</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
 <script src="config.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -379,11 +383,29 @@ function Login({ onLogin }) {
 function App() {
   const [user, setUser] = useState(() => {
     try {
+      // 통합 세션 읽기
+      const sessRaw = localStorage.getItem('kwanbo_session');
+      if (sessRaw) {
+        const v = JSON.parse(sessRaw);
+        // 신규 형태: user 객체 전체 (id 포함)
+        if (v && v.id && v.role) {
+          if (v.password) { delete v.password; localStorage.setItem('kwanbo_session', JSON.stringify(v)); }
+          sb = _makeSb(v.id, v.role); // RLS 헤더 복원
+          // 구버전 키 정리
+          localStorage.removeItem('kwanbo_pm_user');
+          return v;
+        }
+        // 구버전: {userId} → useEffect에서 DB 조회로 복원
+      }
+      // 더 구버전: kwanbo_pm_user 키
       const pm = localStorage.getItem('kwanbo_pm_user');
       if (pm) {
         const u = JSON.parse(pm);
-        if (u.password) { delete u.password; localStorage.setItem('kwanbo_pm_user', JSON.stringify(u)); }
-        sb = _makeSb(u.id, u.role); // RLS 헤더 복원
+        if (u.password) delete u.password;
+        sb = _makeSb(u.id, u.role);
+        // 통합 세션 키로 마이그레이션 후 구버전 키 삭제
+        localStorage.setItem('kwanbo_session', JSON.stringify(u));
+        localStorage.removeItem('kwanbo_pm_user');
         return u;
       }
       return null;
@@ -398,14 +420,18 @@ function App() {
   const handleLogin = (u) => {
     sb = _makeSb(u.id, u.role);
     const safeU = {...u}; delete safeU.password;
-    localStorage.setItem('kwanbo_pm_user', JSON.stringify(safeU));
-    localStorage.setItem('kwanbo_session', JSON.stringify({ userId: u.id }));
+    // 통합 세션 키 하나만 사용
+    localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+    // 구버전 키 정리
+    localStorage.removeItem('kwanbo_pm_user');
+    sessionStorage.removeItem('kwanbo_uid');
     setUser(safeU);
   };
   const handleLogout = () => {
     sb = _makeSb();
-    localStorage.removeItem('kwanbo_pm_user');
     localStorage.removeItem('kwanbo_session');
+    localStorage.removeItem('kwanbo_pm_user');
+    sessionStorage.removeItem('kwanbo_uid');
     setUser(null);
   };
   const isAdmin = user?.role === 'admin';
@@ -439,12 +465,18 @@ function App() {
     const raw = localStorage.getItem('kwanbo_session');
     if (!raw) { setSsoChecked(true); return; }
     try {
-      const { userId } = JSON.parse(raw);
+      const v = JSON.parse(raw);
+      // 신규: user 객체는 useState 초기값에서 이미 처리됨 → 여기로 안 옴
+      // 여기 도달 = 구버전 {userId} 형태이므로 DB 조회로 복원
+      const userId = v && v.userId;
+      if (!userId) { setSsoChecked(true); return; }
       sb.from('users').select('*').eq('id', userId).single().then(({ data }) => {
         if (data) {
           sb = _makeSb(data.id, data.role); // RLS 헤더 복원
           const safeU = {...data}; delete safeU.password;
-          localStorage.setItem('kwanbo_pm_user', JSON.stringify(safeU));
+          // 통합 세션으로 마이그레이션
+          localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+          localStorage.removeItem('kwanbo_pm_user');
           setUser(safeU);
         }
         setSsoChecked(true);

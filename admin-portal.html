@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
 <title>관리포털</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -1167,22 +1171,42 @@ function LoginScreen({ onLogin }) {
 
 // ── APP ───────────────────────────────────────────────────────────────────
 function App() {
-  const [user, setUser] = useState(null);
+  // 통합 세션에서 user 즉시 복원
+  var initialUser = (function() {
+    try {
+      var raw = localStorage.getItem('kwanbo_session');
+      if (!raw) return null;
+      var v = JSON.parse(raw);
+      if (v && v.id && v.role) {
+        if (v.password) { delete v.password; localStorage.setItem('kwanbo_session', JSON.stringify(v)); }
+        sb = _makeSb(v.id, v.role);
+        return v;
+      }
+      return null;
+    } catch(e) { return null; }
+  })();
+  const [user, setUser] = useState(initialUser);
   const [view, setView] = useState(VIEWS.WL);
-  const [ssoChecked, setSsoChecked] = useState(false);
+  const [ssoChecked, setSsoChecked] = useState(!!initialUser);
   const [teamName, setTeamName] = useState('');
   const [hasAccess, setHasAccess] = useState(false);
   const [accessChecked, setAccessChecked] = useState(false);
 
   useEffect(function() {
+    if (initialUser) return;
     var raw = localStorage.getItem('kwanbo_session');
     if (!raw) { setSsoChecked(true); return; }
     try {
-      var userId = JSON.parse(raw).userId;
+      var v = JSON.parse(raw);
+      var userId = v && v.userId;
+      if (!userId) { setSsoChecked(true); return; }
       sb.from('users').select('*').eq('id', userId).single().then(function(r) {
         if (r.data) {
           sb = _makeSb(r.data.id, r.data.role);
           var safeU = Object.assign({}, r.data); delete safeU.password;
+          // 통합 세션으로 마이그레이션
+          localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+          localStorage.removeItem('kwanbo_pm_user');
           setUser(safeU);
         }
         setSsoChecked(true);
@@ -1205,8 +1229,10 @@ function App() {
   function handleLogin(u) {
     sb = _makeSb(u.id, u.role);
     var safeU = Object.assign({}, u); delete safeU.password;
-    localStorage.setItem('kwanbo_session', JSON.stringify({userId: u.id}));
-    localStorage.setItem('kwanbo_pm_user', JSON.stringify(safeU));
+    // 통합 세션 키 하나만 사용
+    localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+    localStorage.removeItem('kwanbo_pm_user');
+    sessionStorage.removeItem('kwanbo_uid');
     setUser(safeU);
   }
 
@@ -1214,6 +1240,7 @@ function App() {
     sb = _makeSb();
     localStorage.removeItem('kwanbo_session');
     localStorage.removeItem('kwanbo_pm_user');
+    sessionStorage.removeItem('kwanbo_uid');
     setUser(null); setTeamName(''); setHasAccess(false);
   }
 

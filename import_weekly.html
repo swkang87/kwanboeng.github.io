@@ -8,6 +8,10 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;color:#1e293b;padding:24px;min-height:100vh}
@@ -154,11 +158,20 @@ function _makeSb(userId, userRole) {
     global: { headers: extraHeaders }
   });
 }
-// localStorage에서 SSO 세션 복원 (project.html 등에서 진입한 경우)
+// localStorage 통합 세션에서 user 복원
 let _ssoUser = null;
 try {
-  const pmRaw = localStorage.getItem('kwanbo_pm_user');
-  if (pmRaw) _ssoUser = JSON.parse(pmRaw);
+  // 신규: kwanbo_session에 user 객체 전체
+  const sessRaw = localStorage.getItem('kwanbo_session');
+  if (sessRaw) {
+    const v = JSON.parse(sessRaw);
+    if (v && v.id && v.role) _ssoUser = v;
+  }
+  // 구버전: kwanbo_pm_user 키 (마이그레이션)
+  if (!_ssoUser) {
+    const pmRaw = localStorage.getItem('kwanbo_pm_user');
+    if (pmRaw) _ssoUser = JSON.parse(pmRaw);
+  }
 } catch(e) {}
 let sb = _makeSb(_ssoUser?.id, _ssoUser?.role);
 // 세션이 없으면 RLS에 의해 모든 호출이 막힘 → 페이지 진입 자체를 차단

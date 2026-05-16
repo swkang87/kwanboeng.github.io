@@ -1382,6 +1382,27 @@ footer {
 
 <!-- ════════════════ JS ════════════════ -->
 <script>
+// ─── 비밀번호 해싱 (PBKDF2 + SHA-256, 100k iter) ──
+async function hashPassword(plain){
+  const salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');
+  const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return 'pbkdf2$'+salt+'$'+hash;
+}
+async function verifyPassword(plain,stored){
+  if(!stored||plain==null)return false;
+  if(!String(stored).startsWith('pbkdf2$'))return plain===stored;
+  const parts=stored.split('$');if(parts.length!==3)return false;
+  const salt=parts[1];const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return stored==='pbkdf2$'+salt+'$'+hash;
+}
+function isPlainPassword(stored){return stored&&!String(stored).startsWith('pbkdf2$');}
+
 /* ── config.js 기반 동적 메뉴 생성 ── */
 (function() {
   const grid = document.getElementById('erpMenuGrid');
@@ -1454,6 +1475,7 @@ function renderLoginSection(user) {
     document.getElementById('modalLogoutBtn').addEventListener('click', function() {
       localStorage.removeItem('kwanbo_session');
       localStorage.removeItem('kwanbo_pm_user');
+      sessionStorage.removeItem('kwanbo_uid');
       renderLoginSection(null);
     });
   } else {
@@ -1477,7 +1499,8 @@ function renderLoginSection(user) {
       loginBtn.textContent = '로그인 중...';
       errEl.textContent = '';
 
-      var url = APP_CONFIG.SUPABASE_URL + '/rest/v1/users?phone=eq.' + encodeURIComponent(phone) + '&password=eq.' + encodeURIComponent(pw) + '&select=*';
+      // 1) phone으로 사용자 조회 (password 비교는 클라이언트에서 verify)
+      var url = APP_CONFIG.SUPABASE_URL + '/rest/v1/users?phone=eq.' + encodeURIComponent(phone) + '&select=*';
       fetch(url, {
         headers: {
           'apikey': APP_CONFIG.SUPABASE_KEY,
@@ -1486,17 +1509,44 @@ function renderLoginSection(user) {
         }
       })
       .then(function(r) { return r.json(); })
-      .then(function(data) {
+      .then(async function(data) {
         if (!data || data.length === 0) {
           errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
           loginBtn.disabled = false;
           loginBtn.textContent = '로그인 후 공정관리로 이동';
-        } else {
-          var u = data[0];
-          localStorage.setItem('kwanbo_session', JSON.stringify({ userId: u.id }));
-          localStorage.setItem('kwanbo_pm_user', JSON.stringify(u));
-          window.location.href = 'project.html';
+          return;
         }
+        var u = data[0];
+        var ok = await verifyPassword(pw, u.password);
+        if (!ok) {
+          errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
+          loginBtn.disabled = false;
+          loginBtn.textContent = '로그인 후 공정관리로 이동';
+          return;
+        }
+        // Lazy migration: 평문이면 해시로 업그레이드
+        if (isPlainPassword(u.password)) {
+          try {
+            var h = await hashPassword(pw);
+            await fetch(APP_CONFIG.SUPABASE_URL + '/rest/v1/users?id=eq.' + u.id, {
+              method: 'PATCH',
+              headers: {
+                'apikey': APP_CONFIG.SUPABASE_KEY,
+                'Authorization': 'Bearer ' + APP_CONFIG.SUPABASE_KEY,
+                'Content-Type': 'application/json',
+                'x-user-id': String(u.id),
+                'x-user-role': u.role || ''
+              },
+              body: JSON.stringify({ password: h })
+            });
+          } catch(e) { console.error('pw migration failed', e); }
+        }
+        // 통합 세션: user 객체 전체 (password 제외)
+        var safeU = Object.assign({}, u); delete safeU.password;
+        localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+        localStorage.removeItem('kwanbo_pm_user');
+        sessionStorage.removeItem('kwanbo_uid');
+        window.location.href = 'project.html';
       })
       .catch(function(e) {
         errEl.textContent = '오류: ' + e.message;
@@ -1516,11 +1566,28 @@ function initModalLogin() {
   var raw = localStorage.getItem('kwanbo_session');
   if (raw) {
     try {
-      var userId = JSON.parse(raw).userId;
-      getSb().from('users').select('*').eq('id', userId).then(function(res) {
-        var u = res.data && res.data.length > 0 ? res.data[0] : null;
-        renderLoginSection(u);
-      });
+      var v = JSON.parse(raw);
+      // 신규 형태: user 객체 전체
+      if (v && v.id && v.role) {
+        if (v.password) { delete v.password; localStorage.setItem('kwanbo_session', JSON.stringify(v)); }
+        renderLoginSection(v);
+        return;
+      }
+      // 구버전: {userId}
+      if (v && v.userId) {
+        getSb().from('users').select('*').eq('id', v.userId).then(function(res) {
+          var u = res.data && res.data.length > 0 ? res.data[0] : null;
+          if (u) {
+            var safeU = Object.assign({}, u); delete safeU.password;
+            // 통합 세션으로 마이그레이션
+            localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+            localStorage.removeItem('kwanbo_pm_user');
+            renderLoginSection(safeU);
+          } else renderLoginSection(null);
+        });
+        return;
+      }
+      renderLoginSection(null);
     } catch(e) { renderLoginSection(null); }
   } else {
     renderLoginSection(null);
