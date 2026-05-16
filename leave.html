@@ -1246,13 +1246,13 @@ function App(){
       </div>
 
       {/* 2줄: 시스템 제목 바 */}
-      <div style={{background:'#0f172a',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8'}}>
+      <div style={{background:'#0f172a',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8',position:'sticky',top:38,zIndex:250}}>
         <p style={{margin:0,fontSize:9,color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
         <p style={{margin:0,fontSize:14,fontWeight:800,color:'white',letterSpacing:-0.3}}>연차 관리 시스템</p>
       </div>
 
       {/* 3줄: 가로 네비 탭 */}
-      <div style={{background:'#1e293b',padding:'0 14px',display:'flex',alignItems:'center',flexShrink:0,height:36,gap:1,borderBottom:'1px solid #0f172a',overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none'}}>
+      <div style={{background:'#1e293b',padding:'0 14px',display:'flex',alignItems:'center',flexShrink:0,height:36,gap:1,borderBottom:'1px solid #0f172a',position:'sticky',top:74,zIndex:240,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none'}}>
         {navItems.map(item=>(
           <button key={item.k} onClick={()=>setView(item.k)}
             style={{display:'flex',alignItems:'center',gap:4,padding:'5px 11px',
