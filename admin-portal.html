@@ -19,6 +19,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;}
 .sys-bar{position:sticky;top:0;z-index:300;} /* → sysbar.js가 주입 */
+@media(max-width:640px){
   .top-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
   .top-nav::-webkit-scrollbar{display:none;}
   .nav-right{display:none;}
@@ -951,13 +952,14 @@ function StaffView({ user }) {
     if (!form.name||!form.phone) { setErr('이름과 전화번호는 필수입니다.'); return; }
     setSaving(true); setErr('');
     try {
+      // memo는 users 테이블에 없는 컬럼이므로 제외
+      var { memo: _memo, ...formWithoutMemo } = form;
       var p;
       if (editU) {
-        p = sb.from('users').update(form).eq('id', editU.id);
+        p = sb.from('users').update(formWithoutMemo).eq('id', editU.id);
       } else {
-        // 신규 등록: 기본 비밀번호(전화번호) 해싱
         var hashedPw = await hashPassword(form.phone);
-        p = sb.from('users').insert(Object.assign({}, form, {password: hashedPw}));
+        p = sb.from('users').insert(Object.assign({}, formWithoutMemo, {password: hashedPw}));
       }
       var r = await p;
       setSaving(false);
