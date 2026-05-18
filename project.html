@@ -164,7 +164,7 @@ button{cursor:pointer}
   .ptbl th{padding:3px 2px;background:#e2e8f0;border:0.5px solid #94a3b8;font-size:7pt;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden}
   .ptbl td{padding:2px 3px;border:0.5px solid #ddd;font-size:7pt;vertical-align:middle;word-break:keep-all;overflow-wrap:break-word;line-height:1.3}
   .ptbl .tc{text-align:center}
-  .ptbl tr.stopped td{color:#9ca3af;background:#f5f5f5}
+  .ptbl tr.stopped td{background:#f5f5f5}
   .ptbl tr{page-break-inside:avoid}
 }
 
@@ -680,7 +680,12 @@ function WeeklyReport({ gp, user }) {
         const ds = `${d2.getMonth()+1}/${d2.getDate()}`;
         return `<div style="margin-bottom:2px;font-size:6pt;"><span style="background:${c};color:#fff;padding:0 3px;border-radius:2px;font-weight:700;font-size:5.5pt">${e.type}</span> ${e.title} <span style="color:#888">(${ds})</span></div>`;
       }).join('');
-      return `<tr class="${stopped ? 'stopped' : ''}">
+        const isOverdue = p.end_date && p.end_date < selWeek && p.status !== '완료';
+        const issueText = [
+          isOverdue ? '⚠ 준공일 초과' : '',
+          r?.issues || ''
+        ].filter(Boolean).join(' / ');
+        return `<tr class="${stopped ? 'stopped' : ''}">
         <td class="tc">${i+1}</td>
         <td class="tc"><span style="background:${catColor};color:#fff;padding:1px 3px;border-radius:2px;font-size:5.5pt;font-weight:700">${p.category}</span>${stopped?'<br/><span style="font-size:5pt;color:#9ca3af">중지</span>':''}</td>
         <td style="${nameStyle}">${p.name}</td>
@@ -691,7 +696,7 @@ function WeeklyReport({ gp, user }) {
         <td class="tc" style="font-weight:700;color:${d>0?'#059669':d<0?'#dc2626':'#999'}">${d>0?('+'+d):d<0?d:'—'}</td>
         <td style="font-size:6.5pt">${r?.isThisWeek?(r?.summary||''):(stopped?'중지 상태':'—')}</td>
         <td style="font-size:6.5pt">${evHtml || '—'}</td>
-        <td style="font-size:6.5pt;color:${r?.issues?'#dc2626':'inherit'}">${r?.issues||''}</td>
+        <td style="font-size:6.5pt;color:${(isOverdue||r?.issues)?'#dc2626':'inherit'}">${issueText||''}</td>
       </tr>`;
     }).join('');
     el.innerHTML = `
