@@ -1724,16 +1724,17 @@ function EventModal({ projectId, userId, onClose, onSaved, eventData }) {
   useEffect(() => { if (!isEdit) setTitle(type); }, [type]);
 
   const save = async () => {
-    if (!title || !eventDate) { setErr('제목과 일정일을 입력해주세요.'); return; }
+    if (!eventDate) { setErr('일정일을 입력해주세요.'); return; }
     setLoading(true); setErr('');
-    const payload = { type: type, title: title, event_date: eventDate, done: done, memo: memo };
+    const finalTitle = title.trim() || type; // 제목 없으면 type(착수보고 등)으로 대체
+    const payload = { type: type, title: finalTitle, event_date: eventDate, done: done, memo: memo };
     var result;
     if (isEdit) {
       result = await sb.from('project_events').update(payload).eq('id', eventData.id);
-      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 수정', old_value: eventData.type + ' | ' + eventData.title + ' | ' + eventData.event_date, new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
+      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 수정', old_value: eventData.type + ' | ' + eventData.title + ' | ' + eventData.event_date, new_value: type + ' | ' + finalTitle + ' | ' + eventDate, changed_by: userId, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
     } else {
       result = await sb.from('project_events').insert(Object.assign({}, payload, { project_id: projectId, registered_by: userId }));
-      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 등록', old_value: '', new_value: type + ' | ' + title + ' | ' + eventDate, changed_by: userId, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
+      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 등록', old_value: '', new_value: type + ' | ' + finalTitle + ' | ' + eventDate, changed_by: userId, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
     }
     if (result.error) { setErr('저장 중 오류: ' + result.error.message); setLoading(false); return; }
     onSaved();
@@ -1755,8 +1756,8 @@ function EventModal({ projectId, userId, onClose, onSaved, eventData }) {
         </div>
       </div>
       <div className="form-group">
-        <label className="form-label">제목</label>
-        <input className="form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="예: 1차 중간보고회" />
+        <label className="form-label">제목 <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400 }}>(선택 — 비워두면 유형명으로 저장)</span></label>
+        <input className="form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="예: 1차 중간보고회 (선택)" />
       </div>
       <div className="form-group">
         <label className="form-label">메모</label>
