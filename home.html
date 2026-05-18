@@ -457,19 +457,52 @@ function CalendarView({user,teamName}){
   };
 
   const renderCell=(ds,d,dow)=>{
-    const evs=evMap[ds]||[];
+    const allEvs=evMap[ds]||[];
     const h=HOL[ds],s=SUB[ds];
     const isHol=!!(h||s);
     const isTd=ds===td,isSun=dow===0,isSat=dow===6;
     const nc=isHol?'#dc2626':isSun?'#ef4444':isSat?'#3b82f6':'#374151';
     const bg=isTd?'#fef9c3':isHol?'#fff1f2':(isSun||isSat)?'#fafafa':'#fff';
+
+    // 이벤트 분류
+    const projEvs=allEvs.filter(e=>e.k==='proj');
+    const compEvs=allEvs.filter(e=>e.k==='comp');
+    const lvEvs=allEvs.filter(e=>e.k==='leave');
+
     return(
-      <div key={ds} className={'cal-cell'+(isTd?' today':'')} style={{background:bg,border:isTd?'2px solid #f59e0b':'0.5px solid #f1f5f9',cursor:evs.length||h||s?'pointer':'default'}} onClick={()=>openDay(ds)}>
+      <div key={ds} className={'cal-cell'+(isTd?' today':'')}
+        style={{background:bg,border:isTd?'2px solid #f59e0b':'0.5px solid #f1f5f9',cursor:allEvs.length||h||s?'pointer':'default'}}
+        onClick={()=>openDay(ds)}>
+        {/* 날짜 숫자 */}
         <div className={'cal-dn'+(isTd?' t':'')} style={{color:isTd?'#fff':nc,fontWeight:isHol?700:400}}>{d}</div>
+        {/* 공휴일 */}
         {h&&<div className="cal-hol">{h}</div>}
         {s&&!h&&<div className="cal-hol">대체공휴일</div>}
-        {evs.slice(0,3).map((ev,j)=>renderEv(ev,j))}
-        {evs.length>3&&<div style={{fontSize:8,color:'#94a3b8'}}>+{evs.length-3}</div>}
+        {/* ① 주요공정 — 상단 우선, 컬러 바 */}
+        {projEvs.map((ev,j)=>{
+          const c=evc(ev.type);
+          return(
+            <div key={'p'+j} style={{display:'flex',alignItems:'center',gap:2,marginBottom:1,background:c.bg,border:'1px solid '+c.bd,borderRadius:3,padding:'1px 4px',overflow:'hidden'}}>
+              <span style={{background:c.bd,color:'#fff',borderRadius:2,padding:'0 3px',fontSize:7,fontWeight:800,whiteSpace:'nowrap',flexShrink:0}}>{ev.type}</span>
+              {ev.label!==ev.type&&<span style={{fontSize:7,color:c.tx,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ev.label}</span>}
+            </div>
+          );
+        })}
+        {/* ② 회사일정 — 보라 바 */}
+        {compEvs.slice(0,1).map((ev,j)=>(
+          <div key={'c'+j} style={{background:'#f3e8ff',border:'1px solid #a855f7',borderRadius:3,padding:'1px 4px',fontSize:7,fontWeight:700,color:'#6b21a8',marginBottom:1,overflow:'hidden',whiteSpace:'nowrap'}}>{ev.label}</div>
+        ))}
+        {/* ③ 연차 — 이름 첫글자 점으로 축소 */}
+        {lvEvs.length>0&&(
+          <div style={{display:'flex',flexWrap:'wrap',gap:2,marginTop:1}}>
+            {lvEvs.slice(0,4).map((ev,j)=>(
+              <span key={'l'+j} style={{background:ev.bg,color:'#fff',borderRadius:'50%',width:14,height:14,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:7,fontWeight:800,flexShrink:0}} title={ev.label}>
+                {ev.label&&ev.label.charAt(0)}
+              </span>
+            ))}
+            {lvEvs.length>4&&<span style={{fontSize:7,color:'#94a3b8',lineHeight:'14px'}}>+{lvEvs.length-4}</span>}
+          </div>
+        )}
       </div>
     );
   };

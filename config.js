@@ -93,6 +93,7 @@ const APP_CONFIG = {
 
   // ── 시스템 내부 링크 ──────────────────────────────────────────
   HOME_URL: 'home.html',
+  INDEX_URL: 'index.html',  // 회사 홈페이지
 
   // ── EmailJS (급여명세서 발송용) ───────────────────────────────
   // https://www.emailjs.com 에서 가입 후 설정값 입력

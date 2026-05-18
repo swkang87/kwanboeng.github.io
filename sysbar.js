@@ -91,6 +91,7 @@
         : '';
 
       return e('div', {className:'sys-bar'+(noPrint?' no-print':'')},
+        e('a', {key:'home-link', href:cfg.INDEX_URL||'index.html', className:'sys-co', title:'홈페이지'}, '🏠'),
         e('a', {key:'co', href:cfg.HOME_URL||'home.html', className:'sys-co'}, cfg.COMPANY_KO||''),
         links,
         e('div', {key:'right', className:'sys-right'},
