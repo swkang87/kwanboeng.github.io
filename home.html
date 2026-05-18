@@ -589,23 +589,23 @@ function CalendarView({user,teamName}){
               {selDay.hol&&<div style={{background:'#fef2f2',color:'#dc2626',padding:'5px 9px',borderRadius:5,fontSize:12,fontWeight:700,marginBottom:8}}>🎌 {selDay.hol}</div>}
               {selDay.events.length===0&&<div style={{color:'#94a3b8',fontSize:13}}>이벤트 없음</div>}
               {selDay.events.map((ev,i)=>(
-                <div key={i} style={{borderRadius:7,padding:'8px 12px',marginBottom:8,background:ev.bg,border:ev.bd?'1px solid '+ev.bd:'1px solid #e2e8f0'}}>
+                <div key={i} style={{borderRadius:7,padding:'8px 12px',marginBottom:8,background:'#fff',border:'1px solid #e2e8f0',borderLeft:'4px solid '+(ev.bd||ev.bg)}}>
                   {/* 주요공정 (착수/준공/이벤트) */}
                   {ev.k==='proj'&&(
                     <div>
                       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:ev.pname?4:0}}>
                         <span style={{background:ev.bd,color:'#fff',borderRadius:4,padding:'1px 7px',fontSize:11,fontWeight:800}}>{ev.type}</span>
-                        {ev.label!==ev.type&&<span style={{fontSize:12,fontWeight:700,color:ev.tx}}>{ev.label}</span>}
+                        {ev.label!==ev.type&&<span style={{fontSize:12,fontWeight:700,color:'#1e293b'}}>{ev.label}</span>}
                       </div>
                       {ev.pname&&<div style={{fontSize:12,color:'#334155',fontWeight:600,marginTop:2}}>📋 {ev.pname}</div>}
                     </div>
                   )}
                   {/* 연차/공가 — 이름 + 시간 상세 */}
                   {ev.k==='leave'&&(
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <span style={{background:ev.bg,color:'#fff',borderRadius:10,padding:'2px 8px',fontSize:12,fontWeight:800}}>{ev.fullName||ev.label}</span>
-                      <span style={{fontSize:11,color:'#475569',fontWeight:600}}>{ev.type==='공가'?'공가':'연차'} · {ev.timeTag==='DAY'?'하루':ev.timeTag}</span>
-                      {ev.raw&&ev.raw.start_time&&<span style={{fontSize:10,color:'#94a3b8'}}>{ev.raw.start_time.slice(0,5)}~{ev.raw.end_time&&ev.raw.end_time.slice(0,5)}</span>}
+                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                      <span style={{background:ev.bg,color:'#fff',borderRadius:10,padding:'2px 10px',fontSize:13,fontWeight:800}}>{ev.fullName||ev.label}</span>
+                      <span style={{fontSize:12,color:'#1e293b',fontWeight:700}}>{ev.type==='공가'?'공가':'연차'} · {ev.timeTag==='DAY'?'하루':ev.timeTag}</span>
+                      {ev.raw&&ev.raw.start_time&&<span style={{fontSize:11,color:'#64748b'}}>{ev.raw.start_time.slice(0,5)}~{ev.raw.end_time&&ev.raw.end_time.slice(0,5)}</span>}
                     </div>
                   )}
                   {/* 회사일정 */}
@@ -659,6 +659,7 @@ function App(){
   const [teamName,setTeamName]=useState('');
   const [readIds,setReadIds]=useState(new Set());
   const [unread,setUnread]=useState(0);
+  const [pendingLeaves,setPendingLeaves]=useState([]);
 
   // 구버전 세션 복원
   useEffect(()=>{
@@ -689,6 +690,32 @@ function App(){
     if(!user.team_id){setTeamName('');return;}
     getSb().from('teams').select('name').eq('id',user.team_id).single().then(({data})=>{if(data)setTeamName(data.name);}).catch(()=>{});
   },[user]);
+
+  // 미결 연차 조회 (팀장: pending / 관리자: manager_approved)
+  useEffect(()=>{
+    if(!user)return;
+    (async()=>{
+      try{
+        let q=getSb().from('leave_requests').select('*,users(name,team_id)');
+        if(user.role==='admin'){
+          // 관리자: manager_approved 전체
+          q=q.eq('status','manager_approved');
+        } else if(user.role==='manager'){
+          // 팀장: 본인 팀의 pending만
+          q=q.eq('status','pending');
+        } else {
+          setPendingLeaves([]);return;
+        }
+        const {data}=await q;
+        // 팀장이면 본인 팀 소속만 필터
+        if(user.role==='manager'&&user.team_id){
+          setPendingLeaves((data||[]).filter(l=>l.users&&l.users.team_id===user.team_id));
+        } else {
+          setPendingLeaves(data||[]);
+        }
+      }catch(e){console.error(e);}
+    })();
+  },[user,teamName]);
 
   // 미읽음
   useEffect(()=>{
@@ -741,6 +768,29 @@ function App(){
         <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>통합 홈</p>
       </div>
       <div className="page">
+        {/* 결재 대기 알림 배너 */}
+        {pendingLeaves.length>0&&(
+          <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:10,padding:'12px 16px',marginBottom:20,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <span style={{fontSize:20}}>⏳</span>
+              <div>
+                <div style={{fontSize:13,fontWeight:800,color:'#92400e'}}>결재 대기 {pendingLeaves.length}건</div>
+                <div style={{fontSize:11,color:'#b45309',marginTop:2}}>
+                  {pendingLeaves.slice(0,3).map((l,i)=>(
+                    <span key={i} style={{marginRight:8}}>
+                      {l.users&&l.users.name} ({l.days>=1?l.days+'일':l.days<=0.25?'2H':'4H'} · {l.start_date})
+                      {i<Math.min(pendingLeaves.length,3)-1&&' · '}
+                    </span>
+                  ))}
+                  {pendingLeaves.length>3&&<span>외 {pendingLeaves.length-3}건</span>}
+                </div>
+              </div>
+            </div>
+            <a href="leave.html" style={{background:'#f59e0b',color:'#fff',borderRadius:6,padding:'6px 14px',fontSize:12,fontWeight:700,textDecoration:'none',whiteSpace:'nowrap',flexShrink:0}}>
+              승인하기 →
+            </a>
+          </div>
+        )}
         <div className="sec-title">
           📢 공지사항
           {unread>0&&<span style={{background:'#ef4444',color:'#fff',fontSize:10,fontWeight:800,padding:'1px 7px',borderRadius:10}}>{unread}개 안 읽음</span>}

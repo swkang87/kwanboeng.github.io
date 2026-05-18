@@ -592,6 +592,13 @@ function WeeklyReport({ gp, user }) {
   const [selWeek, setSelWeek] = useState('');
   const [loading, setLoading] = useState(true);
   const [allMembers, setAllMembers] = useState([]);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+
+  useEffect(() => {
+    const handle = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handle);
+    return () => window.removeEventListener('resize', handle);
+  }, []);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -795,25 +802,97 @@ function WeeklyReport({ gp, user }) {
         </div>
       )}
 
-      {/* 통합 테이블 */}
-      <div className="card" style={{ overflow: 'auto' }}>
-        <table className="tbl" style={{ minWidth: 900 }}>
-          <thead>
-            <tr>
-              <th style={{ width: 32, textAlign: 'center' }}>번호</th>
-              <th style={{ width: 44 }}>분류</th>
-              <th>용역명</th>
-              <th style={{ width: 110 }}>발주처</th>
-              <th style={{ width: 52, textAlign: 'center' }}>PM</th>
-              <th style={{ width: 60, textAlign: 'center' }}>준공일</th>
-              <th style={{ width: 36, textAlign: 'center' }}>전주</th>
-              <th style={{ width: 80, textAlign: 'center' }}>공정률</th>
-              <th style={{ width: 32, textAlign: 'center' }}>증감</th>
-              <th style={{ minWidth: 280 }}>과업진행사항 / 주요공정</th>
-              <th style={{ width: 80 }}>비고/이슈</th>
-            </tr>
-          </thead>
-          <tbody>
+      {/* 통합 테이블 / 모바일 카드뷰 */}
+      {isMobile ? (
+        /* ── 모바일 카드 뷰 ── */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {sortedProjects.map((p, idx) => {
+            const r = getReport(p.id);
+            const pct = r?.progress_pct || 0, prev = r?.prev_pct || 0;
+            const ne = getNextEvent(p.id);
+            const stopped = p.status === '중지';
+            const d = pct - prev;
+            const barColor = pct>=80?'#059669':pct>=50?'#2563eb':'#f59e0b';
+            const isOverdue = p.end_date && p.end_date < selWeek && p.status !== '완료';
+            return (
+              <div key={p.id} style={{ background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', borderLeft: `4px solid ${CAT_COLOR[p.category]}`, padding: '12px 14px', opacity: stopped ? 0.65 : 1 }}>
+                {/* 상단: 분류 + 번호 + PM */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Bd bg={CAT_COLOR[p.category]}>{p.category}</Bd>
+                    {stopped && <span style={{ fontSize: 9, color: '#9ca3af', fontWeight: 600 }}>중지</span>}
+                    <span style={{ fontSize: 10, color: '#94a3b8' }}>#{idx+1}</span>
+                  </div>
+                  <span style={{ background: pmColor(p.pm_id).bg, color: pmColor(p.pm_id).tx, padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>{uName(p.pm_id)}</span>
+                </div>
+                {/* 용역명 */}
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', lineHeight: 1.4, marginBottom: 6, cursor: 'pointer' }} onClick={() => gp(p.id)}>
+                  {p.name}
+                </div>
+                {/* 발주처 */}
+                {p.client && <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>{p.client}{p.client_dept ? ' / ' + p.client_dept : ''}</div>}
+                {/* 공정률 바 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <div style={{ flex: 1, height: 7, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 4 }} />
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: barColor, minWidth: 36 }}>{pct}%</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: d>0?'#059669':d<0?'#dc2626':'#94a3b8' }}>
+                    {d>0?`▲${d}`:d<0?`▼${Math.abs(d)}`:'—'}
+                  </span>
+                  <span style={{ fontSize: 10, color: '#94a3b8' }}>전주 {prev}%</span>
+                </div>
+                {/* 준공일 */}
+                {p.end_date && (
+                  <div style={{ fontSize: 10, color: isOverdue?'#dc2626':'#94a3b8', fontWeight: isOverdue?700:400, marginBottom: 5 }}>
+                    {isOverdue ? '⚠ 준공일 초과 · ' : '📅 준공 · '}{fs(p.end_date)}
+                  </div>
+                )}
+                {/* 과업진행사항 */}
+                <div style={{ fontSize: 12, color: '#334155', lineHeight: 1.5, borderTop: '1px solid #f1f5f9', paddingTop: 6, marginTop: 4 }}>
+                  {r?.isThisWeek
+                    ? (r.summary || <span style={{ color: '#94a3b8' }}>—</span>)
+                    : stopped
+                      ? <span style={{ color: '#9ca3af' }}>중지 상태</span>
+                      : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>
+                  }
+                  {ne && (
+                    <div style={{ marginTop: 4, padding: '3px 7px', background: ec(ne.type).bg, borderRadius: 4, fontSize: 11, color: ec(ne.type).tx, display: 'inline-block' }}>
+                      {EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})
+                    </div>
+                  )}
+                </div>
+                {/* 이슈 */}
+                {(isOverdue || r?.issues) && (
+                  <div style={{ marginTop: 5, fontSize: 11, color: '#dc2626', fontWeight: 600 }}>
+                    {isOverdue && '⚠ 준공일 초과 '}
+                    {r?.issues}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* ── PC 테이블 뷰 ── */
+        <div className="card" style={{ overflow: 'auto' }}>
+          <table className="tbl" style={{ minWidth: 900 }}>
+            <thead>
+              <tr>
+                <th style={{ width: 32, textAlign: 'center' }}>번호</th>
+                <th style={{ width: 44 }}>분류</th>
+                <th>용역명</th>
+                <th style={{ width: 110 }}>발주처</th>
+                <th style={{ width: 52, textAlign: 'center' }}>PM</th>
+                <th style={{ width: 60, textAlign: 'center' }}>준공일</th>
+                <th style={{ width: 36, textAlign: 'center' }}>전주</th>
+                <th style={{ width: 80, textAlign: 'center' }}>공정률</th>
+                <th style={{ width: 32, textAlign: 'center' }}>증감</th>
+                <th style={{ minWidth: 280 }}>과업진행사항 / 주요공정</th>
+                <th style={{ width: 80 }}>비고/이슈</th>
+              </tr>
+            </thead>
+            <tbody>
             {sortedProjects.map((p, idx) => {
               const r = getReport(p.id);
               const pct = r?.progress_pct || 0, prev = r?.prev_pct || 0;
@@ -866,6 +945,7 @@ function WeeklyReport({ gp, user }) {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }
