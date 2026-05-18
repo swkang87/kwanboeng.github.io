@@ -255,6 +255,25 @@ const EV_COLOR = {
 const ec = (t) => EV_COLOR[t] || EV_COLOR['기타'];
 const DK = ['일','월','화','수','목','금','토'];
 
+// PM별 고유 색상 팔레트 (user.id 순서 기준으로 순환 할당)
+const PM_PALETTE = [
+  { bg: '#0f172a', tx: '#fff' }, // 네이비
+  { bg: '#1d4ed8', tx: '#fff' }, // 블루
+  { bg: '#059669', tx: '#fff' }, // 그린
+  { bg: '#7c3aed', tx: '#fff' }, // 퍼플
+  { bg: '#dc2626', tx: '#fff' }, // 레드
+  { bg: '#d97706', tx: '#fff' }, // 오렌지
+  { bg: '#0891b2', tx: '#fff' }, // 시안
+  { bg: '#be185d', tx: '#fff' }, // 핑크
+];
+// users 배열에서 PM 역할인 사람들에게 색상 순서대로 부여
+function buildPmColorMap(users) {
+  const pms = users.filter(u => u.role === 'admin' || u.role === 'manager' || u.role === 'employee');
+  const map = {};
+  pms.forEach((u, i) => { map[u.id] = PM_PALETTE[i % PM_PALETTE.length]; });
+  return map;
+}
+
 // ─── Utilities ───
 const ff = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${t.getFullYear()}.${String(t.getMonth()+1).padStart(2,'0')}.${String(t.getDate()).padStart(2,'0')}`; };
 const fs = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${String(t.getMonth()+1).padStart(2,'0')}.${String(t.getDate()).padStart(2,'0')}`; };
@@ -570,7 +589,7 @@ function WeeklyReport({ gp, user }) {
       sb.from('projects').select('*').neq('status', '완료').order('name'),
       sb.from('weekly_reports').select('*').order('week_date', { ascending: false }),
       sb.from('project_events').select('*'),
-      sb.from('users').select('id, name'),
+      sb.from('users').select('id, name, role'),
       sb.from('project_members').select('*'),
     ]);
     setProjects(pj.data || []);
@@ -586,6 +605,7 @@ function WeeklyReport({ gp, user }) {
   };
 
   const uName = (id) => users.find(u => u.id === id)?.name || '';
+  const pmColor = (id) => buildPmColorMap(users)[id] || { bg: '#64748b', tx: '#fff' };
 
   // 기술지원은 배정된 프로젝트만 (컴포넌트 레벨에서 정의)
   const memberPids = user?.role === 'contractor'
@@ -657,12 +677,12 @@ function WeeklyReport({ gp, user }) {
     };
     const evIcons = {'착수보고':'🚀','중간보고':'📋','최종보고':'📦','위원회':'🏛️','협의':'🤝','납품':'📬','기타':'📌'};
     const colgroup = `<colgroup>
-      <col style="width:3%"/><col style="width:5%"/><col style="width:18%"/>
-      <col style="width:8%"/><col style="width:5%"/><col style="width:3%"/>
-      <col style="width:3%"/><col style="width:3%"/><col style="width:29%"/>
-      <col style="width:15%"/><col style="width:8%"/>
+      <col style="width:3%"/><col style="width:5%"/><col style="width:16%"/>
+      <col style="width:10%"/><col style="width:5%"/><col style="width:6%"/>
+      <col style="width:3%"/><col style="width:3%"/><col style="width:3%"/>
+      <col style="width:38%"/><col style="width:8%"/>
     </colgroup>`;
-    const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>전주</th><th>금주</th><th>±</th><th>과업진행사항</th><th>주요 공정</th><th>비고</th></tr>`;
+    const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>준공일</th><th>전주</th><th>금주</th><th>±</th><th>과업진행사항 / 주요공정</th><th>비고</th></tr>`;
     const rows = sortedProjects.map((p, i) => {
       const r = getReport(p.id);
       const stopped = p.status === '중지';
@@ -689,13 +709,13 @@ function WeeklyReport({ gp, user }) {
         <td class="tc">${i+1}</td>
         <td class="tc"><span style="background:${catColor};color:#fff;padding:1px 3px;border-radius:2px;font-size:5.5pt;font-weight:700">${p.category}</span>${stopped?'<br/><span style="font-size:5pt;color:#9ca3af">중지</span>':''}</td>
         <td style="${nameStyle}">${p.name}</td>
-        <td style="font-size:6.5pt">${p.client||''}</td>
-        <td class="tc">${uName(p.pm_id)}</td>
+        <td style="font-size:6.5pt">${p.client||''}${p.client_dept?`<br/><span style="color:#64748b">${p.client_dept}</span>`:''}${p.client_contact?`<br/><span style="color:#94a3b8">${p.client_contact}</span>`:''}</td>
+        <td class="tc"><span style="background:${pmColor(p.pm_id).bg};color:${pmColor(p.pm_id).tx};padding:1px 4px;border-radius:3px;font-size:6pt;font-weight:700">${uName(p.pm_id)}</span></td>
+        <td class="tc" style="font-size:6.5pt;color:${isOverdue?'#dc2626':'#475569'};font-weight:${isOverdue?700:400}">${p.end_date?p.end_date.slice(2).replace(/-/g,'/'):'—'}</td>
         <td class="tc">${r?.prev_pct||0}</td>
         <td class="tc" style="font-weight:700">${r?.progress_pct||0}</td>
         <td class="tc" style="font-weight:700;color:${d>0?'#059669':d<0?'#dc2626':'#999'}">${d>0?('+'+d):d<0?d:'—'}</td>
-        <td style="font-size:6.5pt">${r?.isThisWeek?(r?.summary||''):(stopped?'중지 상태':'—')}</td>
-        <td style="font-size:6.5pt">${evHtml || '—'}</td>
+        <td style="font-size:6.5pt">${r?.isThisWeek?(r?.summary||''):(stopped?'중지 상태':'—')}${evHtml?`<div style="margin-top:2px;border-top:0.5px solid #e2e8f0;padding-top:2px">${evHtml}</div>`:''}</td>
         <td style="font-size:6.5pt;color:${(isOverdue||r?.issues)?'#dc2626':'inherit'}">${issueText||''}</td>
       </tr>`;
     }).join('');
@@ -771,12 +791,13 @@ function WeeklyReport({ gp, user }) {
               <th style={{ width: 32, textAlign: 'center' }}>번호</th>
               <th style={{ width: 44 }}>분류</th>
               <th>용역명</th>
-              <th style={{ width: 88 }}>발주처</th>
-              <th style={{ width: 44, textAlign: 'center' }}>PM</th>
+              <th style={{ width: 110 }}>발주처</th>
+              <th style={{ width: 52, textAlign: 'center' }}>PM</th>
+              <th style={{ width: 60, textAlign: 'center' }}>준공일</th>
               <th style={{ width: 36, textAlign: 'center' }}>전주</th>
               <th style={{ width: 80, textAlign: 'center' }}>공정률</th>
               <th style={{ width: 32, textAlign: 'center' }}>증감</th>
-              <th style={{ minWidth: 280 }}>과업진행사항</th>
+              <th style={{ minWidth: 280 }}>과업진행사항 / 주요공정</th>
               <th style={{ width: 80 }}>비고/이슈</th>
             </tr>
           </thead>
@@ -796,8 +817,17 @@ function WeeklyReport({ gp, user }) {
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', lineHeight: 1.4 }}>{p.name}</div>
                     <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>{fs(p.start_date)}~{fs(p.end_date)}</div>
                   </td>
-                  <td style={{ fontSize: 11, color: '#475569', wordBreak: 'keep-all', overflowWrap: 'break-word' }}>{p.client}</td>
-                  <td className="tc" style={{ fontSize: 11, fontWeight: 600 }}>{uName(p.pm_id)}</td>
+                  <td style={{ fontSize: 11, color: '#475569', wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
+                    <div style={{ fontWeight: 600 }}>{p.client}</div>
+                    {p.client_dept && <div style={{ fontSize: 10, color: '#64748b' }}>{p.client_dept}</div>}
+                    {p.client_contact && <div style={{ fontSize: 10, color: '#94a3b8' }}>{p.client_contact}</div>}
+                  </td>
+                  <td className="tc">
+                    <span style={{ background: pmColor(p.pm_id).bg, color: pmColor(p.pm_id).tx, padding: '2px 6px', borderRadius: 4, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{uName(p.pm_id)}</span>
+                  </td>
+                  <td className="tc" style={{ fontSize: 10, color: p.end_date && p.end_date < selWeek && p.status !== '완료' ? '#dc2626' : '#475569', fontWeight: p.end_date && p.end_date < selWeek && p.status !== '완료' ? 700 : 400 }}>
+                    {p.end_date ? fs(p.end_date) : '—'}
+                  </td>
                   <td className="tc" style={{ fontSize: 11, color: '#64748b' }}>{prev}%</td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
