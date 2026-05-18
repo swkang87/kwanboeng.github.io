@@ -255,22 +255,33 @@ const EV_COLOR = {
 const ec = (t) => EV_COLOR[t] || EV_COLOR['기타'];
 const DK = ['일','월','화','수','목','금','토'];
 
-// PM별 고유 색상 팔레트 (user.id 순서 기준으로 순환 할당)
-const PM_PALETTE = [
-  { bg: '#0f172a', tx: '#fff' }, // 네이비
-  { bg: '#1d4ed8', tx: '#fff' }, // 블루
-  { bg: '#059669', tx: '#fff' }, // 그린
-  { bg: '#7c3aed', tx: '#fff' }, // 퍼플
-  { bg: '#dc2626', tx: '#fff' }, // 레드
-  { bg: '#d97706', tx: '#fff' }, // 오렌지
-  { bg: '#0891b2', tx: '#fff' }, // 시안
-  { bg: '#be185d', tx: '#fff' }, // 핑크
+// PM별 고유 색상 - 이름 기반 고정 배정
+const PM_COLOR_MAP = {
+  '강승우': { bg: '#d97706', tx: '#fff' }, // 기술지원과 동일 (오렌지)
+  '조원범': { bg: '#78350f', tx: '#fff' }, // 짙은 갈색
+  '김병용': { bg: '#059669', tx: '#fff' }, // 사급과 동일 (초록)
+  '박호진': { bg: '#34d399', tx: '#fff' }, // 옅은 초록
+  '장용기': { bg: '#2563eb', tx: '#fff' }, // 관급과 동일 (파랑)
+};
+const PM_PALETTE_DEFAULT = [
+  { bg: '#0f172a', tx: '#fff' },
+  { bg: '#7c3aed', tx: '#fff' },
+  { bg: '#dc2626', tx: '#fff' },
+  { bg: '#0891b2', tx: '#fff' },
+  { bg: '#be185d', tx: '#fff' },
+  { bg: '#4338ca', tx: '#fff' },
 ];
-// users 배열에서 PM 역할인 사람들에게 색상 순서대로 부여
 function buildPmColorMap(users) {
-  const pms = users.filter(u => u.role === 'admin' || u.role === 'manager' || u.role === 'employee');
+  let defaultIdx = 0;
   const map = {};
-  pms.forEach((u, i) => { map[u.id] = PM_PALETTE[i % PM_PALETTE.length]; });
+  users.forEach(u => {
+    if (PM_COLOR_MAP[u.name]) {
+      map[u.id] = PM_COLOR_MAP[u.name];
+    } else {
+      map[u.id] = PM_PALETTE_DEFAULT[defaultIdx % PM_PALETTE_DEFAULT.length];
+      defaultIdx++;
+    }
+  });
   return map;
 }
 
