@@ -172,12 +172,18 @@ ul { list-style:none; }
   display:none; position:fixed; inset:0; z-index:900;
   background:rgba(13,32,68,.6); backdrop-filter:blur(12px);
   align-items:center; justify-content:center;
+  padding:16px;
+  overflow-y:auto;
 }
 #erp-modal.open { display:flex; }
+@media(max-width:640px){
+  #erp-modal { align-items:flex-start; padding-top:20px; }
+}
 
 .modal-box {
   background:#fff; border-radius:12px;
   width:100%; max-width:440px;
+  max-height:90vh; overflow-y:auto;
   box-shadow:0 24px 80px rgba(13,32,68,.25);
   overflow:hidden;
   animation:modalIn .3s var(--ease);
@@ -1485,7 +1491,7 @@ function renderLoginSection(user) {
         '<input class="modal-input" id="mPhone" type="text" placeholder="아이디 (전화번호)" autocomplete="username"/>' +
         '<input class="modal-input" id="mPw" type="password" placeholder="비밀번호" autocomplete="current-password"/>' +
         '<div id="mErr" style="font-size:.75rem;color:#e11d48;min-height:18px;"></div>' +
-        '<button class="modal-login-btn" id="mLoginBtn">로그인 후 공정관리로 이동</button>' +
+        '<button class="modal-login-btn" id="mLoginBtn">로그인</button>' +
       '</div>';
 
     var loginBtn = document.getElementById('mLoginBtn');
@@ -1513,7 +1519,7 @@ function renderLoginSection(user) {
         if (!data || data.length === 0) {
           errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
           loginBtn.disabled = false;
-          loginBtn.textContent = '로그인 후 공정관리로 이동';
+          loginBtn.textContent = '로그인';
           return;
         }
         var u = data[0];
@@ -1521,7 +1527,7 @@ function renderLoginSection(user) {
         if (!ok) {
           errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
           loginBtn.disabled = false;
-          loginBtn.textContent = '로그인 후 공정관리로 이동';
+          loginBtn.textContent = '로그인';
           return;
         }
         // Lazy migration: 평문이면 해시로 업그레이드
@@ -1551,7 +1557,7 @@ function renderLoginSection(user) {
       .catch(function(e) {
         errEl.textContent = '오류: ' + e.message;
         loginBtn.disabled = false;
-        loginBtn.textContent = '로그인 후 공정관리로 이동';
+        loginBtn.textContent = '로그인';
       });
     }
 
