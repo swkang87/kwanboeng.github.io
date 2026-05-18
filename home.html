@@ -102,7 +102,7 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useCallback, useRef } = React;
-const { createClient } = supabase;
+
 
 // ─── 비밀번호 해싱 (다른 파일과 동일) ──────────────────────────
 async function hashPassword(plain){
@@ -129,9 +129,11 @@ function isPlainPassword(stored){return stored&&!String(stored).startsWith('pbkd
 function _makeSb(userId, userRole){
   const h={};
   if(userId){h['x-user-id']=String(userId);h['x-user-role']=userRole||'';}
+  const { createClient } = supabase;
   return createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY, {global:{headers:h}});
 }
-let sb = _makeSb();
+let sb = null;
+function getSb(){ if(!sb) sb = _makeSb(); return sb; }
 
 // ─── 공휴일 데이터 ───────────────────────────────────────────
 const HOLIDAYS={
@@ -198,7 +200,7 @@ function LoginScreen({onLogin}){
     if(!phone.trim()||!pw){setErr('전화번호와 비밀번호를 입력하세요.');return;}
     setLoading(true);setErr('');
     try{
-      const {data,error}=await sb.from('users').select('*').eq('phone',phone.trim()).single();
+      const {data,error}=await getSb().from('users').select('*').eq('phone',phone.trim()).single();
       if(error||!data){setErr('아이디 또는 비밀번호가 올바르지 않습니다.');}
       else{
         const ok=await verifyPassword(pw,data.password);
@@ -256,8 +258,14 @@ function NoticeView({user, teamName, readIds, onRead}){
 
   const load=useCallback(async()=>{
     setLoading(true);
-    const {data}=await sb.from('notices').select('*, users(name)').order('is_pinned',{ascending:false}).order('created_at',{ascending:false});
-    setNotices(data||[]);
+    try{
+      // users join 대신 created_by ID만 가져오고 이름은 별도 처리
+      const {data,error}=await sb.from('notices')
+        .select('*')
+        .order('is_pinned',{ascending:false})
+        .order('created_at',{ascending:false});
+      if(!error) setNotices(data||[]);
+    }catch(e){console.error('notices load error',e);}
     setLoading(false);
   },[]);
 
@@ -328,7 +336,7 @@ function NoticeView({user, teamName, readIds, onRead}){
                 {n.title}
                 {isNew&&<span className="badge-new">NEW</span>}
               </div>
-              <div className="notice-meta">{n.users?.name||'관리팀'} · {fmtFull(n.created_at?.slice(0,10))}</div>
+              <div className="notice-meta">{n.created_by_name||'관리팀'} · {fmtFull(n.created_at?.slice(0,10))}</div>
             </div>
           );
         })}
@@ -343,7 +351,7 @@ function NoticeView({user, teamName, readIds, onRead}){
               <button className="mc" onClick={()=>setSel(null)}>×</button>
             </div>
             <div className="mb">
-              <div style={{fontSize:11,color:'#94a3b8',marginBottom:14}}>{sel.users?.name||'관리팀'} · {fmtFull(sel.created_at?.slice(0,10))}</div>
+              <div style={{fontSize:11,color:'#94a3b8',marginBottom:14}}>{sel.created_by_name||'관리팀'} · {fmtFull(sel.created_at?.slice(0,10))}</div>
               <div style={{fontSize:13,color:'#334155',lineHeight:1.7,whiteSpace:'pre-wrap'}}>{sel.content}</div>
             </div>
             {canWrite&&(
@@ -387,18 +395,20 @@ function CalendarView({user, teamName}){
 
   const load=async()=>{
     setLoading(true);
-    const [lv,pev,cev,us,pj]=await Promise.all([
-      sb.from('leave_requests').select('*').in('status',['approved','manager_approved']),
-      sb.from('project_events').select('*, projects(name)'),
-      sb.from('company_events').select('*'),
-      sb.from('users').select('id,name'),
-      sb.from('projects').select('id,name'),
-    ]);
-    setLeaves(lv.data||[]);
-    setProjEvents(pev.data||[]);
-    setCompEvents(cev.data||[]);
-    setUsers(us.data||[]);
-    setProjects(pj.data||[]);
+    try{
+      const [lv,pev,cev,us,pj]=await Promise.all([
+        sb.from('leave_requests').select('*').in('status',['approved','manager_approved']),
+        sb.from('project_events').select('*, projects(name)'),
+        sb.from('company_events').select('*'),
+        sb.from('users').select('id,name'),
+        sb.from('projects').select('id,name'),
+      ]);
+      setLeaves(lv.data||[]);
+      setProjEvents(pev.data||[]);
+      setCompEvents(cev.data||[]);
+      setUsers(us.data||[]);
+      setProjects(pj.data||[]);
+    }catch(e){console.error('calendar load error',e);}
     setLoading(false);
   };
 
@@ -660,13 +670,15 @@ function App(){
   useEffect(()=>{
     if(!user)return;
     (async()=>{
-      const [{data:reads},{data:all}]=await Promise.all([
-        sb.from('notice_reads').select('notice_id').eq('user_id',user.id),
-        sb.from('notices').select('id'),
-      ]);
-      const ids=new Set((reads||[]).map(r=>r.notice_id));
-      setReadIds(ids);
-      setUnread((all||[]).filter(n=>!ids.has(n.id)).length);
+      try{
+        const [{data:reads},{data:all}]=await Promise.all([
+          sb.from('notice_reads').select('notice_id').eq('user_id',user.id),
+          sb.from('notices').select('id'),
+        ]);
+        const ids=new Set((reads||[]).map(r=>r.notice_id));
+        setReadIds(ids);
+        setUnread((all||[]).filter(n=>!ids.has(n.id)).length);
+      }catch(e){console.error('notice_reads load error',e);}
     })();
   },[user]);
 
