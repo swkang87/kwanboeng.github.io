@@ -1296,7 +1296,7 @@ function ProjectDetail({ id, user, gb }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <button className="btn btn-secondary btn-sm" onClick={gb}>← 목록</button>
-        {(user?.role === 'admin' || members.some(m => m.user_id === user?.id)) && (
+        {(user?.role === 'admin' || project?.pm_id === user?.id || members.some(m => m.user_id === user?.id)) && (
           <button className="btn btn-success btn-sm" onClick={() => setEditModal('report')}>📝 주간보고 입력</button>
         )}
         {(user?.role === 'admin' || members.some(m => m.user_id === user?.id && m.role === 'pm')) && (
