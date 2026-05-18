@@ -91,6 +91,7 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
 }
 </style>
 <script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="sysbar.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -241,7 +242,7 @@ function LoginScreen({onLogin}){
 }
 
 // ─── 공지 탭 ─────────────────────────────────────────────────
-function NoticeView({user, readIds, onRead}){
+function NoticeView({user, teamName, readIds, onRead}){
   const [notices,setNotices]=useState([]);
   const [loading,setLoading]=useState(true);
   const [sel,setSel]=useState(null);   // 선택된 공지 (상세보기)
@@ -251,7 +252,7 @@ function NoticeView({user, readIds, onRead}){
   const [saving,setSaving]=useState(false);
   const [err,setErr]=useState('');
 
-  const canWrite = user.role==='admin' || user.team_name==='관리팀';
+  const canWrite = user.role==='admin' || teamName==='관리팀';
 
   const load=useCallback(async()=>{
     setLoading(true);
@@ -287,7 +288,7 @@ function NoticeView({user, readIds, onRead}){
     setSel(n);
     // 읽음 처리
     if(!readIds.has(n.id)){
-      await sb.from('notice_reads').insert({notice_id:n.id,user_id:user.id}).onConflict('notice_id,user_id').ignore();
+      await sb.from('notice_reads').upsert({notice_id:n.id,user_id:user.id},{onConflict:'notice_id,user_id',ignoreDuplicates:true});
       onRead(n.id);
     }
   };
@@ -360,7 +361,7 @@ function NoticeView({user, readIds, onRead}){
 }
 
 // ─── 통합 달력 탭 ─────────────────────────────────────────────
-function CalendarView({user}){
+function CalendarView({user, teamName}){
   const now=new Date();
   const [year,setYear]=useState(now.getFullYear());
   const [month,setMonth]=useState(now.getMonth());
@@ -376,7 +377,7 @@ function CalendarView({user}){
   const [saving,setSaving]=useState(false);
   const [editEv,setEditEv]=useState(null);
 
-  const canWrite=user.role==='admin'||user.team_name==='관리팀';
+  const canWrite=user.role==='admin'||teamName==='관리팀';
   const today=todayStr();
 
   useEffect(()=>{
@@ -388,7 +389,7 @@ function CalendarView({user}){
     setLoading(true);
     const [lv,pev,cev,us,pj]=await Promise.all([
       sb.from('leave_requests').select('*').in('status',['approved','manager_approved']),
-      sb.from('project_events').select('*, projects(name)').eq('done',false),
+      sb.from('project_events').select('*, projects(name)'),
       sb.from('company_events').select('*'),
       sb.from('users').select('id,name'),
       sb.from('projects').select('id,name'),
@@ -619,6 +620,7 @@ function App(){
 
   const [user,setUser]=useState(initialUser);
   const [ssoChecked,setSsoChecked]=useState(!!initialUser);
+  const [teamName,setTeamName]=useState('');
   const [view,setView]=useState('notice');
   const [readIds,setReadIds]=useState(new Set());
   const [unread,setUnread]=useState(0);
@@ -644,6 +646,15 @@ function App(){
       }).catch(()=>setSsoChecked(true));
     }catch{setSsoChecked(true);}
   },[]);
+
+  // 팀명 조회
+  useEffect(()=>{
+    if(!user)return;
+    if(user.role==='admin'){setTeamName('관리자');return;}
+    if(!user.team_id){setTeamName('');return;}
+    sb.from('teams').select('name').eq('id',user.team_id).single()
+      .then(({data})=>{if(data)setTeamName(data.name);});
+  },[user]);
 
   // 읽음 처리 로드 + 미읽음 수 계산
   useEffect(()=>{
@@ -709,8 +720,8 @@ function App(){
       </div>
       {/* 콘텐츠 */}
       <div className="page">
-        {view==='notice'&&<NoticeView user={user} readIds={readIds} onRead={onRead}/>}
-        {view==='calendar'&&<CalendarView user={user}/>}
+        {view==='notice'&&<NoticeView user={user} teamName={teamName} readIds={readIds} onRead={onRead}/>}
+        {view==='calendar'&&<CalendarView user={user} teamName={teamName}/>}
       </div>
     </div>
   );
