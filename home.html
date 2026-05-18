@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>홈</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #root, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
+/* ── SYS-BAR → sysbar.js 주입 ── */
+/* ── TOP-NAV ── */
+.top-nav{position:sticky;top:74px;z-index:200;background:#1e293b;height:36px;display:flex;align-items:center;padding:0 14px;gap:1px;border-bottom:1px solid #0f172a;}
+.nav-btn{display:flex;align-items:center;gap:4px;padding:5px 11px;height:26px;border:none;background:transparent;border-radius:4px;font-size:11px;font-weight:400;color:#94a3b8;cursor:pointer;white-space:nowrap;font-family:inherit;}
+.nav-btn.active{background:#1d4ed8;color:#fff;font-weight:700;}
+/* ── PAGE ── */
+.page{padding:20px;max-width:1100px;margin:0 auto;}
+/* ── NOTICE ── */
+.notice-list{display:flex;flex-direction:column;gap:10px;}
+.notice-item{background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:16px 18px;cursor:pointer;transition:.15s;position:relative;}
+.notice-item:hover{border-color:#c7d2fe;box-shadow:0 2px 8px rgba(0,0,0,.06);}
+.notice-item.pinned{border-left:3px solid #1d4ed8;}
+.notice-title{font-size:14px;font-weight:700;color:#0f172a;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+.notice-meta{font-size:11px;color:#94a3b8;}
+.badge-new{background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;margin-left:4px;}
+.badge-pin{font-size:12px;}
+.notice-content{font-size:13px;color:#475569;line-height:1.6;margin-top:8px;white-space:pre-wrap;}
+/* ── 공지 입력 ── */
+.notice-form{background:#fff;border-radius:10px;border:1px solid #e2e8f0;padding:16px 18px;margin-bottom:14px;}
+.fi{width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;outline:none;transition:.15s;}
+.fi:focus{border-color:#818cf8;}
+.ta{min-height:80px;resize:vertical;}
+.fl{font-size:11px;font-weight:600;color:#64748b;margin-bottom:4px;display:block;}
+/* ── CALENDAR ── */
+.cal-wrap{background:#fff;border-radius:10px;border:1px solid #e2e8f0;overflow:hidden;}
+.cal-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#0f172a;color:#fff;}
+.cal-title{font-size:15px;font-weight:800;}
+.cal-nav{background:transparent;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:2px 8px;border-radius:4px;}
+.cal-nav:hover{background:#1e293b;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);}
+.cal-day-header{text-align:center;font-size:10px;font-weight:700;padding:8px 0;color:#64748b;background:#f8fafc;}
+.cal-day-header:first-child{color:#ef4444;}
+.cal-day-header:last-child{color:#3b82f6;}
+.cal-cell{border:0.5px solid #f1f5f9;min-height:80px;padding:4px;vertical-align:top;position:relative;}
+.cal-date{font-size:11px;font-weight:700;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:50%;margin-bottom:2px;}
+.cal-date.today{background:#1d4ed8;color:#fff;}
+.cal-date.sunday{color:#ef4444;}
+.cal-date.saturday{color:#3b82f6;}
+.cal-date.other{color:#cbd5e1;}
+.cal-ev{font-size:9px;padding:1px 4px;border-radius:3px;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;}
+.cal-holiday{font-size:9px;color:#ef4444;font-weight:600;margin-bottom:2px;}
+/* ── LEGEND ── */
+.legend{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;border-top:1px solid #f1f5f9;}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:10px;color:#64748b;}
+.legend-dot{width:10px;height:10px;border-radius:2px;}
+/* ── MODAL ── */
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:900;display:flex;align-items:center;justify-content:center;padding:16px;}
+.mbox{background:#fff;border-radius:14px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.3);}
+.mh{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f1f5f9;}
+.mht{font-size:16px;font-weight:800;}
+.mc{background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1;}
+.mb{padding:16px 20px;}
+.mf{padding:12px 20px;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;gap:8px;}
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:4px;padding:8px 14px;border-radius:7px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;}
+.btn-p{background:#1d4ed8;color:#fff;}
+.btn-p:hover{background:#1e40af;}
+.btn-s{background:#f1f5f9;color:#475569;}
+.btn-s:hover{background:#e2e8f0;}
+.btn-danger{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
+.btn-sm{padding:4px 10px;font-size:11px;}
+/* ── ALERT ── */
+.al{padding:10px 14px;border-radius:7px;font-size:12px;margin-bottom:10px;}
+.al-e{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
+/* ── EMPTY ── */
+.empty{padding:40px;text-align:center;color:#94a3b8;font-size:13px;}
+/* ── MOBILE ── */
+@media(max-width:640px){
+  .page{padding:10px;}
+  .cal-cell{min-height:55px;}
+  .cal-ev{display:none;}
+  .cal-ev-dot{width:5px;height:5px;border-radius:50%;display:inline-block;margin:0 1px;}
+  .cal-dots{display:flex;flex-wrap:wrap;gap:1px;margin-top:1px;}
+  .cal-nav{font-size:14px;}
+}
+@media(min-width:641px){
+  .cal-ev-dot{display:none;}
+  .cal-dots{display:none;}
+}
+</style>
+<script src="config.js"></script>
+<script src="sysbar.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback, useRef } = React;
+const { createClient } = supabase;
+
+// ─── 비밀번호 해싱 (다른 파일과 동일) ──────────────────────────
+async function hashPassword(plain){
+  const salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');
+  const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return 'pbkdf2$'+salt+'$'+hash;
+}
+async function verifyPassword(plain,stored){
+  if(!stored||plain==null)return false;
+  if(!String(stored).startsWith('pbkdf2$'))return plain===stored;
+  const parts=stored.split('$');if(parts.length!==3)return false;
+  const salt=parts[1];const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return stored==='pbkdf2$'+salt+'$'+hash;
+}
+function isPlainPassword(stored){return stored&&!String(stored).startsWith('pbkdf2$');}
+
+// ─── RLS sb 팩토리 ──────────────────────────────────────────
+function _makeSb(userId, userRole){
+  const h={};
+  if(userId){h['x-user-id']=String(userId);h['x-user-role']=userRole||'';}
+  return createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY, {global:{headers:h}});
+}
+let sb = _makeSb();
+
+// ─── 공휴일 데이터 ───────────────────────────────────────────
+const HOLIDAYS={
+  '2026-01-01':'신정','2026-01-28':'설날연휴','2026-01-29':'설날','2026-01-30':'설날연휴',
+  '2026-03-01':'삼일절','2026-05-05':'어린이날','2026-05-24':'부처님오신날',
+  '2026-06-03':'임시공휴일(지방선거)','2026-06-06':'현충일','2026-07-17':'제헌절',
+  '2026-08-15':'광복절','2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴',
+  '2026-10-03':'개천절','2026-10-09':'한글날','2026-12-25':'크리스마스',
+  '2025-01-01':'신정','2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴',
+  '2025-03-01':'삼일절','2025-05-05':'어린이날','2025-06-03':'임시공휴일(대통령선거)',
+  '2025-06-06':'현충일','2025-07-17':'제헌절','2025-08-15':'광복절',
+  '2025-10-05':'추석','2025-10-06':'추석연휴','2025-10-07':'추석연휴',
+  '2025-10-09':'한글날','2025-12-25':'크리스마스',
+};
+const SUBSTITUTE={
+  '2025-05-06':'대체공휴일','2026-03-02':'대체공휴일','2026-05-25':'대체공휴일',
+  '2026-08-17':'대체공휴일','2026-09-28':'대체공휴일','2026-10-05':'대체공휴일',
+};
+const NAGER_KO={"New Year's Day":'신정',"New Year's Eve":'신정연휴','Seollal':'설날','Seollal Holiday':'설날연휴',"Independence Movement Day":'삼일절',"Labor Day":'근로자의날',"Children's Day":'어린이날',"Buddha's Birthday":'부처님오신날',"Memorial Day":'현충일',"Liberation Day":'광복절',Chuseok:'추석',"Chuseok Holiday":'추석연휴',"National Foundation Day":'개천절',"Hangul Day":'한글날',"Christmas Day":'크리스마스',"Constitution Day":'제헌절',"Substitute Holiday":'대체공휴일'};
+async function loadNagerHolidays(){
+  const yr=new Date().getFullYear();
+  try{
+    const results=await Promise.all([yr-1,yr,yr+1].map(y=>fetch(`https://date.nager.at/api/v3/PublicHolidays/${y}/KR`).then(r=>r.ok?r.json():[]).catch(()=>[])));
+    results.flat().forEach(h=>{
+      if(!h.date)return;
+      const name=NAGER_KO[h.localName]||NAGER_KO[h.name]||h.localName||h.name;
+      if(name==='대체공휴일'){if(!SUBSTITUTE[h.date])SUBSTITUTE[h.date]='대체공휴일';}
+      else{if(!HOLIDAYS[h.date])HOLIDAYS[h.date]=name;}
+    });
+  }catch(e){}
+}
+
+// ─── 유틸 ───────────────────────────────────────────────────
+const todayStr=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+const fmtDate=(s)=>{if(!s)return '';const d=new Date(s+'T00:00:00');return `${d.getMonth()+1}/${d.getDate()}`;};
+const fmtFull=(s)=>{if(!s)return '';const d=new Date(s+'T00:00:00');return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;};
+
+// ─── 이벤트 색상 ────────────────────────────────────────────
+const EV_COLORS={
+  leave:    { bg:'#dbeafe', tx:'#1e40af' },
+  project:  { bg:'#d1fae5', tx:'#065f46' },
+  company:  { bg:'#f3e8ff', tx:'#6b21a8' },
+};
+const COMPANY_CATS=['일반','회식','워크숍','교육','행사'];
+
+// ─── 달력 유틸 ───────────────────────────────────────────────
+function getDaysInMonth(year, month){return new Date(year, month+1, 0).getDate();}
+function getFirstDayOfWeek(year, month){return new Date(year, month, 1).getDay();}
+
+// 날짜 범위에 포함 여부
+function dateInRange(date, start, end){
+  const d=date, s=start||(date), e=end||(start||date);
+  return d>=s && d<=e;
+}
+
+// ─── LOGIN SCREEN ────────────────────────────────────────────
+function LoginScreen({onLogin}){
+  const [phone,setPhone]=useState('');
+  const [pw,setPw]=useState('');
+  const [err,setErr]=useState('');
+  const [loading,setLoading]=useState(false);
+
+  const doLogin=async()=>{
+    if(!phone.trim()||!pw){setErr('전화번호와 비밀번호를 입력하세요.');return;}
+    setLoading(true);setErr('');
+    try{
+      const {data,error}=await sb.from('users').select('*').eq('phone',phone.trim()).single();
+      if(error||!data){setErr('아이디 또는 비밀번호가 올바르지 않습니다.');}
+      else{
+        const ok=await verifyPassword(pw,data.password);
+        if(!ok){setErr('아이디 또는 비밀번호가 올바르지 않습니다.');}
+        else{
+          if(isPlainPassword(data.password)){
+            try{const h=await hashPassword(pw);const ts=_makeSb(data.id,data.role);await ts.from('users').update({password:h}).eq('id',data.id);}catch(e){}
+          }
+          onLogin(data);
+        }
+      }
+    }catch{setErr('서버 오류가 발생했습니다.');}
+    setLoading(false);
+  };
+
+  return (
+    <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{background:'#fff',borderRadius:16,padding:28,width:'100%',maxWidth:360,boxShadow:'0 24px 80px rgba(0,0,0,.4)'}}>
+        <div style={{textAlign:'center',marginBottom:22}}>
+          <div style={{fontSize:15,fontWeight:800,color:'#0f172a'}}>{APP_CONFIG.COMPANY_SHORT}</div>
+          <div style={{fontSize:10,color:'#94a3b8',marginTop:4}}>통합 관리 시스템</div>
+        </div>
+        {err&&<div style={{background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:7,padding:'8px 12px',fontSize:12,marginBottom:12}}>{err}</div>}
+        <div style={{marginBottom:12}}>
+          <label style={{fontSize:11,fontWeight:600,color:'#64748b',display:'block',marginBottom:4}}>전화번호</label>
+          <input style={{width:'100%',border:'1.5px solid #e2e8f0',borderRadius:8,padding:'10px 12px',fontSize:13,fontFamily:'inherit',outline:'none'}}
+            value={phone} onChange={e=>setPhone(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doLogin()} placeholder="전화번호 입력"/>
+        </div>
+        <div style={{marginBottom:20}}>
+          <label style={{fontSize:11,fontWeight:600,color:'#64748b',display:'block',marginBottom:4}}>비밀번호</label>
+          <input type="password" style={{width:'100%',border:'1.5px solid #e2e8f0',borderRadius:8,padding:'10px 12px',fontSize:13,fontFamily:'inherit',outline:'none'}}
+            value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doLogin()} placeholder="비밀번호 입력"/>
+        </div>
+        <button onClick={doLogin} disabled={loading}
+          style={{width:'100%',background:'#1d4ed8',color:'#fff',border:'none',borderRadius:8,padding:'11px',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>
+          {loading?'로그인 중...':'로그인'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── 공지 탭 ─────────────────────────────────────────────────
+function NoticeView({user, readIds, onRead}){
+  const [notices,setNotices]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [sel,setSel]=useState(null);   // 선택된 공지 (상세보기)
+  const [showForm,setShowForm]=useState(false);
+  const [editItem,setEditItem]=useState(null);
+  const [form,setForm]=useState({title:'',content:'',is_pinned:false});
+  const [saving,setSaving]=useState(false);
+  const [err,setErr]=useState('');
+
+  const canWrite = user.role==='admin' || user.team_name==='관리팀';
+
+  const load=useCallback(async()=>{
+    setLoading(true);
+    const {data}=await sb.from('notices').select('*, users(name)').order('is_pinned',{ascending:false}).order('created_at',{ascending:false});
+    setNotices(data||[]);
+    setLoading(false);
+  },[]);
+
+  useEffect(()=>{load();},[load]);
+
+  const openNew=()=>{setEditItem(null);setForm({title:'',content:'',is_pinned:false});setErr('');setShowForm(true);};
+  const openEdit=(n)=>{setEditItem(n);setForm({title:n.title,content:n.content,is_pinned:n.is_pinned});setErr('');setShowForm(true);};
+
+  const save=async()=>{
+    if(!form.title.trim()||!form.content.trim()){setErr('제목과 내용을 입력하세요.');return;}
+    setSaving(true);
+    if(editItem){
+      await sb.from('notices').update({title:form.title,content:form.content,is_pinned:form.is_pinned}).eq('id',editItem.id);
+    } else {
+      await sb.from('notices').insert({title:form.title,content:form.content,is_pinned:form.is_pinned,created_by:user.id});
+    }
+    setSaving(false);setShowForm(false);load();
+  };
+
+  const del=async(n)=>{
+    if(!confirm(`"${n.title}" 공지를 삭제하시겠습니까?`))return;
+    await sb.from('notices').delete().eq('id',n.id);
+    if(sel?.id===n.id)setSel(null);
+    load();
+  };
+
+  const openNotice=async(n)=>{
+    setSel(n);
+    // 읽음 처리
+    if(!readIds.has(n.id)){
+      await sb.from('notice_reads').insert({notice_id:n.id,user_id:user.id}).onConflict('notice_id,user_id').ignore();
+      onRead(n.id);
+    }
+  };
+
+  if(loading) return <div className="empty">불러오는 중...</div>;
+
+  return (
+    <div>
+      {canWrite&&!showForm&&(
+        <div style={{marginBottom:12,display:'flex',justifyContent:'flex-end'}}>
+          <button className="btn btn-p btn-sm" onClick={openNew}>+ 공지 작성</button>
+        </div>
+      )}
+      {showForm&&(
+        <div className="notice-form">
+          <div style={{marginBottom:10}}><label className="fl">제목</label><input className="fi" value={form.title} onChange={e=>setForm(p=>({...p,title:e.target.value}))} placeholder="공지 제목"/></div>
+          <div style={{marginBottom:10}}><label className="fl">내용</label><textarea className="fi ta" value={form.content} onChange={e=>setForm(p=>({...p,content:e.target.value}))} placeholder="공지 내용"/></div>
+          <div style={{marginBottom:12,display:'flex',alignItems:'center',gap:8}}>
+            <input type="checkbox" id="pin" checked={form.is_pinned} onChange={e=>setForm(p=>({...p,is_pinned:e.target.checked}))}/>
+            <label htmlFor="pin" style={{fontSize:12,color:'#475569',cursor:'pointer'}}>📌 상단 고정</label>
+          </div>
+          {err&&<div className="al al-e">{err}</div>}
+          <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+            <button className="btn btn-s btn-sm" onClick={()=>setShowForm(false)}>취소</button>
+            <button className="btn btn-p btn-sm" onClick={save} disabled={saving}>{saving?'저장 중...':'저장'}</button>
+          </div>
+        </div>
+      )}
+      {notices.length===0&&<div className="empty">등록된 공지사항이 없습니다.</div>}
+      <div className="notice-list">
+        {notices.map(n=>{
+          const isNew=!readIds.has(n.id);
+          return (
+            <div key={n.id} className={`notice-item${n.is_pinned?' pinned':''}`} onClick={()=>openNotice(n)}>
+              <div className="notice-title">
+                {n.is_pinned&&<span className="badge-pin">📌</span>}
+                {n.title}
+                {isNew&&<span className="badge-new">NEW</span>}
+              </div>
+              <div className="notice-meta">{n.users?.name||'관리팀'} · {fmtFull(n.created_at?.slice(0,10))}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 공지 상세 모달 */}
+      {sel&&(
+        <div className="mbg" onClick={()=>setSel(null)}>
+          <div className="mbox" onClick={e=>e.stopPropagation()}>
+            <div className="mh">
+              <span className="mht">{sel.is_pinned&&'📌 '}{sel.title}</span>
+              <button className="mc" onClick={()=>setSel(null)}>×</button>
+            </div>
+            <div className="mb">
+              <div style={{fontSize:11,color:'#94a3b8',marginBottom:14}}>{sel.users?.name||'관리팀'} · {fmtFull(sel.created_at?.slice(0,10))}</div>
+              <div style={{fontSize:13,color:'#334155',lineHeight:1.7,whiteSpace:'pre-wrap'}}>{sel.content}</div>
+            </div>
+            {canWrite&&(
+              <div className="mf">
+                <button className="btn btn-danger btn-sm" onClick={()=>del(sel)}>삭제</button>
+                <button className="btn btn-s btn-sm" onClick={()=>{setSel(null);openEdit(sel);}}>수정</button>
+                <button className="btn btn-s btn-sm" onClick={()=>setSel(null)}>닫기</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 통합 달력 탭 ─────────────────────────────────────────────
+function CalendarView({user}){
+  const now=new Date();
+  const [year,setYear]=useState(now.getFullYear());
+  const [month,setMonth]=useState(now.getMonth());
+  const [leaves,setLeaves]=useState([]);
+  const [projEvents,setProjEvents]=useState([]);
+  const [compEvents,setCompEvents]=useState([]);
+  const [users,setUsers]=useState([]);
+  const [projects,setProjects]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [showEvForm,setShowEvForm]=useState(false);
+  const [selDay,setSelDay]=useState(null);      // 클릭한 날짜 이벤트 목록
+  const [evForm,setEvForm]=useState({title:'',date:'',end_date:'',category:'일반',memo:''});
+  const [saving,setSaving]=useState(false);
+  const [editEv,setEditEv]=useState(null);
+
+  const canWrite=user.role==='admin'||user.team_name==='관리팀';
+  const today=todayStr();
+
+  useEffect(()=>{
+    loadNagerHolidays();
+    load();
+  },[]);
+
+  const load=async()=>{
+    setLoading(true);
+    const [lv,pev,cev,us,pj]=await Promise.all([
+      sb.from('leave_requests').select('*').in('status',['approved','manager_approved']),
+      sb.from('project_events').select('*, projects(name)').eq('done',false),
+      sb.from('company_events').select('*'),
+      sb.from('users').select('id,name'),
+      sb.from('projects').select('id,name'),
+    ]);
+    setLeaves(lv.data||[]);
+    setProjEvents(pev.data||[]);
+    setCompEvents(cev.data||[]);
+    setUsers(us.data||[]);
+    setProjects(pj.data||[]);
+    setLoading(false);
+  };
+
+  const prevMonth=()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);};
+  const nextMonth=()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);};
+
+  const uName=(id)=>users.find(u=>u.id===id)?.name||'';
+
+  // 날짜별 이벤트 맵 생성
+  const evMap={}; // date -> [{type,label,color}]
+  const addEv=(date,ev)=>{if(!evMap[date])evMap[date]=[];evMap[date].push(ev);};
+
+  // 연차/공가
+  leaves.forEach(l=>{
+    const s=l.start_date,e=l.end_date||l.start_date;
+    // 날짜 범위 순회 (최대 30일)
+    let cur=new Date(s+'T00:00:00');const end=new Date(e+'T00:00:00');
+    let cnt=0;
+    while(cur<=end&&cnt<30){
+      const ds=`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
+      addEv(ds,{type:'leave',label:uName(l.user_id)+(l.type==='공가'?' (공가)':''),color:EV_COLORS.leave});
+      cur.setDate(cur.getDate()+1);cnt++;
+    }
+  });
+
+  // 주요 공정
+  projEvents.forEach(e=>{
+    addEv(e.event_date,{type:'project',label:`${e.type} ${e.title||''}`.trim(),color:EV_COLORS.project,sub:e.projects?.name});
+  });
+
+  // 회사 일정
+  compEvents.forEach(e=>{
+    const s=e.date,end=e.end_date||e.date;
+    let cur=new Date(s+'T00:00:00');const endD=new Date(end+'T00:00:00');
+    let cnt=0;
+    while(cur<=endD&&cnt<30){
+      const ds=`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
+      addEv(ds,{type:'company',label:e.title,color:EV_COLORS.company,category:e.category,id:e.id,raw:e});
+      cur.setDate(cur.getDate()+1);cnt++;
+    }
+  });
+
+  // 달력 셀 생성
+  const daysInMonth=getDaysInMonth(year,month);
+  const firstDay=getFirstDayOfWeek(year,month);
+  const cells=[];
+  for(let i=0;i<firstDay;i++) cells.push(null);
+  for(let d=1;d<=daysInMonth;d++) cells.push(d);
+  while(cells.length%7!==0) cells.push(null);
+
+  const getDateStr=(d)=>d?`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`:null;
+
+  const openDay=(d)=>{
+    if(!d)return;
+    const ds=getDateStr(d);
+    const dayEvs=evMap[ds]||[];
+    const hol=HOLIDAYS[ds]||SUBSTITUTE[ds];
+    if(dayEvs.length===0&&!hol)return;
+    setSelDay({date:ds,events:dayEvs,holiday:hol});
+  };
+
+  const saveCompEv=async()=>{
+    if(!evForm.title.trim()||!evForm.date){return;}
+    setSaving(true);
+    if(editEv){
+      await sb.from('company_events').update({title:evForm.title,date:evForm.date,end_date:evForm.end_date||null,category:evForm.category,memo:evForm.memo||null}).eq('id',editEv.id);
+    } else {
+      await sb.from('company_events').insert({title:evForm.title,date:evForm.date,end_date:evForm.end_date||null,category:evForm.category,memo:evForm.memo||null,created_by:user.id});
+    }
+    setSaving(false);setShowEvForm(false);setEditEv(null);
+    setEvForm({title:'',date:'',end_date:'',category:'일반',memo:''});
+    load();
+  };
+
+  const delCompEv=async(id)=>{
+    if(!confirm('일정을 삭제하시겠습니까?'))return;
+    await sb.from('company_events').delete().eq('id',id);
+    setSelDay(null);load();
+  };
+
+  const openEditEv=(ev)=>{
+    setEditEv(ev.raw);
+    setEvForm({title:ev.raw.title,date:ev.raw.date,end_date:ev.raw.end_date||'',category:ev.raw.category,memo:ev.raw.memo||''});
+    setSelDay(null);setShowEvForm(true);
+  };
+
+  const DK=['일','월','화','수','목','금','토'];
+
+  return (
+    <div>
+      {canWrite&&(
+        <div style={{marginBottom:12,display:'flex',justifyContent:'flex-end'}}>
+          <button className="btn btn-p btn-sm" onClick={()=>{setEditEv(null);setEvForm({title:'',date:'',end_date:'',category:'일반',memo:''});setShowEvForm(true);}}>+ 회사 일정 등록</button>
+        </div>
+      )}
+
+      {/* 회사 일정 입력 폼 */}
+      {showEvForm&&(
+        <div className="notice-form" style={{marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>{editEv?'회사 일정 수정':'회사 일정 등록'}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+            <div><label className="fl">제목 *</label><input className="fi" value={evForm.title} onChange={e=>setEvForm(p=>({...p,title:e.target.value}))} placeholder="일정 제목"/></div>
+            <div><label className="fl">분류</label>
+              <select className="fi" value={evForm.category} onChange={e=>setEvForm(p=>({...p,category:e.target.value}))}>
+                {COMPANY_CATS.map(c=><option key={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+            <div><label className="fl">시작일 *</label><input type="date" className="fi" value={evForm.date} onChange={e=>setEvForm(p=>({...p,date:e.target.value}))}/></div>
+            <div><label className="fl">종료일 (선택)</label><input type="date" className="fi" value={evForm.end_date} onChange={e=>setEvForm(p=>({...p,end_date:e.target.value}))}/></div>
+          </div>
+          <div style={{marginBottom:12}}><label className="fl">메모</label><input className="fi" value={evForm.memo} onChange={e=>setEvForm(p=>({...p,memo:e.target.value}))} placeholder="선택 입력"/></div>
+          <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+            <button className="btn btn-s btn-sm" onClick={()=>{setShowEvForm(false);setEditEv(null);}}>취소</button>
+            <button className="btn btn-p btn-sm" onClick={saveCompEv} disabled={saving}>{saving?'저장 중...':'저장'}</button>
+          </div>
+        </div>
+      )}
+
+      {/* 달력 */}
+      <div className="cal-wrap">
+        <div className="cal-header">
+          <button className="cal-nav" onClick={prevMonth}>‹</button>
+          <span className="cal-title">{year}년 {month+1}월</span>
+          <button className="cal-nav" onClick={nextMonth}>›</button>
+        </div>
+        <div className="cal-grid">
+          {DK.map((d,i)=><div key={d} className="cal-day-header" style={i===0?{color:'#ef4444'}:i===6?{color:'#3b82f6'}:{}}>{d}</div>)}
+          {cells.map((d,i)=>{
+            if(d===null) return <div key={`e${i}`} className="cal-cell" style={{background:'#fafafa'}}/>;
+            const ds=getDateStr(d);
+            const hol=HOLIDAYS[ds];const sub=SUBSTITUTE[ds];
+            const dayEvs=evMap[ds]||[];
+            const isToday=ds===today;
+            const dow=i%7;
+            const isSun=dow===0;const isSat=dow===6;
+            return (
+              <div key={ds} className="cal-cell" style={{cursor:dayEvs.length>0||hol||sub?'pointer':'default',background:isToday?'#eff6ff':undefined}}
+                onClick={()=>openDay(d)}>
+                <div className={`cal-date${isToday?' today':isSun?' sunday':isSat?' saturday':''}`}>{d}</div>
+                {hol&&<div className="cal-holiday">{hol}</div>}
+                {sub&&!hol&&<div className="cal-holiday">{sub}</div>}
+                {dayEvs.slice(0,3).map((ev,j)=>(
+                  <div key={j} className="cal-ev" style={{background:ev.color.bg,color:ev.color.tx}}>{ev.label}</div>
+                ))}
+                {dayEvs.length>3&&<div style={{fontSize:8,color:'#94a3b8'}}>+{dayEvs.length-3}건</div>}
+                {/* 모바일용 점 표시 */}
+                <div className="cal-dots">
+                  {dayEvs.slice(0,4).map((ev,j)=><span key={j} className="cal-ev-dot" style={{background:ev.color.tx}}/>)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* 범례 */}
+        <div className="legend">
+          <div className="legend-item"><div className="legend-dot" style={{background:EV_COLORS.leave.bg,border:`1px solid ${EV_COLORS.leave.tx}`}}/><span>연차/공가</span></div>
+          <div className="legend-item"><div className="legend-dot" style={{background:EV_COLORS.project.bg,border:`1px solid ${EV_COLORS.project.tx}`}}/><span>주요공정</span></div>
+          <div className="legend-item"><div className="legend-dot" style={{background:EV_COLORS.company.bg,border:`1px solid ${EV_COLORS.company.tx}`}}/><span>회사일정</span></div>
+          <div className="legend-item"><div className="legend-dot" style={{background:'#fee2e2',border:'1px solid #ef4444'}}/><span>공휴일</span></div>
+        </div>
+      </div>
+
+      {/* 날짜 클릭 모달 */}
+      {selDay&&(
+        <div className="mbg" onClick={()=>setSelDay(null)}>
+          <div className="mbox" onClick={e=>e.stopPropagation()}>
+            <div className="mh">
+              <span className="mht">{fmtFull(selDay.date)} 일정</span>
+              <button className="mc" onClick={()=>setSelDay(null)}>×</button>
+            </div>
+            <div className="mb">
+              {selDay.holiday&&<div style={{background:'#fef2f2',color:'#dc2626',padding:'6px 10px',borderRadius:6,fontSize:12,fontWeight:700,marginBottom:10}}>🎌 {selDay.holiday}</div>}
+              {selDay.events.length===0&&<div style={{color:'#94a3b8',fontSize:13}}>이벤트 없음</div>}
+              {selDay.events.map((ev,i)=>(
+                <div key={i} style={{background:ev.color.bg,borderRadius:7,padding:'8px 12px',marginBottom:8}}>
+                  <div style={{fontSize:12,fontWeight:700,color:ev.color.tx,marginBottom:ev.sub?2:0}}>{ev.label}</div>
+                  {ev.sub&&<div style={{fontSize:11,color:'#64748b'}}>{ev.sub}</div>}
+                  {ev.type==='company'&&<div style={{fontSize:10,color:'#94a3b8',marginTop:2}}>{ev.category}</div>}
+                  {ev.type==='company'&&canWrite&&(
+                    <div style={{display:'flex',gap:6,marginTop:6}}>
+                      <button className="btn btn-s btn-sm" style={{fontSize:10}} onClick={()=>openEditEv(ev)}>수정</button>
+                      <button className="btn btn-danger btn-sm" style={{fontSize:10}} onClick={()=>delCompEv(ev.id)}>삭제</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="mf">
+              <button className="btn btn-s btn-sm" onClick={()=>setSelDay(null)}>닫기</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── APP ─────────────────────────────────────────────────────
+const SysBar = Sysbar.createComponent(React);
+function App(){
+  // 통합 세션에서 즉시 복원
+  const initialUser=(()=>{
+    try{
+      const raw=localStorage.getItem('kwanbo_session');
+      if(!raw)return null;
+      const v=JSON.parse(raw);
+      if(v&&v.id&&v.role){
+        if(v.password){delete v.password;localStorage.setItem('kwanbo_session',JSON.stringify(v));}
+        sb=_makeSb(v.id,v.role);
+        // contractor는 공정관리로 바로 이동
+        if(v.role==='contractor'){window.location.replace('project.html');return null;}
+        return v;
+      }
+      return null;
+    }catch{return null;}
+  })();
+
+  const [user,setUser]=useState(initialUser);
+  const [ssoChecked,setSsoChecked]=useState(!!initialUser);
+  const [view,setView]=useState('notice');
+  const [readIds,setReadIds]=useState(new Set());
+  const [unread,setUnread]=useState(0);
+
+  // 구버전 세션 복원
+  useEffect(()=>{
+    if(initialUser){return;}
+    const raw=localStorage.getItem('kwanbo_session');
+    if(!raw){setSsoChecked(true);return;}
+    try{
+      const v=JSON.parse(raw);
+      const userId=v&&v.userId;
+      if(!userId){setSsoChecked(true);return;}
+      sb.from('users').select('*').eq('id',userId).single().then(({data})=>{
+        if(data){
+          if(data.role==='contractor'){window.location.replace('project.html');return;}
+          sb=_makeSb(data.id,data.role);
+          const safeU={...data};delete safeU.password;
+          localStorage.setItem('kwanbo_session',JSON.stringify(safeU));
+          setUser(safeU);
+        }
+        setSsoChecked(true);
+      }).catch(()=>setSsoChecked(true));
+    }catch{setSsoChecked(true);}
+  },[]);
+
+  // 읽음 처리 로드 + 미읽음 수 계산
+  useEffect(()=>{
+    if(!user)return;
+    (async()=>{
+      const [{data:reads},{data:all}]=await Promise.all([
+        sb.from('notice_reads').select('notice_id').eq('user_id',user.id),
+        sb.from('notices').select('id'),
+      ]);
+      const ids=new Set((reads||[]).map(r=>r.notice_id));
+      setReadIds(ids);
+      setUnread((all||[]).filter(n=>!ids.has(n.id)).length);
+    })();
+  },[user]);
+
+  const handleLogin=(u)=>{
+    if(u.role==='contractor'){
+      // contractor는 공정관리로
+      const safeU={...u};delete safeU.password;
+      localStorage.setItem('kwanbo_session',JSON.stringify(safeU));
+      window.location.replace('project.html');
+      return;
+    }
+    sb=_makeSb(u.id,u.role);
+    const safeU={...u};delete safeU.password;
+    localStorage.setItem('kwanbo_session',JSON.stringify(safeU));
+    localStorage.removeItem('kwanbo_pm_user');
+    sessionStorage.removeItem('kwanbo_uid');
+    setUser(safeU);
+  };
+
+  const logout=()=>{
+    sb=_makeSb();
+    localStorage.removeItem('kwanbo_session');
+    localStorage.removeItem('kwanbo_pm_user');
+    sessionStorage.removeItem('kwanbo_uid');
+    setUser(null);
+  };
+
+  const onRead=(id)=>{
+    setReadIds(prev=>{const s=new Set(prev);s.add(id);return s;});
+    setUnread(prev=>Math.max(0,prev-1));
+  };
+
+  if(!ssoChecked) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8',fontSize:13}}>로딩 중...</div>;
+  if(!user) return <LoginScreen onLogin={handleLogin}/>;
+
+  return (
+    <div>
+      <SysBar activeKey={null} user={user} teamName={user.team_name||''} onLogout={logout}/>
+      {/* 제목바 */}
+      <div style={{background:'#0f172a',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8',position:'sticky',top:38,zIndex:250}}>
+        <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
+        <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>통합 홈</p>
+      </div>
+      {/* 탭 */}
+      <div className="top-nav">
+        <button className={view==='notice'?'nav-btn active':'nav-btn'} onClick={()=>setView('notice')}>
+          📢 공지
+          {unread>0&&<span style={{background:'#ef4444',color:'#fff',fontSize:9,fontWeight:800,padding:'0 4px',borderRadius:8,marginLeft:2}}>{unread}</span>}
+        </button>
+        <button className={view==='calendar'?'nav-btn active':'nav-btn'} onClick={()=>setView('calendar')}>📅 통합 달력</button>
+      </div>
+      {/* 콘텐츠 */}
+      <div className="page">
+        {view==='notice'&&<NoticeView user={user} readIds={readIds} onRead={onRead}/>}
+        {view==='calendar'&&<CalendarView user={user}/>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

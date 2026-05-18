@@ -1546,7 +1546,7 @@ function renderLoginSection(user) {
         localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
         localStorage.removeItem('kwanbo_pm_user');
         sessionStorage.removeItem('kwanbo_uid');
-        window.location.href = 'project.html';
+        window.location.href = (u.role === 'contractor') ? 'project.html' : 'home.html';
       })
       .catch(function(e) {
         errEl.textContent = '오류: ' + e.message;
