@@ -270,7 +270,7 @@ function NoticeView({user, teamName, readIds, onRead}){
     setLoading(true);
     try{
       // users join 대신 created_by ID만 가져오고 이름은 별도 처리
-      const {data,error}=await sb.from('notices')
+      const {data,error}=await getSb().from('notices')
         .select('*')
         .order('is_pinned',{ascending:false})
         .order('created_at',{ascending:false});
@@ -288,16 +288,16 @@ function NoticeView({user, teamName, readIds, onRead}){
     if(!form.title.trim()||!form.content.trim()){setErr('제목과 내용을 입력하세요.');return;}
     setSaving(true);
     if(editItem){
-      await sb.from('notices').update({title:form.title,content:form.content,is_pinned:form.is_pinned}).eq('id',editItem.id);
+      await getSb().from('notices').update({title:form.title,content:form.content,is_pinned:form.is_pinned}).eq('id',editItem.id);
     } else {
-      await sb.from('notices').insert({title:form.title,content:form.content,is_pinned:form.is_pinned,created_by:user.id});
+      await getSb().from('notices').insert({title:form.title,content:form.content,is_pinned:form.is_pinned,created_by:user.id});
     }
     setSaving(false);setShowForm(false);load();
   };
 
   const del=async(n)=>{
     if(!confirm(`"${n.title}" 공지를 삭제하시겠습니까?`))return;
-    await sb.from('notices').delete().eq('id',n.id);
+    await getSb().from('notices').delete().eq('id',n.id);
     if(sel?.id===n.id)setSel(null);
     load();
   };
@@ -306,7 +306,7 @@ function NoticeView({user, teamName, readIds, onRead}){
     setSel(n);
     // 읽음 처리
     if(!readIds.has(n.id)){
-      await sb.from('notice_reads').upsert({notice_id:n.id,user_id:user.id},{onConflict:'notice_id,user_id',ignoreDuplicates:true});
+      await getSb().from('notice_reads').upsert({notice_id:n.id,user_id:user.id},{onConflict:'notice_id,user_id',ignoreDuplicates:true});
       onRead(n.id);
     }
   };
@@ -428,11 +428,11 @@ function CalendarView({user, teamName}){
     setLoading(true);
     try{
       const [lv,pev,cev,us,tm]=await Promise.all([
-        sb.from('leave_requests').select('*').in('status',['approved','manager_approved']),
-        sb.from('project_events').select('*, projects(name)'),
-        sb.from('company_events').select('*'),
-        sb.from('users').select('id,name,team_id'),
-        sb.from('teams').select('id,name'),
+        getSb().from('leave_requests').select('*').in('status',['approved','manager_approved']),
+        getSb().from('project_events').select('*, projects(name)'),
+        getSb().from('company_events').select('*'),
+        getSb().from('users').select('id,name,team_id'),
+        getSb().from('teams').select('id,name'),
       ]);
       setLeaves(lv.data||[]);
       setProjEvents(pev.data||[]);
@@ -501,9 +501,9 @@ function CalendarView({user, teamName}){
     if(!evForm.title.trim()||!evForm.date)return;
     setSaving(true);
     if(editEv){
-      await sb.from('company_events').update({title:evForm.title,date:evForm.date,end_date:evForm.end_date||null,category:evForm.category,memo:evForm.memo||null}).eq('id',editEv.id);
+      await getSb().from('company_events').update({title:evForm.title,date:evForm.date,end_date:evForm.end_date||null,category:evForm.category,memo:evForm.memo||null}).eq('id',editEv.id);
     }else{
-      await sb.from('company_events').insert({title:evForm.title,date:evForm.date,end_date:evForm.end_date||null,category:evForm.category,memo:evForm.memo||null,created_by:user.id});
+      await getSb().from('company_events').insert({title:evForm.title,date:evForm.date,end_date:evForm.end_date||null,category:evForm.category,memo:evForm.memo||null,created_by:user.id});
     }
     setSaving(false);setShowEvForm(false);setEditEv(null);
     setEvForm({title:'',date:'',end_date:'',category:'일반',memo:''});
@@ -511,7 +511,7 @@ function CalendarView({user, teamName}){
   };
   const delCompEv=async(id)=>{
     if(!confirm('일정을 삭제하시겠습니까?'))return;
-    await sb.from('company_events').delete().eq('id',id);
+    await getSb().from('company_events').delete().eq('id',id);
     setSelDay(null);load();
   };
   const openEditEv=ev=>{
@@ -760,9 +760,9 @@ function CalendarView({user, teamName}){
     if(!evForm.title.trim()||!evForm.date){return;}
     setSaving(true);
     if(editEv){
-      await sb.from('company_events').update({title:evForm.title,date:evForm.date,end_date:evForm.end_date||null,category:evForm.category,memo:evForm.memo||null}).eq('id',editEv.id);
+      await getSb().from('company_events').update({title:evForm.title,date:evForm.date,end_date:evForm.end_date||null,category:evForm.category,memo:evForm.memo||null}).eq('id',editEv.id);
     } else {
-      await sb.from('company_events').insert({title:evForm.title,date:evForm.date,end_date:evForm.end_date||null,category:evForm.category,memo:evForm.memo||null,created_by:user.id});
+      await getSb().from('company_events').insert({title:evForm.title,date:evForm.date,end_date:evForm.end_date||null,category:evForm.category,memo:evForm.memo||null,created_by:user.id});
     }
     setSaving(false);setShowEvForm(false);setEditEv(null);
     setEvForm({title:'',date:'',end_date:'',category:'일반',memo:''});
@@ -771,7 +771,7 @@ function CalendarView({user, teamName}){
 
   const delCompEv=async(id)=>{
     if(!confirm('일정을 삭제하시겠습니까?'))return;
-    await sb.from('company_events').delete().eq('id',id);
+    await getSb().from('company_events').delete().eq('id',id);
     setSelDay(null);load();
   };
 
@@ -930,7 +930,7 @@ function App(){
       const v=JSON.parse(raw);
       const userId=v&&v.userId;
       if(!userId){setSsoChecked(true);return;}
-      sb.from('users').select('*').eq('id',userId).single().then(({data})=>{
+      getSb().from('users').select('*').eq('id',userId).single().then(({data})=>{
         if(data){
           if(data.role==='contractor'){window.location.replace('project.html');return;}
           sb=_makeSb(data.id,data.role);
@@ -948,7 +948,7 @@ function App(){
     if(!user)return;
     if(user.role==='admin'){setTeamName('관리자');return;}
     if(!user.team_id){setTeamName('');return;}
-    sb.from('teams').select('name').eq('id',user.team_id).single()
+    getSb().from('teams').select('name').eq('id',user.team_id).single()
       .then(({data})=>{if(data)setTeamName(data.name);});
   },[user]);
 
@@ -958,8 +958,8 @@ function App(){
     (async()=>{
       try{
         const [{data:reads},{data:all}]=await Promise.all([
-          sb.from('notice_reads').select('notice_id').eq('user_id',user.id),
-          sb.from('notices').select('id'),
+          getSb().from('notice_reads').select('notice_id').eq('user_id',user.id),
+          getSb().from('notices').select('id'),
         ]);
         const ids=new Set((reads||[]).map(r=>r.notice_id));
         setReadIds(ids);
