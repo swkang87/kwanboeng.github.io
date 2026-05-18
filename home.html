@@ -336,6 +336,7 @@ function CalendarView({user,teamName}){
   const [cevs,setCevs]=useState([]);
   const [users,setUsers]=useState([]);
   const [teams,setTeams]=useState([]);
+  const [projs,setProjs]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showEvF,setShowEvF]=useState(false);
   const [selDay,setSelDay]=useState(null);
@@ -348,14 +349,15 @@ function CalendarView({user,teamName}){
   const load=async()=>{
     setLoading(true);
     try{
-      const [a,b,c,d,e]=await Promise.all([
+      const [a,b,c,d,e,f]=await Promise.all([
         getSb().from('leave_requests').select('*').in('status',['approved','manager_approved']),
         getSb().from('project_events').select('*,projects(name)'),
         getSb().from('company_events').select('*'),
         getSb().from('users').select('id,name,team_id'),
         getSb().from('teams').select('id,name'),
+        getSb().from('projects').select('id,name,start_date,end_date,status'),
       ]);
-      setLeaves(a.data||[]);setPevs(b.data||[]);setCevs(c.data||[]);setUsers(d.data||[]);setTeams(e.data||[]);
+      setLeaves(a.data||[]);setPevs(b.data||[]);setCevs(c.data||[]);setUsers(d.data||[]);setTeams(e.data||[]);setProjs(f.data||[]);
     }catch(ex){console.error(ex);}
     setLoading(false);
   };
@@ -398,6 +400,14 @@ function CalendarView({user,teamName}){
         cur.setDate(cur.getDate()+1);n++;
       }
     });
+    // 착수일 / 준공일 (완료된 프로젝트 준공일은 회색)
+    projs.forEach(p=>{
+      if(p.start_date) add(p.start_date,{k:'proj',type:'착수일',label:p.name,bg:'#eff6ff',tx:'#1d4ed8',bd:'#3b82f6',pname:p.name});
+      if(p.end_date){
+        const isDone=p.status==='완료';
+        add(p.end_date,{k:'proj',type:'준공일',label:p.name,bg:isDone?'#f1f5f9':'#fdf4ff',tx:isDone?'#64748b':'#7c3aed',bd:isDone?'#94a3b8':'#a855f7',pname:p.name});
+      }
+    });
     return m;
   };
   const evMap=buildMap();
@@ -429,9 +439,17 @@ function CalendarView({user,teamName}){
     if(!evF.title.trim()||!evF.date)return;
     setSaving(true);
     try{
-      if(editEv){await getSb().from('company_events').update({title:evF.title,date:evF.date,end_date:evF.end_date||null,category:evF.category,memo:evF.memo||null}).eq('id',editEv.id);}
-      else{await getSb().from('company_events').insert({title:evF.title,date:evF.date,end_date:evF.end_date||null,category:evF.category,memo:evF.memo||null,created_by:user.id});}
-    }catch(ex){}
+      let result;
+      if(editEv){
+        result=await getSb().from('company_events').update({title:evF.title,date:evF.date,end_date:evF.end_date||null,category:evF.category,memo:evF.memo||null}).eq('id',editEv.id);
+      }else{
+        result=await getSb().from('company_events').insert({title:evF.title,date:evF.date,end_date:evF.end_date||null,category:evF.category,memo:evF.memo||null,created_by:user.id});
+      }
+      if(result&&result.error){
+        alert('저장 오류: '+result.error.message);
+        setSaving(false);return;
+      }
+    }catch(ex){alert('저장 중 오류가 발생했습니다.');}
     setSaving(false);setShowEvF(false);setEditEv(null);setEvF({title:'',date:'',end_date:'',category:'일반',memo:''});load();
   };
 
@@ -478,19 +496,22 @@ function CalendarView({user,teamName}){
         {/* 공휴일 */}
         {h&&<div className="cal-hol">{h}</div>}
         {s&&!h&&<div className="cal-hol">대체공휴일</div>}
-        {/* ① 주요공정 — 상단 우선, 컬러 바 */}
+        {/* ① 주요공정 — 상단 우선, 1.5배 크기 */}
         {projEvs.map((ev,j)=>{
-          const c=evc(ev.type);
+          const isAuto=ev.type==='착수일'||ev.type==='준공일';
+          const icon=ev.type==='착수일'?'🚀':ev.type==='준공일'?'📅':null;
           return(
-            <div key={'p'+j} style={{display:'flex',alignItems:'center',gap:2,marginBottom:1,background:c.bg,border:'1px solid '+c.bd,borderRadius:3,padding:'1px 4px',overflow:'hidden'}}>
-              <span style={{background:c.bd,color:'#fff',borderRadius:2,padding:'0 3px',fontSize:7,fontWeight:800,whiteSpace:'nowrap',flexShrink:0}}>{ev.type}</span>
-              {ev.label!==ev.type&&<span style={{fontSize:7,color:c.tx,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ev.label}</span>}
+            <div key={'p'+j} style={{display:'flex',alignItems:'center',gap:3,marginBottom:2,background:ev.bg,border:'1px solid '+ev.bd,borderRadius:4,padding:'2px 5px',overflow:'hidden'}}>
+              <span style={{background:isAuto?'transparent':ev.bd,color:isAuto?ev.tx:'#fff',borderRadius:2,padding:isAuto?'0':'0 4px',fontSize:9,fontWeight:800,whiteSpace:'nowrap',flexShrink:0}}>
+                {icon||ev.type}
+              </span>
+              <span style={{fontSize:9,color:ev.tx,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{isAuto?ev.label:(ev.label!==ev.type?ev.label:'')}</span>
             </div>
           );
         })}
         {/* ② 회사일정 — 보라 바 */}
         {compEvs.slice(0,1).map((ev,j)=>(
-          <div key={'c'+j} style={{background:'#f3e8ff',border:'1px solid #a855f7',borderRadius:3,padding:'1px 4px',fontSize:7,fontWeight:700,color:'#6b21a8',marginBottom:1,overflow:'hidden',whiteSpace:'nowrap'}}>{ev.label}</div>
+          <div key={'c'+j} style={{background:'#f3e8ff',border:'1px solid #a855f7',borderRadius:4,padding:'2px 5px',fontSize:9,fontWeight:700,color:'#6b21a8',marginBottom:2,overflow:'hidden',whiteSpace:'nowrap'}}>{ev.label}</div>
         ))}
         {/* ③ 연차 — 이름 첫글자 점으로 축소 */}
         {lvEvs.length>0&&(
