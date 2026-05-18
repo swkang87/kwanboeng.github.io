@@ -291,6 +291,7 @@ const fs = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return
 const fmt = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${t.getMonth()+1}/${t.getDate()}`; };
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const thisMonday = () => { const d = new Date(); d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1)); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const sixMonthsAgo = () => { const d = new Date(); d.setMonth(d.getMonth() - 6); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; };
 const reportMonday = () => {
   const d = new Date();
   const dow = d.getDay();
@@ -598,8 +599,8 @@ function WeeklyReport({ gp, user }) {
     setLoading(true);
     const [pj, rp, ev, us, mb] = await Promise.all([
       sb.from('projects').select('*').neq('status', '완료').order('name'),
-      sb.from('weekly_reports').select('*').order('week_date', { ascending: false }),
-      sb.from('project_events').select('*'),
+      sb.from('weekly_reports').select('*').gte('week_date', sixMonthsAgo()).order('week_date', { ascending: false }),
+      sb.from('project_events').select('*').eq('done', false),
       sb.from('users').select('id, name, role'),
       sb.from('project_members').select('*'),
     ]);
@@ -881,7 +882,7 @@ function MonthlyCalendar({ gp, calDate, setCalDate, user }) {
 
   const loadAll = async () => {
     const [ev, pj, mb] = await Promise.all([
-      sb.from('project_events').select('*'),
+      sb.from('project_events').select('*').eq('done', false),
       sb.from('projects').select('id, name, category, status, start_date, end_date'),
       sb.from('project_members').select('*'),
     ]);
@@ -1095,8 +1096,8 @@ function ProjectList({ gp, user }) {
   const loadAll = async () => {
     const [pj, rp, ev, us, mb] = await Promise.all([
       sb.from('projects').select('*, completed_at').order('name'),
-      sb.from('weekly_reports').select('project_id, week_date, progress_pct').order('week_date', { ascending: false }),
-      sb.from('project_events').select('*'),
+      sb.from('weekly_reports').select('project_id, week_date, progress_pct').gte('week_date', sixMonthsAgo()).order('week_date', { ascending: false }),
+      sb.from('project_events').select('*').eq('done', false),
       sb.from('users').select('id, name'),
       sb.from('project_members').select('*'),
     ]);
@@ -1509,8 +1510,8 @@ function MyProjects({ user, gp }) {
       sb.from('projects').select('*').eq('pm_id', user.id),
       sb.from('project_members').select('project_id, role').eq('user_id', user.id),
       sb.from('users').select('id, name'),
-      sb.from('weekly_reports').select('*').order('week_date', { ascending: false }),
-      sb.from('project_events').select('*'),
+      sb.from('weekly_reports').select('*').gte('week_date', sixMonthsAgo()).order('week_date', { ascending: false }),
+      sb.from('project_events').select('*').eq('done', false),
     ]);
     // Get support projects not already in PM list
     const pmIds = new Set((pmProjs.data || []).map(p => p.id));
