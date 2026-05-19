@@ -1163,9 +1163,9 @@ function LoginScreen({ onLogin }) {
 // ── APP ───────────────────────────────────────────────────────────────────
 const SysBar = Sysbar.createComponent(React);
 function App() {
-  // 통합 세션에서 user 즉시 복원
   var initialUser = (function() {
     try {
+      Sysbar.SessionManager.checkOnLoad();
       var raw = localStorage.getItem('kwanbo_session');
       if (!raw) return null;
       var v = JSON.parse(raw);
@@ -1196,14 +1196,19 @@ function App() {
         if (r.data) {
           sb = _makeSb(r.data.id, r.data.role);
           var safeU = Object.assign({}, r.data); delete safeU.password;
-          // 통합 세션으로 마이그레이션
           localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
           localStorage.removeItem('kwanbo_pm_user');
           setUser(safeU);
+          Sysbar.SessionManager.onLogin(function() { logout(); });
         }
         setSsoChecked(true);
       }).catch(function() { setSsoChecked(true); });
     } catch(e) { setSsoChecked(true); }
+  }, []);
+
+  // localStorage에서 바로 복원된 경우 SessionManager 시작
+  useEffect(function() {
+    if (initialUser && ssoChecked) { Sysbar.SessionManager.onLogin(function() { logout(); }); }
   }, []);
 
   useEffect(function() {
@@ -1221,14 +1226,15 @@ function App() {
   function handleLogin(u) {
     sb = _makeSb(u.id, u.role);
     var safeU = Object.assign({}, u); delete safeU.password;
-    // 통합 세션 키 하나만 사용
     localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
     localStorage.removeItem('kwanbo_pm_user');
     sessionStorage.removeItem('kwanbo_uid');
     setUser(safeU);
+    Sysbar.SessionManager.onLogin(function() { logout(); });
   }
 
   function logout() {
+    Sysbar.SessionManager.onLogout();
     sb = _makeSb();
     localStorage.removeItem('kwanbo_session');
     localStorage.removeItem('kwanbo_pm_user');
