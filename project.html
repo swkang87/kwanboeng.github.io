@@ -333,7 +333,7 @@ const Delta = ({ prev, curr }) => {
 };
 const Spinner = () => <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>불러오는 중...</div>;
 const Modal = ({ title, onClose, children, wide }) => (
-  <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+  <div className="modal-overlay">
     <div className="modal-box" style={wide ? { maxWidth: 700 } : {}}>
       <div className="modal-title">{title}</div>
       {children}
@@ -436,6 +436,8 @@ function App() {
   const [selProject, setSelProject] = useState(null);
   const [calDate, setCalDate] = useState(new Date());
   const [noPermModal, setNoPermModal] = useState(false);
+  // ProjectList 필터 상태 보존 (뒤로가기 시 유지)
+  const [listFilter, setListFilter] = useState({ sf: '진행중', cf: 'all', sortKey: 'default', sortDir: 1, scrollY: 0 });
 
   const handleLogin = (u) => {
     sb = _makeSb(u.id, u.role);
@@ -571,7 +573,7 @@ function App() {
       <div className="page">
         {view === 'weekly'  && <WeeklyReport gp={gp} user={user} />}
         {view === 'monthly' && <MonthlyCalendar gp={gp} calDate={calDate} setCalDate={setCalDate} user={user} />}
-        {view === 'projects' && <ProjectList gp={gp} user={user} />}
+        {view === 'projects' && <ProjectList gp={gp} user={user} listFilter={listFilter} setListFilter={setListFilter} />}
         {view === 'project' && selProject && <ProjectDetail id={selProject} user={user} fromView={prevView} gb={() => { setView(prevView || 'projects'); setSelProject(null); }} />}
         {view === 'mine'   && <MyProjects user={user} gp={gp} />}
         {view === 'admin'  && isAdmin && <AdminPanel user={user} />}
@@ -1160,17 +1162,35 @@ function WeeklyTaskList({ allCalEvents, projects, gp }) {
 }
 
 // ─── Project List ───
-function ProjectList({ gp, user }) {
+function ProjectList({ gp, user, listFilter, setListFilter }) {
   const [projects, setProjects] = useState([]);
   const [reports, setReports] = useState([]);
   const [events, setEvents] = useState([]);
   const [users, setUsers] = useState([]);
   const [members, setMembers] = useState([]);
-  const [sf, setSf] = useState('진행중');
-  const [cf, setCf] = useState('all');
-  const [sortKey, setSortKey] = useState('default');
-  const [sortDir, setSortDir] = useState(1);
+  const [sf, setSf] = useState(listFilter?.sf || '진행중');
+  const [cf, setCf] = useState(listFilter?.cf || 'all');
+  const [sortKey, setSortKey] = useState(listFilter?.sortKey || 'default');
+  const [sortDir, setSortDir] = useState(listFilter?.sortDir || 1);
   const [loading, setLoading] = useState(true);
+
+  // 필터 변경 시 App으로 동기화
+  useEffect(() => {
+    if (setListFilter) setListFilter(p => ({ ...p, sf, cf, sortKey, sortDir }));
+  }, [sf, cf, sortKey, sortDir]);
+
+  // 뒤로가기 시 스크롤 복원
+  useEffect(() => {
+    if (!loading && listFilter?.scrollY) {
+      setTimeout(() => window.scrollTo(0, listFilter.scrollY), 50);
+    }
+  }, [loading]);
+
+  // 프로젝트 클릭 시 현재 스크롤 저장
+  const handleGp = (id) => {
+    if (setListFilter) setListFilter(p => ({ ...p, scrollY: window.scrollY }));
+    gp(id);
+  };
 
   useEffect(() => { loadAll(); }, []);
   const loadAll = async () => {
@@ -1322,7 +1342,7 @@ function ProjectList({ gp, user }) {
         const pct = getPct(p.id), ne = getNext(p.id);
         const stopped = p.status === '중지';
         return (
-          <div key={p.id} className={`proj-card ${stopped?'stopped':''}`} style={{ borderLeftColor: stopped ? '#d1d5db' : CAT_COLOR[p.category], opacity: p.status==='완료'?0.55:1 }} onClick={() => gp(p.id)}>
+          <div key={p.id} className={`proj-card ${stopped?'stopped':''}`} style={{ borderLeftColor: stopped ? '#d1d5db' : CAT_COLOR[p.category], opacity: p.status==='완료'?0.55:1 }} onClick={() => handleGp(p.id)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
               <div style={{ flex: 1, minWidth: 180 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
@@ -1642,7 +1662,7 @@ function MyProjects({ user, gp }) {
                   <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
                   {amPM && <Bd bg="#0f172a">PM</Bd>}
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 2, cursor: 'pointer' }} onClick={() => gp(p.id)}>{p.name}</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 2, cursor: 'pointer' }} onClick={() => handleGp(p.id)}>{p.name}</div>
                 <div style={{ fontSize: 11, color: '#64748b' }}>{p.client} · {fs(p.start_date)} ~ {fs(p.end_date)}</div>
                 {ne && <div style={{ fontSize: 11, color: ec(ne.type).tx, marginTop: 2 }}>{EV_ICON[ne.type]} 다음: {ne.title} ({fs(ne.event_date)})</div>}
               </div>
@@ -1665,7 +1685,7 @@ function MyProjects({ user, gp }) {
                   ✏️ 프로젝트 수정
                 </button>
               </>}
-              <button className="btn btn-secondary btn-sm" onClick={() => gp(p.id)}>
+              <button className="btn btn-secondary btn-sm" onClick={() => handleGp(p.id)}>
                 🔍 상세보기
               </button>
             </div>
@@ -1863,7 +1883,29 @@ function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers 
   const [form, setForm] = useState({ ...project });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+  const [members, setMembers] = useState([]);
+  const [newMUser, setNewMUser] = useState('');
+  const [newMRole, setNewMRole] = useState('support');
+  const [mLoading, setMLoading] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const uName = id => (editUsers || []).find(u => u.id === id)?.name || '';
+
+  useEffect(() => { loadMembers(); }, []);
+  const loadMembers = async () => {
+    const { data } = await sb.from('project_members').select('*').eq('project_id', project.id);
+    setMembers(data || []);
+  };
+  const addMember = async () => {
+    if (!newMUser) return;
+    setMLoading(true);
+    await sb.from('project_members').insert({ project_id: project.id, user_id: newMUser, role: newMRole });
+    setNewMUser(''); await loadMembers(); setMLoading(false);
+  };
+  const removeMember = async (id) => {
+    setMLoading(true);
+    await sb.from('project_members').delete().eq('id', id);
+    await loadMembers(); setMLoading(false);
+  };
 
   const save = async () => {
     setLoading(true); setErr('');
@@ -1934,6 +1976,38 @@ function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers 
       <div className="form-group">
         <label className="form-label">비고</label>
         <textarea className="form-input" rows={2} value={form.memo || ''} onChange={e => set('memo', e.target.value)} />
+      </div>
+      {/* 참여인원 */}
+      <div style={{ borderTop: '1px solid #f1f5f9', marginTop: 8, paddingTop: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 10 }}>참여인원</div>
+        {members.length === 0
+          ? <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>배정된 인원이 없습니다.</div>
+          : members.map(m => (
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: '#f8fafc', borderRadius: 6, marginBottom: 4 }}>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{uName(m.user_id)}</span>
+              <Bd bg={m.role==='pm'?'#0f172a':m.role==='contractor'?'#d97706':'#64748b'}>{m.role==='pm'?'PM':m.role==='contractor'?'기술지원':'서포트'}</Bd>
+              <button className="btn btn-danger btn-sm" onClick={() => removeMember(m.id)} disabled={mLoading}>제거</button>
+            </div>
+          ))
+        }
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 8 }}>
+          <div style={{ flex: 1, minWidth: 130 }}>
+            <label className="form-label">직원 추가</label>
+            <select className="form-input" value={newMUser} onChange={e => setNewMUser(e.target.value)}>
+              <option value="">선택</option>
+              {(editUsers || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          <div style={{ width: 100 }}>
+            <label className="form-label">역할</label>
+            <select className="form-input" value={newMRole} onChange={e => setNewMRole(e.target.value)}>
+              <option value="support">서포트</option>
+              <option value="pm">PM</option>
+              <option value="contractor">기술지원</option>
+            </select>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={addMember} disabled={mLoading || !newMUser}>추가</button>
+        </div>
       </div>
       <div className="modal-footer">
         <button className="btn btn-secondary" onClick={onClose}>취소</button>
