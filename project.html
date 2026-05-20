@@ -18,7 +18,8 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{font-family:'Pretendard','Pretendard Variable',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;color:#1e293b;min-height:100vh}
+input,textarea,select,button{font-family:'Noto Sans KR',sans-serif}
 button{cursor:pointer}
 
 /* ── PRINT ── */
@@ -56,6 +57,24 @@ button{cursor:pointer}
 .alert{padding:10px 14px;border-radius:7px;font-size:12px;margin-bottom:12px}
 .alert-error{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
 .alert-success{background:#f0fdf4;color:#059669;border:1px solid #bbf7d0}
+
+/* ── NAV ── */
+.navbar{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);color:#fff;padding:8px 14px;display:flex;flex-direction:column;gap:6px;position:sticky;top:0;z-index:100}
+.nav-top{display:flex;align-items:center;justify-content:space-between;width:100%}
+.nav-brand{display:flex;align-items:center;gap:8px}
+.nav-accent{width:5px;height:22px;background:#ef4444;border-radius:2px;flex-shrink:0}
+.nav-title{font-size:13px;font-weight:800;letter-spacing:-.5px}
+.nav-sub{font-size:9px;opacity:.45;letter-spacing:1.5px}
+.nav-bottom{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%}
+.nav-menu{display:flex;gap:2px;background:rgba(255,255,255,.08);border-radius:7px;padding:2px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.nav-menu::-webkit-scrollbar{display:none}
+.nav-btn{padding:5px 10px;border-radius:5px;border:none;background:transparent;color:rgba(255,255,255,.5);font-size:11px;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap;flex-shrink:0}
+.nav-btn.active{background:rgba(255,255,255,.18);color:#fff;font-weight:700}
+.nav-btn.highlight{background:rgba(239,68,68,.25);color:#fca5a5;font-weight:700}
+.nav-btn.highlight.active{background:rgba(239,68,68,.5);color:#fff}
+.nav-user{font-size:11px;color:rgba(255,255,255,.6);display:flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0}
+.nav-user span{color:#fff;font-weight:700}
+.logout-btn{padding:3px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.6);font-size:10px;cursor:pointer;white-space:nowrap}
 
 /* ── CARDS & TABLE ── */
 .page{max-width:1200px;margin:0 auto;padding:14px 12px}
@@ -238,12 +257,11 @@ const DK = ['일','월','화','수','목','금','토'];
 
 // PM별 고유 색상 - 이름 기반 고정 배정
 const PM_COLOR_MAP = {
-  '김병용': { bg: '#059669', tx: '#fff' }, // 사급과 동일 (진한 초록)
-  '박호진': { bg: '#10b981', tx: '#fff' }, // 사급보다 연한 초록
-  '장용기': { bg: '#2563eb', tx: '#fff' }, // 관급과 동일 (파랑)
-  '이규민': { bg: '#3b82f6', tx: '#fff' }, // 관급보다 연한 파랑
   '강승우': { bg: '#d97706', tx: '#fff' }, // 기술지원과 동일 (오렌지)
   '조원범': { bg: '#78350f', tx: '#fff' }, // 짙은 갈색
+  '김병용': { bg: '#059669', tx: '#fff' }, // 사급과 동일 (초록)
+  '박호진': { bg: '#34d399', tx: '#fff' }, // 옅은 초록
+  '장용기': { bg: '#2563eb', tx: '#fff' }, // 관급과 동일 (파랑)
 };
 const PM_PALETTE_DEFAULT = [
   { bg: '#0f172a', tx: '#fff' },
@@ -360,7 +378,7 @@ function Login({ onLogin }) {
       <div className="login-box">
         <div className="login-logo">
           <div><span className="login-logo-accent" /><span className="login-logo-text">{APP_CONFIG.COMPANY_SHORT}</span></div>
-          <div className="login-logo-sub">{APP_CONFIG.COMPANY_EN}</div>
+          <div className="login-logo-sub">KWANBO ENGINEERING CO., LTD.</div>
         </div>
         <div className="login-title" style={{ textAlign: 'center', marginBottom: 20 }}>공정관리시스템</div>
         {err && <div className="alert alert-error">{err}</div>}
@@ -625,7 +643,7 @@ function WeeklyReport({ gp, user, scrollY, setScrollY }) {
 
   const sortedProjects = (() => {
     const catOrder = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
-    const PM_ORDER = ['김병용','박호진','장용기','조원범','이규민'];
+    const PM_ORDER = ['김병용','장용기','박호진','윤종수','이규민'];
     const pmOrder = (pmId) => { const n = users.find(u => u.id === pmId)?.name || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
     const getPct = (p) => reports.filter(r => r.project_id === p.id && r.week_date <= selWeek).sort((x,y) => y.week_date.localeCompare(x.week_date))[0]?.progress_pct || 0;
     const statusOrder = (s) => s === '진행중' ? 0 : s === '중지' ? 1 : 2;
@@ -846,7 +864,14 @@ function WeeklyReport({ gp, user, scrollY, setScrollY }) {
                     ? (r.summary || <span style={{ color: '#94a3b8' }}>—</span>)
                     : stopped
                       ? <span style={{ color: '#9ca3af' }}>중지 상태</span>
-                      : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>
+                      : <span>
+                          <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: 11 }}>⚠ 금주 미입력</span>
+                          {r?.summary && (
+                            <span style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginTop: 3 }}>
+                              <span style={{ fontWeight: 600, color: '#cbd5e1' }}>지난주 ·</span> {r.summary}
+                            </span>
+                          )}
+                        </span>
                   }
                   {ne && (
                     <div style={{ marginTop: 4, padding: '3px 7px', background: ec(ne.type).bg, borderRadius: 4, fontSize: 11, color: ec(ne.type).tx, display: 'inline-block' }}>
@@ -922,7 +947,19 @@ function WeeklyReport({ gp, user, scrollY, setScrollY }) {
                   </td>
                   <td className="tc"><span style={{ fontSize: 11, fontWeight: 700, color: d>0?'#059669':d<0?'#dc2626':'#94a3b8' }}>{d>0?`▲${d}`:d<0?`▼${Math.abs(d)}`:'—'}</span></td>
                   <td style={{ fontSize: 11, color: '#334155', lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
-                    {r?.isThisWeek ? (r.summary || '—') : (stopped ? <span style={{ color: '#9ca3af' }}>중지 상태</span> : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>)}
+                    {r?.isThisWeek
+                      ? (r.summary || '—')
+                      : stopped
+                        ? <span style={{ color: '#9ca3af' }}>중지 상태</span>
+                        : <span>
+                            <span style={{ color: '#f59e0b', fontWeight: 700 }}>⚠ 금주 미입력</span>
+                            {r?.summary && (
+                              <span style={{ display: 'block', color: '#94a3b8', fontSize: 10, marginTop: 2 }}>
+                                <span style={{ fontWeight: 600, color: '#cbd5e1' }}>지난주 ·</span> {r.summary}
+                              </span>
+                            )}
+                          </span>
+                    }
                     {ne && <div style={{ marginTop: 3, padding: '2px 5px', background: ec(ne.type).bg, borderRadius: 3, fontSize: 10, color: ec(ne.type).tx, display: 'inline-block' }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
                   </td>
                   <td style={{ fontSize: 10 }}>
@@ -1207,7 +1244,7 @@ function ProjectList({ gp, user, listFilter, setListFilter }) {
     return reports.some(r => r.project_id === pid && r.week_date >= mn);
   };
 
-  const PM_ORDER = ['김병용','박호진','장용기','조원범','이규민'];
+  const PM_ORDER = ['김병용','장용기','박호진','윤종수','이규민'];
   const pmOrder = (pmId) => { const n = users.find(u => u.id === pmId)?.name || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
   const catOrder = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
 
@@ -1367,7 +1404,7 @@ function ProjectDetail({ id, user, gb }) {
   const deleteEvent = async (evId) => {
     if (delEvId === evId) {
       const evTarget = events.find(e => e.id === evId);
-      if (evTarget) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: evTarget.project_id, field_name: '주요공정 삭제', old_value: evTarget.type + ' | ' + evTarget.title + ' | ' + evTarget.event_date, new_value: '', changed_by: user?.id }); if (clErr) console.error('change_log insert error:', clErr.message); }
+      if (evTarget) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: evTarget.project_id, field_name: '주요공정 삭제', old_value: evTarget.type + ' | ' + evTarget.title + ' | ' + evTarget.event_date, new_value: '', changed_by: user?.id, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
       await sb.from('project_events').delete().eq('id', evId);
       setDelEvId(null); loadAll();
     } else {
@@ -1596,6 +1633,7 @@ function MyProjects({ user, gp }) {
 
   const loadAll = async () => {
     setLoading(true);
+    // Get projects where I'm PM or support member
     const [pmProjs, memberProjs, us, rp, ev] = await Promise.all([
       sb.from('projects').select('*').eq('pm_id', user.id),
       sb.from('project_members').select('project_id, role').eq('user_id', user.id),
@@ -1604,39 +1642,34 @@ function MyProjects({ user, gp }) {
       sb.from('project_events').select('*').eq('done', false),
     ]);
 
-    const rpData = rp.data || [];
-    const usData = us.data || [];
-
-    // 주간보고와 동일한 정렬: 사급→관급→기술지원 / PM순 / 상태순 / 공정률순
-    const PM_ORDER_MINE = ['김병용','박호진','장용기','조원범','이규민'];
-    const catOrd    = (c)   => c === '사급' ? 0 : c === '관급' ? 1 : 2;
-    const pmOrd     = (pid) => { const n = usData.find(u => u.id === pid)?.name || ''; const i = PM_ORDER_MINE.indexOf(n); return i >= 0 ? i : 99; };
-    const statOrd   = (s)   => s === '진행중' ? 0 : s === '중지' ? 1 : 2;
-    const latestPct = (pid) => rpData.filter(r => r.project_id === pid).sort((a,b) => b.week_date.localeCompare(a.week_date))[0]?.progress_pct || 0;
-    const sortProjects = (list) => [...list].sort((a, b) =>
-      catOrd(a.category) - catOrd(b.category) ||
-      pmOrd(a.pm_id)     - pmOrd(b.pm_id)     ||
-      statOrd(a.status)  - statOrd(b.status)  ||
-      latestPct(b.id)    - latestPct(a.id)
-    );
-
     let allMine;
     if (user.role === 'admin') {
+      // 관리자는 전체 프로젝트
       const { data: all } = await sb.from('projects').select('*').order('name');
-      allMine = sortProjects(all || []);
+      const STATUS_ORDER = { '진행중': 0, '중지': 1, '완료': 2 };
+      allMine = (all || []).sort((a, b) =>
+        (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9) ||
+        (a.name || '').localeCompare(b.name || '', 'ko')
+      );
     } else {
-      const pmIds = new Set((pmProjs.data || []).map(p => p.id));
-      const supportIds = (memberProjs.data || []).filter(m => !pmIds.has(m.project_id)).map(m => m.project_id);
-      let supportProjs = [];
-      if (supportIds.length > 0) {
-        const { data } = await sb.from('projects').select('*').in('id', supportIds);
-        supportProjs = data || [];
-      }
-      allMine = sortProjects([...(pmProjs.data || []), ...supportProjs]);
+    // Get support projects not already in PM list
+    const pmIds = new Set((pmProjs.data || []).map(p => p.id));
+    const supportIds = (memberProjs.data || []).filter(m => !pmIds.has(m.project_id)).map(m => m.project_id);
+    let supportProjs = [];
+    if (supportIds.length > 0) {
+      const { data } = await sb.from('projects').select('*').in('id', supportIds);
+      supportProjs = data || [];
+    }
+    const STATUS_ORDER = { '진행중': 0, '중지': 1, '완료': 2 };
+    allMine = [...(pmProjs.data || []), ...supportProjs]
+      .sort((a, b) =>
+        (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9) ||
+        (a.name || '').localeCompare(b.name || '', 'ko')
+      );
     }
     setMyProjects(allMine);
-    setUsers(usData);
-    setReports(rpData);
+    setUsers(us.data || []);
+    setReports(rp.data || []);
     setEvents(ev.data || []);
     setLoading(false);
   };
@@ -1645,7 +1678,6 @@ function MyProjects({ user, gp }) {
   const uName = (id) => users.find(u => u.id === id)?.name || '';
   const getLatestReport = (pid) => reports.filter(r => r.project_id === pid).sort((a,b) => b.week_date.localeCompare(a.week_date))[0];
   const getNextEvent = (pid) => events.filter(e => e.project_id === pid && !e.done).sort((a,b) => a.event_date.localeCompare(b.event_date))[0];
-  const handleGp = (id) => gp(id);
 
   const showMsg = (m) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
@@ -1730,7 +1762,6 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [dateErr, setDateErr] = useState('');
-  const prevSummaryRef = useRef(''); // 저장 전 원본 과업내용 보관
 
   // 직전 보고 데이터 자동 불러오기
   useEffect(() => {
@@ -1749,7 +1780,6 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
           setIssues(data.issues || '');
           setPrevPct(data.progress_pct || 0);
           setPct(data.progress_pct || 0);
-          prevSummaryRef.current = data.summary || ''; // 원본 보관
         }
       } catch (e) {
         // 이전 보고 없음 - 기본값 유지
@@ -1776,8 +1806,6 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
     return (tue.getMonth()+1) + '/' + tue.getDate() + '(화) ~ ' + (mon.getMonth()+1) + '/' + mon.getDate() + '(월) 보고분';
   };
 
-  const trunc = (s, n = 50) => s && s.length > n ? s.slice(0, n) + '…' : (s || '');
-
   const save = async () => {
     if (!summary) { setErr('과업진행사항을 입력해주세요.'); return; }
     if (!isMonday(weekDate)) { setErr('보고 기준일은 월요일이어야 합니다.'); return; }
@@ -1785,13 +1813,7 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
     const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: '', issues, reported_by: userId, updated_at: new Date().toISOString() };
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
     if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
-    { const { error: clErr } = await sb.from('change_logs').insert({
-      project_id: projectId,
-      field_name: '주간보고',
-      old_value: prevPct + '% | ' + trunc(prevSummaryRef.current),
-      new_value: parseInt(pct) + '% | ' + weekDate + ' | ' + trunc(summary),
-      changed_by: userId,
-    }); if (clErr) console.error('change_log insert error:', clErr.message); }
+    { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%', new_value: String(parseInt(pct)) + '% | ' + weekDate, changed_by: userId, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
     onSaved();
   };
 
@@ -1851,10 +1873,10 @@ function EventModal({ projectId, userId, onClose, onSaved, eventData }) {
     var result;
     if (isEdit) {
       result = await sb.from('project_events').update(payload).eq('id', eventData.id);
-      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 수정', old_value: eventData.type + ' | ' + eventData.title + ' | ' + eventData.event_date, new_value: type + ' | ' + finalTitle + ' | ' + eventDate, changed_by: userId }); if (clErr) console.error('change_log insert error:', clErr.message); }
+      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 수정', old_value: eventData.type + ' | ' + eventData.title + ' | ' + eventData.event_date, new_value: type + ' | ' + finalTitle + ' | ' + eventDate, changed_by: userId, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
     } else {
       result = await sb.from('project_events').insert(Object.assign({}, payload, { project_id: projectId, registered_by: userId }));
-      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 등록', old_value: '', new_value: type + ' | ' + finalTitle + ' | ' + eventDate, changed_by: userId }); if (clErr) console.error('change_log insert error:', clErr.message); }
+      if (!result.error) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주요공정 등록', old_value: '', new_value: type + ' | ' + finalTitle + ' | ' + eventDate, changed_by: userId, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
     }
     if (result.error) { setErr('저장 중 오류: ' + result.error.message); setLoading(false); return; }
     onSaved();
@@ -1928,6 +1950,7 @@ function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers 
 
   const save = async () => {
     setLoading(true); setErr('');
+    const oldEndDate = project.end_date, oldContact = project.client_contact;
     const updates = {
       name: form.name, client: form.client, client_dept: form.client_dept,
       client_contact: form.client_contact, start_date: form.start_date,
@@ -1940,28 +1963,6 @@ function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers 
     };
     const { error } = await sb.from('projects').update(updates).eq('id', project.id);
     if (error) { setErr('저장 중 오류: ' + error.message); setLoading(false); return; }
-
-    // ── 변경 필드별 로그 기록 ──
-    const logFields = [
-      { key: 'name',           label: '용역명' },
-      { key: 'status',         label: '상태' },
-      { key: 'end_date',       label: '준공일' },
-      { key: 'start_date',     label: '착수일' },
-      { key: 'pm_id',          label: 'PM',          fmt: v => uName(v) },
-      { key: 'client',         label: '발주처' },
-      { key: 'client_dept',    label: '발주부서' },
-      { key: 'client_contact', label: '발주처 담당자' },
-    ];
-    for (const f of logFields) {
-      const oldVal = String(f.fmt ? f.fmt(project[f.key]) : (project[f.key] || ''));
-      const newVal = String(f.fmt ? f.fmt(form[f.key])    : (form[f.key]    || ''));
-      if (oldVal !== newVal) {
-        await sb.from('change_logs').insert({
-          project_id: project.id, field_name: f.label,
-          old_value: oldVal, new_value: newVal, changed_by: userId,
-        });
-      }
-    }
     onSaved();
   };
 
@@ -2093,30 +2094,18 @@ function ChangeLogPanel({ projects, users }) {
   const fmtDt = (s) => { if (!s) return '—'; const d = new Date(s); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
 
   const TYPE_BADGE = {
-    '주간보고':      { bg:'#2563eb', label:'주간보고' },
+    '주간보고':   { bg:'#2563eb', label:'주간보고' },
     '주요공정 등록': { bg:'#059669', label:'공정 등록' },
     '주요공정 수정': { bg:'#d97706', label:'공정 수정' },
     '주요공정 삭제': { bg:'#dc2626', label:'공정 삭제' },
-    '용역명':        { bg:'#7c3aed', label:'용역명' },
-    '상태':          { bg:'#7c3aed', label:'상태' },
-    '준공일':        { bg:'#7c3aed', label:'준공일' },
-    '착수일':        { bg:'#7c3aed', label:'착수일' },
-    'PM':            { bg:'#7c3aed', label:'PM' },
-    '발주처':        { bg:'#7c3aed', label:'발주처' },
-    '발주부서':      { bg:'#7c3aed', label:'발주부서' },
-    '발주처 담당자': { bg:'#7c3aed', label:'발주처 담당자' },
-    '분류':          { bg:'#7c3aed', label:'분류' },
   };
-  const PROJ_EDIT_FIELDS = ['용역명','상태','준공일','착수일','PM','발주처','발주부서','발주처 담당자','분류'];
 
-  const allTypes = ['all','주간보고','주요공정 등록','주요공정 수정','주요공정 삭제','프로젝트 수정'];
+  const allTypes = ['all','주간보고','주요공정 등록','주요공정 수정','주요공정 삭제'];
   const staffUsers = users.filter(u => u.role !== 'admin');
 
   const filtered = logs.filter(l => {
     if (filterUser !== 'all' && l.changed_by !== filterUser) return false;
-    if (filterType === '프로젝트 수정') {
-      if (!PROJ_EDIT_FIELDS.includes(l.field_name)) return false;
-    } else if (filterType !== 'all' && l.field_name !== filterType) return false;
+    if (filterType !== 'all' && l.field_name !== filterType) return false;
     if (filterFrom && l.created_at && l.created_at < filterFrom) return false;
     if (filterTo && l.created_at && l.created_at > filterTo + 'T23:59:59') return false;
     return true;
@@ -2188,11 +2177,9 @@ function ChangeLogPanel({ projects, users }) {
 
       {/* 통계 */}
       <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
-        {['주간보고','주요공정 등록','주요공정 수정','주요공정 삭제','프로젝트 수정'].map(t => {
-          const cnt = t === '프로젝트 수정'
-            ? filtered.filter(l => PROJ_EDIT_FIELDS.includes(l.field_name)).length
-            : filtered.filter(l => l.field_name === t).length;
-          const b = TYPE_BADGE[t] || { bg:'#7c3aed', label:t };
+        {['주간보고','주요공정 등록','주요공정 수정','주요공정 삭제'].map(t => {
+          const cnt = filtered.filter(l => l.field_name === t).length;
+          const b = TYPE_BADGE[t];
           return (
             <div key={t} style={{ background:'#fff', borderRadius:8, padding:'10px 16px', borderLeft:`3px solid ${b.bg}`, boxShadow:'0 1px 3px rgba(0,0,0,.06)', minWidth:100 }}>
               <div style={{ fontSize:18, fontWeight:900, color:b.bg }}>{cnt}</div>
@@ -2225,7 +2212,7 @@ function ChangeLogPanel({ projects, users }) {
               </thead>
               <tbody>
                 {paged.map((l, i) => {
-                  const b = TYPE_BADGE[l.field_name] || { bg: PROJ_EDIT_FIELDS.includes(l.field_name) ? '#7c3aed' : '#94a3b8', label: l.field_name };
+                  const b = TYPE_BADGE[l.field_name] || { bg:'#94a3b8', label:l.field_name };
                   return (
                     <tr key={l.id || i}>
                       <td style={{ fontSize:11, color:'#64748b', whiteSpace:'nowrap' }}>{fmtDt(l.created_at)}</td>
@@ -2473,6 +2460,7 @@ function InlineProjectEdit({ project, users, userId, onSaved }) {
 
   const save = async () => {
     setLoading(true); setMsg('');
+    const oldEndDate = project.end_date, oldContact = project.client_contact;
     const updates = {
       name: form.name, category: form.category, client: form.client, client_dept: form.client_dept,
       client_contact: form.client_contact, start_date: form.start_date,
@@ -2485,30 +2473,6 @@ function InlineProjectEdit({ project, users, userId, onSaved }) {
     };
     const { error } = await sb.from('projects').update(updates).eq('id', project.id);
     if (error) { setMsg('저장 오류: ' + error.message); setLoading(false); return; }
-
-    // ── 변경 필드별 로그 기록 ──
-    const uN = v => (users.find(u => u.id === v)?.name || '');
-    const logFields = [
-      { key: 'name',           label: '용역명' },
-      { key: 'status',         label: '상태' },
-      { key: 'end_date',       label: '준공일' },
-      { key: 'start_date',     label: '착수일' },
-      { key: 'pm_id',          label: 'PM',          fmt: uN },
-      { key: 'client',         label: '발주처' },
-      { key: 'client_dept',    label: '발주부서' },
-      { key: 'client_contact', label: '발주처 담당자' },
-      { key: 'category',       label: '분류' },
-    ];
-    for (const f of logFields) {
-      const oldVal = String(f.fmt ? f.fmt(project[f.key]) : (project[f.key] || ''));
-      const newVal = String(f.fmt ? f.fmt(form[f.key])    : (form[f.key]    || ''));
-      if (oldVal !== newVal) {
-        await sb.from('change_logs').insert({
-          project_id: project.id, field_name: f.label,
-          old_value: oldVal, new_value: newVal, changed_by: userId,
-        });
-      }
-    }
     setMsg('저장됐습니다.');
     setTimeout(() => setMsg(''), 2000);
     onSaved();
@@ -2592,7 +2556,7 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
   const [mLoading, setMLoading] = useState(false);
 
   const uName = (id) => users.find(u => u.id === id)?.name || '';
-  const PM_ORDER_A = ['김병용','박호진','장용기','조원범','이규민'];
+  const PM_ORDER_A = ['김병용','장용기','박호진','윤종수','이규민'];
   const pmOrderA = (pmId) => { const n = uName(pmId); const i = PM_ORDER_A.indexOf(n); return i >= 0 ? i : 99; };
   const catOrderA = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
   const ROLE_DISPLAY = { pm: 'PM', support: '서포트', contractor: '기술지원' };
@@ -2714,6 +2678,63 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Change Password Modal ───
+function ChangePasswordModal({ user, onClose }) {
+  const [curr, setCurr] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState(false);
+
+  const save = async () => {
+    if (!curr || !next || !confirm) { setErr('모든 항목을 입력해주세요.'); return; }
+    if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
+    if (next.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return; }
+    setLoading(true); setErr('');
+    // Verify current password
+    const { data: u } = await sb.from('users').select('password').eq('id', user.id).single();
+    if (!u) { setErr('사용자 정보를 찾을 수 없습니다.'); setLoading(false); return; }
+    const ok = await verifyPassword(curr, u.password);
+    if (!ok) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+    const hashed = await hashPassword(next);
+    const { error } = await sb.from('users').update({ password: hashed }).eq('id', user.id);
+    if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
+    setOk(true); setLoading(false);
+  };
+
+  return (
+    <Modal title="🔒 비밀번호 변경" onClose={onClose}>
+      {ok ? (
+        <div>
+          <div className="alert alert-success">비밀번호가 변경되었습니다.</div>
+          <div className="modal-footer"><button className="btn btn-primary" onClick={onClose}>확인</button></div>
+        </div>
+      ) : (
+        <>
+          {err && <div className="alert alert-error">{err}</div>}
+          <div className="form-group">
+            <label className="form-label">현재 비밀번호</label>
+            <input type="password" className="form-input" value={curr} onChange={e => setCurr(e.target.value)} placeholder="현재 비밀번호" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">새 비밀번호</label>
+            <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder="새 비밀번호 (4자 이상)" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">새 비밀번호 확인</label>
+            <input type="password" className="form-input" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="새 비밀번호 재입력" onKeyDown={e => e.key === 'Enter' && save()} />
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-secondary" onClick={onClose}>취소</button>
+            <button className="btn btn-primary" onClick={save} disabled={loading}>{loading ? '변경 중...' : '변경'}</button>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 

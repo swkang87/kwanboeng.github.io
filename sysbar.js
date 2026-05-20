@@ -55,12 +55,158 @@
     injectCss();
   }
 
+  // ── SessionManager ─────────────────────────────────────────
+  // 브라우저 닫힘 감지 + 1시간 자동 로그아웃
+  var SessionManager = (function() {
+    var TABS_KEY    = 'kwanbo_tabs';
+    var CLOSE_KEY   = 'kwanbo_close_ts';
+    var ACTIVE_KEY  = 'kwanbo_last_active';
+    var NAV_KEY     = 'kwanbo_nav_ts';     // localStorage 타임스탬프 (2초 이내 = 페이지 이동)
+    var NAV_WINDOW  = 3000;               // 3초 이내면 페이지 이동으로 판단
+    var TIMEOUT_MS  = 60 * 60 * 1000;     // 1시간
+    var WARN_MS     = 55 * 60 * 1000;     // 55분 (5분 전 경고)
+    var THROTTLE_MS = 30 * 1000;          // 활동감지 30초 쓰로틀
+
+    var _timer      = null;
+    var _lastTouch  = 0;
+    var _warnShown  = false;
+    var _registered = false;
+    var _logoutCb   = null;
+
+    function _getTabId() {
+      var id = sessionStorage.getItem('kwanbo_tab_id');
+      if (!id) {
+        id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        sessionStorage.setItem('kwanbo_tab_id', id);
+      }
+      return id;
+    }
+    function _getTabs() {
+      try { return JSON.parse(localStorage.getItem(TABS_KEY) || '[]'); } catch(e) { return []; }
+    }
+    function _addTab() {
+      var id = _getTabId(), tabs = _getTabs();
+      if (tabs.indexOf(id) === -1) tabs.push(id);
+      localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
+    }
+    function _removeTab() {
+      var id = _getTabId();
+      var tabs = _getTabs().filter(function(t) { return t !== id; });
+      localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
+      if (tabs.length === 0) localStorage.setItem(CLOSE_KEY, Date.now().toString());
+    }
+    function _touch() {
+      var now = Date.now();
+      if (now - _lastTouch < THROTTLE_MS) return;
+      localStorage.setItem(ACTIVE_KEY, now.toString());
+      _lastTouch = now;
+      if (_warnShown) {
+        _warnShown = false;
+        var t = document.getElementById('kwanbo-timeout-toast');
+        if (t) t.remove();
+      }
+    }
+    function _showWarn(min) {
+      if (_warnShown) return;
+      _warnShown = true;
+      var el = document.getElementById('kwanbo-timeout-toast');
+      if (el) el.remove();
+      el = document.createElement('div');
+      el.id = 'kwanbo-timeout-toast';
+      el.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;background:#1e293b;color:#fff;padding:14px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,.4);border-left:4px solid #f59e0b;max-width:300px;line-height:1.6;font-family:\'Pretendard\',\'Noto Sans KR\',sans-serif;cursor:pointer;';
+      el.innerHTML = '⏱ <strong>' + min + '분</strong> 후 자동 로그아웃됩니다.<br><span style="font-size:11px;color:#94a3b8">화면을 클릭하면 세션이 연장됩니다.</span>';
+      el.addEventListener('click', function() { _touch(); el.remove(); _warnShown = false; });
+      document.body.appendChild(el);
+    }
+    function _startWatching(cb) {
+      _logoutCb = cb;
+      ['click','keydown','scroll','touchstart'].forEach(function(ev) {
+        document.addEventListener(ev, _touch, { passive: true, capture: true });
+      });
+      _timer = setInterval(function() {
+        if (!localStorage.getItem(SESSION_KEY)) { _stop(); return; }
+        var lastActive = parseInt(localStorage.getItem(ACTIVE_KEY) || Date.now());
+        var elapsed = Date.now() - lastActive;
+        if (elapsed >= TIMEOUT_MS) {
+          _stop();
+          var el = document.getElementById('kwanbo-timeout-toast');
+          if (el) el.remove();
+          _logoutCb && _logoutCb('timeout');
+        } else if (elapsed >= WARN_MS) {
+          _showWarn(Math.ceil((TIMEOUT_MS - elapsed) / 60000));
+        }
+      }, 60000);
+    }
+    function _stop() {
+      if (_timer) { clearInterval(_timer); _timer = null; }
+      _registered = false;
+    }
+
+    return {
+      // 페이지 로드 초입에 호출 — true: 세션 무효(로그아웃) / false: 유효
+      checkOnLoad: function() {
+        if (!localStorage.getItem(SESSION_KEY)) return false;
+
+        // 페이지 이동인지 확인 — NAV_KEY가 3초 이내면 같은 탭 내 이동
+        var navTs = parseInt(localStorage.getItem(NAV_KEY) || '0');
+        var isNav = navTs > 0 && (Date.now() - navTs) < NAV_WINDOW;
+        if (isNav) {
+          localStorage.removeItem(NAV_KEY);
+          _addTab();
+          return false;
+        }
+
+        // 탭 없음 + 마지막 닫힘이 1초 이상 전 → 브라우저 닫혔던 것
+        var tabs = _getTabs();
+        var closeTs = parseInt(localStorage.getItem(CLOSE_KEY) || '0');
+        if (tabs.length === 0 && closeTs > 0 && (Date.now() - closeTs) > 1000) {
+          localStorage.removeItem(SESSION_KEY);
+          localStorage.removeItem(CLOSE_KEY);
+          localStorage.removeItem(ACTIVE_KEY);
+          localStorage.removeItem(NAV_KEY);
+          return true;
+        }
+
+        // 비활동 1시간 초과
+        var lastActive = parseInt(localStorage.getItem(ACTIVE_KEY) || '0');
+        if (lastActive > 0 && (Date.now() - lastActive) > TIMEOUT_MS) {
+          localStorage.removeItem(SESSION_KEY);
+          localStorage.removeItem(ACTIVE_KEY);
+          return true;
+        }
+        return false;
+      },
+
+      // 로그인 성공 / SSO 복원 후 호출
+      onLogin: function(logoutCb) {
+        if (_registered) { _logoutCb = logoutCb; return; }
+        _registered = true;
+        _addTab();
+        _startWatching(logoutCb);
+        _touch();
+        window.addEventListener('beforeunload', function() {
+          localStorage.setItem(NAV_KEY, Date.now().toString()); // 페이지 이동 타임스탬프
+          _removeTab();
+        });
+      },
+
+      // 로그아웃 시 호출
+      onLogout: function() {
+        _stop();
+        _removeTab();
+        localStorage.removeItem(ACTIVE_KEY);
+        localStorage.removeItem(NAV_KEY);
+        var el = document.getElementById('kwanbo-timeout-toast');
+        if (el) el.remove();
+      }
+    };
+  })();
+
   function createComponent(React) {
     if (!React) { console.error('[sysbar] React가 없습니다.'); return null; }
     injectCss();
 
-    return function SysBar(props) {
-      var cfg        = global.APP_CONFIG || {};
+    return function SysBar(props) {      var cfg        = global.APP_CONFIG || {};
       var user       = props.user;
       var activeKey  = props.activeKey;
       var teamName   = props.teamName        || '';
@@ -107,6 +253,7 @@
     SYS_MENUS:   SYS_MENUS,
     injectCss:   injectCss,
     createComponent: createComponent,
+    SessionManager:  SessionManager,
   };
 
 })(window);
