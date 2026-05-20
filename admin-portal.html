@@ -529,6 +529,174 @@ function WorklogView({ user }) {
   );
 }
 
+// ── 기여율 모달 (프로젝트 선택 시 PM+참여직원 자동 등록) ─────────────────
+function PerfModal({ projects, users, year, editItem, initForm, onClose, onSaved }) {
+  const [selProjId, setSelProjId] = useState(editItem ? editItem.project_id : '');
+  const [rows, setRows]           = useState([]); // [{user_id, name, rate, existing}]
+  const [loading, setLoading]     = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [err, setErr]             = useState('');
+
+  function uName(id) { var u = users.find(function(x){return x.id===id;}); return u?u.name:'-'; }
+
+  // 프로젝트 선택 시 PM + 참여직원 자동 로드
+  function onProjChange(pid) {
+    setSelProjId(pid);
+    setErr('');
+    if (!pid) { setRows([]); return; }
+    setLoading(true);
+    var proj = projects.find(function(p){return p.id===pid;});
+    // project_members 조회
+    sb.from('project_members').select('user_id').eq('project_id', pid).then(function(r) {
+      var memberIds = (r.data||[]).map(function(m){return m.user_id;});
+      // PM이 members에 없으면 추가
+      if (proj && proj.pm_id && memberIds.indexOf(proj.pm_id) === -1) {
+        memberIds = [proj.pm_id].concat(memberIds);
+      }
+      // 기존 저장된 기여율 조회
+      sb.from('performance').select('*').eq('project_id', pid).eq('year', year).then(function(pr) {
+        var existing = pr.data || [];
+        var newRows = memberIds
+          .filter(function(uid) { return users.find(function(u){return u.id===uid;}); })
+          .map(function(uid) {
+            var ex = existing.find(function(e){return e.user_id===uid;});
+            var isPm = proj && proj.pm_id === uid;
+            return {
+              user_id: uid,
+              name: uName(uid),
+              rate: ex ? ex.contribution_rate : (isPm ? 100 : 0),
+              existing: !!ex,
+            };
+          });
+        setRows(newRows);
+        setLoading(false);
+      });
+    });
+  }
+
+  // 수정 모드일 때 초기 로드
+  useEffect(function() {
+    if (editItem && editItem.project_id) onProjChange(editItem.project_id);
+  }, []);
+
+  function updRate(uid, val) {
+    setRows(function(prev) {
+      return prev.map(function(r) { return r.user_id === uid ? Object.assign({},r,{rate:val}) : r; });
+    });
+  }
+
+  function addUser(uid) {
+    if (!uid || rows.find(function(r){return r.user_id===uid;})) return;
+    setRows(function(prev) { return prev.concat([{user_id:uid, name:uName(uid), rate:0, existing:false}]); });
+  }
+
+  function removeRow(uid) {
+    setRows(function(prev) { return prev.filter(function(r){return r.user_id!==uid;}); });
+  }
+
+  async function save() {
+    if (!selProjId) { setErr('프로젝트를 선택하세요.'); return; }
+    if (rows.length === 0) { setErr('직원이 없습니다.'); return; }
+    for (var i=0; i<rows.length; i++) {
+      var r = rows[i];
+      var v = Number(r.rate);
+      if (isNaN(v) || v < 0 || v > 100) { setErr(r.name + '의 기여율은 0~100 사이여야 합니다.'); return; }
+    }
+    setSaving(true); setErr('');
+    var payload = rows.map(function(r) {
+      return { project_id: selProjId, user_id: r.user_id, contribution_rate: Number(r.rate), year: year };
+    });
+    var { error } = await sb.from('performance')
+      .upsert(payload, { onConflict: 'project_id,user_id,year' });
+    setSaving(false);
+    if (error) { setErr('저장 오류: ' + error.message); return; }
+    onSaved();
+  }
+
+  var unselected = users.filter(function(u) { return !rows.find(function(r){return r.user_id===u.id;}); });
+
+  return (
+    <div className="mbg" onClick={onClose}>
+      <div className="mbox" style={{maxWidth:520}} onClick={function(e){e.stopPropagation();}}>
+        <div className="mh">
+          <span className="mht">📐 기여율 입력</span>
+          <button className="mc" onClick={onClose}>×</button>
+        </div>
+        <div className="mb">
+          {err && <div className="al al-e">{err}</div>}
+          <div style={{marginBottom:14}}>
+            <label className="fl">프로젝트 *</label>
+            <select className="fi" value={selProjId} onChange={function(e){onProjChange(e.target.value);}}>
+              <option value="">선택하세요</option>
+              {projects.map(function(p){ return <option key={p.id} value={p.id}>{p.name}</option>; })}
+            </select>
+          </div>
+
+          {loading && <div className="loading">직원 정보 로딩 중...</div>}
+
+          {!loading && selProjId && (
+            <>
+              <div style={{fontSize:12,color:'#64748b',marginBottom:10}}>
+                PM은 기본 100%로 설정됩니다. 기여율을 조정하세요.
+              </div>
+              <table style={{width:'100%',borderCollapse:'collapse',marginBottom:12}}>
+                <thead>
+                  <tr style={{background:'#f8fafc'}}>
+                    <th style={{padding:'8px 10px',textAlign:'left',fontSize:12,color:'#64748b',fontWeight:600,borderBottom:'1px solid #e2e8f0'}}>직원</th>
+                    <th style={{padding:'8px 10px',textAlign:'center',fontSize:12,color:'#64748b',fontWeight:600,borderBottom:'1px solid #e2e8f0',width:120}}>기여율 (%)</th>
+                    <th style={{width:36,borderBottom:'1px solid #e2e8f0'}}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(function(r) {
+                    var isPm = projects.find(function(p){return p.id===selProjId;})?.pm_id === r.user_id;
+                    return (
+                      <tr key={r.user_id} style={{borderBottom:'1px solid #f1f5f9'}}>
+                        <td style={{padding:'8px 10px',fontSize:13}}>
+                          {r.name}
+                          {isPm && <span className="badge bp" style={{marginLeft:6,fontSize:10}}>PM</span>}
+                          {r.existing && <span style={{fontSize:10,color:'#94a3b8',marginLeft:4}}>기존</span>}
+                        </td>
+                        <td style={{padding:'4px 10px'}}>
+                          <input type="number" min="0" max="100" className="fi"
+                            value={r.rate}
+                            style={{textAlign:'center',margin:0}}
+                            onChange={function(e){updRate(r.user_id, e.target.value);}} />
+                        </td>
+                        <td style={{padding:'4px 6px'}}>
+                          {!isPm && (
+                            <button className="btn btn-d btn-sm" onClick={function(){removeRow(r.user_id);}}>✕</button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {unselected.length > 0 && (
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <select className="fi" style={{flex:1}} defaultValue=""
+                    onChange={function(e){ if(e.target.value){addUser(e.target.value);e.target.value='';} }}>
+                    <option value="">+ 직원 추가</option>
+                    {unselected.map(function(u){ return <option key={u.id} value={u.id}>{u.name}</option>; })}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div className="mf">
+          <button className="btn btn-s" onClick={onClose}>취소</button>
+          <button className="btn btn-p" onClick={save} disabled={saving||!selProjId||rows.length===0}>
+            {saving?'저장 중...':'저장'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 실적 관리 ─────────────────────────────────────────────────────────────
 function PerfView({ user }) {
   const [tab, setTab] = useState('col');
@@ -590,7 +758,32 @@ function PerfView({ user }) {
 
   function numV(v) { return Number(String(v||0).replace(/,/g,'')) || 0; }
 
-  function saveCol() {
+  // 천 단위 콤마 포맷 입력 처리
+  function onAmountChange(key, e) {
+    var raw = e.target.value.replace(/[^0-9]/g,'');
+    var fmt = raw ? Number(raw).toLocaleString('ko-KR') : '';
+    setForm(function(p) { return Object.assign({},p,{ [key]: fmt }); });
+  }
+
+  // 수금 삭제
+  function deleteCol(id) {
+    if (!window.confirm('이 수금 내역을 삭제하시겠습니까?')) return;
+    sb.from('collections').delete().eq('id', id).then(function(r) {
+      if (r.error) { alert('삭제 오류: ' + r.error.message); return; }
+      load();
+    });
+  }
+
+  // 기여율 삭제
+  function deletePerf(pf) {
+    if (!window.confirm('이 기여율을 삭제하시겠습니까?')) return;
+    sb.from('performance').delete()
+      .eq('project_id', pf.project_id).eq('user_id', pf.user_id).eq('year', pf.year)
+      .then(function(r) {
+        if (r.error) { alert('삭제 오류: ' + r.error.message); return; }
+        load();
+      });
+  }
     if (!form.project_id || !form.amount || !form.collected_at) { setErr('프로젝트, 금액, 수금일은 필수입니다.'); return; }
     setSaving(true); setErr('');
     var payload = {
@@ -677,7 +870,10 @@ function PerfView({ user }) {
                         <td className="tr" style={{color:'#dc2626'}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
                         <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN((c.amount||0)-(c.outsource_cost||0))}원</td>
                         <td style={{color:'#64748b',fontSize:12}}>{c.memo||'-'}</td>
-                        <td><button className="btn btn-s btn-sm" onClick={function(){setEditItem(c);setForm(Object.assign({},c));setModal('col');}}>수정</button></td>
+                        <td style={{display:'flex',gap:4}}>
+                          <button className="btn btn-s btn-sm" onClick={function(){setEditItem(c);setForm(Object.assign({},c,{amount:fmtN(c.amount),outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):''}));setModal('col');}}>수정</button>
+                          <button className="btn btn-d btn-sm" onClick={function(){deleteCol(c.id);}}>삭제</button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -763,7 +959,10 @@ function PerfView({ user }) {
                         <td>{uName(pf.user_id)}</td>
                         <td className="tr"><span className="badge bp">{pf.contribution_rate}%</span></td>
                         <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(my)}원</td>
-                        <td><button className="btn btn-s btn-sm" onClick={function(){setEditItem(pf);setForm(Object.assign({},pf));setModal('pf');}}>수정</button></td>
+                        <td style={{display:'flex',gap:4}}>
+                          <button className="btn btn-s btn-sm" onClick={function(){setEditItem(pf);setForm(Object.assign({},pf));setModal('pf');}}>수정</button>
+                          <button className="btn btn-d btn-sm" onClick={function(){deletePerf(pf);}}>삭제</button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -794,13 +993,17 @@ function PerfView({ user }) {
                 </div>
                 <div>
                   <label className="fl">수금액 (원) *</label>
-                  <input className="fi" value={form.amount||''} placeholder="0" onChange={function(e){setForm(function(p){return Object.assign({},p,{amount:e.target.value});});}} />
+                  <input className="fi" value={form.amount||''} placeholder="0"
+                    onChange={function(e){onAmountChange('amount',e);}}
+                    style={{textAlign:'right'}} />
                 </div>
               </div>
               <div className="g2">
                 <div>
                   <label className="fl">외주비 (원)</label>
-                  <input className="fi" value={form.outsource_cost||''} placeholder="0" onChange={function(e){setForm(function(p){return Object.assign({},p,{outsource_cost:e.target.value});});}} />
+                  <input className="fi" value={form.outsource_cost||''} placeholder="0"
+                    onChange={function(e){onAmountChange('outsource_cost',e);}}
+                    style={{textAlign:'right'}} />
                 </div>
                 <div>
                   <label className="fl">메모</label>
@@ -817,38 +1020,15 @@ function PerfView({ user }) {
       )}
 
       {modal === 'pf' && (
-        <div className="mbg" onClick={function(){setModal('');}}>
-          <div className="mbox" onClick={function(e){e.stopPropagation();}}>
-            <div className="mh"><span className="mht">📐 기여율 입력</span><button className="mc" onClick={function(){setModal('');}}>×</button></div>
-            <div className="mb">
-              {err && <div className="al al-e">{err}</div>}
-              <div style={{marginBottom:12}}>
-                <label className="fl">프로젝트 *</label>
-                <select className="fi" value={form.project_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{project_id:e.target.value});});}}>
-                  <option value="">선택하세요</option>
-                  {projects.map(function(p) { return <option key={p.id} value={p.id}>{p.name}</option>; })}
-                </select>
-              </div>
-              <div className="g2">
-                <div>
-                  <label className="fl">직원 *</label>
-                  <select className="fi" value={form.user_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{user_id:e.target.value});});}}>
-                    <option value="">선택하세요</option>
-                    {users.map(function(u) { return <option key={u.id} value={u.id}>{u.name}</option>; })}
-                  </select>
-                </div>
-                <div>
-                  <label className="fl">기여율 (%) *</label>
-                  <input type="number" min="0" max="100" className="fi" value={form.contribution_rate||''} placeholder="0~100" onChange={function(e){setForm(function(p){return Object.assign({},p,{contribution_rate:e.target.value});});}} />
-                </div>
-              </div>
-            </div>
-            <div className="mf">
-              <button className="btn btn-s" onClick={function(){setModal('');}}>취소</button>
-              <button className="btn btn-p" onClick={savePerf} disabled={saving}>{saving?'저장 중...':'저장'}</button>
-            </div>
-          </div>
-        </div>
+        <PerfModal
+          projects={projects}
+          users={users}
+          year={Number(year)}
+          editItem={editItem}
+          initForm={form}
+          onClose={function(){setModal('');setEditItem(null);setForm({});}}
+          onSaved={function(){setModal('');setEditItem(null);setForm({});load();}}
+        />
       )}
     </div>
   );
