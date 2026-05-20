@@ -254,12 +254,40 @@ a { text-decoration: none; }
 .history-list { display: flex; flex-direction: column; }
 .history-date-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin: 16px 0 8px; padding-left: 2px; }
 
-/* ─── EMPTY / LOADING ────────────────────────────────────── */
+/* ─── MINI CALENDAR POPUP ────────────────────────────────── */
+.mcal-wrap { position:relative; display:inline-block; }
+.mcal-btn { background:transparent; border:1px solid var(--border); border-radius:6px; padding:4px 8px; font-size:14px; cursor:pointer; color:var(--text-sub); display:flex; align-items:center; }
+.mcal-btn:hover { background:var(--bg); }
+.mcal-popup { position:absolute; top:calc(100% + 4px); left:50%; transform:translateX(-50%); z-index:500; background:#fff; border:1.5px solid var(--border); border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.18); padding:12px; min-width:260px; }
+.mcal-popup.align-right { left:auto; right:0; transform:none; }
+.mcal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.mcal-nav-btn { background:transparent; border:1px solid var(--border); border-radius:6px; padding:3px 10px; font-size:13px; cursor:pointer; }
+.mcal-nav-btn:hover { background:var(--bg); }
+.mcal-title { font-size:14px; font-weight:800; color:var(--text); }
+.mcal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.mcal-dh { text-align:center; font-size:11px; font-weight:700; padding:4px 0; }
+.mcal-dh.sat { color:#2563eb; }
+.mcal-dh.sun { color:#dc2626; }
+.mcal-day { text-align:center; font-size:12px; padding:5px 2px; border-radius:6px; cursor:pointer; font-weight:500; }
+.mcal-day:hover { background:var(--accent-lt); }
+.mcal-day.empty { cursor:default; }
+.mcal-day.today { background:var(--accent); color:#fff; font-weight:700; }
+.mcal-day.selected { background:#0f172a; color:#fff; font-weight:700; }
+.mcal-day.sat { color:#2563eb; }
+.mcal-day.sun, .mcal-day.holiday { color:#dc2626; }
+.mcal-day.today.sat, .mcal-day.today.sun, .mcal-day.today.holiday { color:#fff; }
 .empty-state { text-align: center; padding: 60px 20px; }
 .empty-icon { font-size: 48px; margin-bottom: 16px; }
 .empty-text { font-size: 16px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; }
 .empty-sub { font-size: 13px; color: var(--text-muted); }
 .loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+/* 월별/주별 토/일/공휴일 색상 */
+.month-day-hdr.sat { color:#2563eb; }
+.month-day-hdr.sun { color:#dc2626; }
+.month-day.sat .md-num { color:#2563eb; }
+.month-day.sun .md-num, .month-day.holiday .md-num { color:#dc2626; }
+.wc-day.sat .wc-day-num, .wc-day.sat .wc-day-label { color:#2563eb; }
+.wc-day.sun .wc-day-num, .wc-day.sun .wc-day-label, .wc-day.holiday .wc-day-num, .wc-day.holiday .wc-day-label { color:#dc2626; }
 
 /* ─── MOBILE NAV ─────────────────────────────────────────── */
 .mobile-nav { display: none; }
@@ -367,6 +395,9 @@ const DAY_KR = ['일','월','화','수','목','금','토'];
 // ─── UTILS ─────────────────────────────────────────────────────────────────
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
+// 로컬 날짜 포맷 (toISOString 타임존 버그 방지)
+const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
 const fmtDate = (d) => {
   const dt = new Date(d + 'T00:00:00');
   return `${dt.getFullYear()}년 ${dt.getMonth()+1}월 ${dt.getDate()}일`;
@@ -379,14 +410,14 @@ const fmtShort = (d) => {
 
 const getWeekDates = (dateStr) => {
   const d = new Date(dateStr + 'T00:00:00');
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
+  const day = d.getDay(); // 0=일 1=월 ... 6=토
+  const diff = day === 0 ? -6 : 1 - day; // 월요일로 이동
   const mon = new Date(d);
   mon.setDate(d.getDate() + diff);
   return Array.from({ length: 5 }, (_, i) => {
     const dd = new Date(mon);
     dd.setDate(mon.getDate() + i);
-    return dd.toISOString().split('T')[0];
+    return localDateStr(dd); // 로컬 날짜 사용 (타임존 버그 수정)
   });
 };
 
@@ -397,8 +428,8 @@ const getMonthInfo = (dateStr) => {
   const last  = new Date(y, m + 1, 0);
   return {
     year: y, month: m,
-    firstDate: first.toISOString().split('T')[0],
-    lastDate:  last.toISOString().split('T')[0],
+    firstDate: localDateStr(first),
+    lastDate:  localDateStr(last),
     days: last.getDate(),
     startWeekday: first.getDay(),
   };
@@ -408,6 +439,100 @@ const getMonthInfo = (dateStr) => {
 const genId = () => Math.random().toString(36).slice(2, 10);
 
 const roleLabel = (r) => r === 'admin' ? '관리자' : r === 'manager' ? '팀장' : '팀원';
+
+// ─── 공휴일 캐시 ───────────────────────────────────────────────────────────
+const _holidayCache = {};
+async function fetchHolidays(year) {
+  if (_holidayCache[year]) return _holidayCache[year];
+  try {
+    const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`);
+    const data = await r.json();
+    _holidayCache[year] = new Set(data.map(h => h.date));
+  } catch { _holidayCache[year] = new Set(); }
+  return _holidayCache[year];
+}
+
+// ─── MINI CALENDAR POPUP ──────────────────────────────────────────────────
+function MiniCalendar({ value, onChange, maxDate, alignRight }) {
+  const [open, setOpen]       = useState(false);
+  const [viewDate, setViewDate] = useState(() => new Date((value || todayStr()) + 'T00:00:00'));
+  const [holidays, setHolidays] = useState(new Set());
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const y = viewDate.getFullYear();
+    fetchHolidays(y).then(h => setHolidays(h));
+  }, [open, viewDate.getFullYear()]);
+
+  // 외부 클릭 닫기
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const year = viewDate.getFullYear(), month = viewDate.getMonth();
+  const first = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const startWd = first.getDay(); // 0=일
+  const today = todayStr();
+
+  const prevMonth = () => { const d = new Date(viewDate); d.setMonth(d.getMonth() - 1); setViewDate(d); };
+  const nextMonth = () => { const d = new Date(viewDate); d.setMonth(d.getMonth() + 1); setViewDate(d); };
+
+  const select = (ds) => {
+    if (maxDate && ds > maxDate) return;
+    onChange(ds);
+    setOpen(false);
+  };
+
+  const DAY_HEADERS = ['일','월','화','수','목','금','토'];
+
+  return (
+    <div className="mcal-wrap" ref={wrapRef}>
+      <button className="mcal-btn" onClick={() => { setViewDate(new Date((value || todayStr()) + 'T00:00:00')); setOpen(v => !v); }} title="달력 선택">📅</button>
+      {open && (
+        <div className={`mcal-popup${alignRight ? ' align-right' : ''}`}>
+          <div className="mcal-nav">
+            <button className="mcal-nav-btn" onClick={prevMonth}>◀</button>
+            <span className="mcal-title">{year}년 {month+1}월</span>
+            <button className="mcal-nav-btn" onClick={nextMonth}>▶</button>
+          </div>
+          <div className="mcal-grid">
+            {DAY_HEADERS.map((d, i) => (
+              <div key={d} className={`mcal-dh${i===0?' sun':i===6?' sat':''}`}>{d}</div>
+            ))}
+            {Array.from({ length: startWd }, (_, i) => <div key={`e${i}`} className="mcal-day empty" />)}
+            {Array.from({ length: lastDay }, (_, i) => {
+              const day = i + 1;
+              const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+              const wd = new Date(ds + 'T00:00:00').getDay();
+              const isHoliday = holidays.has(ds);
+              const isToday = ds === today;
+              const isSelected = ds === value;
+              const isFuture = maxDate && ds > maxDate;
+              const cls = [
+                'mcal-day',
+                wd === 0 || isHoliday ? 'sun' : wd === 6 ? 'sat' : '',
+                isToday && !isSelected ? 'today' : '',
+                isSelected ? 'selected' : '',
+                isFuture ? 'empty' : '',
+              ].filter(Boolean).join(' ');
+              return (
+                <div key={day} className={cls} onClick={() => !isFuture && select(ds)}
+                  style={{ opacity: isFuture ? 0.3 : 1 }}>
+                  {day}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── LOGIN SCREEN ──────────────────────────────────────────────────────────
 function LoginScreen({ onLogin }) {
@@ -499,7 +624,6 @@ function TaskItem({ task, onChange, onDelete, showStatus }) {
 function MyLogView({ user, canWrite }) {
   const [date, setDate]     = useState(todayStr());
   const [tasks, setTasks]   = useState([]);
-  const [tmrw, setTmrw]     = useState([]);
   const [issues, setIssues] = useState('');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -511,10 +635,19 @@ function MyLogView({ user, canWrite }) {
       .select('*').eq('user_id', user.id).eq('log_date', d).maybeSingle();
     if (data) {
       setTasks(data.tasks || []);
-      setTmrw(data.tomorrow_tasks || []);
       setIssues(data.issues || '');
     } else {
-      setTasks([]); setTmrw([]); setIssues('');
+      // 데이터 없는 날 → 전날 '진행중' 업무 자동 불러오기
+      const prev = new Date(d + 'T00:00:00');
+      prev.setDate(prev.getDate() - 1);
+      const prevDs = localDateStr(prev);
+      const { data: prevData } = await sb.from('work_logs')
+        .select('tasks').eq('user_id', user.id).eq('log_date', prevDs).maybeSingle();
+      const pending = prevData
+        ? (prevData.tasks || []).filter(t => t.status === '진행중').map(t => ({ ...t, id: genId() }))
+        : [];
+      setTasks(pending);
+      setIssues('');
     }
     setLoading(false);
   }, [user.id]);
@@ -527,7 +660,7 @@ function MyLogView({ user, canWrite }) {
       user_id: user.id,
       log_date: date,
       tasks,
-      tomorrow_tasks: tmrw,
+      tomorrow_tasks: [],
       issues,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,log_date' });
@@ -541,21 +674,18 @@ function MyLogView({ user, canWrite }) {
   const prevDay = () => {
     const d = new Date(date + 'T00:00:00');
     d.setDate(d.getDate() - 1);
-    setDate(d.toISOString().split('T')[0]);
+    setDate(localDateStr(d));
   };
   const nextDay = () => {
     const d = new Date(date + 'T00:00:00');
     d.setDate(d.getDate() + 1);
-    const next = d.toISOString().split('T')[0];
+    const next = localDateStr(d);
     if (next <= todayStr()) setDate(next);
   };
 
   const addTask  = () => setTasks(p => [...p, { id: genId(), content: '', status: '진행중' }]);
   const updTask  = (id, t) => setTasks(p => p.map(x => x.id === id ? t : x));
   const delTask  = (id) => setTasks(p => p.filter(x => x.id !== id));
-  const addTmrw  = () => setTmrw(p => [...p, { id: genId(), content: '' }]);
-  const updTmrw  = (id, t) => setTmrw(p => p.map(x => x.id === id ? t : x));
-  const delTmrw  = (id) => setTmrw(p => p.filter(x => x.id !== id));
 
   const isToday = date === todayStr();
   const dayName = DAY_KR[new Date(date + 'T00:00:00').getDay()];
@@ -571,6 +701,7 @@ function MyLogView({ user, canWrite }) {
           <button className="date-nav-btn" onClick={prevDay}>◀</button>
           <input className="date-input" type="date" value={date}
             max={todayStr()} onChange={e => setDate(e.target.value)} />
+          <MiniCalendar value={date} maxDate={todayStr()} onChange={setDate} alignRight />
           <button className="date-nav-btn" onClick={nextDay} disabled={isToday}>▶</button>
           {!isToday && <button className="today-btn" onClick={() => setDate(todayStr())}>오늘</button>}
         </div>
@@ -589,23 +720,6 @@ function MyLogView({ user, canWrite }) {
                 {tasks.map(t => (
                   <TaskItem key={t.id} task={t} showStatus={true}
                     onChange={u => updTask(t.id, u)} onDelete={() => delTask(t.id)} />
-                ))}
-              </div>
-          }
-        </div>
-
-        {/* 내일 할 일 */}
-        <div className="log-section">
-          <div className="sec-header">
-            <div className="sec-title"><span className="sec-icon">📋</span>내일 할 일</div>
-            <button className="add-btn" onClick={addTmrw}>+ 업무 추가</button>
-          </div>
-          {tmrw.length === 0
-            ? <div className="empty-hint">내일 예정 업무를 추가하세요.</div>
-            : <div className="task-list">
-                {tmrw.map(t => (
-                  <TaskItem key={t.id} task={t} showStatus={false}
-                    onChange={u => updTmrw(t.id, u)} onDelete={() => delTmrw(t.id)} />
                 ))}
               </div>
           }
@@ -701,8 +815,15 @@ function AllLogsView({ user }) {
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [holidays, setHolidays] = useState(new Set());
 
-  // 팀 정보 로드 후 허용 팀 소속 유저만 필터링 (admin은 전체)
+  // 공휴일 로드
+  useEffect(() => {
+    const y = new Date(selDate + 'T00:00:00').getFullYear();
+    fetchHolidays(y).then(h => setHolidays(h));
+  }, [selDate]);
+
+  // 팀 정보 로드 후 허용 팀 소속 유저만 필터링
   useEffect(() => {
     const load = async () => {
       const { data: teamData } = await sb.from('teams').select('id, name');
@@ -710,7 +831,6 @@ function AllLogsView({ user }) {
       setTeams(allTeams);
       const { data: userData } = await sb.from('users').select('id, name, team_id, role').order('name');
       const allUsers = userData || [];
-      // admin 포함 모두 동일하게 허용 팀만 표시 (contractor 제외)
       const allowedTeamIds = allTeams
         .filter(t => ALLOWED_TEAMS.includes(t.name))
         .map(t => t.id);
@@ -741,17 +861,26 @@ function AllLogsView({ user }) {
 
   const shift = (dir) => {
     const d = new Date(selDate + 'T00:00:00');
-    if (mode === 'day')   d.setDate(d.getDate() + dir);
+    if (mode === 'day')        d.setDate(d.getDate() + dir);
     else if (mode === 'week')  d.setDate(d.getDate() + dir * 7);
-    else d.setMonth(d.getMonth() + dir);
-    setSelDate(d.toISOString().split('T')[0]);
+    else                       d.setMonth(d.getMonth() + dir);
+    setSelDate(localDateStr(d));
   };
 
   const rangeLabel = () => {
-    if (mode === 'day')   return fmtDate(selDate);
-    if (mode === 'week')  { const w = getWeekDates(selDate); return `${fmtShort(w[0])} ~ ${fmtShort(w[4])}`; }
+    if (mode === 'day')  return fmtDate(selDate);
+    if (mode === 'week') { const w = getWeekDates(selDate); return `${fmtShort(w[0])} ~ ${fmtShort(w[4])}`; }
     const { year, month } = getMonthInfo(selDate);
     return `${year}년 ${month+1}월`;
+  };
+
+  const isHoliday = (ds) => holidays.has(ds);
+  const dayClass  = (ds) => {
+    const wd = new Date(ds + 'T00:00:00').getDay();
+    if (isHoliday(ds)) return 'holiday';
+    if (wd === 6) return 'sat';
+    if (wd === 0) return 'sun';
+    return '';
   };
 
   const weekDates = getWeekDates(selDate);
@@ -776,6 +905,10 @@ function AllLogsView({ user }) {
           <button className="date-nav-btn" onClick={() => shift(-1)}>◀</button>
           <span className="date-label">{rangeLabel()}</span>
           <button className="date-nav-btn" onClick={() => shift(1)}>▶</button>
+          {/* 일별/주별에만 달력 버튼 표시 */}
+          {mode !== 'month' && (
+            <MiniCalendar value={selDate} onChange={setSelDate} alignRight />
+          )}
           <button className="today-btn" onClick={() => setSelDate(todayStr())}>오늘</button>
         </div>
       </div>
@@ -811,20 +944,19 @@ function AllLogsView({ user }) {
         {mode === 'week' && (
           <div className="week-wrap">
             <div className="week-table">
-              {/* 헤더 */}
               <div className="week-head">
                 <div className="week-cell wc-name">이름</div>
                 {weekDates.map(d => {
                   const dt = new Date(d + 'T00:00:00');
+                  const dc = dayClass(d);
                   return (
-                    <div key={d} className={`week-cell wc-day ${d === todayStr() ? 'today' : ''}`}>
+                    <div key={d} className={`week-cell wc-day ${dc} ${d === todayStr() ? 'today' : ''}`}>
                       <div className="wc-day-num">{dt.getDate()}</div>
                       <div className="wc-day-label">{DAY_KR[dt.getDay()]}</div>
                     </div>
                   );
                 })}
               </div>
-              {/* 행 */}
               {users.map(u => (
                 <div key={u.id} className="week-row">
                   <div className="week-cell wc-name">
@@ -858,7 +990,9 @@ function AllLogsView({ user }) {
         {mode === 'month' && (
           <div className="month-wrap">
             <div className="month-grid">
-              {DAY_KR.map(d => <div key={d} className="month-day-hdr">{d}</div>)}
+              {DAY_KR.map((d, i) => (
+                <div key={d} className={`month-day-hdr${i===0?' sun':i===6?' sat':''}`}>{d}</div>
+              ))}
               {Array.from({ length: mInfo.startWeekday }, (_, i) => (
                 <div key={`e${i}`} className="month-day empty" />
               ))}
@@ -867,8 +1001,9 @@ function AllLogsView({ user }) {
                 const ds  = `${mInfo.year}-${String(mInfo.month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
                 const cnt = logs.filter(l => l.log_date === ds).length;
                 const isT = ds === todayStr();
+                const dc  = dayClass(ds);
                 return (
-                  <div key={day} className={`month-day ${isT?'today':''} ${cnt>0?'has-logs':''}`}
+                  <div key={day} className={`month-day ${dc} ${isT?'today':''} ${cnt>0?'has-logs':''}`}
                     onClick={() => { setSelDate(ds); setMode('day'); }}>
                     <div className={`md-num ${isT?'today':''}`}>{day}</div>
                     {cnt > 0 && <div className="md-info">{cnt}명 작성</div>}
@@ -988,6 +1123,21 @@ function App() {
   const [ssoChecked, setSsoChecked] = useState(!!initialUser);
   const [userTeamName, setUserTeamName] = useState('');
 
+  // 뒤로가기 — 하위탭 내에서 처리
+  const nv = (v) => {
+    history.pushState({ view: v }, '', '');
+    setView(v);
+  };
+  useEffect(() => {
+    // 초기 진입 시 현재 뷰를 히스토리에 등록
+    history.replaceState({ view: VIEWS.MY_LOG }, '', '');
+    const onPop = (e) => {
+      if (e.state?.view) setView(e.state.view);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   // SSO 초기화 — 구버전 세션({userId})에서 자동 로그인
   useEffect(() => {
     if (initialUser) return;
@@ -1075,14 +1225,14 @@ function App() {
         <p style={{ margin:0, fontSize:14, lineHeight:'1.3', fontWeight:800, color:'white', letterSpacing:-0.3 }}>업무일지 시스템</p>
       </div>
       {/* 상단 네비탭 */}
-      <TopNavBar view={view} setView={setView} user={user} onLogout={logout} canWrite={canWrite} />
+      <TopNavBar view={view} setView={nv} user={user} onLogout={logout} canWrite={canWrite} />
       <div className="app-inner">
         <main className="main-content">
           {view === VIEWS.MY_LOG   && <MyLogView user={user} canWrite={canWrite} />}
           {view === VIEWS.ALL_LOGS && <AllLogsView user={user} />}
           {view === VIEWS.HISTORY  && <MyHistoryView user={user} />}
         </main>
-        <MobileNav view={view} setView={setView} />
+        <MobileNav view={view} setView={nv} />
       </div>
     </div>
   );
