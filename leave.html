@@ -1024,7 +1024,6 @@ function App(){
   // 세션 즉시 복원 (DB 조회 전에 localStorage에서 바로 읽기)
   const initialUser = (() => {
     try {
-      Sysbar.SessionManager.checkOnLoad();
       const sessRaw = localStorage.getItem('kwanbo_session');
       if (!sessRaw) return null;
       const v = JSON.parse(sessRaw);
@@ -1095,6 +1094,12 @@ function App(){
       setLeaves(Array.isArray(l)?l:[]);setAuditLogs(Array.isArray(a)?a:[]);
     }catch(e){console.error(e);}
     setLoading(false);
+  },[]);
+
+  // checkOnLoad: 렌더 후 실행 (Babel 컴파일 완료 이후 → NAV_WINDOW 오인 방지)
+  useEffect(()=>{
+    const wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if(wasInvalidated){ setCu(null); _authCtx={id:null,role:null}; }
   },[]);
 
   useEffect(()=>{loadNagerHolidays();load();},[]);

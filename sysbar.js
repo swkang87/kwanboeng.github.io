@@ -61,8 +61,8 @@
     var TABS_KEY    = 'kwanbo_tabs';
     var CLOSE_KEY   = 'kwanbo_close_ts';
     var ACTIVE_KEY  = 'kwanbo_last_active';
-    var NAV_KEY     = 'kwanbo_nav_ts';     // localStorage 타임스탬프 (2초 이내 = 페이지 이동)
-    var NAV_WINDOW  = 3000;               // 3초 이내면 페이지 이동으로 판단
+    var NAV_KEY     = 'kwanbo_nav_ts';     // localStorage 타임스탬프
+    var NAV_WINDOW  = 15000;              // 15초 이내면 페이지 이동으로 판단 (Babel 컴파일 시간 고려)
     var TIMEOUT_MS  = 60 * 60 * 1000;     // 1시간
     var WARN_MS     = 55 * 60 * 1000;     // 55분 (5분 전 경고)
     var THROTTLE_MS = 30 * 1000;          // 활동감지 30초 쓰로틀
