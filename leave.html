@@ -1021,12 +1021,28 @@ function AdminDash({user,users,teams,leaves,onNav}){
 // ── Main App ──────────────────────────────────────────────
 const SysBar = Sysbar.createComponent(React);
 function App(){
+  // 세션 즉시 복원 (DB 조회 전에 localStorage에서 바로 읽기)
+  const initialUser = (() => {
+    try {
+      Sysbar.SessionManager.checkOnLoad();
+      const sessRaw = localStorage.getItem('kwanbo_session');
+      if (!sessRaw) return null;
+      const v = JSON.parse(sessRaw);
+      if (v && v.id && v.role && v.role !== 'contractor') {
+        if (v.password) { delete v.password; localStorage.setItem('kwanbo_session', JSON.stringify(v)); }
+        _authCtx = { id: v.id, role: v.role };
+        return v;
+      }
+      return null;
+    } catch(e) { return null; }
+  })();
+
   const [loading,setLoading]=useState(true);
   const [users,setUsers]=useState([]);
   const [teams,setTeams]=useState([]);
   const [leaves,setLeaves]=useState([]);
   const [auditLogs,setAuditLogs]=useState([]);
-  const [cu,setCu]=useState(null);
+  const [cu,setCu]=useState(initialUser);
   const [view,setView]=useState('calendar');
   const [phone,setPhone]=useState('');
   const [pw,setPw]=useState('');
@@ -1043,45 +1059,38 @@ function App(){
 
   const load=useCallback(async()=>{
     try{
-      // 1단계: 로그인 검증에 필요한 users/teams 먼저 조회 (RLS: 누구나 SELECT 허용)
       const [u,t]=await Promise.all([api.get('users','?order=name'),api.get('teams','?order=name')]);
       const us=Array.isArray(u)?u:[];
       setUsers(us);setTeams(Array.isArray(t)?t:[]);
-      // 2단계: 통합 세션(kwanbo_session)에서 자동로그인
-      const sessRaw = localStorage.getItem('kwanbo_session');
-      // 마이그레이션: 구버전 sessionStorage('kwanbo_uid') 키도 확인
-      const legacyUid = sessionStorage.getItem('kwanbo_uid');
-      let autoUser = null;
-      if (sessRaw) {
-        try {
-          const v = JSON.parse(sessRaw);
-          // 신규: user 객체 전체 / 구버전: {userId} 형태
-          if (v && v.id) autoUser = v;
-          else if (v && v.userId) autoUser = us.find(x => x.id === v.userId) || null;
-        } catch(e) {}
-      } else if (legacyUid) {
-        autoUser = us.find(x => x.id === legacyUid) || null;
-      }
-      if (autoUser && autoUser.role !== 'contractor') {
-        // 항상 DB의 최신 정보로 동기화 (역할 변경 등 반영)
-        const fresh = us.find(x => x.id === autoUser.id) || autoUser;
-        if (fresh.role === 'contractor') {
-          // 권한이 사라진 경우 세션 정리
-          localStorage.removeItem('kwanbo_session');
-          sessionStorage.removeItem('kwanbo_uid');
-        } else {
+      // initialUser가 있으면 세션 이미 복원됨 → 최신 DB 정보로만 갱신
+      if (initialUser) {
+        const fresh = us.find(x => x.id === initialUser.id);
+        if (fresh && fresh.role !== 'contractor') {
           _authCtx = { id: fresh.id, role: fresh.role };
-          setCu(fresh);
-          // 통합 세션으로 재저장 (password 제외)
           const safeU = {...fresh}; delete safeU.password;
           localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
-          // 구버전 키 정리
-          sessionStorage.removeItem('kwanbo_uid');
+          setCu(safeU);
+          Sysbar.SessionManager.onLogin(()=>{_authCtx={id:null,role:null};setCu(null);setView('dashboard');localStorage.removeItem('kwanbo_session');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_pm_user');});
+        } else if (!fresh || fresh.role === 'contractor') {
+          // 권한 박탈된 경우
+          _authCtx={id:null,role:null}; setCu(null);
+          localStorage.removeItem('kwanbo_session');
         }
       } else {
-        setCu(prev => prev ? us.find(x => x.id === prev.id && x.role !== 'contractor') || null : null);
+        // 구버전 세션 복원 (kwanbo_uid 등)
+        const legacyUid = sessionStorage.getItem('kwanbo_uid');
+        let autoUser = null;
+        if (legacyUid) autoUser = us.find(x => x.id === legacyUid) || null;
+        if (autoUser && autoUser.role !== 'contractor') {
+          _authCtx = { id: autoUser.id, role: autoUser.role };
+          setCu(autoUser);
+          const safeU = {...autoUser}; delete safeU.password;
+          localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+          sessionStorage.removeItem('kwanbo_uid');
+          Sysbar.SessionManager.onLogin(()=>{_authCtx={id:null,role:null};setCu(null);setView('dashboard');localStorage.removeItem('kwanbo_session');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_pm_user');});
+        }
       }
-      // 3단계: RLS 보호 테이블은 _authCtx 설정 이후에 조회
+      // RLS 보호 테이블 조회
       const [l,a]=await Promise.all([api.get('leave_requests','?order=created_at.desc'),api.get('audit_logs','?order=created_at.desc&limit=200')]);
       setLeaves(Array.isArray(l)?l:[]);setAuditLogs(Array.isArray(a)?a:[]);
     }catch(e){console.error(e);}
@@ -1111,6 +1120,17 @@ function App(){
 
   // ── 로그인 화면 ──────────────────────────────────────────
   if(!cu){
+    // 세션이 있는데 아직 DB 로딩 중 → 스피너만 표시 (로그인 화면 깜빡임 방지)
+    if(loading){
+      return(
+        <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div style={{textAlign:'center',color:'#94a3b8'}}>
+            <div style={{fontSize:28,marginBottom:12}}>📅</div>
+            <div style={{fontSize:14}}>연결 중...</div>
+          </div>
+        </div>
+      );
+    }
     const loginBox=(
       <div style={{background:'white',borderRadius:18,padding:'34px 28px',width:'100%',maxWidth:340,boxShadow:'0 25px 70px rgba(0,0,0,.45)'}}>
         <div style={{textAlign:'center',marginBottom:24}}>
@@ -1123,8 +1143,7 @@ function App(){
           <div style={{marginBottom:8}}><label style={lbl}>비밀번호</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="비밀번호 입력" style={{...inp,fontSize:16}}/></div>
           {err&&<p style={{color:'#dc2626',fontSize:13,margin:'6px 0 0'}}>{err}</p>}
           <button onClick={login} style={{...btn('primary'),width:'100%',padding:'13px',fontSize:15,marginTop:14}}>로그인</button>
-        </>}
-      </div>
+        </>}      </div>
     );
     if(isMobile){
       return(
