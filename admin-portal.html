@@ -355,7 +355,29 @@ function FI({ label, field, form, set, type }) {
 function WorklogView({ user }) {
   const { useCallback } = React;
   const [tab, setTab]       = useState('my');
-  const [allMode, setAllMode] = useState('day'); // 전체조회 모드: day/week/month
+  const [allMode, setAllMode] = useState('day');
+
+  // 전체조회 모드 전환 시 히스토리 기록
+  function changeAllMode(newMode, date) {
+    history.pushState({ wlTab: 'all', allMode: newMode, selDate: date || selDate }, '', '');
+    if (date) setSelDate(date);
+    setAllMode(newMode);
+  }
+
+  // 뒤로가기 감지
+  useEffect(function() {
+    history.replaceState({ wlTab: tab, allMode: allMode, selDate: selDate }, '', '');
+    function onPop(e) {
+      if (e.state && e.state.wlTab) {
+        setTab(e.state.wlTab);
+        if (e.state.allMode) setAllMode(e.state.allMode);
+        if (e.state.selDate) setSelDate(e.state.selDate);
+      }
+    }
+    window.addEventListener('popstate', onPop);
+    return function() { window.removeEventListener('popstate', onPop); };
+  }, []);
+
   // 내 업무일지
   const [date, setDate]     = useState(TODAY());
   const [tasks, setTasks]   = useState([]);
@@ -545,7 +567,7 @@ function WorklogView({ user }) {
             {[['day','일별'],['week','주별'],['month','월별']].map(function(m) {
               return (
                 <button key={m[0]} className={'wl-mode-tab' + (allMode===m[0]?' active':'')}
-                  onClick={function(){setAllMode(m[0]);}}>
+                  onClick={function(){changeAllMode(m[0]);}}>
                   {m[1]}
                 </button>
               );
@@ -614,52 +636,71 @@ function WorklogView({ user }) {
               {allMode === 'week' && (function() {
                 const weekDates = getWeekDates(selDate);
                 return (
-                  <div style={{overflowX:'auto'}}>
-                    <table className="wl-week-table">
-                      <thead>
-                        <tr>
-                          <th className="wl-week-name">이름</th>
-                          {weekDates.map(function(d) {
-                            const dt = new Date(d + 'T00:00:00');
-                            const isToday = d === TODAY();
+                  <div>
+                    {allUsers.map(function(u) {
+                      const weekLogs = weekDates.map(function(d) {
+                        return { date: d, log: allLogs.find(function(l) { return l.user_id === u.id && l.log_date === d; }) };
+                      }).filter(function(x) { return x.log; });
+                      if (weekLogs.length === 0) return (
+                        <div key={u.id} className="lc" style={{marginBottom:8}}>
+                          <div className="lu">
+                            <div className="lav" style={{opacity:.5}}>{u.name[0]}</div>
+                            <div>
+                              <div className="ln">{u.name}</div>
+                              <div className="lm">이번 주 미작성</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                      return (
+                        <div key={u.id} className="lc" style={{marginBottom:12}}>
+                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                            <div className="lu">
+                              <div className="lav">{u.name[0]}</div>
+                              <div>
+                                <div className="ln">{u.name}</div>
+                                <div className="lm">{weekLogs.length}일 작성</div>
+                              </div>
+                            </div>
+                          </div>
+                          {weekLogs.map(function(item) {
+                            const dt = new Date(item.date + 'T00:00:00');
+                            const dayLabel = (dt.getMonth()+1) + '/' + dt.getDate() + '(' + DAY_KO[dt.getDay()] + ')';
                             return (
-                              <th key={d} className={'wl-week-cell' + (isToday?' wl-week-today':'')}>
-                                <div>{dt.getDate()}</div>
-                                <div style={{fontSize:10,color:'#94a3b8'}}>{DAY_KO[dt.getDay()]}</div>
-                              </th>
+                              <div key={item.date} style={{marginBottom:10}}>
+                                {/* 날짜 헤더 - 클릭 시 일별로 이동 */}
+                                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5,
+                                  padding:'4px 8px',background:'#f8fafc',borderRadius:6,cursor:'pointer'}}
+                                  onClick={function(){changeAllMode('day', item.date);}}>
+                                  <span style={{fontSize:12,fontWeight:700,color:'#475569'}}>{dayLabel}</span>
+                                  <span style={{fontSize:11,color:'#94a3b8'}}>업무 {(item.log.tasks||[]).length}건</span>
+                                  <span style={{fontSize:11,color:'#7c3aed',marginLeft:'auto'}}>상세보기 →</span>
+                                </div>
+                                {/* 업무 목록 전체 */}
+                                {(item.log.tasks||[]).map(function(t, i) {
+                                  var sColor = t.status==='완료'?'#059669':t.status==='진행중'?'#2563eb':'#d97706';
+                                  return (
+                                    <div key={i} style={{display:'flex',alignItems:'flex-start',gap:8,
+                                      padding:'4px 0',borderBottom:'1px solid #f1f5f9',fontSize:13}}>
+                                      <span style={{flexShrink:0,fontSize:11,fontWeight:700,
+                                        color:sColor,background:sColor+'18',
+                                        padding:'1px 6px',borderRadius:4}}>{t.status}</span>
+                                      <span style={{color:'#334155',lineHeight:1.5}}>{t.content}</span>
+                                    </div>
+                                  );
+                                })}
+                                {item.log.issues && (
+                                  <div style={{marginTop:4,padding:'4px 8px',background:'#fef3c7',
+                                    borderRadius:5,fontSize:12,color:'#92400e'}}>
+                                    💬 {item.log.issues}
+                                  </div>
+                                )}
+                              </div>
                             );
                           })}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {allUsers.map(function(u) {
-                          return (
-                            <tr key={u.id}>
-                              <td className="wl-week-name">{u.name}</td>
-                              {weekDates.map(function(d) {
-                                const log = allLogs.find(function(l) { return l.user_id === u.id && l.log_date === d; });
-                                const total = log ? (log.tasks||[]).length : 0;
-                                const done  = log ? (log.tasks||[]).filter(function(t){return t.status==='완료';}).length : 0;
-                                const isToday = d === TODAY();
-                                return (
-                                  <td key={d} className={'wl-week-cell' + (isToday?' wl-week-today':'')}
-                                    onClick={function(){if(log){setSelDate(d);setAllMode('day');}}}>
-                                    {log
-                                      ? <div>
-                                          <div className="wl-week-cnt">{total}건</div>
-                                          <div className="wl-week-done">{done}완료</div>
-                                          {log.issues && <div style={{fontSize:10,color:'#d97706'}}>💬</div>}
-                                        </div>
-                                      : <span className="wl-week-none">—</span>
-                                    }
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })()}
@@ -683,7 +724,7 @@ function WorklogView({ user }) {
                       const isToday = ds === TODAY();
                       return (
                         <div key={day} className={'wl-month-day' + (isToday?' today':'')}
-                          onClick={function(){setSelDate(ds);setAllMode('day');}}>
+                          onClick={function(){changeAllMode('day', ds);}}>
                           <div className={'wl-month-num' + (wd===0?' sun':wd===6?' sat':'') + (isToday?' today':'')}>{day}</div>
                           {cnt > 0 && <div className="wl-month-cnt">{cnt}명</div>}
                         </div>
