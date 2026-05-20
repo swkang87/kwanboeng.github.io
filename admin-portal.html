@@ -357,7 +357,13 @@ function WorklogView({ user }) {
   const [tab, setTab]       = useState('my');
   const [allMode, setAllMode] = useState('day');
 
-  // 전체조회 모드 전환 시 히스토리 기록
+  // 하위탭 전환 — pushState
+  function changeTab(newTab) {
+    history.pushState({ wlTab: newTab, allMode: allMode, selDate: selDate }, '', '');
+    setTab(newTab);
+  }
+
+  // 전체조회 모드 전환 — pushState
   function changeAllMode(newMode, date) {
     history.pushState({ wlTab: 'all', allMode: newMode, selDate: date || selDate }, '', '');
     if (date) setSelDate(date);
@@ -368,7 +374,7 @@ function WorklogView({ user }) {
   useEffect(function() {
     history.replaceState({ wlTab: tab, allMode: allMode, selDate: selDate }, '', '');
     function onPop(e) {
-      if (e.state && e.state.wlTab) {
+      if (e.state && e.state.wlTab !== undefined) {
         setTab(e.state.wlTab);
         if (e.state.allMode) setAllMode(e.state.allMode);
         if (e.state.selDate) setSelDate(e.state.selDate);
@@ -487,8 +493,8 @@ function WorklogView({ user }) {
         <div className="ps">관리팀 전용 업무 기록</div>
       </div>
       <div className="itabs">
-        <button className={tab === 'my' ? 'itab active' : 'itab'} onClick={function() { setTab('my'); }}>내 업무일지</button>
-        <button className={tab === 'all' ? 'itab active' : 'itab'} onClick={function() { setTab('all'); }}>전체 조회</button>
+        <button className={tab === 'my' ? 'itab active' : 'itab'} onClick={function() { changeTab('my'); }}>내 업무일지</button>
+        <button className={tab === 'all' ? 'itab active' : 'itab'} onClick={function() { changeTab('all'); }}>전체 조회</button>
       </div>
 
       {/* ── 내 업무일지 ── */}
@@ -918,6 +924,22 @@ function PerfModal({ projects, users, year, editItem, initForm, onClose, onSaved
 function PerfView({ user }) {
   var [tab, setTab] = useState('col');
   var [projects, setProjects] = useState([]);
+
+  // 하위탭 전환 — pushState
+  function changeTab(newTab) {
+    history.pushState({ pfTab: newTab }, '', '');
+    setTab(newTab);
+  }
+
+  // 뒤로가기 감지
+  useEffect(function() {
+    history.replaceState({ pfTab: 'col' }, '', '');
+    function onPop(e) {
+      if (e.state && e.state.pfTab) setTab(e.state.pfTab);
+    }
+    window.addEventListener('popstate', onPop);
+    return function() { window.removeEventListener('popstate', onPop); };
+  }, []);
   var [users, setUsers] = useState([]);
   var [cols, setCols] = useState([]);
   var [perfs, setPerfs] = useState([]);
@@ -1009,12 +1031,39 @@ function PerfView({ user }) {
       collected_at: form.collected_at,
       memo: form.memo || '',
     };
-    var p = editItem
-      ? sb.from('collections').update(payload).eq('id', editItem.id)
-      : sb.from('collections').insert(payload);
+    var isNew = !editItem;
+    var colYear = Number(form.collected_at.slice(0, 4));
+    var p = isNew
+      ? sb.from('collections').insert(payload)
+      : sb.from('collections').update(payload).eq('id', editItem.id);
     p.then(function(r) {
       setSaving(false);
       if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
+
+      // ── 최초 등록 시만 PM 기여율 100% 자동 등록 ──
+      if (isNew) {
+        var proj = projects.find(function(p) { return p.id === form.project_id; });
+        if (proj && proj.pm_id) {
+          // 이미 등록된 기여율이 있는지 확인
+          sb.from('performance')
+            .select('id')
+            .eq('project_id', form.project_id)
+            .eq('user_id', proj.pm_id)
+            .eq('year', colYear)
+            .then(function(chk) {
+              // 없을 때만 insert (수정 불가 조건)
+              if (!chk.data || chk.data.length === 0) {
+                sb.from('performance').insert({
+                  project_id: form.project_id,
+                  user_id: proj.pm_id,
+                  contribution_rate: 100,
+                  year: colYear,
+                }).then(function() { /* 완료 */ });
+              }
+            });
+        }
+      }
+
       setModal(''); setEditItem(null); setForm({});
       load();
     });
@@ -1044,10 +1093,10 @@ function PerfView({ user }) {
       </div>
 
       <div className="itabs">
-        <button className={tab==='col'?'itab active':'itab'} onClick={function(){setTab('col');}}>수금 내역</button>
-        <button className={tab==='proj'?'itab active':'itab'} onClick={function(){setTab('proj');}}>프로젝트별</button>
-        <button className={tab==='user'?'itab active':'itab'} onClick={function(){setTab('user');}}>직원별 실적</button>
-        <button className={tab==='pf'?'itab active':'itab'} onClick={function(){setTab('pf');}}>기여율 관리</button>
+        <button className={tab==='col'?'itab active':'itab'} onClick={function(){changeTab('col');}}>수금 내역</button>
+        <button className={tab==='proj'?'itab active':'itab'} onClick={function(){changeTab('proj');}}>프로젝트별</button>
+        <button className={tab==='user'?'itab active':'itab'} onClick={function(){changeTab('user');}}>직원별 실적</button>
+        <button className={tab==='pf'?'itab active':'itab'} onClick={function(){changeTab('pf');}}>기여율 관리</button>
       </div>
 
       {tab === 'col' && (
@@ -1738,6 +1787,22 @@ function App() {
   const [hasAccess, setHasAccess] = useState(false);
   const [accessChecked, setAccessChecked] = useState(false);
 
+  // 상위탭 전환 — pushState로 히스토리 기록
+  function nv(v) {
+    history.pushState({ apView: v }, '', '');
+    setView(v);
+  }
+
+  // 뒤로가기 — 상위탭 복원
+  useEffect(function() {
+    history.replaceState({ apView: VIEWS.WL }, '', '');
+    function onPop(e) {
+      if (e.state && e.state.apView) setView(e.state.apView);
+    }
+    window.addEventListener('popstate', onPop);
+    return function() { window.removeEventListener('popstate', onPop); };
+  }, []);
+
   useEffect(function() {
     if (initialUser) return;
     // checkOnLoad: 렌더 후 실행 (Babel 컴파일 완료 이후 → NAV_WINDOW 오인 방지)
@@ -1837,10 +1902,10 @@ function App() {
         <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>관리 포털</p>
       </div>
       <div className="top-nav">
-        <button className={view===VIEWS.WL?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.WL);}}>📝 업무일지</button>
-        <button className={view===VIEWS.PF?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.PF);}}>📊 실적관리</button>
-        {canSal && <button className={view===VIEWS.SL?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.SL);}}>💼 급여대장</button>}
-        <button className={view===VIEWS.ST?'nav-btn active':'nav-btn'} onClick={function(){setView(VIEWS.ST);}}>👥 직원관리</button>
+        <button className={view===VIEWS.WL?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.WL);}}>📝 업무일지</button>
+        <button className={view===VIEWS.PF?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.PF);}}>📊 실적관리</button>
+        {canSal && <button className={view===VIEWS.SL?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.SL);}}>💼 급여대장</button>}
+        <button className={view===VIEWS.ST?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.ST);}}>👥 직원관리</button>
       </div>
       {view === VIEWS.WL && <WorklogView user={user} />}
       {view === VIEWS.PF && <PerfView user={user} />}
