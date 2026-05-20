@@ -594,7 +594,7 @@ function PerfModal({ projects, users, year, editItem, initForm, onClose, onSaved
     setRows(function(prev) { return prev.filter(function(r){return r.user_id!==uid;}); });
   }
 
-  async function save() {
+  function save() {
     if (!selProjId) { setErr('프로젝트를 선택하세요.'); return; }
     if (rows.length === 0) { setErr('직원이 없습니다.'); return; }
     for (var i=0; i<rows.length; i++) {
@@ -606,11 +606,13 @@ function PerfModal({ projects, users, year, editItem, initForm, onClose, onSaved
     var payload = rows.map(function(r) {
       return { project_id: selProjId, user_id: r.user_id, contribution_rate: Number(r.rate), year: year };
     });
-    var { error } = await sb.from('performance')
-      .upsert(payload, { onConflict: 'project_id,user_id,year' });
-    setSaving(false);
-    if (error) { setErr('저장 오류: ' + error.message); return; }
-    onSaved();
+    sb.from('performance')
+      .upsert(payload, { onConflict: 'project_id,user_id,year' })
+      .then(function(res) {
+        setSaving(false);
+        if (res.error) { setErr('저장 오류: ' + res.error.message); return; }
+        onSaved();
+      });
   }
 
   var unselected = users.filter(function(u) { return !rows.find(function(r){return r.user_id===u.id;}); });
@@ -649,7 +651,8 @@ function PerfModal({ projects, users, year, editItem, initForm, onClose, onSaved
                 </thead>
                 <tbody>
                   {rows.map(function(r) {
-                    var isPm = projects.find(function(p){return p.id===selProjId;})?.pm_id === r.user_id;
+                    var proj = projects.find(function(p){return p.id===selProjId;});
+                    var isPm = proj && proj.pm_id === r.user_id;
                     return (
                       <tr key={r.user_id} style={{borderBottom:'1px solid #f1f5f9'}}>
                         <td style={{padding:'8px 10px',fontSize:13}}>
@@ -1398,7 +1401,7 @@ function StaffView({ user }) {
                   <tr key={u.id}>
                     <td>
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <div style={{width:28,height:28,borderRadius:'50%',background:'#1e293b',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name?.[0]}</div>
+                        <div style={{width:28,height:28,borderRadius:'50%',background:'#1e293b',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name ? u.name[0] : ''}</div>
                         <span style={{fontWeight:600}}>{u.name}</span>
                       </div>
                     </td>
