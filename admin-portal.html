@@ -102,6 +102,33 @@ tr:hover td{background:#f8fafc;}
 .ti{flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:13px;outline:none;}
 .ss{padding:4px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:11px;font-family:'Noto Sans KR',sans-serif;outline:none;background:#fff;}
 .sr{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px;}
+/* ── 날짜 네비 ── */
+.wl-date-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.wl-date-btn{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;color:#475569;}
+.wl-date-btn:hover{background:#e2e8f0;}
+.wl-date-btn:disabled{opacity:.4;cursor:default;}
+.wl-today-btn{background:transparent;border:1px solid #7c3aed;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;color:#7c3aed;cursor:pointer;}
+.wl-today-btn:hover{background:#f5f3ff;}
+/* ── MiniCalendar ── */
+.mcal-wrap{position:relative;display:inline-block;}
+.mcal-btn{background:transparent;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:14px;cursor:pointer;color:#94a3b8;}
+.mcal-btn:hover{background:#f1f5f9;}
+.mcal-popup{position:absolute;top:calc(100% + 4px);right:0;z-index:500;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);padding:12px;min-width:260px;}
+.mcal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.mcal-nav-btn{background:transparent;border:1px solid #e2e8f0;border-radius:6px;padding:3px 10px;font-size:13px;cursor:pointer;}
+.mcal-nav-btn:hover{background:#f1f5f9;}
+.mcal-title{font-size:14px;font-weight:800;color:#0f172a;}
+.mcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.mcal-dh{text-align:center;font-size:11px;font-weight:700;padding:4px 0;color:#64748b;}
+.mcal-dh.sat{color:#2563eb;}.mcal-dh.sun{color:#dc2626;}
+.mcal-day{text-align:center;font-size:12px;padding:5px 2px;border-radius:6px;cursor:pointer;font-weight:500;}
+.mcal-day:hover{background:#f5f3ff;}
+.mcal-day.empty{cursor:default;pointer-events:none;}
+.mcal-day.today{background:#7c3aed;color:#fff;font-weight:700;}
+.mcal-day.selected{background:#0f172a;color:#fff;font-weight:700;}
+.mcal-day.sat{color:#2563eb;}.mcal-day.sun,.mcal-day.holiday{color:#dc2626;}
+.mcal-day.today.sat,.mcal-day.today.sun,.mcal-day.today.holiday{color:#fff;}
+.mcal-day.future{opacity:.3;cursor:default;}
 .pb{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-top:4px;}
 .pbf{height:100%;background:linear-gradient(90deg,#7c3aed,#a855f7);border-radius:3px;}
 .sal-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
@@ -122,7 +149,7 @@ tr:hover td{background:#f8fafc;}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 const { createClient } = supabase;
 // RLS용: 로그인 후 user 헤더를 포함한 Supabase 클라이언트 생성
 function _makeSb(userId, userRole) {
@@ -160,6 +187,91 @@ let sb = _makeSb();
 
 const VIEWS = { WL:'wl', PF:'pf', SL:'sl', ST:'st' };
 const TODAY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const fmtDateKo = (ds) => { const d = new Date(ds + 'T00:00:00'); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`; };
+const DAY_KO = ['일','월','화','수','목','금','토'];
+
+// ── 공휴일 캐시 ──────────────────────────────────────────────────────────────
+const _holCache = {};
+async function fetchHolidays(year) {
+  if (_holCache[year]) return _holCache[year];
+  try {
+    const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`);
+    const data = await r.json();
+    _holCache[year] = new Set(data.map(h => h.date));
+  } catch { _holCache[year] = new Set(); }
+  return _holCache[year];
+}
+
+// ── MiniCalendar ──────────────────────────────────────────────────────────────
+function MiniCalendar({ value, onChange, maxDate }) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => new Date((value || TODAY()) + 'T00:00:00'));
+  const [holidays, setHolidays] = useState(new Set());
+  const wrapRef = useRef(null);
+
+  useEffect(function() {
+    if (!open) return;
+    fetchHolidays(viewDate.getFullYear()).then(function(h) { setHolidays(h); });
+  }, [open, viewDate.getFullYear()]);
+
+  useEffect(function() {
+    if (!open) return;
+    function handler(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return function() { document.removeEventListener('mousedown', handler); };
+  }, [open]);
+
+  const year = viewDate.getFullYear(), month = viewDate.getMonth();
+  const startWd = new Date(year, month, 1).getDay();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const today = TODAY();
+
+  function prevM() { const d = new Date(viewDate); d.setMonth(d.getMonth() - 1); setViewDate(d); }
+  function nextM() { const d = new Date(viewDate); d.setMonth(d.getMonth() + 1); setViewDate(d); }
+
+  function select(ds) {
+    if (maxDate && ds > maxDate) return;
+    onChange(ds);
+    setOpen(false);
+  }
+
+  return (
+    <div className="mcal-wrap" ref={wrapRef}>
+      <button className="mcal-btn" title="달력 선택"
+        onClick={function() { setViewDate(new Date((value || TODAY()) + 'T00:00:00')); setOpen(function(v) { return !v; }); }}>📅</button>
+      {open && (
+        <div className="mcal-popup">
+          <div className="mcal-nav">
+            <button className="mcal-nav-btn" onClick={prevM}>◀</button>
+            <span className="mcal-title">{year}년 {month + 1}월</span>
+            <button className="mcal-nav-btn" onClick={nextM}>▶</button>
+          </div>
+          <div className="mcal-grid">
+            {DAY_KO.map(function(d, i) {
+              return <div key={d} className={'mcal-dh' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '')}>{d}</div>;
+            })}
+            {Array.from({ length: startWd }, function(_, i) { return <div key={'e' + i} className="mcal-day empty" />; })}
+            {Array.from({ length: lastDay }, function(_, i) {
+              const day = i + 1;
+              const ds = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+              const wd = new Date(ds + 'T00:00:00').getDay();
+              const isHol = holidays.has(ds);
+              const isFuture = maxDate && ds > maxDate;
+              const cls = ['mcal-day',
+                (wd === 0 || isHol) ? 'sun' : wd === 6 ? 'sat' : '',
+                ds === today && ds !== value ? 'today' : '',
+                ds === value ? 'selected' : '',
+                isFuture ? 'future' : '',
+              ].filter(Boolean).join(' ');
+              return <div key={day} className={cls} onClick={function() { if (!isFuture) select(ds); }}>{day}</div>;
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 const fmtN = (n) => n ? Number(n).toLocaleString('ko-KR') : '0';
 const fmtD = (d) => {
   if (!d) return '-';
@@ -188,64 +300,93 @@ function FI({ label, field, form, set, type }) {
 
 // ── 업무일지 ──────────────────────────────────────────────────────────────
 function WorklogView({ user }) {
-  const [tab, setTab] = useState('my');
-  const [date, setDate] = useState(TODAY());
-  const [tasks, setTasks] = useState([]);
-  const [tmrw, setTmrw] = useState([]);
+  const { useCallback } = React;
+  const [tab, setTab]       = useState('my');
+  // 내 업무일지
+  const [date, setDate]     = useState(TODAY());
+  const [tasks, setTasks]   = useState([]);
   const [issues, setIssues] = useState('');
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState('');
+  const [msg, setMsg]       = useState('');
   const [loading, setLoading] = useState(false);
-  const [allUsers, setAllUsers] = useState([]);
-  const [allLogs, setAllLogs] = useState([]);
+  // 전체 조회
   const [selDate, setSelDate] = useState(TODAY());
+  const [allUsers, setAllUsers] = useState([]);
+  const [allLogs, setAllLogs]   = useState([]);
+  const [allLoading, setAllLoading] = useState(false);
+
+  // ── 내 업무일지 로드 ──────────────────────────────────────────────────────
+  const loadMyLog = useCallback(async function(d) {
+    setLoading(true);
+    const { data } = await sb.from('work_logs')
+      .select('*').eq('user_id', user.id).eq('log_date', d).maybeSingle();
+    if (data) {
+      setTasks(data.tasks || []);
+      setIssues(data.issues || '');
+    } else {
+      // 빈 날짜 → 전날 진행중 업무 자동 불러오기
+      const prev = new Date(d + 'T00:00:00');
+      prev.setDate(prev.getDate() - 1);
+      const prevDs = localDateStr(prev);
+      const { data: pd } = await sb.from('work_logs')
+        .select('tasks').eq('user_id', user.id).eq('log_date', prevDs).maybeSingle();
+      const pending = pd
+        ? (pd.tasks || []).filter(function(t) { return t.status === '진행중'; })
+            .map(function(t) { return Object.assign({}, t, { id: genId() }); })
+        : [];
+      setTasks(pending);
+      setIssues('');
+    }
+    setLoading(false);
+  }, [user.id]);
 
   useEffect(function() {
-    if (tab !== 'my') return;
-    setLoading(true);
-    sb.from('work_logs').select('*').eq('user_id', user.id).eq('log_date', date).single()
-      .then(function(r) {
-        if (r.data) {
-          setTasks(r.data.tasks || []);
-          setTmrw(r.data.tomorrow_tasks || []);
-          setIssues(r.data.issues || '');
-        } else {
-          setTasks([]); setTmrw([]); setIssues('');
-        }
-        setLoading(false);
-      });
+    if (tab === 'my') loadMyLog(date);
   }, [date, tab]);
 
+  // ── 전체 조회 로드 ────────────────────────────────────────────────────────
   useEffect(function() {
     if (tab !== 'all') return;
-    setLoading(true);
+    setAllLoading(true);
     sb.from('teams').select('id,name').then(function(tr) {
-      var teams = tr.data || [];
-      var mgmt = teams.find(function(t) { return t.name === '관리팀'; });
+      const teams = tr.data || [];
+      const mgmt = teams.find(function(t) { return t.name === '관리팀'; });
       sb.from('users').select('id,name,team_id').then(function(ur) {
-        var filtered = (ur.data || []).filter(function(u) {
+        const filtered = (ur.data || []).filter(function(u) {
           return mgmt && u.team_id === mgmt.id;
         });
         setAllUsers(filtered);
         sb.from('work_logs').select('*').eq('log_date', selDate).then(function(lr) {
           setAllLogs(lr.data || []);
-          setLoading(false);
+          setAllLoading(false);
         });
       });
     });
   }, [tab, selDate]);
 
+  // ── 저장 ──────────────────────────────────────────────────────────────────
   function save() {
     setSaving(true);
     sb.from('work_logs').upsert({
       user_id: user.id, log_date: date,
-      tasks: tasks, tomorrow_tasks: tmrw, issues: issues,
+      tasks: tasks, tomorrow_tasks: [], issues: issues,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,log_date' }).then(function(r) {
       setSaving(false);
       if (!r.error) { setMsg('저장됐습니다'); setTimeout(function() { setMsg(''); }, 2500); }
     });
   }
+
+  // ── 날짜 이동 헬퍼 ────────────────────────────────────────────────────────
+  function shiftDate(ds, dir, setter, max) {
+    const d = new Date(ds + 'T00:00:00');
+    d.setDate(d.getDate() + dir);
+    const next = localDateStr(d);
+    if (max && next > max) return;
+    setter(next);
+  }
+
+  const dayNameOf = (ds) => DAY_KO[new Date(ds + 'T00:00:00').getDay()];
 
   return (
     <div className="page">
@@ -258,66 +399,95 @@ function WorklogView({ user }) {
         <button className={tab === 'all' ? 'itab active' : 'itab'} onClick={function() { setTab('all'); }}>전체 조회</button>
       </div>
 
+      {/* ── 내 업무일지 ── */}
       {tab === 'my' && (
         <div className="card">
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-            <span style={{fontSize:15,fontWeight:800}}>✏️ {user.name}님 업무일지</span>
-            <input type="date" className="fi" value={date} max={TODAY()} onChange={function(e) { setDate(e.target.value); }} style={{width:'auto'}} />
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:8}}>
+            <span style={{fontSize:15,fontWeight:800}}>✏️ {user.name}님 · {fmtDateKo(date)} ({dayNameOf(date)})</span>
+            <div className="wl-date-nav">
+              <button className="wl-date-btn" onClick={function() { shiftDate(date, -1, setDate, null); }}>◀</button>
+              <input type="date" className="fi" value={date} max={TODAY()}
+                onChange={function(e) { setDate(e.target.value); }}
+                style={{width:'auto',maxWidth:140}} />
+              <MiniCalendar value={date} maxDate={TODAY()} onChange={setDate} />
+              <button className="wl-date-btn" onClick={function() { shiftDate(date, 1, setDate, TODAY()); }}
+                disabled={date >= TODAY()}>▶</button>
+              {date !== TODAY() && (
+                <button className="wl-today-btn" onClick={function() { setDate(TODAY()); }}>오늘</button>
+              )}
+            </div>
           </div>
+
           {loading ? <div className="loading">불러오는 중...</div> : (
             <div>
+              {/* 오늘 한 일 */}
               <div className="sh">
                 <span className="st">오늘 한 일</span>
-                <button className="btn btn-s btn-sm" onClick={function() { setTasks(function(p) { return p.concat([{id:genId(),content:'',status:'진행중'}]); }); }}>+ 추가</button>
+                <button className="btn btn-s btn-sm" onClick={function() {
+                  setTasks(function(p) { return p.concat([{id:genId(),content:'',status:'진행중'}]); });
+                }}>+ 추가</button>
               </div>
               {tasks.length === 0 && <div style={{color:'#94a3b8',fontSize:13,marginBottom:12}}>업무를 추가하세요.</div>}
               {tasks.map(function(t) {
                 return (
                   <div key={t.id} className="tr-row">
-                    <select className="ss" value={t.status} onChange={function(e) { setTasks(function(p) { return p.map(function(x) { return x.id === t.id ? Object.assign({},x,{status:e.target.value}) : x; }); }); }}>
+                    <select className="ss" value={t.status} onChange={function(e) {
+                      setTasks(function(p) { return p.map(function(x) { return x.id === t.id ? Object.assign({},x,{status:e.target.value}) : x; }); });
+                    }}>
                       {WSTATUS.map(function(s) { return <option key={s}>{s}</option>; })}
                     </select>
                     <input className="ti" value={t.content} placeholder="업무 내용"
-                      onChange={function(e) { setTasks(function(p) { return p.map(function(x) { return x.id === t.id ? Object.assign({},x,{content:e.target.value}) : x; }); }); }} />
-                    <button className="btn btn-d btn-sm" onClick={function() { setTasks(function(p) { return p.filter(function(x) { return x.id !== t.id; }); }); }}>✕</button>
+                      onChange={function(e) {
+                        setTasks(function(p) { return p.map(function(x) { return x.id === t.id ? Object.assign({},x,{content:e.target.value}) : x; }); });
+                      }} />
+                    <button className="btn btn-d btn-sm" onClick={function() {
+                      setTasks(function(p) { return p.filter(function(x) { return x.id !== t.id; }); });
+                    }}>✕</button>
                   </div>
                 );
               })}
-              <div className="sh" style={{marginTop:12}}>
-                <span className="st">내일 할 일</span>
-                <button className="btn btn-s btn-sm" onClick={function() { setTmrw(function(p) { return p.concat([{id:genId(),content:''}]); }); }}>+ 추가</button>
+
+              {/* 이슈 / 공유사항 */}
+              <div style={{marginTop:16}}>
+                <div className="st" style={{marginBottom:8}}>💬 공유 사항 / 이슈</div>
+                <textarea className="fi" rows={3} value={issues}
+                  placeholder="공유할 사항이나 이슈를 입력하세요"
+                  onChange={function(e) { setIssues(e.target.value); }}
+                  style={{resize:'vertical'}} />
               </div>
-              {tmrw.length === 0 && <div style={{color:'#94a3b8',fontSize:13,marginBottom:12}}>내일 예정 업무를 추가하세요.</div>}
-              {tmrw.map(function(t) {
-                return (
-                  <div key={t.id} className="tr-row">
-                    <input className="ti" value={t.content} placeholder="업무 내용"
-                      onChange={function(e) { setTmrw(function(p) { return p.map(function(x) { return x.id === t.id ? Object.assign({},x,{content:e.target.value}) : x; }); }); }} />
-                    <button className="btn btn-d btn-sm" onClick={function() { setTmrw(function(p) { return p.filter(function(x) { return x.id !== t.id; }); }); }}>✕</button>
-                  </div>
-                );
-              })}
-              <div style={{marginTop:12}}>
-                <div className="st" style={{marginBottom:8}}>공유 사항 / 이슈</div>
-                <textarea className="fi" rows={3} value={issues} placeholder="공유할 사항이나 이슈를 입력하세요" onChange={function(e) { setIssues(e.target.value); }} style={{resize:'vertical'}} />
-              </div>
+
               <div className="sr">
                 {msg && <span style={{fontSize:12,color:'#059669',fontWeight:600}}>✓ {msg}</span>}
-                <button className="btn btn-p" onClick={save} disabled={saving}>{saving ? '저장 중...' : '💾 저장'}</button>
+                <button className="btn btn-p" onClick={save} disabled={saving}>
+                  {saving ? '저장 중...' : '💾 저장'}
+                </button>
               </div>
             </div>
           )}
         </div>
       )}
 
+      {/* ── 전체 조회 ── */}
       {tab === 'all' && (
         <div className="card">
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-            <span style={{fontSize:15,fontWeight:800}}>👥 관리팀 전체</span>
-            <input type="date" className="fi" value={selDate} max={TODAY()} onChange={function(e) { setSelDate(e.target.value); }} style={{width:'auto'}} />
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:8}}>
+            <span style={{fontSize:15,fontWeight:800}}>👥 관리팀 전체 · {fmtDateKo(selDate)} ({dayNameOf(selDate)})</span>
+            <div className="wl-date-nav">
+              <button className="wl-date-btn" onClick={function() { shiftDate(selDate, -1, setSelDate, null); }}>◀</button>
+              <input type="date" className="fi" value={selDate} max={TODAY()}
+                onChange={function(e) { setSelDate(e.target.value); }}
+                style={{width:'auto',maxWidth:140}} />
+              <MiniCalendar value={selDate} maxDate={TODAY()} onChange={setSelDate} />
+              <button className="wl-date-btn" onClick={function() { shiftDate(selDate, 1, setSelDate, TODAY()); }}
+                disabled={selDate >= TODAY()}>▶</button>
+              {selDate !== TODAY() && (
+                <button className="wl-today-btn" onClick={function() { setSelDate(TODAY()); }}>오늘</button>
+              )}
+            </div>
           </div>
-          {loading ? <div className="loading">불러오는 중...</div> : allUsers.map(function(u) {
-            var log = allLogs.find(function(l) { return l.user_id === u.id; });
+
+          {allLoading ? <div className="loading">불러오는 중...</div> : allUsers.map(function(u) {
+            const log = allLogs.find(function(l) { return l.user_id === u.id; });
             return (
               <div key={u.id} className="lc">
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -340,12 +510,19 @@ function WorklogView({ user }) {
                         </div>
                       );
                     })}
-                    {log.issues && <div style={{marginTop:8,padding:'6px 10px',background:'#fef3c7',borderRadius:6,fontSize:12,color:'#92400e'}}>💬 {log.issues}</div>}
+                    {log.issues && (
+                      <div style={{marginTop:8,padding:'6px 10px',background:'#fef3c7',borderRadius:6,fontSize:12,color:'#92400e'}}>
+                        💬 {log.issues}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             );
           })}
+          {!allLoading && allUsers.length === 0 && (
+            <div style={{color:'#94a3b8',fontSize:13,textAlign:'center',padding:'20px 0'}}>관리팀 직원 정보를 불러오는 중...</div>
+          )}
         </div>
       )}
     </div>
@@ -1165,7 +1342,6 @@ const SysBar = Sysbar.createComponent(React);
 function App() {
   var initialUser = (function() {
     try {
-      Sysbar.SessionManager.checkOnLoad();
       var raw = localStorage.getItem('kwanbo_session');
       if (!raw) return null;
       var v = JSON.parse(raw);
@@ -1186,6 +1362,9 @@ function App() {
 
   useEffect(function() {
     if (initialUser) return;
+    // checkOnLoad: 렌더 후 실행 (Babel 컴파일 완료 이후 → NAV_WINDOW 오인 방지)
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { setUser(null); return; }
     var raw = localStorage.getItem('kwanbo_session');
     if (!raw) { setSsoChecked(true); return; }
     try {
@@ -1206,9 +1385,12 @@ function App() {
     } catch(e) { setSsoChecked(true); }
   }, []);
 
-  // localStorage에서 바로 복원된 경우 SessionManager 시작
+  // localStorage에서 바로 복원된 경우 checkOnLoad + SessionManager 시작
   useEffect(function() {
-    if (initialUser && ssoChecked) { Sysbar.SessionManager.onLogin(function() { logout(); }); }
+    if (!initialUser) return;
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { logout(); return; }
+    if (ssoChecked) { Sysbar.SessionManager.onLogin(function() { logout(); }); }
   }, []);
 
   useEffect(function() {
