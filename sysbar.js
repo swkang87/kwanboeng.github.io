@@ -56,16 +56,15 @@
   }
 
   // ── SessionManager ─────────────────────────────────────────
-  // 브라우저 닫힘 감지 + 1시간 자동 로그아웃
+  // 1시간 비활동 자동 로그아웃 + 브라우저/컴퓨터 재시작 후 만료 체크
   var SessionManager = (function() {
-    var TABS_KEY    = 'kwanbo_tabs';
-    var CLOSE_KEY   = 'kwanbo_close_ts';
-    var ACTIVE_KEY  = 'kwanbo_last_active';
-    var NAV_KEY     = 'kwanbo_nav_ts';     // localStorage 타임스탬프
-    var NAV_WINDOW  = 15000;              // 15초 이내면 페이지 이동으로 판단 (Babel 컴파일 시간 고려)
-    var TIMEOUT_MS  = 60 * 60 * 1000;     // 1시간
-    var WARN_MS     = 55 * 60 * 1000;     // 55분 (5분 전 경고)
-    var THROTTLE_MS = 30 * 1000;          // 활동감지 30초 쓰로틀
+    var ACTIVE_KEY  = 'kwanbo_last_active';  // 마지막 활동 시각
+    var LOGIN_KEY   = 'kwanbo_login_ts';     // 로그인 시각 (세션 생성 시 기록)
+    var NAV_KEY     = 'kwanbo_nav_ts';       // 페이지 이동 타임스탬프
+    var NAV_WINDOW  = 15000;                 // 15초 이내 = 페이지 이동 (Babel 컴파일 고려)
+    var TIMEOUT_MS  = 60 * 60 * 1000;       // 1시간 비활동 시 로그아웃
+    var WARN_MS     = 55 * 60 * 1000;       // 55분 경과 시 경고
+    var THROTTLE_MS = 30 * 1000;            // 활동감지 30초 쓰로틀
 
     var _timer      = null;
     var _lastTouch  = 0;
@@ -73,28 +72,6 @@
     var _registered = false;
     var _logoutCb   = null;
 
-    function _getTabId() {
-      var id = sessionStorage.getItem('kwanbo_tab_id');
-      if (!id) {
-        id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-        sessionStorage.setItem('kwanbo_tab_id', id);
-      }
-      return id;
-    }
-    function _getTabs() {
-      try { return JSON.parse(localStorage.getItem(TABS_KEY) || '[]'); } catch(e) { return []; }
-    }
-    function _addTab() {
-      var id = _getTabId(), tabs = _getTabs();
-      if (tabs.indexOf(id) === -1) tabs.push(id);
-      localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
-    }
-    function _removeTab() {
-      var id = _getTabId();
-      var tabs = _getTabs().filter(function(t) { return t !== id; });
-      localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
-      if (tabs.length === 0) localStorage.setItem(CLOSE_KEY, Date.now().toString());
-    }
     function _touch() {
       var now = Date.now();
       if (now - _lastTouch < THROTTLE_MS) return;
@@ -106,6 +83,7 @@
         if (t) t.remove();
       }
     }
+
     function _showWarn(min) {
       if (_warnShown) return;
       _warnShown = true;
@@ -118,14 +96,16 @@
       el.addEventListener('click', function() { _touch(); el.remove(); _warnShown = false; });
       document.body.appendChild(el);
     }
+
     function _startWatching(cb) {
       _logoutCb = cb;
-      ['click','keydown','scroll','touchstart'].forEach(function(ev) {
+      ['click', 'keydown', 'scroll', 'touchstart'].forEach(function(ev) {
         document.addEventListener(ev, _touch, { passive: true, capture: true });
       });
       _timer = setInterval(function() {
         if (!localStorage.getItem(SESSION_KEY)) { _stop(); return; }
-        var lastActive = parseInt(localStorage.getItem(ACTIVE_KEY) || Date.now());
+        var lastActive = parseInt(localStorage.getItem(ACTIVE_KEY) || '0');
+        if (lastActive === 0) return; // 아직 _touch 미실행 시 무시
         var elapsed = Date.now() - lastActive;
         if (elapsed >= TIMEOUT_MS) {
           _stop();
@@ -137,43 +117,45 @@
         }
       }, 60000);
     }
+
     function _stop() {
       if (_timer) { clearInterval(_timer); _timer = null; }
       _registered = false;
+      _warnShown = false;
+    }
+
+    function _isExpired() {
+      // 마지막 활동 시각 기준으로 1시간 초과 여부 확인
+      // ACTIVE_KEY 없으면 LOGIN_KEY 기준으로 체크 (첫 페이지 진입 등)
+      var lastActive = parseInt(localStorage.getItem(ACTIVE_KEY) || '0');
+      var loginTs    = parseInt(localStorage.getItem(LOGIN_KEY)  || '0');
+      var base = lastActive > 0 ? lastActive : loginTs;
+      if (base === 0) return false; // 기준값 없으면 만료 아님
+      return (Date.now() - base) > TIMEOUT_MS;
     }
 
     return {
-      // 페이지 로드 초입에 호출 — true: 세션 무효(로그아웃) / false: 유효
+      // 페이지 로드 시 호출 — true: 만료(로그아웃) / false: 유효
       checkOnLoad: function() {
         if (!localStorage.getItem(SESSION_KEY)) return false;
 
-        // 페이지 이동인지 확인 — NAV_KEY가 3초 이내면 같은 탭 내 이동
+        // 페이지 이동 여부 확인 (15초 이내 = 같은 탭 내 이동)
         var navTs = parseInt(localStorage.getItem(NAV_KEY) || '0');
         var isNav = navTs > 0 && (Date.now() - navTs) < NAV_WINDOW;
         if (isNav) {
           localStorage.removeItem(NAV_KEY);
-          _addTab();
           return false;
         }
 
-        // 탭 없음 + 마지막 닫힘이 1초 이상 전 → 브라우저 닫혔던 것
-        var tabs = _getTabs();
-        var closeTs = parseInt(localStorage.getItem(CLOSE_KEY) || '0');
-        if (tabs.length === 0 && closeTs > 0 && (Date.now() - closeTs) > 1000) {
+        // 브라우저/컴퓨터 재시작 후 → 1시간 초과 여부 체크
+        if (_isExpired()) {
           localStorage.removeItem(SESSION_KEY);
-          localStorage.removeItem(CLOSE_KEY);
           localStorage.removeItem(ACTIVE_KEY);
+          localStorage.removeItem(LOGIN_KEY);
           localStorage.removeItem(NAV_KEY);
-          return true;
+          return true; // 만료 → 로그아웃
         }
 
-        // 비활동 1시간 초과
-        var lastActive = parseInt(localStorage.getItem(ACTIVE_KEY) || '0');
-        if (lastActive > 0 && (Date.now() - lastActive) > TIMEOUT_MS) {
-          localStorage.removeItem(SESSION_KEY);
-          localStorage.removeItem(ACTIVE_KEY);
-          return true;
-        }
         return false;
       },
 
@@ -181,20 +163,26 @@
       onLogin: function(logoutCb) {
         if (_registered) { _logoutCb = logoutCb; return; }
         _registered = true;
-        _addTab();
+
+        // 로그인 시각 기록 (ACTIVE_KEY 없을 때 기준값으로 사용)
+        if (!localStorage.getItem(LOGIN_KEY)) {
+          localStorage.setItem(LOGIN_KEY, Date.now().toString());
+        }
+
         _startWatching(logoutCb);
-        _touch();
+        _touch(); // 즉시 활동 시각 기록
+
+        // 페이지 이동 시 NAV_KEY 타임스탬프 찍기
         window.addEventListener('beforeunload', function() {
-          localStorage.setItem(NAV_KEY, Date.now().toString()); // 페이지 이동 타임스탬프
-          _removeTab();
+          localStorage.setItem(NAV_KEY, Date.now().toString());
         });
       },
 
       // 로그아웃 시 호출
       onLogout: function() {
         _stop();
-        _removeTab();
         localStorage.removeItem(ACTIVE_KEY);
+        localStorage.removeItem(LOGIN_KEY);
         localStorage.removeItem(NAV_KEY);
         var el = document.getElementById('kwanbo-timeout-toast');
         if (el) el.remove();
