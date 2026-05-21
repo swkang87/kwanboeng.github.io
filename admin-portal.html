@@ -305,6 +305,9 @@ const fmtD = (d) => {
 const genId = () => Math.random().toString(36).slice(2, 10);
 const WSTATUS = ['완료','진행중','보류'];
 const SCLS = { '완료':'bg','진행중':'bb','보류':'ba' };
+const CAT_COLOR = { '관급': '#2563eb', '사급': '#059669', '기술지원': '#d97706' };
+const CAT_BG    = { '관급': '#dbeafe', '사급': '#dcfce7', '기술지원': '#fef3c7' };
+const CAT_TX    = { '관급': '#1e40af', '사급': '#15803d', '기술지원': '#92400e' };
 
 const fmtShort = (ds) => { const d = new Date(ds + 'T00:00:00'); return (d.getMonth()+1) + '/' + d.getDate(); };
 
@@ -954,7 +957,7 @@ function PerfView({ user }) {
   function load() {
     setLoading(true);
     Promise.all([
-      sb.from('projects').select('id,name,client,pm_id,status').order('name'),
+      sb.from('projects').select('id,name,client,pm_id,status,category').order('name'),
       sb.from('users').select('id,name').neq('role','contractor').order('name'),
       sb.from('collections').select('*').order('collected_at', { ascending: false }),
       sb.from('performance').select('*'),
@@ -1063,7 +1066,6 @@ function PerfView({ user }) {
                   year: colYear,
                 }).then(function() {
                   setModal(''); setEditItem(null); setForm({});
-                  changeTab('pf');
                   load();
                 });
               } else {
@@ -1133,7 +1135,24 @@ function PerfView({ user }) {
                     var net   = (c.amount||0) - (c.outsource_cost||0);
                     return (
                       <tr key={c.id} style={{background: isOut ? '#fff5f5' : ''}}>
-                        <td><span style={{fontWeight:600}}>{pName(c.project_id)}</span></td>
+                        <td>
+                          {(function(){
+                            var proj = projects.find(function(p){ return p.id === c.project_id; });
+                            var cat  = proj ? proj.category : '';
+                            return (
+                              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                                {cat && (
+                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                    background: CAT_BG[cat]||'#f1f5f9', color: CAT_TX[cat]||'#475569',
+                                    border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0')}}>
+                                    {cat}
+                                  </span>
+                                )}
+                                <span style={{fontWeight:600}}>{pName(c.project_id)}</span>
+                              </div>
+                            );
+                          })()}
+                        </td>
                         <td>{fmtD(c.collected_at)}</td>
                         <td>
                           {isOut
@@ -1174,7 +1193,18 @@ function PerfView({ user }) {
                   {projSummary.map(function(p) {
                     return (
                       <tr key={p.id}>
-                        <td style={{fontWeight:600}}>{p.name}</td>
+                        <td style={{fontWeight:600}}>
+                          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                            {p.category && (
+                              <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                background: CAT_BG[p.category]||'#f1f5f9', color: CAT_TX[p.category]||'#475569',
+                                border:'1px solid '+(CAT_COLOR[p.category]||'#e2e8f0')}}>
+                                {p.category}
+                              </span>
+                            )}
+                            {p.name}
+                          </div>
+                        </td>
                         <td style={{color:'#64748b',fontSize:12}}>{p.client||'-'}</td>
                         <td>{uName(p.pm_id)}</td>
                         <td className="tr">{fmtN(p.tc)}원</td>
