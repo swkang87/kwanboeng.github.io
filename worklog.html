@@ -367,6 +367,8 @@ const DAY_KR = ['일','월','화','수','목','금','토'];
 // ─── UTILS ─────────────────────────────────────────────────────────────────
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
+const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
 const fmtDate = (d) => {
   const dt = new Date(d + 'T00:00:00');
   return `${dt.getFullYear()}년 ${dt.getMonth()+1}월 ${dt.getDate()}일`;
@@ -386,7 +388,7 @@ const getWeekDates = (dateStr) => {
   return Array.from({ length: 5 }, (_, i) => {
     const dd = new Date(mon);
     dd.setDate(mon.getDate() + i);
-    return dd.toISOString().split('T')[0];
+    return localDateStr(dd);
   });
 };
 
@@ -397,15 +399,102 @@ const getMonthInfo = (dateStr) => {
   const last  = new Date(y, m + 1, 0);
   return {
     year: y, month: m,
-    firstDate: first.toISOString().split('T')[0],
-    lastDate:  last.toISOString().split('T')[0],
+    firstDate: localDateStr(first),
+    lastDate:  localDateStr(last),
     days: last.getDate(),
     startWeekday: first.getDay(),
   };
 };
 
+// ─── 공휴일 캐시 ───────────────────────────────────────────────────────────
+const _holCache = {};
+async function fetchHolidays(year) {
+  if (_holCache[year]) return _holCache[year];
+  try {
+    const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`);
+    const data = await r.json();
+    _holCache[year] = new Set(data.map(h => h.date));
+  } catch(e) { _holCache[year] = new Set(); }
+  return _holCache[year];
+}
 
-const genId = () => Math.random().toString(36).slice(2, 10);
+// ─── MINI CALENDAR ─────────────────────────────────────────────────────────
+function MiniCalendar({ value, onChange, maxDate }) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => new Date((value || todayStr()) + 'T00:00:00'));
+  const [holidays, setHolidays] = useState(new Set());
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    fetchHolidays(viewDate.getFullYear()).then(h => setHolidays(h));
+  }, [open, viewDate.getFullYear()]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const yr = viewDate.getFullYear(), mo = viewDate.getMonth();
+  const startWd = new Date(yr, mo, 1).getDay();
+  const lastDay = new Date(yr, mo + 1, 0).getDate();
+  const today = todayStr();
+
+  const prevM = () => { const d = new Date(viewDate); d.setMonth(d.getMonth() - 1); setViewDate(d); };
+  const nextM = () => { const d = new Date(viewDate); d.setMonth(d.getMonth() + 1); setViewDate(d); };
+
+  const select = (ds) => {
+    if (maxDate && ds > maxDate) return;
+    onChange(ds);
+    setOpen(false);
+  };
+
+  return (
+    <div className="mcal-wrap" ref={wrapRef} style={{position:'relative',display:'inline-block'}}>
+      <button className="date-nav-btn" title="달력 선택"
+        onClick={() => { setViewDate(new Date((value || todayStr()) + 'T00:00:00')); setOpen(v => !v); }}
+        style={{padding:'4px 8px',fontSize:14}}>📅</button>
+      {open && (
+        <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,zIndex:500,background:'#fff',
+          border:'1.5px solid #e2e8f0',borderRadius:12,boxShadow:'0 8px 32px rgba(0,0,0,.18)',
+          padding:12,minWidth:260}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+            <button className="date-nav-btn" onClick={prevM}>◀</button>
+            <span style={{fontSize:14,fontWeight:800,color:'#0f172a'}}>{yr}년 {mo+1}월</span>
+            <button className="date-nav-btn" onClick={nextM}>▶</button>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2}}>
+            {DAY_KR.map((d,i) => (
+              <div key={d} style={{textAlign:'center',fontSize:11,fontWeight:700,padding:'4px 0',
+                color: i===0?'#dc2626':i===6?'#2563eb':'#64748b'}}>{d}</div>
+            ))}
+            {Array.from({length:startWd},(_,i) => <div key={'e'+i} />)}
+            {Array.from({length:lastDay},(_,i) => {
+              const day = i+1;
+              const ds = yr+'-'+String(mo+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+              const wd = new Date(ds+'T00:00:00').getDay();
+              const isHol = holidays.has(ds);
+              const isFuture = maxDate && ds > maxDate;
+              const isToday = ds === today;
+              const isSel = ds === value;
+              return (
+                <div key={day} onClick={() => !isFuture && select(ds)}
+                  style={{textAlign:'center',fontSize:12,padding:'5px 2px',borderRadius:6,cursor:isFuture?'default':'pointer',
+                    fontWeight:500,opacity:isFuture?0.3:1,
+                    background: isSel?'#0f172a':isToday?'#7c3aed':'transparent',
+                    color: isSel||isToday?'#fff':(wd===0||isHol)?'#dc2626':wd===6?'#2563eb':'#0f172a'}}>
+                  {day}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const roleLabel = (r) => r === 'admin' ? '관리자' : r === 'manager' ? '팀장' : '팀원';
 
@@ -499,7 +588,6 @@ function TaskItem({ task, onChange, onDelete, showStatus }) {
 function MyLogView({ user, canWrite }) {
   const [date, setDate]     = useState(todayStr());
   const [tasks, setTasks]   = useState([]);
-  const [tmrw, setTmrw]     = useState([]);
   const [issues, setIssues] = useState('');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -511,10 +599,19 @@ function MyLogView({ user, canWrite }) {
       .select('*').eq('user_id', user.id).eq('log_date', d).maybeSingle();
     if (data) {
       setTasks(data.tasks || []);
-      setTmrw(data.tomorrow_tasks || []);
       setIssues(data.issues || '');
     } else {
-      setTasks([]); setTmrw([]); setIssues('');
+      // 빈 날짜 → 전날 진행중 업무 자동 불러오기
+      const prev = new Date(d + 'T00:00:00');
+      prev.setDate(prev.getDate() - 1);
+      const prevDs = localDateStr(prev);
+      const { data: pd } = await sb.from('work_logs')
+        .select('tasks').eq('user_id', user.id).eq('log_date', prevDs).maybeSingle();
+      const pending = pd
+        ? (pd.tasks || []).filter(t => t.status === '진행중').map(t => ({ ...t, id: genId() }))
+        : [];
+      setTasks(pending);
+      setIssues('');
     }
     setLoading(false);
   }, [user.id]);
@@ -527,7 +624,7 @@ function MyLogView({ user, canWrite }) {
       user_id: user.id,
       log_date: date,
       tasks,
-      tomorrow_tasks: tmrw,
+      tomorrow_tasks: [],
       issues,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,log_date' });
@@ -541,21 +638,18 @@ function MyLogView({ user, canWrite }) {
   const prevDay = () => {
     const d = new Date(date + 'T00:00:00');
     d.setDate(d.getDate() - 1);
-    setDate(d.toISOString().split('T')[0]);
+    setDate(localDateStr(d));
   };
   const nextDay = () => {
     const d = new Date(date + 'T00:00:00');
     d.setDate(d.getDate() + 1);
-    const next = d.toISOString().split('T')[0];
+    const next = localDateStr(d);
     if (next <= todayStr()) setDate(next);
   };
 
-  const addTask  = () => setTasks(p => [...p, { id: genId(), content: '', status: '진행중' }]);
-  const updTask  = (id, t) => setTasks(p => p.map(x => x.id === id ? t : x));
-  const delTask  = (id) => setTasks(p => p.filter(x => x.id !== id));
-  const addTmrw  = () => setTmrw(p => [...p, { id: genId(), content: '' }]);
-  const updTmrw  = (id, t) => setTmrw(p => p.map(x => x.id === id ? t : x));
-  const delTmrw  = (id) => setTmrw(p => p.filter(x => x.id !== id));
+  const addTask = () => setTasks(p => [...p, { id: genId(), content: '', status: '진행중' }]);
+  const updTask = (id, t) => setTasks(p => p.map(x => x.id === id ? t : x));
+  const delTask = (id) => setTasks(p => p.filter(x => x.id !== id));
 
   const isToday = date === todayStr();
   const dayName = DAY_KR[new Date(date + 'T00:00:00').getDay()];
@@ -571,6 +665,7 @@ function MyLogView({ user, canWrite }) {
           <button className="date-nav-btn" onClick={prevDay}>◀</button>
           <input className="date-input" type="date" value={date}
             max={todayStr()} onChange={e => setDate(e.target.value)} />
+          <MiniCalendar value={date} maxDate={todayStr()} onChange={setDate} />
           <button className="date-nav-btn" onClick={nextDay} disabled={isToday}>▶</button>
           {!isToday && <button className="today-btn" onClick={() => setDate(todayStr())}>오늘</button>}
         </div>
@@ -589,23 +684,6 @@ function MyLogView({ user, canWrite }) {
                 {tasks.map(t => (
                   <TaskItem key={t.id} task={t} showStatus={true}
                     onChange={u => updTask(t.id, u)} onDelete={() => delTask(t.id)} />
-                ))}
-              </div>
-          }
-        </div>
-
-        {/* 내일 할 일 */}
-        <div className="log-section">
-          <div className="sec-header">
-            <div className="sec-title"><span className="sec-icon">📋</span>내일 할 일</div>
-            <button className="add-btn" onClick={addTmrw}>+ 업무 추가</button>
-          </div>
-          {tmrw.length === 0
-            ? <div className="empty-hint">내일 예정 업무를 추가하세요.</div>
-            : <div className="task-list">
-                {tmrw.map(t => (
-                  <TaskItem key={t.id} task={t} showStatus={false}
-                    onChange={u => updTmrw(t.id, u)} onDelete={() => delTmrw(t.id)} />
                 ))}
               </div>
           }
