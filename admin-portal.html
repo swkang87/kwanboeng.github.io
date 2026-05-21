@@ -946,6 +946,8 @@ function PerfView({ user }) {
   var [users, setUsers] = useState([]);
   var [cols, setCols] = useState([]);
   var [perfs, setPerfs] = useState([]);
+  var [contracts, setContracts] = useState([]);
+  var [expectedCols, setExpectedCols] = useState([]);
   var [loading, setLoading] = useState(true);
   var [modal, setModal] = useState('');
   var [editItem, setEditItem] = useState(null);
@@ -957,15 +959,19 @@ function PerfView({ user }) {
   function load() {
     setLoading(true);
     Promise.all([
-      sb.from('projects').select('id,name,client,pm_id,status,category').order('name'),
+      sb.from('projects').select('id,name,client,pm_id,status,category,end_date').order('name'),
       sb.from('users').select('id,name').neq('role','contractor').order('name'),
       sb.from('collections').select('*').order('collected_at', { ascending: false }),
       sb.from('performance').select('*'),
+      sb.from('contracts').select('*'),
+      sb.from('expected_collections').select('*').order('expected_date', { ascending: true }),
     ]).then(function(results) {
       setProjects(results[0].data || []);
       setUsers(results[1].data || []);
       setCols(results[2].data || []);
       setPerfs(results[3].data || []);
+      setContracts(results[4].data || []);
+      setExpectedCols(results[5].data || []);
       setLoading(false);
     });
   }
@@ -1112,6 +1118,8 @@ function PerfView({ user }) {
         <button className={tab==='proj'?'itab active':'itab'} onClick={function(){changeTab('proj');}}>프로젝트별</button>
         <button className={tab==='user'?'itab active':'itab'} onClick={function(){changeTab('user');}}>직원별 실적</button>
         <button className={tab==='pf'?'itab active':'itab'} onClick={function(){changeTab('pf');}}>기여율 관리</button>
+        <button className={tab==='contract'?'itab active':'itab'} onClick={function(){changeTab('contract');}}>계약/잔금</button>
+        <button className={tab==='expected'?'itab active':'itab'} onClick={function(){changeTab('expected');}}>예상수금</button>
       </div>
 
       {tab === 'col' && (
@@ -1361,6 +1369,355 @@ function PerfView({ user }) {
         </div>
       )}
 
+      {/* ── 계약/잔금 탭 ── */}
+      {tab === 'contract' && (function() {
+        var activeProjects = projects.filter(function(p) { return p.status !== '완료'; });
+        var allProjects = projects;
+
+        function getContract(pid) { return contracts.find(function(c){ return c.project_id === pid; }); }
+        function getTotalCol(pid) {
+          return cols.filter(function(c){ return c.project_id === pid; })
+            .reduce(function(s,c){ return s + (c.amount||0); }, 0);
+        }
+        function getTotalOut(pid) {
+          return cols.filter(function(c){ return c.project_id === pid; })
+            .reduce(function(s,c){ return s + (c.outsource_cost||0); }, 0);
+        }
+
+        var rows = allProjects
+          .filter(function(p){ return getContract(p.id) || p.status !== '완료'; })
+          .map(function(p){
+            var ct = getContract(p.id);
+            var contractAmt = ct ? (ct.amount||0) : 0;
+            var totalCol = getTotalCol(p.id);
+            var totalOut = getTotalOut(p.id);
+            var netCol   = totalCol - totalOut;
+            var remain   = contractAmt - netCol;
+            var pct      = contractAmt > 0 ? Math.min(100, Math.round(netCol / contractAmt * 100)) : 0;
+            return { p:p, ct:ct, contractAmt:contractAmt, netCol:netCol, remain:remain, pct:pct };
+          })
+          .sort(function(a,b){
+            var catOrd = function(c){ return c==='사급'?0:c==='관급'?1:2; };
+            return catOrd(a.p.category) - catOrd(b.p.category) || a.p.name.localeCompare(b.p.name, 'ko');
+          });
+
+        var totalContract = rows.reduce(function(s,r){ return s + r.contractAmt; }, 0);
+        var totalNetCol   = rows.reduce(function(s,r){ return s + r.netCol; }, 0);
+        var totalRemain   = rows.reduce(function(s,r){ return s + r.remain; }, 0);
+
+        return (
+          <div className="card">
+            <div className="sh">
+              <span className="st">계약/잔금 현황</span>
+              <span style={{fontSize:12,color:'#94a3b8'}}>계약금액 클릭 시 입력/수정</span>
+            </div>
+            {/* 요약 */}
+            <div className="g3" style={{marginBottom:16}}>
+              <div className="stat blue"><div className="stat-l">총 계약금액</div><div className="stat-v">{fmtN(totalContract)}</div><div className="stat-s">원</div></div>
+              <div className="stat green"><div className="stat-l">누적 순수금</div><div className="stat-v">{fmtN(totalNetCol)}</div><div className="stat-s">원</div></div>
+              <div className="stat purple"><div className="stat-l">총 잔금</div><div className="stat-v">{fmtN(totalRemain)}</div><div className="stat-s">원</div></div>
+            </div>
+            <div className="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>용역명</th>
+                    <th>상태</th>
+                    <th className="tr">계약금액</th>
+                    <th className="tr">순 수금액</th>
+                    <th className="tr">잔금</th>
+                    <th style={{width:100}}>수금률</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(function(r) {
+                    var p = r.p;
+                    var isCompleted = p.status === '완료';
+                    return (
+                      <tr key={p.id} style={{opacity: isCompleted ? 0.6 : 1, background: isCompleted ? '#fafafa' : ''}}>
+                        <td>
+                          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                            {p.category && (
+                              <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                background:CAT_BG[p.category]||'#f1f5f9',color:CAT_TX[p.category]||'#475569',
+                                border:'1px solid '+(CAT_COLOR[p.category]||'#e2e8f0')}}>{p.category}</span>
+                            )}
+                            <span style={{fontWeight:600,fontSize:13}}>{p.name}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={p.status==='완료'?'badge bg':p.status==='중지'?'badge ba':'badge bb'}
+                            style={{fontSize:10}}>{p.status}</span>
+                        </td>
+                        <td className="tr">
+                          <span style={{fontWeight:700,color:'#1d4ed8',cursor:'pointer',textDecoration:'underline',textUnderlineOffset:2}}
+                            onClick={function(){
+                              setEditItem(r.ct || {project_id:p.id});
+                              setForm({project_id:p.id, amount:r.ct?fmtN(r.ct.amount):'', memo:r.ct?r.ct.memo:''});
+                              setModal('contract');
+                            }}>
+                            {r.contractAmt > 0 ? fmtN(r.contractAmt)+'원' : '+ 입력'}
+                          </span>
+                        </td>
+                        <td className="tr" style={{color:'#059669',fontWeight:600}}>{fmtN(r.netCol)}원</td>
+                        <td className="tr" style={{fontWeight:700,color:r.remain<0?'#dc2626':r.remain===0?'#94a3b8':'#7c3aed'}}>
+                          {r.remain < 0 ? '초과 '+fmtN(Math.abs(r.remain)) : fmtN(r.remain)}원
+                        </td>
+                        <td>
+                          {r.contractAmt > 0 ? (
+                            <div style={{display:'flex',alignItems:'center',gap:6}}>
+                              <div style={{flex:1,height:6,background:'#e2e8f0',borderRadius:3,overflow:'hidden'}}>
+                                <div style={{width:r.pct+'%',height:'100%',background:r.pct>=100?'#059669':'#7c3aed',borderRadius:3}}></div>
+                              </div>
+                              <span style={{fontSize:11,fontWeight:700,color:r.pct>=100?'#059669':'#7c3aed',minWidth:28}}>{r.pct}%</span>
+                            </div>
+                          ) : <span style={{color:'#cbd5e1',fontSize:12}}>—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── 예상수금 탭 ── */}
+      {tab === 'expected' && (function() {
+        var today = TODAY();
+        var upcoming = expectedCols.filter(function(e){ return !e.is_done; })
+          .sort(function(a,b){ return a.expected_date.localeCompare(b.expected_date); });
+        var done = expectedCols.filter(function(e){ return e.is_done; })
+          .sort(function(a,b){ return b.expected_date.localeCompare(a.expected_date); });
+        var totalUpcoming = upcoming.reduce(function(s,e){ return s + (e.amount||0); }, 0);
+        var overdueList = upcoming.filter(function(e){ return e.expected_date < today; });
+        var overdueAmt  = overdueList.reduce(function(s,e){ return s + (e.amount||0); }, 0);
+
+        function markDone(e) {
+          if (!window.confirm('수금 완료로 처리하시겠습니까?')) return;
+          sb.from('expected_collections').update({is_done:true, updated_at:new Date().toISOString()})
+            .eq('id', e.id).then(function(r){ if (!r.error) load(); });
+        }
+        function markUndo(e) {
+          sb.from('expected_collections').update({is_done:false, updated_at:new Date().toISOString()})
+            .eq('id', e.id).then(function(r){ if (!r.error) load(); });
+        }
+        function deleteExp(id) {
+          if (!window.confirm('삭제하시겠습니까?')) return;
+          sb.from('expected_collections').delete().eq('id', id).then(function(r){ if (!r.error) load(); });
+        }
+
+        return (
+          <div className="card">
+            <div className="sh">
+              <span className="st">예상수금 일정</span>
+              <button className="btn btn-p btn-sm" onClick={function(){
+                setEditItem(null);
+                setForm({expected_date:TODAY(), is_done:false});
+                setModal('expected');
+              }}>+ 예상수금 입력</button>
+            </div>
+
+            {/* 요약 카드 */}
+            <div className="g3" style={{marginBottom:16}}>
+              <div className="stat blue"><div className="stat-l">예상 수금 합계</div><div className="stat-v">{fmtN(totalUpcoming)}</div><div className="stat-s">원 (미수금)</div></div>
+              <div className="stat red" style={{background:'#fff5f5',borderColor:'#fecaca'}}>
+                <div className="stat-l" style={{color:'#dc2626'}}>연체 금액</div>
+                <div className="stat-v" style={{color:'#dc2626'}}>{fmtN(overdueAmt)}</div>
+                <div className="stat-s" style={{color:'#f87171'}}>{overdueList.length}건 기한초과</div>
+              </div>
+              <div className="stat green"><div className="stat-l">수금완료</div><div className="stat-v">{done.length}</div><div className="stat-s">건</div></div>
+            </div>
+
+            {/* 미수금 목록 */}
+            {upcoming.length > 0 && (
+              <div style={{marginBottom:20}}>
+                <div className="st" style={{marginBottom:8}}>📋 예정 수금 ({upcoming.length}건)</div>
+                <div className="tbl-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>용역명</th><th>예상 수금일</th><th className="tr">예상 금액</th><th>메모</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {upcoming.map(function(e) {
+                        var p = projects.find(function(x){ return x.id === e.project_id; });
+                        var isOverdue = e.expected_date < today;
+                        var daysLeft = Math.round((new Date(e.expected_date+'T00:00:00') - new Date(today+'T00:00:00')) / 86400000);
+                        return (
+                          <tr key={e.id} style={{background: isOverdue ? '#fff5f5' : ''}}>
+                            <td>
+                              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                                {p && p.category && (
+                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                    background:CAT_BG[p.category]||'#f1f5f9',color:CAT_TX[p.category]||'#475569',
+                                    border:'1px solid '+(CAT_COLOR[p.category]||'#e2e8f0')}}>{p.category}</span>
+                                )}
+                                <span style={{fontWeight:600,fontSize:13}}>{p ? p.name : '-'}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{fontWeight:600,color: isOverdue?'#dc2626':'#0f172a'}}>{fmtD(e.expected_date)}</div>
+                              <div style={{fontSize:11,color: isOverdue?'#dc2626':'#94a3b8'}}>
+                                {isOverdue ? '⚠ '+Math.abs(daysLeft)+'일 초과' : 'D-'+daysLeft}
+                              </div>
+                            </td>
+                            <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(e.amount)}원</td>
+                            <td style={{color:'#64748b',fontSize:12}}>{e.memo||'-'}</td>
+                            <td style={{display:'flex',gap:4}}>
+                              <button className="btn btn-s btn-sm" onClick={function(){
+                                setEditItem(e);
+                                setForm({project_id:e.project_id, amount:fmtN(e.amount), expected_date:e.expected_date, memo:e.memo||'', is_done:e.is_done});
+                                setModal('expected');
+                              }}>수정</button>
+                              <button className="btn btn-p btn-sm" style={{background:'#dcfce7',color:'#15803d',border:'1px solid #bbf7d0'}}
+                                onClick={function(){markDone(e);}}>✓완료</button>
+                              <button className="btn btn-d btn-sm" onClick={function(){deleteExp(e.id);}}>삭제</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {upcoming.length === 0 && (
+              <div className="empty" style={{marginBottom:16}}><div className="ei">📭</div><div className="et">예정된 수금이 없습니다</div></div>
+            )}
+
+            {/* 완료 목록 */}
+            {done.length > 0 && (
+              <div>
+                <div className="st" style={{marginBottom:8,color:'#94a3b8'}}>✅ 수금완료 ({done.length}건)</div>
+                <div className="tbl-wrap">
+                  <table>
+                    <thead>
+                      <tr><th>용역명</th><th>수금일</th><th className="tr">금액</th><th>메모</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {done.map(function(e) {
+                        var p = projects.find(function(x){ return x.id === e.project_id; });
+                        return (
+                          <tr key={e.id} style={{opacity:0.6}}>
+                            <td style={{fontWeight:600,fontSize:13}}>{p ? p.name : '-'}</td>
+                            <td style={{color:'#94a3b8'}}>{fmtD(e.expected_date)}</td>
+                            <td className="tr" style={{color:'#059669',fontWeight:600}}>{fmtN(e.amount)}원</td>
+                            <td style={{color:'#94a3b8',fontSize:12}}>{e.memo||'-'}</td>
+                            <td>
+                              <button className="btn btn-s btn-sm" style={{fontSize:10}}
+                                onClick={function(){markUndo(e);}}>되돌리기</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── 계약금액 모달 ── */}
+      {modal === 'contract' && (
+        <div className="mbg" onClick={function(){setModal('');}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}}>
+            <div className="mh"><span className="mht">📋 계약금액 입력</span><button className="mc" onClick={function(){setModal('');}}>×</button></div>
+            <div className="mb">
+              {err && <div className="al al-e">{err}</div>}
+              <div style={{marginBottom:12}}>
+                <label className="fl">용역명</label>
+                <div style={{padding:'8px 12px',background:'#f8fafc',borderRadius:6,fontSize:13,fontWeight:600,color:'#1e293b'}}>
+                  {(function(){ var p = projects.find(function(p){return p.id===form.project_id;}); return p ? p.name : '-'; })()}
+                </div>
+              </div>
+              <div style={{marginBottom:12}}>
+                <label className="fl">계약금액 (원) *</label>
+                <input className="fi" value={form.amount||''} placeholder="0" style={{textAlign:'right'}}
+                  onChange={function(e){onAmountChange('amount',e);}} />
+              </div>
+              <div>
+                <label className="fl">메모</label>
+                <input className="fi" value={form.memo||''} placeholder="계약 관련 메모"
+                  onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
+              </div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setModal('');}}>취소</button>
+              <button className="btn btn-p" onClick={function(){
+                if (!form.amount) { setErr('계약금액을 입력해주세요.'); return; }
+                setSaving(true); setErr('');
+                var payload = { project_id:form.project_id, amount:numV(form.amount), memo:form.memo||'', updated_at:new Date().toISOString() };
+                var q = editItem && editItem.id
+                  ? sb.from('contracts').update(payload).eq('id', editItem.id)
+                  : sb.from('contracts').upsert(payload, {onConflict:'project_id'});
+                q.then(function(r){
+                  setSaving(false);
+                  if (r.error) { setErr('저장 오류: '+r.error.message); return; }
+                  setModal(''); setEditItem(null); setForm({});
+                  load();
+                });
+              }} disabled={saving}>{saving?'저장 중...':'저장'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 예상수금 모달 ── */}
+      {modal === 'expected' && (
+        <div className="mbg" onClick={function(){setModal('');}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}}>
+            <div className="mh"><span className="mht">📅 예상수금 입력</span><button className="mc" onClick={function(){setModal('');}}>×</button></div>
+            <div className="mb">
+              {err && <div className="al al-e">{err}</div>}
+              <div style={{marginBottom:12}}>
+                <label className="fl">용역 *</label>
+                <select className="fi" value={form.project_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{project_id:e.target.value});});}}>
+                  <option value="">선택하세요</option>
+                  {projects.filter(function(p){return p.status!=='완료';}).map(function(p){
+                    return <option key={p.id} value={p.id}>{p.name}</option>;
+                  })}
+                </select>
+              </div>
+              <div className="g2">
+                <div>
+                  <label className="fl">예상 수금일 *</label>
+                  <input type="date" className="fi" value={form.expected_date||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{expected_date:e.target.value});});}} />
+                </div>
+                <div>
+                  <label className="fl">예상 금액 (원) *</label>
+                  <input className="fi" value={form.amount||''} placeholder="0" style={{textAlign:'right'}}
+                    onChange={function(e){onAmountChange('amount',e);}} />
+                </div>
+              </div>
+              <div style={{marginTop:12}}>
+                <label className="fl">메모</label>
+                <input className="fi" value={form.memo||''} placeholder="잔금, 중도금, 선금 등"
+                  onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
+              </div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setModal('');}}>취소</button>
+              <button className="btn btn-p" onClick={function(){
+                if (!form.project_id || !form.expected_date || !form.amount) { setErr('필수 항목을 입력해주세요.'); return; }
+                setSaving(true); setErr('');
+                var payload = { project_id:form.project_id, amount:numV(form.amount), expected_date:form.expected_date, memo:form.memo||'', is_done:false, updated_at:new Date().toISOString() };
+                var q = editItem
+                  ? sb.from('expected_collections').update(payload).eq('id', editItem.id)
+                  : sb.from('expected_collections').insert(payload);
+                q.then(function(r){
+                  setSaving(false);
+                  if (r.error) { setErr('저장 오류: '+r.error.message); return; }
+                  setModal(''); setEditItem(null); setForm({});
+                  load();
+                });
+              }} disabled={saving}>{saving?'저장 중...':'저장'}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {modal === 'pf' && (
         <PerfModal
           projects={projects}
