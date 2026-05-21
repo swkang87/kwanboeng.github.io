@@ -1040,32 +1040,43 @@ function PerfView({ user }) {
       setSaving(false);
       if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
 
-      // ── 최초 등록 시만 PM 기여율 100% 자동 등록 ──
+      // ── 최초 등록 시만 PM 기여율 100% 자동 등록 후 기여율 탭으로 이동 ──
       if (isNew) {
         var proj = projects.find(function(p) { return p.id === form.project_id; });
         if (proj && proj.pm_id) {
-          // 이미 등록된 기여율이 있는지 확인
           sb.from('performance')
             .select('id')
             .eq('project_id', form.project_id)
             .eq('user_id', proj.pm_id)
             .eq('year', colYear)
             .then(function(chk) {
-              // 없을 때만 insert (수정 불가 조건)
               if (!chk.data || chk.data.length === 0) {
                 sb.from('performance').insert({
                   project_id: form.project_id,
                   user_id: proj.pm_id,
                   contribution_rate: 100,
                   year: colYear,
-                }).then(function() { /* 완료 */ });
+                }).then(function() {
+                  // 기여율 등록 완료 → 기여율 탭으로 이동 후 reload
+                  setModal(''); setEditItem(null); setForm({});
+                  changeTab('pf');
+                  load();
+                });
+              } else {
+                // 이미 기여율 있음 → 그냥 닫기
+                setModal(''); setEditItem(null); setForm({});
+                load();
               }
             });
+        } else {
+          setModal(''); setEditItem(null); setForm({});
+          load();
         }
+      } else {
+        // 수정 시
+        setModal(''); setEditItem(null); setForm({});
+        load();
       }
-
-      setModal(''); setEditItem(null); setForm({});
-      load();
     });
   }
 
