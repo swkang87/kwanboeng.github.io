@@ -973,7 +973,8 @@ function PerfView({ user }) {
   function pName(id) { var p = projects.find(function(x) { return x.id === id; }); return p ? p.name : '-'; }
 
   var yCols = cols.filter(function(c) { return c.collected_at && c.collected_at.startsWith(year); });
-  var totCol = yCols.reduce(function(s,c) { return s + (c.amount||0); }, 0);
+  var totCol = yCols.filter(function(c){ return c.entry_type !== 'outsource_only'; }).reduce(function(s,c) { return s + (c.amount||0); }, 0);
+  var totOut = yCols.reduce(function(s,c) { return s + (c.outsource_cost||0); }, 0);
   var totNet = yCols.reduce(function(s,c) { return s + (c.amount||0) - (c.outsource_cost||0); }, 0);
 
   var projSummary = projects.map(function(p) {
@@ -1022,14 +1023,18 @@ function PerfView({ user }) {
   }
 
   function saveCol() {
-    if (!form.project_id || !form.amount || !form.collected_at) { setErr('프로젝트, 금액, 수금일은 필수입니다.'); return; }
+    var isOut = form.entry_type === 'outsource_only';
+    if (!form.project_id || !form.collected_at) { setErr('프로젝트와 날짜는 필수입니다.'); return; }
+    if (!isOut && !form.amount) { setErr('수금액을 입력해주세요.'); return; }
+    if (isOut && !form.outsource_cost) { setErr('외주비를 입력해주세요.'); return; }
     setSaving(true); setErr('');
     var payload = {
       project_id: form.project_id,
-      amount: numV(form.amount),
+      amount: isOut ? 0 : numV(form.amount),
       outsource_cost: numV(form.outsource_cost),
       collected_at: form.collected_at,
       memo: form.memo || '',
+      entry_type: form.entry_type || 'both',
     };
     var isNew = !editItem;
     var colYear = Number(form.collected_at.slice(0, 4));
@@ -1057,13 +1062,11 @@ function PerfView({ user }) {
                   contribution_rate: 100,
                   year: colYear,
                 }).then(function() {
-                  // 기여율 등록 완료 → 기여율 탭으로 이동 후 reload
                   setModal(''); setEditItem(null); setForm({});
                   changeTab('pf');
                   load();
                 });
               } else {
-                // 이미 기여율 있음 → 그냥 닫기
                 setModal(''); setEditItem(null); setForm({});
                 load();
               }
@@ -1073,7 +1076,6 @@ function PerfView({ user }) {
           load();
         }
       } else {
-        // 수정 시
         setModal(''); setEditItem(null); setForm({});
         load();
       }
@@ -1099,8 +1101,8 @@ function PerfView({ user }) {
 
       <div className="g3">
         <div className="stat blue"><div className="stat-l">총 수금액</div><div className="stat-v">{fmtN(totCol)}</div><div className="stat-s">원 ({year}년)</div></div>
-        <div className="stat purple"><div className="stat-l">순 실적금액</div><div className="stat-v">{fmtN(totNet)}</div><div className="stat-s">원 (외주비 차감)</div></div>
-        <div className="stat green"><div className="stat-l">수금 건수</div><div className="stat-v">{yCols.length}</div><div className="stat-s">건</div></div>
+        <div className="stat red" style={{background:'#fff5f5',borderColor:'#fecaca'}}><div className="stat-l" style={{color:'#dc2626'}}>총 외주비</div><div className="stat-v" style={{color:'#dc2626'}}>{fmtN(totOut)}</div><div className="stat-s" style={{color:'#f87171'}}>원</div></div>
+        <div className="stat purple"><div className="stat-l">순 실적금액</div><div className="stat-v">{fmtN(totNet)}</div><div className="stat-s">원 (수금-외주비)</div></div>
       </div>
 
       <div className="itabs">
@@ -1114,26 +1116,39 @@ function PerfView({ user }) {
         <div className="card">
           <div className="sh">
             <span className="st">수금 내역 ({year}년)</span>
-            <button className="btn btn-p btn-sm" onClick={function(){setModal('col');setEditItem(null);setForm({collected_at:TODAY()});}}>+ 수금 입력</button>
+            <div style={{display:'flex',gap:6}}>
+              <button className="btn btn-p btn-sm" onClick={function(){setModal('col');setEditItem(null);setForm({collected_at:TODAY(),entry_type:'both'});}}>+ 수금 입력</button>
+              <button className="btn btn-d btn-sm" style={{background:'#fee2e2',color:'#dc2626',border:'1px solid #fecaca'}} onClick={function(){setModal('col');setEditItem(null);setForm({collected_at:TODAY(),entry_type:'outsource_only'});}}>+ 외주비만</button>
+            </div>
           </div>
           {yCols.length === 0 ? (
             <div className="empty"><div className="ei">💰</div><div className="et">수금 내역이 없습니다</div></div>
           ) : (
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th>프로젝트</th><th>수금일</th><th className="tr">수금액</th><th className="tr">외주비</th><th className="tr">순 실적</th><th>메모</th><th></th></tr></thead>
+                <thead><tr><th>프로젝트</th><th>날짜</th><th>유형</th><th className="tr">수금액</th><th className="tr">외주비</th><th className="tr">순 실적</th><th>메모</th><th></th></tr></thead>
                 <tbody>
                   {yCols.map(function(c) {
+                    var isOut = c.entry_type === 'outsource_only';
+                    var net   = (c.amount||0) - (c.outsource_cost||0);
                     return (
-                      <tr key={c.id}>
+                      <tr key={c.id} style={{background: isOut ? '#fff5f5' : ''}}>
                         <td><span style={{fontWeight:600}}>{pName(c.project_id)}</span></td>
                         <td>{fmtD(c.collected_at)}</td>
-                        <td className="tr" style={{fontWeight:700,color:'#1d4ed8'}}>{fmtN(c.amount)}원</td>
+                        <td>
+                          {isOut
+                            ? <span className="badge bgr" style={{fontSize:10}}>외주비만</span>
+                            : <span className="badge bg" style={{fontSize:10}}>수금</span>
+                          }
+                        </td>
+                        <td className="tr" style={{fontWeight:700,color: isOut ? '#94a3b8' : '#1d4ed8'}}>
+                          {isOut ? '—' : fmtN(c.amount)+'원'}
+                        </td>
                         <td className="tr" style={{color:'#dc2626'}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
-                        <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN((c.amount||0)-(c.outsource_cost||0))}원</td>
+                        <td className="tr" style={{fontWeight:700,color: net < 0 ? '#dc2626' : '#7c3aed'}}>{fmtN(net)}원</td>
                         <td style={{color:'#64748b',fontSize:12}}>{c.memo||'-'}</td>
                         <td style={{display:'flex',gap:4}}>
-                          <button className="btn btn-s btn-sm" onClick={function(){setEditItem(c);setForm(Object.assign({},c,{amount:fmtN(c.amount),outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):''}));setModal('col');}}>수정</button>
+                          <button className="btn btn-s btn-sm" onClick={function(){setEditItem(c);setForm(Object.assign({},c,{amount:c.amount?fmtN(c.amount):'',outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):'',entry_type:c.entry_type||'both'}));setModal('col');}}>수정</button>
                           <button className="btn btn-d btn-sm" onClick={function(){deleteCol(c.id);}}>삭제</button>
                         </td>
                       </tr>
@@ -1238,9 +1253,25 @@ function PerfView({ user }) {
       {modal === 'col' && (
         <div className="mbg" onClick={function(){setModal('');}}>
           <div className="mbox" onClick={function(e){e.stopPropagation();}}>
-            <div className="mh"><span className="mht">💰 {editItem ? '수금 수정' : '수금 입력'}</span><button className="mc" onClick={function(){setModal('');}}>×</button></div>
+            <div className="mh">
+              <span className="mht">{form.entry_type==='outsource_only' ? '💸 외주비 입력' : '💰 수금 입력'}</span>
+              <button className="mc" onClick={function(){setModal('');}}>×</button>
+            </div>
             <div className="mb">
               {err && <div className="al al-e">{err}</div>}
+              {/* 유형 선택 */}
+              <div style={{display:'flex',gap:8,marginBottom:14}}>
+                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'6px 12px',borderRadius:6,border:'1.5px solid',borderColor:form.entry_type!=='outsource_only'?'#7c3aed':'#e2e8f0',background:form.entry_type!=='outsource_only'?'#f5f3ff':'#fff',fontWeight:600,fontSize:13}}>
+                  <input type="radio" name="entry_type" value="both" checked={form.entry_type!=='outsource_only'}
+                    onChange={function(){setForm(function(p){return Object.assign({},p,{entry_type:'both'});});}} style={{display:'none'}} />
+                  💰 수금 + 외주비
+                </label>
+                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'6px 12px',borderRadius:6,border:'1.5px solid',borderColor:form.entry_type==='outsource_only'?'#dc2626':'#e2e8f0',background:form.entry_type==='outsource_only'?'#fff5f5':'#fff',fontWeight:600,fontSize:13,color:form.entry_type==='outsource_only'?'#dc2626':'#475569'}}>
+                  <input type="radio" name="entry_type" value="outsource_only" checked={form.entry_type==='outsource_only'}
+                    onChange={function(){setForm(function(p){return Object.assign({},p,{entry_type:'outsource_only',amount:''});});}} style={{display:'none'}} />
+                  💸 외주비만
+                </label>
+              </div>
               <div style={{marginBottom:12}}>
                 <label className="fl">프로젝트 *</label>
                 <select className="fi" value={form.project_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{project_id:e.target.value});});}}>
@@ -1250,26 +1281,47 @@ function PerfView({ user }) {
               </div>
               <div className="g2">
                 <div>
-                  <label className="fl">수금일 *</label>
+                  <label className="fl">{form.entry_type==='outsource_only' ? '외주비 발생일 *' : '수금일 *'}</label>
                   <input type="date" className="fi" value={form.collected_at||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{collected_at:e.target.value});});}} />
                 </div>
-                <div>
-                  <label className="fl">수금액 (원) *</label>
-                  <input className="fi" value={form.amount||''} placeholder="0" style={{textAlign:'right'}}
-                    onChange={function(e){onAmountChange('amount',e);}} />
-                </div>
+                {form.entry_type !== 'outsource_only' && (
+                  <div>
+                    <label className="fl">수금액 (원) *</label>
+                    <input className="fi" value={form.amount||''} placeholder="0" style={{textAlign:'right'}}
+                      onChange={function(e){onAmountChange('amount',e);}} />
+                  </div>
+                )}
               </div>
               <div className="g2">
                 <div>
-                  <label className="fl">외주비 (원)</label>
+                  <label className="fl">외주비 (원) {form.entry_type==='outsource_only'?'*':''}</label>
                   <input className="fi" value={form.outsource_cost||''} placeholder="0" style={{textAlign:'right'}}
                     onChange={function(e){onAmountChange('outsource_cost',e);}} />
                 </div>
                 <div>
                   <label className="fl">메모</label>
-                  <input className="fi" value={form.memo||''} placeholder="계약금, 중도금 등" onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
+                  <input className="fi" value={form.memo||''} placeholder="계약금, 중도금, 외주처 등" onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
                 </div>
               </div>
+              {/* 미리보기 */}
+              {(numV(form.amount) > 0 || numV(form.outsource_cost) > 0) && (
+                <div style={{marginTop:12,padding:'10px 14px',background:'#f8fafc',borderRadius:8,fontSize:13}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{color:'#64748b'}}>수금액</span>
+                    <span style={{color:'#1d4ed8',fontWeight:700}}>{fmtN(numV(form.amount))}원</span>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{color:'#64748b'}}>외주비</span>
+                    <span style={{color:'#dc2626',fontWeight:700}}>-{fmtN(numV(form.outsource_cost))}원</span>
+                  </div>
+                  <div style={{display:'flex',justifyContent:'space-between',borderTop:'1px solid #e2e8f0',paddingTop:4}}>
+                    <span style={{fontWeight:700}}>순 실적</span>
+                    <span style={{fontWeight:800,color: numV(form.amount)-numV(form.outsource_cost) < 0 ? '#dc2626':'#7c3aed'}}>
+                      {fmtN(numV(form.amount)-numV(form.outsource_cost))}원
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="mf">
               <button className="btn btn-s" onClick={function(){setModal('');}}>취소</button>
