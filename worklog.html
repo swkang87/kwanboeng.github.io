@@ -438,7 +438,7 @@ function LoginScreen({ onLogin }) {
           onLogin(data);
         }
       }
-    } catch { setErr('로그인 중 오류가 발생했습니다.'); }
+    } catch(e) { setErr('로그인 중 오류가 발생했습니다.'); }
     setLoading(false);
   };
 
@@ -696,23 +696,20 @@ function LogCard({ log, name, defaultOpen }) {
 // ─── ALL LOGS VIEW ─────────────────────────────────────────────────────────
 function AllLogsView({ user }) {
   const [mode, setMode] = useState('day');
-  const [prevMode, setPrevMode] = useState(null); // 뒤로가기용 이전 모드
   const [selDate, setSelDate] = useState(todayStr());
   const [logs, setLogs] = useState([]);
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // 모드 전환 시 히스토리 기록
   const changeMode = (newMode, date) => {
     history.pushState({ mode: newMode, selDate: date || selDate }, '', '');
     if (date) setSelDate(date);
     setMode(newMode);
   };
 
-  // 뒤로가기 감지
   useEffect(() => {
-    history.replaceState({ mode: 'day', selDate }, '', '');
+    history.replaceState({ mode: 'day', selDate: selDate }, '', '');
     const onPop = (e) => {
       if (e.state && e.state.mode) {
         setMode(e.state.mode);
@@ -723,7 +720,6 @@ function AllLogsView({ user }) {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // 팀 정보 로드 후 허용 팀 소속 유저만 필터링 (admin은 전체)
   useEffect(() => {
     const load = async () => {
       const { data: teamData } = await sb.from('teams').select('id, name');
@@ -731,12 +727,8 @@ function AllLogsView({ user }) {
       setTeams(allTeams);
       const { data: userData } = await sb.from('users').select('id, name, team_id, role').order('name');
       const allUsers = userData || [];
-      const allowedTeamIds = allTeams
-        .filter(t => ALLOWED_TEAMS.includes(t.name))
-        .map(t => t.id);
-      setUsers(allUsers.filter(u =>
-        u.role !== 'contractor' && allowedTeamIds.includes(u.team_id)
-      ));
+      const allowedTeamIds = allTeams.filter(t => ALLOWED_TEAMS.includes(t.name)).map(t => t.id);
+      setUsers(allUsers.filter(u => u.role !== 'contractor' && allowedTeamIds.includes(u.team_id)));
     };
     load();
   }, [user]);
@@ -749,8 +741,7 @@ function AllLogsView({ user }) {
       if (mode === 'day') { start = end = selDate; }
       else if (mode === 'week') { const w = getWeekDates(selDate); start = w[0]; end = w[4]; }
       else { const m = getMonthInfo(selDate); start = m.firstDate; end = m.lastDate; }
-      const { data } = await sb.from('work_logs')
-        .select('*').gte('log_date', start).lte('log_date', end);
+      const { data } = await sb.from('work_logs').select('*').gte('log_date', start).lte('log_date', end);
       setLogs(data || []);
       setLoading(false);
     };
@@ -761,22 +752,21 @@ function AllLogsView({ user }) {
 
   const shift = (dir) => {
     const d = new Date(selDate + 'T00:00:00');
-    if (mode === 'day')        d.setDate(d.getDate() + dir);
-    else if (mode === 'week')  d.setDate(d.getDate() + dir * 7);
-    else                       d.setMonth(d.getMonth() + dir);
+    if (mode === 'day')       d.setDate(d.getDate() + dir);
+    else if (mode === 'week') d.setDate(d.getDate() + dir * 7);
+    else                      d.setMonth(d.getMonth() + dir);
     setSelDate(localDateStr(d));
   };
 
   const rangeLabel = () => {
-    if (mode === 'day')   return fmtDate(selDate);
-    if (mode === 'week')  { const w = getWeekDates(selDate); return `${fmtShort(w[0])} ~ ${fmtShort(w[4])}`; }
+    if (mode === 'day')  return fmtDate(selDate);
+    if (mode === 'week') { const w = getWeekDates(selDate); return fmtShort(w[0]) + ' ~ ' + fmtShort(w[4]); }
     const { year, month } = getMonthInfo(selDate);
-    return `${year}년 ${month+1}월`;
+    return year + '년 ' + (month+1) + '월';
   };
 
   const weekDates = getWeekDates(selDate);
   const mInfo = getMonthInfo(selDate);
-
   const STATUS_COLOR = { '완료': '#059669', '진행중': '#2563eb', '보류': '#d97706' };
 
   return (
@@ -787,11 +777,10 @@ function AllLogsView({ user }) {
           <div className="view-sub">모든 팀원의 업무를 확인합니다</div>
         </div>
       </div>
-
       <div className="ctrl-row">
         <div className="mode-tabs">
           {[['day','일별'],['week','주별'],['month','월별']].map(([k,l]) => (
-            <button key={k} className={`mode-tab ${mode===k?'active':''}`}
+            <button key={k} className={'mode-tab ' + (mode===k?'active':'')}
               onClick={() => changeMode(k)}>{l}</button>
           ))}
         </div>
@@ -806,7 +795,6 @@ function AllLogsView({ user }) {
 
       {loading ? <div className="loading">불러오는 중...</div> : (<>
 
-        {/* ── 일별 뷰 ── */}
         {mode === 'day' && (
           <div>
             {users.map(u => {
@@ -815,7 +803,7 @@ function AllLogsView({ user }) {
                 ? <LogCard key={u.id} log={log} name={u.name} defaultOpen={false} />
                 : (
                   <div key={u.id} className="log-card no-entry">
-                    <div className="card-head" style={{ cursor: 'default' }}>
+                    <div className="card-head" style={{ cursor:'default' }}>
                       <div className="card-user">
                         <div className="avatar muted">{u.name[0]}</div>
                         <div>
@@ -831,14 +819,13 @@ function AllLogsView({ user }) {
           </div>
         )}
 
-        {/* ── 주별 뷰 ── */}
         {mode === 'week' && (
           <div>
             {users.map(u => {
               const weekLogs = weekDates.map(d => ({ date: d, log: logFor(u.id, d) })).filter(x => x.log);
               if (weekLogs.length === 0) return (
-                <div key={u.id} className="log-card no-entry" style={{ marginBottom: 10 }}>
-                  <div className="card-head" style={{ cursor: 'default' }}>
+                <div key={u.id} className="log-card no-entry" style={{ marginBottom:10 }}>
+                  <div className="card-head" style={{ cursor:'default' }}>
                     <div className="card-user">
                       <div className="avatar muted">{u.name[0]}</div>
                       <div>
@@ -850,8 +837,8 @@ function AllLogsView({ user }) {
                 </div>
               );
               return (
-                <div key={u.id} className="log-card" style={{ marginBottom: 12 }}>
-                  <div className="card-head" style={{ cursor: 'default' }}>
+                <div key={u.id} className="log-card" style={{ marginBottom:12 }}>
+                  <div className="card-head" style={{ cursor:'default' }}>
                     <div className="card-user">
                       <div className="avatar">{u.name[0]}</div>
                       <div>
@@ -860,36 +847,32 @@ function AllLogsView({ user }) {
                       </div>
                     </div>
                   </div>
-                  <div style={{ padding: '0 14px 14px' }}>
-                    {weekLogs.map(({ date, log }) => {
-                      const dt = new Date(date + 'T00:00:00');
-                      const dayLabel = `${dt.getMonth()+1}/${dt.getDate()}(${DAY_KR[dt.getDay()]})`;
+                  <div style={{ padding:'0 14px 14px' }}>
+                    {weekLogs.map(({ date: wdate, log }) => {
+                      const dt = new Date(wdate + 'T00:00:00');
+                      const dayLabel = (dt.getMonth()+1) + '/' + dt.getDate() + '(' + DAY_KR[dt.getDay()] + ')';
                       return (
-                        <div key={date} style={{ marginBottom: 12 }}>
-                          {/* 날짜 헤더 — 클릭 시 일별로 이동 */}
+                        <div key={wdate} style={{ marginBottom:12 }}>
                           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6,
                             padding:'4px 8px', background:'#f8fafc', borderRadius:6, cursor:'pointer' }}
-                            onClick={() => changeMode('day', date)}>
+                            onClick={() => changeMode('day', wdate)}>
                             <span style={{ fontSize:12, fontWeight:700, color:'#475569' }}>{dayLabel}</span>
                             <span style={{ fontSize:11, color:'#94a3b8' }}>업무 {(log.tasks||[]).length}건</span>
-                            <span style={{ fontSize:11, color:'#7c3aed', marginLeft:'auto' }}>클릭하여 상세보기 →</span>
+                            <span style={{ fontSize:11, color:'#7c3aed', marginLeft:'auto' }}>상세보기 →</span>
                           </div>
-                          {/* 업무 목록 전체 */}
-                          {(log.tasks || []).map((t, i) => (
+                          {(log.tasks||[]).map((t, i) => (
                             <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:8,
                               padding:'4px 0', borderBottom:'1px solid #f1f5f9', fontSize:13 }}>
                               <span style={{ flexShrink:0, fontSize:11, fontWeight:700,
-                                color: STATUS_COLOR[t.status] || '#64748b',
-                                background: (STATUS_COLOR[t.status] || '#64748b') + '18',
+                                color: STATUS_COLOR[t.status]||'#64748b',
+                                background: (STATUS_COLOR[t.status]||'#64748b')+'18',
                                 padding:'1px 6px', borderRadius:4 }}>{t.status}</span>
                               <span style={{ color:'#334155', lineHeight:1.5 }}>{t.content}</span>
                             </div>
                           ))}
                           {log.issues && (
                             <div style={{ marginTop:4, padding:'4px 8px', background:'#fef3c7',
-                              borderRadius:5, fontSize:12, color:'#92400e' }}>
-                              💬 {log.issues}
-                            </div>
+                              borderRadius:5, fontSize:12, color:'#92400e' }}>💬 {log.issues}</div>
                           )}
                         </div>
                       );
@@ -901,205 +884,22 @@ function AllLogsView({ user }) {
           </div>
         )}
 
-        {/* ── 월별 뷰 ── */}
         {mode === 'month' && (
           <div className="month-wrap">
             <div className="month-grid">
               {DAY_KR.map(d => <div key={d} className="month-day-hdr">{d}</div>)}
               {Array.from({ length: mInfo.startWeekday }, (_, i) => (
-                <div key={`e${i}`} className="month-day empty" />
+                <div key={'e'+i} className="month-day empty" />
               ))}
               {Array.from({ length: mInfo.days }, (_, i) => {
                 const day = i + 1;
-                const ds  = `${mInfo.year}-${String(mInfo.month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                const ds  = mInfo.year + '-' + String(mInfo.month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
                 const cnt = logs.filter(l => l.log_date === ds).length;
                 const isT = ds === todayStr();
                 return (
-                  <div key={day} className={`month-day ${isT?'today':''} ${cnt>0?'has-logs':''}`}
+                  <div key={day} className={'month-day ' + (isT?'today ':' ') + (cnt>0?'has-logs':'')}
                     onClick={() => changeMode('day', ds)}>
-                    <div className={`md-num ${isT?'today':''}`}>{day}</div>
-                    {cnt > 0 && <div className="md-info">{cnt}명 작성</div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-      </>)}
-    </div>
-  );
-}
-
-  // 팀 정보 로드 후 허용 팀 소속 유저만 필터링 (admin은 전체)
-  useEffect(() => {
-    const load = async () => {
-      const { data: teamData } = await sb.from('teams').select('id, name');
-      const allTeams = teamData || [];
-      setTeams(allTeams);
-      const { data: userData } = await sb.from('users').select('id, name, team_id, role').order('name');
-      const allUsers = userData || [];
-      // admin 포함 모두 동일하게 허용 팀만 표시 (contractor 제외)
-      const allowedTeamIds = allTeams
-        .filter(t => ALLOWED_TEAMS.includes(t.name))
-        .map(t => t.id);
-      setUsers(allUsers.filter(u =>
-        u.role !== 'contractor' && allowedTeamIds.includes(u.team_id)
-      ));
-    };
-    load();
-  }, [user]);
-
-  useEffect(() => {
-    if (!users.length) return;
-    const fetchLogs = async () => {
-      setLoading(true);
-      let start, end;
-      if (mode === 'day') { start = end = selDate; }
-      else if (mode === 'week') { const w = getWeekDates(selDate); start = w[0]; end = w[4]; }
-      else { const m = getMonthInfo(selDate); start = m.firstDate; end = m.lastDate; }
-      const { data } = await sb.from('work_logs')
-        .select('*').gte('log_date', start).lte('log_date', end);
-      setLogs(data || []);
-      setLoading(false);
-    };
-    fetchLogs();
-  }, [selDate, mode, users]);
-
-  const logFor = (uid, d) => logs.find(l => l.user_id === uid && l.log_date === d);
-
-  const shift = (dir) => {
-    const d = new Date(selDate + 'T00:00:00');
-    if (mode === 'day')   d.setDate(d.getDate() + dir);
-    else if (mode === 'week')  d.setDate(d.getDate() + dir * 7);
-    else d.setMonth(d.getMonth() + dir);
-    setSelDate(d.toISOString().split('T')[0]);
-  };
-
-  const rangeLabel = () => {
-    if (mode === 'day')   return fmtDate(selDate);
-    if (mode === 'week')  { const w = getWeekDates(selDate); return `${fmtShort(w[0])} ~ ${fmtShort(w[4])}`; }
-    const { year, month } = getMonthInfo(selDate);
-    return `${year}년 ${month+1}월`;
-  };
-
-  const weekDates = getWeekDates(selDate);
-  const mInfo = getMonthInfo(selDate);
-
-  return (
-    <div className="view-wrap">
-      <div className="view-header">
-        <div>
-          <div className="view-title">👥 전체 업무일지</div>
-          <div className="view-sub">모든 팀원의 업무를 확인합니다</div>
-        </div>
-      </div>
-
-      <div className="ctrl-row">
-        <div className="mode-tabs">
-          {[['day','일별'],['week','주별'],['month','월별']].map(([k,l]) => (
-            <button key={k} className={`mode-tab ${mode===k?'active':''}`} onClick={() => setMode(k)}>{l}</button>
-          ))}
-        </div>
-        <div className="date-nav">
-          <button className="date-nav-btn" onClick={() => shift(-1)}>◀</button>
-          <span className="date-label">{rangeLabel()}</span>
-          <button className="date-nav-btn" onClick={() => shift(1)}>▶</button>
-          <button className="today-btn" onClick={() => setSelDate(todayStr())}>오늘</button>
-        </div>
-      </div>
-
-      {loading ? <div className="loading">불러오는 중...</div> : (<>
-
-        {/* ── 일별 뷰 ── */}
-        {mode === 'day' && (
-          <div>
-            {users.map(u => {
-              const log = logFor(u.id, selDate);
-              return log
-                ? <LogCard key={u.id} log={log} name={u.name} defaultOpen={false} />
-                : (
-                  <div key={u.id} className="log-card no-entry">
-                    <div className="card-head" style={{ cursor: 'default' }}>
-                      <div className="card-user">
-                        <div className="avatar muted">{u.name[0]}</div>
-                        <div>
-                          <div className="card-name">{u.name}</div>
-                          <div className="card-meta card-none">업무일지 미작성</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-            })}
-            {!users.length && <div className="loading">직원 정보 로딩 중...</div>}
-          </div>
-        )}
-
-        {/* ── 주별 뷰 ── */}
-        {mode === 'week' && (
-          <div className="week-wrap">
-            <div className="week-table">
-              {/* 헤더 */}
-              <div className="week-head">
-                <div className="week-cell wc-name">이름</div>
-                {weekDates.map(d => {
-                  const dt = new Date(d + 'T00:00:00');
-                  return (
-                    <div key={d} className={`week-cell wc-day ${d === todayStr() ? 'today' : ''}`}>
-                      <div className="wc-day-num">{dt.getDate()}</div>
-                      <div className="wc-day-label">{DAY_KR[dt.getDay()]}</div>
-                    </div>
-                  );
-                })}
-              </div>
-              {/* 행 */}
-              {users.map(u => (
-                <div key={u.id} className="week-row">
-                  <div className="week-cell wc-name">
-                    <div className="avatar sm">{u.name[0]}</div>
-                    <span>{u.name}</span>
-                  </div>
-                  {weekDates.map(d => {
-                    const log = logFor(u.id, d);
-                    const total = log ? (log.tasks||[]).length : 0;
-                    const done  = log ? (log.tasks||[]).filter(t=>t.status==='완료').length : 0;
-                    return (
-                      <div key={d} className={`week-cell wc-day ${d===todayStr()?'today':''}`}>
-                        {log
-                          ? <div className="week-summary" onClick={() => { setSelDate(d); setMode('day'); }}>
-                              <div className="ws-count">{total}건</div>
-                              <div className="ws-done">{done}완료</div>
-                              {log.issues && <div className="ws-issue">💬</div>}
-                            </div>
-                          : <div className="week-none">—</div>
-                        }
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── 월별 뷰 ── */}
-        {mode === 'month' && (
-          <div className="month-wrap">
-            <div className="month-grid">
-              {DAY_KR.map(d => <div key={d} className="month-day-hdr">{d}</div>)}
-              {Array.from({ length: mInfo.startWeekday }, (_, i) => (
-                <div key={`e${i}`} className="month-day empty" />
-              ))}
-              {Array.from({ length: mInfo.days }, (_, i) => {
-                const day = i + 1;
-                const ds  = `${mInfo.year}-${String(mInfo.month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                const cnt = logs.filter(l => l.log_date === ds).length;
-                const isT = ds === todayStr();
-                return (
-                  <div key={day} className={`month-day ${isT?'today':''} ${cnt>0?'has-logs':''}`}
-                    onClick={() => { setSelDate(ds); setMode('day'); }}>
-                    <div className={`md-num ${isT?'today':''}`}>{day}</div>
+                    <div className={'md-num ' + (isT?'today':'')}>{day}</div>
                     {cnt > 0 && <div className="md-info">{cnt}명 작성</div>}
                   </div>
                 );
@@ -1210,12 +1010,32 @@ function App() {
         return v;
       }
       return null;
-    } catch { return null; }
+    } catch(e) { return null; }
   })();
   const [user, setUser] = useState(initialUser);
   const [view, setView] = useState(VIEWS.MY_LOG);
   const [ssoChecked, setSsoChecked] = useState(!!initialUser);
   const [userTeamName, setUserTeamName] = useState('');
+
+  // 탭 전환 — pushState
+  const nv = (v) => {
+    history.pushState({ view: v }, '', '');
+    setView(v);
+  };
+  useEffect(() => {
+    history.replaceState({ view: VIEWS.MY_LOG }, '', '');
+    const onPop = (e) => {
+      if (e.state && e.state.view) setView(e.state.view);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // checkOnLoad — 렌더 후 실행
+  useEffect(() => {
+    const wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { setUser(null); }
+  }, []);
 
   // SSO 초기화 — 구버전 세션({userId})에서 자동 로그인
   useEffect(() => {
@@ -1236,27 +1056,28 @@ function App() {
         }
         setSsoChecked(true);
       }).catch(() => setSsoChecked(true));
-    } catch { setSsoChecked(true); }
+    } catch(e) { setSsoChecked(true); }
   }, []);
 
   // 팀명 조회 — canWrite 판단용
   useEffect(() => {
-    if (!user?.team_id) return;
+    if (!user || !user.team_id) return;
     sb.from('teams').select('name').eq('id', user.team_id).single()
       .then(({ data }) => { if (data) setUserTeamName(data.name); });
-  }, [user?.team_id]);
+  }, [user && user.team_id]);
 
   const handleLogin = (u) => {
     sb = _makeSb(u.id, u.role);
     const safeU = {...u}; delete safeU.password;
-    // 통합 세션 키 하나만 사용
     localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
     localStorage.removeItem('kwanbo_pm_user');
     sessionStorage.removeItem('kwanbo_uid');
     setUser(safeU);
+    Sysbar.SessionManager.onLogin(() => logout());
   };
 
   const logout = () => {
+    Sysbar.SessionManager.onLogout();
     sb = _makeSb();
     localStorage.removeItem('kwanbo_session');
     localStorage.removeItem('kwanbo_pm_user');
@@ -1264,6 +1085,11 @@ function App() {
     setUser(null);
     setView(VIEWS.MY_LOG);
   };
+
+  // SSO 복원 시 SessionManager 시작
+  useEffect(() => {
+    if (initialUser && ssoChecked) { Sysbar.SessionManager.onLogin(() => logout()); }
+  }, []);
 
   if (!ssoChecked) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#0f172a', color:'#94a3b8', fontSize:14 }}>
@@ -1287,7 +1113,7 @@ function App() {
     );
   }
 
-  const canWrite = user?.role === 'admin' || ALLOWED_TEAMS.includes(userTeamName);
+  const canWrite = (user && user.role === 'admin') || ALLOWED_TEAMS.includes(userTeamName);
 
   return (
     <div className="app">
@@ -1304,14 +1130,14 @@ function App() {
         <p style={{ margin:0, fontSize:14, lineHeight:'1.3', fontWeight:800, color:'white', letterSpacing:-0.3 }}>업무일지 시스템</p>
       </div>
       {/* 상단 네비탭 */}
-      <TopNavBar view={view} setView={setView} user={user} onLogout={logout} canWrite={canWrite} />
+      <TopNavBar view={view} setView={nv} user={user} onLogout={logout} canWrite={canWrite} />
       <div className="app-inner">
         <main className="main-content">
           {view === VIEWS.MY_LOG   && <MyLogView user={user} canWrite={canWrite} />}
           {view === VIEWS.ALL_LOGS && <AllLogsView user={user} />}
           {view === VIEWS.HISTORY  && <MyHistoryView user={user} />}
         </main>
-        <MobileNav view={view} setView={setView} />
+        <MobileNav view={view} setView={nv} />
       </div>
     </div>
   );

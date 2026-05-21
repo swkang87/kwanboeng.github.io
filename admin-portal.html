@@ -223,7 +223,7 @@ async function fetchHolidays(year) {
     const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`);
     const data = await r.json();
     _holCache[year] = new Set(data.map(h => h.date));
-  } catch { _holCache[year] = new Set(); }
+  } catch(e) { _holCache[year] = new Set(); }
   return _holCache[year];
 }
 
@@ -357,8 +357,20 @@ function FI({ label, field, form, set, type }) {
 // ── 업무일지 ──────────────────────────────────────────────────────────────
 function WorklogView({ user }) {
   const { useCallback } = React;
-  const [tab, setTab]       = useState('my');
+  const [tab, setTab]         = useState('my');
   const [allMode, setAllMode] = useState('day');
+  // 내 업무일지
+  const [date, setDate]       = useState(TODAY());
+  const [tasks, setTasks]     = useState([]);
+  const [issues, setIssues]   = useState('');
+  const [saving, setSaving]   = useState(false);
+  const [msg, setMsg]         = useState('');
+  const [loading, setLoading] = useState(false);
+  // 전체 조회
+  const [selDate, setSelDate]     = useState(TODAY());
+  const [allUsers, setAllUsers]   = useState([]);
+  const [allLogs, setAllLogs]     = useState([]);
+  const [allLoading, setAllLoading] = useState(false);
 
   // 하위탭 전환 — pushState
   function changeTab(newTab) {
@@ -386,19 +398,6 @@ function WorklogView({ user }) {
     window.addEventListener('popstate', onPop);
     return function() { window.removeEventListener('popstate', onPop); };
   }, []);
-
-  // 내 업무일지
-  const [date, setDate]     = useState(TODAY());
-  const [tasks, setTasks]   = useState([]);
-  const [issues, setIssues] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg]       = useState('');
-  const [loading, setLoading] = useState(false);
-  // 전체 조회
-  const [selDate, setSelDate] = useState(TODAY());
-  const [allUsers, setAllUsers] = useState([]);
-  const [allLogs, setAllLogs]   = useState([]);
-  const [allLoading, setAllLoading] = useState(false);
 
   // ── 내 업무일지 로드 ──────────────────────────────────────────────────────
   const loadMyLog = useCallback(async function(d) {
