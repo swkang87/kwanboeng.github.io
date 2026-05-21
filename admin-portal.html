@@ -45,7 +45,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font
 .tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0;}
 table{width:100%;border-collapse:collapse;}
 thead{background:#f8fafc;}
-th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:1px solid #e2e8f0;}
+th{padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:1px solid #e2e8f0;}
 td{padding:11px 14px;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:#f8fafc;}
@@ -1034,8 +1034,24 @@ function PerfView({ user }) {
     return { id:p.id, name:p.name, client:p.client, pm_id:p.pm_id, tc:tc, to:to, net:tc-to };
   }).filter(function(p) { return p.tc > 0; }).sort(function(a,b) { return b.net - a.net; });
 
+  // PM 자동 100% 포함한 유효 기여율 목록 생성
+  var effectivePerfs = (function() {
+    var result = perfs.slice();
+    projects.forEach(function(proj) {
+      if (!proj.pm_id) return;
+      var hasEntry = perfs.some(function(pf) {
+        return pf.project_id === proj.id && pf.user_id === proj.pm_id && pf.year === Number(year);
+      });
+      var hasCols = yCols.some(function(c) { return c.project_id === proj.id; });
+      if (!hasEntry && hasCols) {
+        result.push({ project_id: proj.id, user_id: proj.pm_id, contribution_rate: 100, year: Number(year), _auto: true });
+      }
+    });
+    return result;
+  })();
+
   var userSummary = users.map(function(u) {
-    var myP = perfs.filter(function(p) { return p.user_id === u.id && p.year === Number(year); });
+    var myP = effectivePerfs.filter(function(p) { return p.user_id === u.id && p.year === Number(year); });
     var total = myP.reduce(function(s, pf) {
       var net = yCols.filter(function(c) { return c.project_id === pf.project_id; })
         .reduce(function(a,c) { return a + (c.amount||0) - (c.outsource_cost||0); }, 0);
@@ -1158,7 +1174,6 @@ function PerfView({ user }) {
         <button className={tab==='col'?'itab active':'itab'} onClick={function(){changeTab('col');}}>수금 내역</button>
         <button className={tab==='proj'?'itab active':'itab'} onClick={function(){changeTab('proj');}}>프로젝트별</button>
         <button className={tab==='user'?'itab active':'itab'} onClick={function(){changeTab('user');}}>직원별 실적</button>
-        <button className={tab==='pf'?'itab active':'itab'} onClick={function(){changeTab('pf');}}>기여율 관리</button>
         <button className={tab==='contract'?'itab active':'itab'} onClick={function(){changeTab('contract');}}>계약/잔금</button>
         <button className={tab==='expected'?'itab active':'itab'} onClick={function(){changeTab('expected');}}>예상수금</button>
       </div>
@@ -1306,90 +1321,95 @@ function PerfView({ user }) {
       )}
 
       {tab === 'user' && (
-        <div className="card">
-          <div className="st" style={{marginBottom:14}}>직원별 실적 ({year}년)</div>
-          {userSummary.length === 0 ? (
-            <div className="empty"><div className="ei">👥</div><div className="et">기여율 데이터가 없습니다</div></div>
-          ) : userSummary.map(function(u, i) {
-            return (
-              <div key={u.id} style={{marginBottom:14}}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <div style={{width:28,height:28,borderRadius:'50%',background:'#7c3aed',color:'#fff',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>{i+1}</div>
-                    <span style={{fontWeight:700}}>{u.name}</span>
-                    <span style={{fontSize:11,color:'#94a3b8'}}>{u.cnt}개 프로젝트</span>
+        <div>
+          <div className="card">
+            <div className="st" style={{marginBottom:14}}>직원별 실적 ({year}년)</div>
+            {userSummary.length === 0 ? (
+              <div className="empty"><div className="ei">👥</div><div className="et">기여율 데이터가 없습니다</div></div>
+            ) : userSummary.map(function(u, i) {
+              return (
+                <div key={u.id} style={{marginBottom:14}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:4}}>
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <div style={{width:28,height:28,borderRadius:'50%',background:'#7c3aed',color:'#fff',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}>{i+1}</div>
+                      <span style={{fontWeight:700}}>{u.name}</span>
+                      <span style={{fontSize:11,color:'#94a3b8'}}>{u.cnt}개 프로젝트</span>
+                    </div>
+                    <span style={{fontWeight:800,color:'#7c3aed',fontSize:15}}>{fmtN(Math.round(u.total))}원</span>
                   </div>
-                  <span style={{fontWeight:800,color:'#7c3aed',fontSize:15}}>{fmtN(Math.round(u.total))}원</span>
+                  <div className="pb"><div className="pbf" style={{width: Math.round(u.total/maxPerf*100) + '%'}}></div></div>
                 </div>
-                <div className="pb"><div className="pbf" style={{width: Math.round(u.total/maxPerf*100) + '%'}}></div></div>
+              );
+            })}
+          </div>
+
+          <div className="card">
+            <div className="sh">
+              <span className="st">기여율 관리 ({year}년)</span>
+              <button className="btn btn-p btn-sm" onClick={function(){setModal('pf');setEditItem(null);setForm({year:Number(year)});}}>+ 기여율 입력</button>
+            </div>
+            {effectivePerfs.filter(function(p) { return p.year === Number(year); }).length === 0 ? (
+              <div className="empty"><div className="ei">📐</div><div className="et">입력된 기여율이 없습니다</div></div>
+            ) : (
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr>
+                    <SortTh label="프로젝트" col="proj" state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} />
+                    <SortTh label="직원"     col="user" state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} />
+                    <SortTh label="기여율"   col="rate" state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} className="tr" />
+                    <SortTh label="적용 실적" col="my"  state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} className="tr" />
+                    <th></th>
+                  </tr></thead>
+                  <tbody>
+                    {sortRows(effectivePerfs.filter(function(p) { return p.year === Number(year); }), pfSort, function(pf, col) {
+                      if (col==='proj') return pName(pf.project_id);
+                      if (col==='user') return uName(pf.user_id);
+                      if (col==='rate') return pf.contribution_rate||0;
+                      if (col==='my') {
+                        var net = yCols.filter(function(c){ return c.project_id===pf.project_id; })
+                          .reduce(function(s,c){ return s+(c.amount||0)-(c.outsource_cost||0); },0);
+                        return Math.round(net*(pf.contribution_rate||0)/100);
+                      }
+                      return '';
+                    }).map(function(pf) {
+                      var net = yCols.filter(function(c) { return c.project_id === pf.project_id; })
+                        .reduce(function(s,c) { return s + (c.amount||0) - (c.outsource_cost||0); }, 0);
+                      var my = Math.round(net * (pf.contribution_rate||0) / 100);
+                      return (
+                        <tr key={pf.project_id + '-' + pf.user_id}>
+                          <td style={{fontWeight:600}}>
+                            {(function(){
+                              var proj = projects.find(function(p){ return p.id === pf.project_id; });
+                              return (
+                                <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                                  {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{proj.client}</span>}
+                                  {pName(pf.project_id)}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td>{uName(pf.user_id)}</td>
+                          <td className="tr">
+                            <span className="badge bp">{pf.contribution_rate}%</span>
+                            {pf._auto && <span style={{fontSize:10,color:'#94a3b8',marginLeft:4}}>자동</span>}
+                          </td>
+                          <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(my)}원</td>
+                          <td style={{display:'flex',gap:4}}>
+                            {!pf._auto && <button className="btn btn-s btn-sm" onClick={function(){setEditItem(pf);setForm(Object.assign({},pf));setModal('pf');}}>수정</button>}
+                            {!pf._auto && <button className="btn btn-d btn-sm" onClick={function(){deletePerf(pf);}}>삭제</button>}
+                            {pf._auto && <span style={{fontSize:11,color:'#94a3b8'}}>PM 자동</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            );
-          })}
+            )}
+          </div>
         </div>
       )}
 
-      {tab === 'pf' && (
-        <div className="card">
-          <div className="sh">
-            <span className="st">기여율 입력 ({year}년)</span>
-            <button className="btn btn-p btn-sm" onClick={function(){setModal('pf');setEditItem(null);setForm({year:Number(year)});}}>+ 기여율 입력</button>
-          </div>
-          {perfs.filter(function(p) { return p.year === Number(year); }).length === 0 ? (
-            <div className="empty"><div className="ei">📐</div><div className="et">입력된 기여율이 없습니다</div></div>
-          ) : (
-            <div className="tbl-wrap">
-              <table>
-                <thead><tr>
-                  <SortTh label="프로젝트" col="proj" state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} />
-                  <SortTh label="직원"     col="user" state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} />
-                  <SortTh label="기여율"   col="rate" state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} className="tr" />
-                  <SortTh label="적용 실적" col="my"  state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} className="tr" />
-                  <th></th>
-                </tr></thead>
-                <tbody>
-                  {sortRows(perfs.filter(function(p) { return p.year === Number(year); }), pfSort, function(pf, col) {
-                    if (col==='proj') return pName(pf.project_id);
-                    if (col==='user') return uName(pf.user_id);
-                    if (col==='rate') return pf.contribution_rate||0;
-                    if (col==='my') {
-                      var net = yCols.filter(function(c){ return c.project_id===pf.project_id; })
-                        .reduce(function(s,c){ return s+(c.amount||0)-(c.outsource_cost||0); },0);
-                      return Math.round(net*(pf.contribution_rate||0)/100);
-                    }
-                    return '';
-                  }).map(function(pf) {
-                    var net = yCols.filter(function(c) { return c.project_id === pf.project_id; })
-                      .reduce(function(s,c) { return s + (c.amount||0) - (c.outsource_cost||0); }, 0);
-                    var my = Math.round(net * (pf.contribution_rate||0) / 100);
-                    return (
-                      <tr key={pf.project_id + '-' + pf.user_id}>
-                        <td style={{fontWeight:600}}>
-                          {(function(){
-                            var proj = projects.find(function(p){ return p.id === pf.project_id; });
-                            return (
-                              <span style={{display:'flex',flexDirection:'column',gap:1}}>
-                                {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{proj.client}</span>}
-                                {pName(pf.project_id)}
-                              </span>
-                            );
-                          })()}
-                        </td>
-                        <td>{uName(pf.user_id)}</td>
-                        <td className="tr"><span className="badge bp">{pf.contribution_rate}%</span></td>
-                        <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(my)}원</td>
-                        <td style={{display:'flex',gap:4}}>
-                          <button className="btn btn-s btn-sm" onClick={function(){setEditItem(pf);setForm(Object.assign({},pf));setModal('pf');}}>수정</button>
-                          <button className="btn btn-d btn-sm" onClick={function(){deletePerf(pf);}}>삭제</button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
 
       {modal === 'col' && (
         <div className="mbg" onClick={function(){setModal('');}}>
@@ -1497,18 +1517,19 @@ function PerfView({ user }) {
             var netCol   = totalCol - totalOut;
             var remain   = contractAmt - netCol;
             var pct      = contractAmt > 0 ? Math.min(100, Math.round(netCol / contractAmt * 100)) : 0;
-            return { p:p, ct:ct, contractAmt:contractAmt, netCol:netCol, remain:remain, pct:pct };
+            return { p:p, ct:ct, contractAmt:contractAmt, netCol:netCol, remain:remain, pct:pct, startDate:ct?ct.start_date:null };
           })
           .sort(function(a,b){
             var catOrd = function(c){ return c==='사급'?0:c==='관급'?1:2; };
             return catOrd(a.p.category) - catOrd(b.p.category) || a.p.name.localeCompare(b.p.name, 'ko');
           }), ctSort, function(r, col) {
-            if (col==='name')     return r.p.name;
-            if (col==='status')   return r.p.status;
-            if (col==='contract') return r.contractAmt;
-            if (col==='netCol')   return r.netCol;
-            if (col==='remain')   return r.remain;
-            if (col==='pct')      return r.pct;
+            if (col==='name')      return r.p.name;
+            if (col==='startDate') return r.startDate||'';
+            if (col==='status')    return r.p.status;
+            if (col==='contract')  return r.contractAmt;
+            if (col==='netCol')    return r.netCol;
+            if (col==='remain')    return r.remain;
+            if (col==='pct')       return r.pct;
             return '';
           });
 
@@ -1532,12 +1553,13 @@ function PerfView({ user }) {
               <table>
                 <thead>
                   <tr>
-                    <SortTh label="용역명"   col="name"     state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} />
-                    <SortTh label="상태"     col="status"   state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} />
-                    <SortTh label="계약금액" col="contract" state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} className="tr" />
-                    <SortTh label="순 수금액" col="netCol"  state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} className="tr" />
-                    <SortTh label="잔금"     col="remain"   state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} className="tr" />
-                    <SortTh label="수금률"   col="pct"      state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} style={{width:100}} />
+                    <SortTh label="용역명"   col="name"      state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} />
+                    <SortTh label="착수일"   col="startDate" state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} />
+                    <SortTh label="상태"     col="status"    state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} />
+                    <SortTh label="계약금액" col="contract"  state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} className="tr" />
+                    <SortTh label="순 수금액" col="netCol"   state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} className="tr" />
+                    <SortTh label="잔금"     col="remain"    state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} className="tr" />
+                    <SortTh label="수금률"   col="pct"       state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} style={{width:90}} />
                   </tr>
                 </thead>
                 <tbody>
@@ -1563,11 +1585,12 @@ function PerfView({ user }) {
                           <span className={p.status==='완료'?'badge bg':p.status==='중지'?'badge ba':'badge bb'}
                             style={{fontSize:10}}>{p.status}</span>
                         </td>
+                        <td style={{fontSize:12,color:'#475569'}}>{r.startDate ? fmtD(r.startDate) : <span style={{color:'#cbd5e1'}}>—</span>}</td>
                         <td className="tr">
                           <span style={{fontWeight:700,color:'#1d4ed8',cursor:'pointer',textDecoration:'underline',textUnderlineOffset:2}}
                             onClick={function(){
                               setEditItem(r.ct || {project_id:p.id});
-                              setForm({project_id:p.id, amount:r.ct?fmtN(r.ct.amount):'', memo:r.ct?r.ct.memo:''});
+                              setForm({project_id:p.id, amount:r.ct?fmtN(r.ct.amount):'', memo:r.ct?r.ct.memo:'', start_date:r.ct?r.ct.start_date:''});
                               setModal('contract');
                             }}>
                             {r.contractAmt > 0 ? fmtN(r.contractAmt)+'원' : '+ 입력'}
@@ -1747,10 +1770,17 @@ function PerfView({ user }) {
                   {(function(){ var p = projects.find(function(p){return p.id===form.project_id;}); return p ? p.name : '-'; })()}
                 </div>
               </div>
-              <div style={{marginBottom:12}}>
-                <label className="fl">계약금액 (원) *</label>
-                <input className="fi" value={form.amount||''} placeholder="0" style={{textAlign:'right'}}
-                  onChange={function(e){onAmountChange('amount',e);}} />
+              <div className="g2" style={{marginBottom:12}}>
+                <div>
+                  <label className="fl">착수일 (계약일)</label>
+                  <input type="date" className="fi" value={form.start_date||''}
+                    onChange={function(e){setForm(function(p){return Object.assign({},p,{start_date:e.target.value});});}} />
+                </div>
+                <div>
+                  <label className="fl">계약금액 (원) *</label>
+                  <input className="fi" value={form.amount||''} placeholder="0" style={{textAlign:'right'}}
+                    onChange={function(e){onAmountChange('amount',e);}} />
+                </div>
               </div>
               <div>
                 <label className="fl">메모</label>
@@ -1763,7 +1793,7 @@ function PerfView({ user }) {
               <button className="btn btn-p" onClick={function(){
                 if (!form.amount) { setErr('계약금액을 입력해주세요.'); return; }
                 setSaving(true); setErr('');
-                var payload = { project_id:form.project_id, amount:numV(form.amount), memo:form.memo||'', updated_at:new Date().toISOString() };
+                var payload = { project_id:form.project_id, amount:numV(form.amount), memo:form.memo||'', start_date:form.start_date||null, updated_at:new Date().toISOString() };
                 var q = editItem && editItem.id
                   ? sb.from('contracts').update(payload).eq('id', editItem.id)
                   : sb.from('contracts').upsert(payload, {onConflict:'project_id'});
