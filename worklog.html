@@ -779,6 +779,7 @@ function AllLogsView({ user }) {
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [usersLoaded, setUsersLoaded] = useState(false);
 
   const changeMode = (newMode, date) => {
     history.pushState({ mode: newMode, selDate: date || selDate }, '', '');
@@ -799,32 +800,42 @@ function AllLogsView({ user }) {
   }, []);
 
   useEffect(() => {
+    setUsersLoaded(false);
     const load = async () => {
-      const { data: teamData } = await sb.from('teams').select('id, name');
-      const allTeams = teamData || [];
-      setTeams(allTeams);
-      const { data: userData } = await sb.from('users').select('id, name, team_id, role').order('name');
-      const allUsers = userData || [];
-      const allowedTeamIds = allTeams.filter(t => ALLOWED_TEAMS.includes(t.name)).map(t => t.id);
-      setUsers(allUsers.filter(u => u.role !== 'contractor' && allowedTeamIds.includes(u.team_id)));
+      try {
+        const { data: teamData, error: teamErr } = await sb.from('teams').select('id, name');
+        if (teamErr) console.error('[AllLogs] teams fetch error:', teamErr);
+        const allTeams = teamData || [];
+        setTeams(allTeams);
+        const { data: userData, error: userErr } = await sb.from('users').select('id, name, team_id, role').order('name');
+        if (userErr) console.error('[AllLogs] users fetch error:', userErr);
+        const allUsers = userData || [];
+        const allowedTeamIds = allTeams.filter(t => ALLOWED_TEAMS.includes(t.name)).map(t => t.id);
+        setUsers(allUsers.filter(u => u.role !== 'contractor' && allowedTeamIds.includes(u.team_id)));
+      } catch(e) {
+        console.error('[AllLogs] load error:', e);
+      } finally {
+        setUsersLoaded(true);
+      }
     };
     load();
-  }, [user]);
+  }, [user.id]);
 
   useEffect(() => {
-    if (!users.length) return;
+    if (!usersLoaded) return;
     const fetchLogs = async () => {
       setLoading(true);
       let start, end;
       if (mode === 'day') { start = end = selDate; }
       else if (mode === 'week') { const w = getWeekDates(selDate); start = w[0]; end = w[4]; }
       else { const m = getMonthInfo(selDate); start = m.firstDate; end = m.lastDate; }
-      const { data } = await sb.from('work_logs').select('*').gte('log_date', start).lte('log_date', end);
+      const { data, error } = await sb.from('work_logs').select('*').gte('log_date', start).lte('log_date', end);
+      if (error) console.error('[AllLogs] work_logs fetch error:', error);
       setLogs(data || []);
       setLoading(false);
     };
     fetchLogs();
-  }, [selDate, mode, users]);
+  }, [selDate, mode, usersLoaded]);
 
   const logFor = (uid, d) => logs.find(l => l.user_id === uid && l.log_date === d);
 
@@ -893,7 +904,7 @@ function AllLogsView({ user }) {
                   </div>
                 );
             })}
-            {!users.length && <div className="loading">직원 정보 로딩 중...</div>}
+            {usersLoaded && !users.length && <div className="empty-state"><div className="empty-icon">👥</div><div className="empty-text">표시할 팀원이 없습니다</div><div className="empty-sub">업무일지 대상 팀에 속한 직원이 없습니다</div></div>}
           </div>
         )}
 
