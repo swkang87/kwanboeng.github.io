@@ -1209,7 +1209,10 @@ function PerfView({ user }) {
                                 {p.category}
                               </span>
                             )}
-                            {p.name}
+                            <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                              {p.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{p.client}</span>}
+                              {p.name}
+                            </span>
                           </div>
                         </td>
                         <td style={{color:'#64748b',fontSize:12}}>{p.client||'-'}</td>
@@ -1441,7 +1444,10 @@ function PerfView({ user }) {
                                 background:CAT_BG[p.category]||'#f1f5f9',color:CAT_TX[p.category]||'#475569',
                                 border:'1px solid '+(CAT_COLOR[p.category]||'#e2e8f0')}}>{p.category}</span>
                             )}
-                            <span style={{fontWeight:600,fontSize:13}}>{p.name}</span>
+                            <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                              {p.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{p.client}</span>}
+                              <span style={{fontWeight:600,fontSize:13}}>{p.name}</span>
+                            </span>
                           </div>
                         </td>
                         <td>
