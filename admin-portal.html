@@ -955,6 +955,48 @@ function PerfView({ user }) {
   var [err, setErr] = useState('');
   var [year, setYear] = useState(String(new Date().getFullYear()));
 
+  // ── 탭별 정렬 상태 ──
+  var [colSort,  setColSort]  = useState({ col: null, dir: 'asc' });
+  var [projSort, setProjSort] = useState({ col: null, dir: 'asc' });
+  var [pfSort,   setPfSort]   = useState({ col: null, dir: 'asc' });
+  var [ctSort,   setCtSort]   = useState({ col: null, dir: 'asc' });
+
+  function mkSortHandler(state, setter) {
+    return function(col) {
+      setter(function(prev) {
+        if (prev.col === col) return { col: col, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+        return { col: col, dir: 'asc' };
+      });
+    };
+  }
+
+  function sortRows(rows, state, getVal) {
+    if (!state.col) return rows;
+    return rows.slice().sort(function(a, b) {
+      var av = getVal(a, state.col);
+      var bv = getVal(b, state.col);
+      if (av == null) av = '';
+      if (bv == null) bv = '';
+      var cmp = typeof av === 'number' && typeof bv === 'number'
+        ? av - bv
+        : String(av).localeCompare(String(bv), 'ko');
+      return state.dir === 'asc' ? cmp : -cmp;
+    });
+  }
+
+  function SortTh({ label, col, state, onSort, className, style }) {
+    var active = state.col === col;
+    return (
+      <th className={className} style={Object.assign({ cursor:'pointer', userSelect:'none', whiteSpace:'nowrap' }, style||{})}
+        onClick={function(){ onSort(col); }}>
+        {label}
+        <span style={{ marginLeft:4, fontSize:10, color: active ? '#7c3aed' : '#cbd5e1' }}>
+          {active ? (state.dir === 'asc' ? '▲' : '▼') : '⇅'}
+        </span>
+      </th>
+    );
+  }
+
   function load() {
     setLoading(true);
     Promise.all([
@@ -1135,9 +1177,25 @@ function PerfView({ user }) {
           ) : (
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th>프로젝트</th><th>날짜</th><th>유형</th><th className="tr">수금액</th><th className="tr">외주비</th><th className="tr">순 실적</th><th>메모</th><th></th></tr></thead>
+                <thead><tr>
+                  <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
+                  <SortTh label="날짜"     col="date"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
+                  <SortTh label="유형"     col="type"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
+                  <SortTh label="수금액"   col="amount" state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
+                  <SortTh label="외주비"   col="out"    state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
+                  <SortTh label="순 실적"  col="net"    state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
+                  <th>메모</th><th></th>
+                </tr></thead>
                 <tbody>
-                  {yCols.map(function(c) {
+                  {sortRows(yCols, colSort, function(c, col) {
+                    if (col==='proj')   return pName(c.project_id);
+                    if (col==='date')   return c.collected_at;
+                    if (col==='type')   return c.entry_type;
+                    if (col==='amount') return c.amount||0;
+                    if (col==='out')    return c.outsource_cost||0;
+                    if (col==='net')    return (c.amount||0)-(c.outsource_cost||0);
+                    return '';
+                  }).map(function(c) {
                     var isOut = c.entry_type === 'outsource_only';
                     var net   = (c.amount||0) - (c.outsource_cost||0);
                     return (
@@ -1155,7 +1213,10 @@ function PerfView({ user }) {
                                     {cat}
                                   </span>
                                 )}
-                                <span style={{fontWeight:600}}>{pName(c.project_id)}</span>
+                                <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                                  {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{proj.client}</span>}
+                                  <span style={{fontWeight:600}}>{pName(c.project_id)}</span>
+                                </span>
                               </div>
                             );
                           })()}
@@ -1195,9 +1256,24 @@ function PerfView({ user }) {
           ) : (
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th>프로젝트</th><th>발주처</th><th>PM</th><th className="tr">수금액</th><th className="tr">외주비</th><th className="tr">순 실적</th></tr></thead>
+                <thead><tr>
+                  <SortTh label="프로젝트" col="name"   state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
+                  <SortTh label="발주처"   col="client" state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
+                  <SortTh label="PM"       col="pm"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
+                  <SortTh label="수금액"   col="tc"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                  <SortTh label="외주비"   col="to"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                  <SortTh label="순 실적"  col="net"    state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                </tr></thead>
                 <tbody>
-                  {projSummary.map(function(p) {
+                  {sortRows(projSummary, projSort, function(p, col) {
+                    if (col==='name')   return p.name;
+                    if (col==='client') return p.client||'';
+                    if (col==='pm')     return uName(p.pm_id);
+                    if (col==='tc')     return p.tc;
+                    if (col==='to')     return p.to;
+                    if (col==='net')    return p.net;
+                    return '';
+                  }).map(function(p) {
                     return (
                       <tr key={p.id}>
                         <td style={{fontWeight:600}}>
@@ -1210,7 +1286,6 @@ function PerfView({ user }) {
                               </span>
                             )}
                             <span style={{display:'flex',flexDirection:'column',gap:1}}>
-                              {p.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{p.client}</span>}
                               {p.name}
                             </span>
                           </div>
@@ -1264,15 +1339,41 @@ function PerfView({ user }) {
           ) : (
             <div className="tbl-wrap">
               <table>
-                <thead><tr><th>프로젝트</th><th>직원</th><th className="tr">기여율</th><th className="tr">적용 실적</th><th></th></tr></thead>
+                <thead><tr>
+                  <SortTh label="프로젝트" col="proj" state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} />
+                  <SortTh label="직원"     col="user" state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} />
+                  <SortTh label="기여율"   col="rate" state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} className="tr" />
+                  <SortTh label="적용 실적" col="my"  state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} className="tr" />
+                  <th></th>
+                </tr></thead>
                 <tbody>
-                  {perfs.filter(function(p) { return p.year === Number(year); }).map(function(pf) {
+                  {sortRows(perfs.filter(function(p) { return p.year === Number(year); }), pfSort, function(pf, col) {
+                    if (col==='proj') return pName(pf.project_id);
+                    if (col==='user') return uName(pf.user_id);
+                    if (col==='rate') return pf.contribution_rate||0;
+                    if (col==='my') {
+                      var net = yCols.filter(function(c){ return c.project_id===pf.project_id; })
+                        .reduce(function(s,c){ return s+(c.amount||0)-(c.outsource_cost||0); },0);
+                      return Math.round(net*(pf.contribution_rate||0)/100);
+                    }
+                    return '';
+                  }).map(function(pf) {
                     var net = yCols.filter(function(c) { return c.project_id === pf.project_id; })
                       .reduce(function(s,c) { return s + (c.amount||0) - (c.outsource_cost||0); }, 0);
                     var my = Math.round(net * (pf.contribution_rate||0) / 100);
                     return (
                       <tr key={pf.project_id + '-' + pf.user_id}>
-                        <td style={{fontWeight:600}}>{pName(pf.project_id)}</td>
+                        <td style={{fontWeight:600}}>
+                          {(function(){
+                            var proj = projects.find(function(p){ return p.id === pf.project_id; });
+                            return (
+                              <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                                {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{proj.client}</span>}
+                                {pName(pf.project_id)}
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td>{uName(pf.user_id)}</td>
                         <td className="tr"><span className="badge bp">{pf.contribution_rate}%</span></td>
                         <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(my)}원</td>
@@ -1386,7 +1487,7 @@ function PerfView({ user }) {
             .reduce(function(s,c){ return s + (c.outsource_cost||0); }, 0);
         }
 
-        var rows = allProjects
+        var rows = sortRows(allProjects
           .filter(function(p){ return getContract(p.id) || p.status !== '완료'; })
           .map(function(p){
             var ct = getContract(p.id);
@@ -1401,6 +1502,14 @@ function PerfView({ user }) {
           .sort(function(a,b){
             var catOrd = function(c){ return c==='사급'?0:c==='관급'?1:2; };
             return catOrd(a.p.category) - catOrd(b.p.category) || a.p.name.localeCompare(b.p.name, 'ko');
+          }), ctSort, function(r, col) {
+            if (col==='name')     return r.p.name;
+            if (col==='status')   return r.p.status;
+            if (col==='contract') return r.contractAmt;
+            if (col==='netCol')   return r.netCol;
+            if (col==='remain')   return r.remain;
+            if (col==='pct')      return r.pct;
+            return '';
           });
 
         var totalContract = rows.reduce(function(s,r){ return s + r.contractAmt; }, 0);
@@ -1423,12 +1532,12 @@ function PerfView({ user }) {
               <table>
                 <thead>
                   <tr>
-                    <th>용역명</th>
-                    <th>상태</th>
-                    <th className="tr">계약금액</th>
-                    <th className="tr">순 수금액</th>
-                    <th className="tr">잔금</th>
-                    <th style={{width:100}}>수금률</th>
+                    <SortTh label="용역명"   col="name"     state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} />
+                    <SortTh label="상태"     col="status"   state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} />
+                    <SortTh label="계약금액" col="contract" state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} className="tr" />
+                    <SortTh label="순 수금액" col="netCol"  state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} className="tr" />
+                    <SortTh label="잔금"     col="remain"   state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} className="tr" />
+                    <SortTh label="수금률"   col="pct"      state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} style={{width:100}} />
                   </tr>
                 </thead>
                 <tbody>
