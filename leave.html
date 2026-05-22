@@ -1001,8 +1001,90 @@ function AdminDash({user,users,teams,leaves,onNav}){
 }
 
 // ── Main App ──────────────────────────────────────────────
-// 로그인 전용 익명 Supabase 클라이언트 (모듈 레벨 1회 생성)
-const anonSb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+// ── LeaveLoginScreen ─────────────────────────────────────────
+// leave.html은 Supabase SDK 미사용(fetch 직접 방식)이므로 전용 컴포넌트 사용
+// 비밀번호 해시는 Sysbar.Auth에 위임
+function LeaveLoginScreen({ onLogin }) {
+  const [phone, setPhone] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const doLogin = async () => {
+    if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
+    setLoading(true); setErr('');
+    try {
+      // 서버에서 단건 조회 (인증 없이 전화번호로만 조회)
+      const digits = phone.trim().replace(/\D/g, '');
+      const res = await fetch(
+        `${SB_URL}/users?phone=eq.${digits}&limit=1`,
+        { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } }
+      );
+      const rows = res.ok ? await res.json() : [];
+      const user = rows[0];
+      if (!user) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+      if (user.role === 'contractor') { setErr('연차 관리 시스템 접근 권한이 없습니다.'); setLoading(false); return; }
+
+      const ok = await Sysbar.Auth.verifyPassword(pw, user.password);
+      if (!ok) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+
+      // Lazy migration: 평문이면 해시로 업그레이드
+      if (Sysbar.Auth.isPlainPassword(user.password)) {
+        try {
+          const h = await Sysbar.Auth.hashPassword(pw);
+          await fetch(`${SB_URL}/users?id=eq.${user.id}`, {
+            method: 'PATCH',
+            headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`,
+                       'Content-Type': 'application/json', 'x-user-id': String(user.id), 'x-user-role': user.role },
+            body: JSON.stringify({ password: h })
+          });
+        } catch(e) {}
+      }
+
+      // 세션 저장 (password 제외)
+      const safeUser = Object.assign({}, user);
+      delete safeUser.password;
+      localStorage.setItem('kwanbo_session', JSON.stringify(safeUser));
+      localStorage.removeItem('kwanbo_pm_user');
+      sessionStorage.removeItem('kwanbo_uid');
+
+      setLoading(false);
+      onLogin(safeUser);
+    } catch(e) {
+      setErr('서버 오류가 발생했습니다.');
+      setLoading(false);
+    }
+  };
+
+  const onKey = (e) => { if (e.key === 'Enter') doLogin(); };
+
+  return (
+    <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{background:'#fff',borderRadius:16,padding:'32px 28px',width:'100%',maxWidth:340,boxShadow:'0 24px 70px rgba(0,0,0,.45)'}}>
+        <div style={{textAlign:'center',marginBottom:22}}>
+          <div style={{fontSize:15,fontWeight:800,color:'#0f172a'}}>{APP_CONFIG.COMPANY_SHORT}</div>
+          <div style={{fontSize:11,color:'#94a3b8',marginTop:3}}>연차 관리 시스템</div>
+        </div>
+        {err && <div style={{background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:6,padding:'7px 11px',fontSize:12,marginBottom:12}}>{err}</div>}
+        <div style={{marginBottom:12}}>
+          <label style={{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:4}}>전화번호</label>
+          <input value={phone} onChange={e=>setPhone(e.target.value)} onKeyDown={onKey}
+            placeholder="전화번호" style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box'}}/>
+        </div>
+        <div style={{marginBottom:18}}>
+          <label style={{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:4}}>비밀번호</label>
+          <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={onKey}
+            placeholder="비밀번호" style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box'}}/>
+        </div>
+        <button onClick={doLogin} disabled={loading}
+          style={{width:'100%',padding:11,background:'#1d4ed8',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:700,cursor:'pointer'}}>
+          {loading ? '로그인 중...' : '로그인'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const SysBar = Sysbar.createComponent(React);
 function App(){
   // 세션 즉시 복원 (Sysbar.Auth.getSession 사용)
@@ -1093,10 +1175,7 @@ function App(){
   const refresh=()=>load();
 
   // ── 로그인 화면 ──────────────────────────────────────────
-  if(!cu){
-    const SysbarLogin = Sysbar.createLoginComponent(React, { subtitle: '연차 관리 시스템', blockedRoles: ['contractor'] });
-    return <SysbarLogin supabaseClient={anonSb} onLogin={handleLogin} />;
-  }
+  if(!cu) return <LeaveLoginScreen onLogin={handleLogin} />;
 
   // ── 기술지원(contractor) 접근 차단 ────────────────────────
   if(cu.role==='contractor'){
