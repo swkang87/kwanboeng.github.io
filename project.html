@@ -1005,17 +1005,14 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                       <button
                         onClick={() => setOpenInputId(openInputId === p.id ? null : p.id)}
                         style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                          width: 26, height: 32, border: 'none', borderRadius: 4, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          width: 22, height: 22, border: 'none', borderRadius: 4, cursor: 'pointer',
                           background: openInputId === p.id ? '#1d4ed8' : (r?.isThisWeek ? '#d1fae5' : '#fef3c7'),
                           color: openInputId === p.id ? '#fff' : (r?.isThisWeek ? '#065f46' : '#92400e'),
-                          fontSize: 8, fontWeight: 700, lineHeight: 1.3, gap: 1,
-                          fontFamily: "'Noto Sans KR', sans-serif",
+                          fontSize: 12,
                         }}
                       >
-                        <span style={{ fontSize: 10 }}>{openInputId === p.id ? '✕' : '📝'}</span>
-                        <span>주간</span>
-                        <span>보고</span>
+                        {openInputId === p.id ? '✕' : '📝'}
                       </button>
                     )}
                   </td>
