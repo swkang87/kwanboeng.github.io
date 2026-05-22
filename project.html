@@ -918,7 +918,15 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                     ? (r.summary || <span style={{ color: '#94a3b8' }}>—</span>)
                     : stopped
                       ? <span style={{ color: '#9ca3af' }}>중지 상태</span>
-                      : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>
+                      : <span>
+                          <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>
+                          {r?.summary && (
+                            <div style={{ marginTop: 4, padding: '5px 8px', background: '#f8fafc', borderRadius: 5, fontSize: 11, color: '#94a3b8', borderLeft: '3px solid #e2e8f0', lineHeight: 1.5 }}>
+                              <span style={{ fontWeight: 600, color: '#64748b' }}>{ff(r.week_date)} 기준</span><br/>
+                              {r.summary}
+                            </div>
+                          )}
+                        </span>
                   }
                   {ne && (
                     <div style={{ marginTop: 4, padding: '3px 7px', background: ec(ne.type).bg, borderRadius: 4, fontSize: 11, color: ec(ne.type).tx, display: 'inline-block' }}>
@@ -994,7 +1002,15 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                   </td>
                   <td className="tc"><span style={{ fontSize: 11, fontWeight: 700, color: d>0?'#059669':d<0?'#dc2626':'#94a3b8' }}>{d>0?`▲${d}`:d<0?`▼${Math.abs(d)}`:'—'}</span></td>
                   <td style={{ fontSize: 11, color: '#334155', lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
-                    {r?.isThisWeek ? (r.summary || '—') : (stopped ? <span style={{ color: '#9ca3af' }}>중지 상태</span> : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>)}
+                    {r?.isThisWeek
+                      ? (r.summary || '—')
+                      : stopped
+                        ? <span style={{ color: '#9ca3af' }}>중지 상태</span>
+                        : <span>
+                            <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>
+                            {r?.summary && <span style={{ color: '#94a3b8', fontSize: 10, marginLeft: 4 }}>({ff(r.week_date)} 기준: {r.summary.length > 60 ? r.summary.slice(0, 60) + '…' : r.summary})</span>}
+                          </span>
+                    }
                     {ne && <div style={{ marginTop: 3, padding: '2px 5px', background: ec(ne.type).bg, borderRadius: 3, fontSize: 10, color: ec(ne.type).tx, display: 'inline-block' }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
                   </td>
                   <td style={{ fontSize: 10 }}>
@@ -1715,22 +1731,37 @@ function MyProjects({ user, gp, appData }) {
 
   useEffect(() => {
     if (appData?.loaded) {
-      // RLS 환경에서 appData.members는 전체 row를 못 가져올 수 있으므로
-      // 현재 유저의 멤버십만 직접 쿼리해서 필터링 정확도를 보장
       if (user.role === 'admin') {
+        // admin은 전체 프로젝트 접근 가능 — appData 그대로 사용
         const sorted = buildSorted(appData.projects, appData.reports, appData.users, appData.members);
         setMyProjects(sorted);
+        setUsers(appData.users);
+        setReports(appData.reports);
+        setEvents(appData.events);
+        setLoading(false);
       } else {
+        // 일반 유저: RLS로 appData.projects/members가 불완전할 수 있으므로
+        // 내 멤버십을 직접 쿼리 후, appData에 없는 참여 프로젝트까지 추가 쿼리
         sb.from('project_members').select('project_id, role').eq('user_id', user.id)
-          .then(({ data: myMb }) => {
-            const sorted = buildSorted(appData.projects, appData.reports, appData.users, myMb || []);
+          .then(async ({ data: myMb }) => {
+            const myMbData = myMb || [];
+            const myMemberPids = new Set(myMbData.map(m => m.project_id));
+            const knownPids = new Set(appData.projects.map(p => p.id));
+            const missingPids = [...myMemberPids].filter(pid => !knownPids.has(pid));
+            let extraProjects = [];
+            if (missingPids.length > 0) {
+              const { data: extra } = await sb.from('projects').select('*, completed_at').in('id', missingPids);
+              extraProjects = extra || [];
+            }
+            const allProjects = [...appData.projects, ...extraProjects];
+            const sorted = buildSorted(allProjects, appData.reports, appData.users, myMbData);
             setMyProjects(sorted);
+            setUsers(appData.users);
+            setReports(appData.reports);
+            setEvents(appData.events);
+            setLoading(false);
           });
       }
-      setUsers(appData.users);
-      setReports(appData.reports);
-      setEvents(appData.events);
-      setLoading(false);
     } else if (!appData?.loaded) {
       loadAll();
     }
