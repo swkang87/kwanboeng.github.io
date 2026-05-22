@@ -1724,7 +1724,7 @@ function MyProjects({ user, gp, appData }) {
     };
     if (user.role === 'admin') return sortList(allProjects);
     const pmIds = new Set(allProjects.filter(p => p.pm_id === user.id).map(p => p.id));
-    const myMemberPids = new Set(allMembers.filter(m => m.user_id === user.id).map(m => m.project_id));
+    const myMemberPids = new Set(allMembers.filter(m => String(m.user_id).trim() === String(user.id).trim()).map(m => m.project_id));
     const mine = allProjects.filter(p => pmIds.has(p.id) || myMemberPids.has(p.id));
     return sortList(mine);
   };
@@ -1741,9 +1741,9 @@ function MyProjects({ user, gp, appData }) {
       } else {
         sb.from('project_members').select('project_id, role').eq('user_id', user.id)
           .then(async ({ data: myMb }) => {
-            const myMbData = myMb || [];
+            const myMbData = (myMb || []).map(m => ({ ...m, project_id: String(m.project_id).trim(), user_id: String(m.user_id).trim() }));
             const myMemberPids = new Set(myMbData.map(m => m.project_id));
-            const knownPids = new Set(appData.projects.map(p => p.id));
+            const knownPids = new Set(appData.projects.map(p => String(p.id).trim()));
             const missingPids = [...myMemberPids].filter(pid => !knownPids.has(pid));
             let extraProjects = [];
             if (missingPids.length > 0) {
@@ -1781,7 +1781,7 @@ function MyProjects({ user, gp, appData }) {
       allMine = buildSorted(all || [], rpData, usData, memberProjs.data || []);
     } else {
       const pmIds = new Set((pmProjs.data || []).map(p => p.id));
-      const supportIds = (memberProjs.data || []).filter(m => !pmIds.has(m.project_id)).map(m => m.project_id);
+      const supportIds = (memberProjs.data || []).filter(m => !pmIds.has(m.project_id)).map(m => String(m.project_id).trim());
       let supportProjs = [];
       if (supportIds.length > 0) {
         const { data } = await sb.from('projects').select('*').in('id', supportIds);
