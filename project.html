@@ -1732,7 +1732,6 @@ function MyProjects({ user, gp, appData }) {
   useEffect(() => {
     if (appData?.loaded) {
       if (user.role === 'admin') {
-        // admin은 전체 프로젝트 접근 가능 — appData 그대로 사용
         const sorted = buildSorted(appData.projects, appData.reports, appData.users, appData.members);
         setMyProjects(sorted);
         setUsers(appData.users);
@@ -1740,8 +1739,6 @@ function MyProjects({ user, gp, appData }) {
         setEvents(appData.events);
         setLoading(false);
       } else {
-        // 일반 유저: RLS로 appData.projects/members가 불완전할 수 있으므로
-        // 내 멤버십을 직접 쿼리 후, appData에 없는 참여 프로젝트까지 추가 쿼리
         sb.from('project_members').select('project_id, role').eq('user_id', user.id)
           .then(async ({ data: myMb }) => {
             const myMbData = myMb || [];
