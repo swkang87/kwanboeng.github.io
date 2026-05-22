@@ -997,7 +997,8 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
               const d = pct - prev;
               const barColor = pct>=80?'#059669':pct>=50?'#2563eb':'#f59e0b';
               return (
-                <tr key={p.id} style={{ opacity: stopped ? 0.55 : 1, background: stopped ? '#fafafa' : 'transparent', borderLeft: `3px solid ${CAT_COLOR[p.category]}` }}>
+                <React.Fragment key={p.id}>
+                <tr style={{ opacity: stopped ? 0.55 : 1, background: stopped ? '#fafafa' : 'transparent', borderLeft: `3px solid ${CAT_COLOR[p.category]}` }}>
                   <td className="tc" style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>{idx+1}</td>
                   <td><Bd bg={CAT_COLOR[p.category]}>{p.category}</Bd>{stopped && <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 1 }}>중지</div>}</td>
                   <td style={{ cursor: 'pointer' }} onClick={() => { if(setScrollY) setScrollY(window.scrollY); gp(p.id)}}>
@@ -1070,6 +1071,7 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                     </td>
                   </tr>
                 )}
+                </React.Fragment>
               );
             })}
           </tbody>
