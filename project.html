@@ -200,6 +200,78 @@ button{cursor:pointer}
 <div id="print-area"></div>
 
 <script type="text/babel">
+
+// ── 공휴일 데이터 (하드코딩 폴백 + Nager.Date API 자동 갱신) ──
+const HOLIDAYS={
+  '2026-01-01':'신정',
+  '2026-01-28':'설날연휴','2026-01-29':'설날','2026-01-30':'설날연휴',
+  '2026-03-01':'삼일절',
+  '2026-05-05':'어린이날','2026-05-24':'부처님오신날',
+  '2026-06-03':'임시공휴일(지방선거)',
+  '2026-06-06':'현충일',
+  '2026-07-17':'제헌절',
+  '2026-08-15':'광복절',
+  '2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴',
+  '2026-10-03':'개천절','2026-10-09':'한글날',
+  '2026-12-25':'크리스마스',
+  '2025-01-01':'신정',
+  '2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴',
+  '2025-03-01':'삼일절',
+  '2025-05-05':'어린이날',
+  '2025-06-03':'임시공휴일(대통령선거)',
+  '2025-06-06':'현충일',
+  '2025-07-17':'제헌절',
+  '2025-08-15':'광복절',
+  '2025-10-03':'개천절',
+  '2025-10-05':'추석','2025-10-06':'추석연휴','2025-10-07':'추석연휴',
+  '2025-10-09':'한글날',
+  '2025-12-25':'크리스마스',
+};
+const SUBSTITUTE={
+  '2025-05-06':'대체공휴일',
+  '2026-03-02':'대체공휴일',
+  '2026-05-25':'대체공휴일',
+  '2026-08-17':'대체공휴일',
+  '2026-09-28':'대체공휴일',
+  '2026-10-05':'대체공휴일',
+};
+const NAGER_KO={
+  "New Year's Day":'신정',"New Year's Eve":'신정연휴',
+  'Seollal':'설날','Seollal Holiday':'설날연휴',
+  "Independence Movement Day":'삼일절',"Labor Day":'근로자의날',
+  "Children's Day":'어린이날',"Buddha's Birthday":'부처님오신날',
+  "Memorial Day":'현충일',"Liberation Day":'광복절',
+  "Chuseok":'추석',"Chuseok Holiday":'추석연휴',
+  "National Foundation Day":'개천절',"Hangul Day":'한글날',
+  "Christmas Day":'크리스마스',"Constitution Day":'제헌절',
+  "Substitute Holiday":'대체공휴일',
+};
+async function loadNagerHolidays(){
+  const yr=new Date().getFullYear();
+  const years=[yr-1,yr,yr+1];
+  try{
+    const results=await Promise.all(
+      years.map(y=>fetch(`https://date.nager.at/api/v3/PublicHolidays/${y}/KR`)
+        .then(r=>r.ok?r.json():[]).catch(()=>[]))
+    );
+    let count=0;
+    results.flat().forEach(h=>{
+      if(!h.date)return;
+      const name=NAGER_KO[h.localName]||NAGER_KO[h.name]||h.localName||h.name;
+      if(name==='대체공휴일'){
+        if(!SUBSTITUTE[h.date])SUBSTITUTE[h.date]='대체공휴일';
+      } else {
+        if(!HOLIDAYS[h.date])HOLIDAYS[h.date]=name;
+      }
+      count++;
+    });
+    if(count>0)console.log(`✅ Nager.Date: 공휴일 ${count}건 로드 완료`);
+  }catch(e){
+    console.warn('Nager.Date API 실패, 하드코딩 데이터 사용');
+  }
+}
+loadNagerHolidays();
+
 const { useState, useEffect, useCallback, useRef } = React;
 
 // ─── Supabase ───
@@ -690,7 +762,7 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
       <col style="width:38%"/><col style="width:8%"/>
     </colgroup>`;
     const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>준공일</th><th>전주</th><th>금주</th><th>±</th><th>과업진행사항 / 주요공정</th><th>비고</th></tr>`;
-    // XSS 방어 유틸 (인쇄 영역 innerHTML 이스케이프용)
+    // XSS 방어 유틸
     const esc = (s) => s == null ? '' : String(s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;')
       .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -1042,11 +1114,18 @@ function MonthlyCalendar({ gp, calDate, setCalDate, user, appData }) {
             if (!d) return <div key={`e${i}`} style={{ minHeight: 64, borderBottom: '1px solid #f1f5f9', borderRight: '1px solid #f1f5f9' }} />;
             const dt = ds(d), ev = allCalEvents.filter(e => e.event_date === dt);
             const isT = dt === td, isS = dt === selDate, dw = (fd+d-1)%7;
+            const isHoliday = !!(HOLIDAYS[dt] || SUBSTITUTE[dt]);
+            const dateColor = (dw===0 || isHoliday) ? '#dc2626' : dw===6 ? '#2563eb' : '#334155';
             return (
               <div key={d} className={`cal-cell ${isS?'selected':''} ${isT?'today':''}`} onClick={() => setSelDate(dt === selDate ? null : dt)}>
-                <div className="cal-date" style={{ color: dw===0?'#dc2626':dw===6?'#2563eb':'#334155', fontWeight: isT?800:500 }}>
+                <div className="cal-date" style={{ color: dateColor, fontWeight: isT?800:500 }}>
                   {d}{isT && <span style={{ fontSize: 7, background: '#f59e0b', color: '#fff', borderRadius: 2, padding: '0 2px', marginLeft: 2, fontWeight: 700 }}>TODAY</span>}
                 </div>
+                {(HOLIDAYS[dt]||SUBSTITUTE[dt]) && (
+                  <div style={{ fontSize: 7, color: '#dc2626', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                    {HOLIDAYS[dt]||SUBSTITUTE[dt]}
+                  </div>
+                )}
                 {ev.filter(e => !e.auto).slice(0,2).map(e => (
                   <div key={e.id} className={`cal-ev ev-${e.type}`}>{EV_ICON[e.type]} {e.title}</div>
                 ))}
@@ -1725,7 +1804,7 @@ function MyProjects({ user, gp, appData }) {
                   <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
                   {amPM && <Bd bg="#0f172a">PM</Bd>}
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 2, cursor: 'pointer' }} onClick={() => handleGp(p.id)}>{p.name}</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 2, cursor: 'pointer' }} onClick={() => gp(p.id)}>{p.name}</div>
                 <div style={{ fontSize: 11, color: '#64748b' }}>{p.client} · {fs(p.start_date)} ~ {fs(p.end_date)}</div>
                 {ne && <div style={{ fontSize: 11, color: ec(ne.type).tx, marginTop: 2 }}>{EV_ICON[ne.type]} 다음: {ne.title} ({fs(ne.event_date)})</div>}
               </div>
@@ -1748,7 +1827,7 @@ function MyProjects({ user, gp, appData }) {
                   ✏️ 프로젝트 수정
                 </button>
               </>}
-              <button className="btn btn-secondary btn-sm" onClick={() => handleGp(p.id)}>
+              <button className="btn btn-secondary btn-sm" onClick={() => gp(p.id)}>
                 🔍 상세보기
               </button>
             </div>
