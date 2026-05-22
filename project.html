@@ -1729,45 +1729,11 @@ function MyProjects({ user, gp, appData }) {
     return sortList(mine);
   };
 
-  useEffect(() => {
-    if (appData?.loaded) {
-      if (user.role === 'admin') {
-        const sorted = buildSorted(appData.projects, appData.reports, appData.users, appData.members);
-        setMyProjects(sorted);
-        setUsers(appData.users);
-        setReports(appData.reports);
-        setEvents(appData.events);
-        setLoading(false);
-      } else {
-        sb.from('project_members').select('project_id, role').eq('user_id', user.id)
-          .then(async ({ data: myMb }) => {
-            const myMbData = (myMb || []).map(m => ({ ...m, project_id: String(m.project_id).trim(), user_id: String(m.user_id).trim() }));
-            const myMemberPids = new Set(myMbData.map(m => String(m.project_id).trim()));
-            const knownPids = new Set(appData.projects.map(p => String(p.id).trim()));
-            const missingPids = [...myMemberPids].filter(pid => !knownPids.has(pid));
-            let extraProjects = [];
-            if (missingPids.length > 0) {
-              const { data: extra } = await sb.from('projects').select('*, completed_at').in('id', missingPids);
-              extraProjects = extra || [];
-            }
-            const allProjects = [...appData.projects, ...extraProjects];
-            const sorted = buildSorted(allProjects, appData.reports, appData.users, myMbData);
-            setMyProjects(sorted);
-            setUsers(appData.users);
-            setReports(appData.reports);
-            setEvents(appData.events);
-            setLoading(false);
-          });
-      }
-    } else if (!appData?.loaded) {
-      loadAll();
-    }
-  }, [appData?.loaded, appData?.projects?.length]);
+  useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
     setLoading(true);
-    const [pmProjs, memberProjs, us, rp, ev] = await Promise.all([
-      sb.from('projects').select('*').eq('pm_id', user.id),
+    const [memberProjs, us, rp, ev] = await Promise.all([
       sb.from('project_members').select('project_id, role').eq('user_id', user.id),
       sb.from('users').select('id, name'),
       sb.from('weekly_reports').select('*').gte('week_date', sixMonthsAgo()).order('week_date', { ascending: false }),
@@ -1775,19 +1741,24 @@ function MyProjects({ user, gp, appData }) {
     ]);
     const usData = us.data || [];
     const rpData = rp.data || [];
+    const mbData = (memberProjs.data || []).map(m => ({ ...m, project_id: String(m.project_id).trim(), user_id: String(m.user_id).trim() }));
     let allMine;
     if (user.role === 'admin') {
-      const { data: all } = await sb.from('projects').select('*').order('name');
-      allMine = buildSorted(all || [], rpData, usData, memberProjs.data || []);
+      const { data: all } = await sb.from('projects').select('*, completed_at').order('name');
+      allMine = buildSorted(all || [], rpData, usData, mbData);
     } else {
-      const pmIds = new Set((pmProjs.data || []).map(p => p.id));
-      const supportIds = (memberProjs.data || []).filter(m => !pmIds.has(m.project_id)).map(m => m.project_id);
-      let supportProjs = [];
-      if (supportIds.length > 0) {
-        const { data } = await sb.from('projects').select('*').in('id', supportIds);
-        supportProjs = data || [];
+      const myPids = mbData.map(m => m.project_id);
+      let myProjs = [];
+      if (myPids.length > 0) {
+        const { data } = await sb.from('projects').select('*, completed_at').in('id', myPids);
+        myProjs = data || [];
       }
-      allMine = buildSorted([...(pmProjs.data || []), ...supportProjs], rpData, usData, memberProjs.data || []);
+      // pm_id가 본인인 프로젝트도 추가 (멤버 등록 안 된 경우 대비)
+      const { data: pmProjs } = await sb.from('projects').select('*, completed_at').eq('pm_id', user.id);
+      const pmData = pmProjs || [];
+      const existIds = new Set(myProjs.map(p => p.id));
+      const merged = [...myProjs, ...pmData.filter(p => !existIds.has(p.id))];
+      allMine = buildSorted(merged, rpData, usData, mbData);
     }
     setMyProjects(allMine);
     setUsers(usData);
