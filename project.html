@@ -918,15 +918,7 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                     ? (r.summary || <span style={{ color: '#94a3b8' }}>—</span>)
                     : stopped
                       ? <span style={{ color: '#9ca3af' }}>중지 상태</span>
-                      : <span>
-                          <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>
-                          {r?.summary && (
-                            <div style={{ marginTop: 4, padding: '5px 8px', background: '#f8fafc', borderRadius: 5, fontSize: 11, color: '#94a3b8', borderLeft: '3px solid #e2e8f0', lineHeight: 1.5 }}>
-                              <span style={{ fontWeight: 600, color: '#64748b' }}>{ff(r.week_date)} 기준</span><br/>
-                              {r.summary}
-                            </div>
-                          )}
-                        </span>
+                      : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>
                   }
                   {ne && (
                     <div style={{ marginTop: 4, padding: '3px 7px', background: ec(ne.type).bg, borderRadius: 4, fontSize: 11, color: ec(ne.type).tx, display: 'inline-block' }}>
@@ -1002,15 +994,7 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                   </td>
                   <td className="tc"><span style={{ fontSize: 11, fontWeight: 700, color: d>0?'#059669':d<0?'#dc2626':'#94a3b8' }}>{d>0?`▲${d}`:d<0?`▼${Math.abs(d)}`:'—'}</span></td>
                   <td style={{ fontSize: 11, color: '#334155', lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
-                    {r?.isThisWeek
-                      ? (r.summary || '—')
-                      : stopped
-                        ? <span style={{ color: '#9ca3af' }}>중지 상태</span>
-                        : <span>
-                            <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>
-                            {r?.summary && <span style={{ color: '#94a3b8', fontSize: 10, marginLeft: 4 }}>({ff(r.week_date)} 기준: {r.summary.length > 60 ? r.summary.slice(0, 60) + '…' : r.summary})</span>}
-                          </span>
-                    }
+                    {r?.isThisWeek ? (r.summary || '—') : (stopped ? <span style={{ color: '#9ca3af' }}>중지 상태</span> : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>)}
                     {ne && <div style={{ marginTop: 3, padding: '2px 5px', background: ec(ne.type).bg, borderRadius: 3, fontSize: 10, color: ec(ne.type).tx, display: 'inline-block' }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
                   </td>
                   <td style={{ fontSize: 10 }}>
@@ -1724,16 +1708,29 @@ function MyProjects({ user, gp, appData }) {
     };
     if (user.role === 'admin') return sortList(allProjects);
     const pmIds = new Set(allProjects.filter(p => p.pm_id === user.id).map(p => p.id));
-    const myMemberPids = new Set(allMembers.filter(m => String(m.user_id).trim() === String(user.id).trim()).map(m => String(m.project_id).trim()));
+    // allMembers는 이미 user_id로 필터링된 데이터이므로 user_id 재비교 불필요
+    const myMemberPids = new Set(allMembers.map(m => String(m.project_id).trim()));
     const mine = allProjects.filter(p => pmIds.has(String(p.id).trim()) || myMemberPids.has(String(p.id).trim()));
     return sortList(mine);
   };
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    if (appData?.loaded) {
+      const sorted = buildSorted(appData.projects, appData.reports, appData.users, appData.members);
+      setMyProjects(sorted);
+      setUsers(appData.users);
+      setReports(appData.reports);
+      setEvents(appData.events);
+      setLoading(false);
+    } else if (!appData?.loaded) {
+      loadAll();
+    }
+  }, [appData?.loaded, appData?.projects?.length]);
 
   const loadAll = async () => {
     setLoading(true);
-    const [memberProjs, us, rp, ev] = await Promise.all([
+    const [pmProjs, memberProjs, us, rp, ev] = await Promise.all([
+      sb.from('projects').select('*').eq('pm_id', user.id),
       sb.from('project_members').select('project_id, role').eq('user_id', user.id),
       sb.from('users').select('id, name'),
       sb.from('weekly_reports').select('*').gte('week_date', sixMonthsAgo()).order('week_date', { ascending: false }),
@@ -1741,24 +1738,19 @@ function MyProjects({ user, gp, appData }) {
     ]);
     const usData = us.data || [];
     const rpData = rp.data || [];
-    const mbData = (memberProjs.data || []).map(m => ({ ...m, project_id: String(m.project_id).trim(), user_id: String(m.user_id).trim() }));
     let allMine;
     if (user.role === 'admin') {
-      const { data: all } = await sb.from('projects').select('*, completed_at').order('name');
-      allMine = buildSorted(all || [], rpData, usData, mbData);
+      const { data: all } = await sb.from('projects').select('*').order('name');
+      allMine = buildSorted(all || [], rpData, usData, memberProjs.data || []);
     } else {
-      const myPids = mbData.map(m => m.project_id);
-      let myProjs = [];
-      if (myPids.length > 0) {
-        const { data } = await sb.from('projects').select('*, completed_at').in('id', myPids);
-        myProjs = data || [];
+      const pmIds = new Set((pmProjs.data || []).map(p => p.id));
+      const supportIds = (memberProjs.data || []).filter(m => !pmIds.has(m.project_id)).map(m => m.project_id);
+      let supportProjs = [];
+      if (supportIds.length > 0) {
+        const { data } = await sb.from('projects').select('*').in('id', supportIds);
+        supportProjs = data || [];
       }
-      // pm_id가 본인인 프로젝트도 추가 (멤버 등록 안 된 경우 대비)
-      const { data: pmProjs } = await sb.from('projects').select('*, completed_at').eq('pm_id', user.id);
-      const pmData = pmProjs || [];
-      const existIds = new Set(myProjs.map(p => p.id));
-      const merged = [...myProjs, ...pmData.filter(p => !existIds.has(p.id))];
-      allMine = buildSorted(merged, rpData, usData, mbData);
+      allMine = buildSorted([...(pmProjs.data || []), ...supportProjs], rpData, usData, memberProjs.data || []);
     }
     setMyProjects(allMine);
     setUsers(usData);
@@ -1797,7 +1789,7 @@ function MyProjects({ user, gp, appData }) {
                   <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
                   {amPM && <Bd bg="#0f172a">PM</Bd>}
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 2, cursor: 'pointer' }} onClick={() => gp(p.id)}>{p.name}</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 2, cursor: 'pointer' }} onClick={() => handleGp(p.id)}>{p.name}</div>
                 <div style={{ fontSize: 11, color: '#64748b' }}>{p.client} · {fs(p.start_date)} ~ {fs(p.end_date)}</div>
                 {ne && <div style={{ fontSize: 11, color: ec(ne.type).tx, marginTop: 2 }}>{EV_ICON[ne.type]} 다음: {ne.title} ({fs(ne.event_date)})</div>}
               </div>
@@ -1820,7 +1812,7 @@ function MyProjects({ user, gp, appData }) {
                   ✏️ 프로젝트 수정
                 </button>
               </>}
-              <button className="btn btn-secondary btn-sm" onClick={() => gp(p.id)}>
+              <button className="btn btn-secondary btn-sm" onClick={() => handleGp(p.id)}>
                 🔍 상세보기
               </button>
             </div>
