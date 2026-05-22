@@ -1019,7 +1019,9 @@ function PerfView({ user }) {
     var pc = yCols.filter(function(c) { return c.project_id === p.id; });
     var tc = pc.reduce(function(s,c) { return s + (c.amount||0); }, 0);
     var to = pc.reduce(function(s,c) { return s + (c.outsource_cost||0); }, 0);
-    return { id:p.id, name:p.name, client:p.client, pm_id:p.pm_id, tc:tc, to:to, net:tc-to };
+    var ct = contracts.find(function(c) { return c.project_id === p.id; });
+    var contractAmt = ct ? (ct.contract_amount || 0) : 0;
+    return { id:p.id, name:p.name, client:p.client, pm_id:p.pm_id, category:p.category, tc:tc, to:to, net:tc-to, contractAmt:contractAmt };
   }).filter(function(p) { return p.tc > 0; }).sort(function(a,b) { return b.net - a.net; });
 
   // PM 자동 100% 포함한 유효 기여율 목록 생성
@@ -1152,12 +1154,6 @@ function PerfView({ user }) {
         </div>
       </div>
 
-      <div className="g3">
-        <div className="stat blue"><div className="stat-l">총 수금액</div><div className="stat-v">{fmtN(totCol)}</div><div className="stat-s">원 ({year}년)</div></div>
-        <div className="stat red" style={{background:'#fff5f5',borderColor:'#fecaca'}}><div className="stat-l" style={{color:'#dc2626'}}>총 외주비</div><div className="stat-v" style={{color:'#dc2626'}}>{fmtN(totOut)}</div><div className="stat-s" style={{color:'#f87171'}}>원</div></div>
-        <div className="stat purple"><div className="stat-l">순 실적금액</div><div className="stat-v">{fmtN(totNet)}</div><div className="stat-s">원 (수금-외주비)</div></div>
-      </div>
-
       <div className="itabs">
         <button className={tab==='col'?'itab active':'itab'} onClick={function(){changeTab('col');}}>수금 내역</button>
         <button className={tab==='proj'?'itab active':'itab'} onClick={function(){changeTab('proj');}}>프로젝트별</button>
@@ -1179,11 +1175,19 @@ function PerfView({ user }) {
             <div className="empty"><div className="ei">💰</div><div className="et">수금 내역이 없습니다</div></div>
           ) : (
             <div className="tbl-wrap">
-              <table>
+              <table style={{tableLayout:'fixed',width:'100%'}}>
+                <colgroup>
+                  <col style={{width:'35%'}} />
+                  <col style={{width:'70px'}} />
+                  <col style={{width:'13%'}} />
+                  <col style={{width:'13%'}} />
+                  <col style={{width:'13%'}} />
+                  <col style={{width:'8%'}} />
+                  <col style={{width:'80px'}} />
+                </colgroup>
                 <thead><tr>
                   <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
                   <SortTh label="날짜"     col="date"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
-                  <SortTh label="유형"     col="type"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
                   <SortTh label="수금액"   col="amount" state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
                   <SortTh label="외주비"   col="out"    state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
                   <SortTh label="순 실적"  col="net"    state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
@@ -1193,7 +1197,6 @@ function PerfView({ user }) {
                   {sortRows(yCols, colSort, function(c, col) {
                     if (col==='proj')   return pName(c.project_id);
                     if (col==='date')   return c.collected_at;
-                    if (col==='type')   return c.entry_type;
                     if (col==='amount') return c.amount||0;
                     if (col==='out')    return c.outsource_cost||0;
                     if (col==='net')    return (c.amount||0)-(c.outsource_cost||0);
@@ -1201,45 +1204,43 @@ function PerfView({ user }) {
                   }).map(function(c) {
                     var isOut = c.entry_type === 'outsource_only';
                     var net   = (c.amount||0) - (c.outsource_cost||0);
+                    var proj  = projects.find(function(p){ return p.id === c.project_id; });
+                    var cat   = proj ? proj.category : '';
+                    /* 날짜: MM.DD 형식 */
+                    var dateShort = (function(){
+                      if (!c.collected_at) return '-';
+                      var dt = new Date(c.collected_at + 'T00:00:00');
+                      return String(dt.getMonth()+1).padStart(2,'0') + '.' + String(dt.getDate()).padStart(2,'0');
+                    })();
                     return (
                       <tr key={c.id} style={{background: isOut ? '#fff5f5' : ''}}>
-                        <td>
-                          {(function(){
-                            var proj = projects.find(function(p){ return p.id === c.project_id; });
-                            var cat  = proj ? proj.category : '';
-                            return (
-                              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                                {cat && (
-                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
-                                    background: CAT_BG[cat]||'#f1f5f9', color: CAT_TX[cat]||'#475569',
-                                    border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0')}}>
-                                    {cat}
-                                  </span>
-                                )}
-                                <span style={{display:'flex',flexDirection:'column',gap:1}}>
-                                  {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{proj.client}</span>}
-                                  <span style={{fontWeight:600}}>{pName(c.project_id)}</span>
-                                </span>
-                              </div>
-                            );
-                          })()}
+                        <td style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:5}}>
+                            {cat && (
+                              <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 5px',borderRadius:4,
+                                background: CAT_BG[cat]||'#f1f5f9', color: CAT_TX[cat]||'#475569',
+                                border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0'),whiteSpace:'nowrap'}}>
+                                {cat}
+                              </span>
+                            )}
+                            <span style={{display:'flex',flexDirection:'column',gap:0,overflow:'hidden'}}>
+                              {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{proj.client}</span>}
+                              <span style={{fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{pName(c.project_id)}</span>
+                            </span>
+                          </div>
                         </td>
-                        <td>{fmtD(c.collected_at)}</td>
-                        <td>
-                          {isOut
-                            ? <span className="badge bgr" style={{fontSize:10}}>외주비만</span>
-                            : <span className="badge bg" style={{fontSize:10}}>수금</span>
-                          }
-                        </td>
-                        <td className="tr" style={{fontWeight:700,color: isOut ? '#94a3b8' : '#1d4ed8'}}>
+                        <td style={{whiteSpace:'nowrap',fontSize:12}}>{dateShort}</td>
+                        <td className="tr" style={{whiteSpace:'nowrap',fontWeight:700,color: isOut ? '#94a3b8' : '#1d4ed8',fontSize:12}}>
                           {isOut ? '—' : fmtN(c.amount)+'원'}
                         </td>
-                        <td className="tr" style={{color:'#dc2626'}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
-                        <td className="tr" style={{fontWeight:700,color: net < 0 ? '#dc2626' : '#7c3aed'}}>{fmtN(net)}원</td>
-                        <td style={{color:'#64748b',fontSize:12}}>{c.memo||'-'}</td>
-                        <td style={{display:'flex',gap:4}}>
-                          <button className="btn btn-s btn-sm" onClick={function(){setEditItem(c);setForm(Object.assign({},c,{amount:c.amount?fmtN(c.amount):'',outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):'',entry_type:c.entry_type||'both'}));setModal('col');}}>수정</button>
-                          <button className="btn btn-d btn-sm" onClick={function(){deleteCol(c.id);}}>삭제</button>
+                        <td className="tr" style={{whiteSpace:'nowrap',color:'#dc2626',fontSize:12}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
+                        <td className="tr" style={{whiteSpace:'nowrap',fontWeight:700,color: net < 0 ? '#dc2626' : '#7c3aed',fontSize:12}}>{fmtN(net)}원</td>
+                        <td style={{color:'#64748b',fontSize:11,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.memo||'-'}</td>
+                        <td style={{whiteSpace:'nowrap'}}>
+                          <div style={{display:'flex',gap:4}}>
+                            <button className="btn btn-s btn-sm" onClick={function(){setEditItem(c);setForm(Object.assign({},c,{amount:c.amount?fmtN(c.amount):'',outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):'',entry_type:c.entry_type||'both'}));setModal('col');}}>수정</button>
+                            <button className="btn btn-d btn-sm" onClick={function(){deleteCol(c.id);}}>삭제</button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1252,59 +1253,81 @@ function PerfView({ user }) {
       )}
 
       {tab === 'proj' && (
-        <div className="card">
-          <div className="st" style={{marginBottom:14}}>프로젝트별 실적 ({year}년)</div>
-          {projSummary.length === 0 ? (
-            <div className="empty"><div className="ei">📁</div><div className="et">수금 데이터가 없습니다</div></div>
-          ) : (
-            <div className="tbl-wrap">
-              <table>
-                <thead><tr>
-                  <SortTh label="프로젝트" col="name"   state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
-                  <SortTh label="발주처"   col="client" state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
-                  <SortTh label="PM"       col="pm"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
-                  <SortTh label="수금액"   col="tc"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
-                  <SortTh label="외주비"   col="to"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
-                  <SortTh label="순 실적"  col="net"    state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
-                </tr></thead>
-                <tbody>
-                  {sortRows(projSummary, projSort, function(p, col) {
-                    if (col==='name')   return p.name;
-                    if (col==='client') return p.client||'';
-                    if (col==='pm')     return uName(p.pm_id);
-                    if (col==='tc')     return p.tc;
-                    if (col==='to')     return p.to;
-                    if (col==='net')    return p.net;
-                    return '';
-                  }).map(function(p) {
-                    return (
-                      <tr key={p.id}>
-                        <td style={{fontWeight:600}}>
-                          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                            {p.category && (
-                              <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
-                                background: CAT_BG[p.category]||'#f1f5f9', color: CAT_TX[p.category]||'#475569',
-                                border:'1px solid '+(CAT_COLOR[p.category]||'#e2e8f0')}}>
-                                {p.category}
-                              </span>
-                            )}
-                            <span style={{display:'flex',flexDirection:'column',gap:1}}>
-                              {p.name}
-                            </span>
-                          </div>
-                        </td>
-                        <td style={{color:'#64748b',fontSize:12}}>{p.client||'-'}</td>
-                        <td>{uName(p.pm_id)}</td>
-                        <td className="tr">{fmtN(p.tc)}원</td>
-                        <td className="tr" style={{color:'#dc2626'}}>{p.to > 0 ? fmtN(p.to)+'원' : '-'}</td>
-                        <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(p.net)}원</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        <div>
+          {/* 컴팩트 요약 카드 */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:12}}>
+            <div style={{background:'linear-gradient(135deg,#1d4ed8,#1e40af)',borderRadius:8,padding:'8px 14px',color:'#fff'}}>
+              <div style={{fontSize:10,fontWeight:600,opacity:.8,marginBottom:2}}>총 수금액</div>
+              <div style={{fontSize:14,fontWeight:800}}>{fmtN(totCol)}원</div>
+              <div style={{fontSize:10,opacity:.7}}>{year}년</div>
             </div>
-          )}
+            <div style={{background:'#fff5f5',border:'1px solid #fecaca',borderRadius:8,padding:'8px 14px'}}>
+              <div style={{fontSize:10,fontWeight:600,color:'#dc2626',marginBottom:2}}>총 외주비</div>
+              <div style={{fontSize:14,fontWeight:800,color:'#dc2626'}}>{fmtN(totOut)}원</div>
+              <div style={{fontSize:10,color:'#f87171'}}>원</div>
+            </div>
+            <div style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',borderRadius:8,padding:'8px 14px',color:'#fff'}}>
+              <div style={{fontSize:10,fontWeight:600,opacity:.8,marginBottom:2}}>순 실적금액</div>
+              <div style={{fontSize:14,fontWeight:800}}>{fmtN(totNet)}원</div>
+              <div style={{fontSize:10,opacity:.7}}>수금−외주비</div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="st" style={{marginBottom:14}}>프로젝트별 실적 ({year}년)</div>
+            {projSummary.length === 0 ? (
+              <div className="empty"><div className="ei">📁</div><div className="et">수금 데이터가 없습니다</div></div>
+            ) : (
+              <div className="tbl-wrap">
+                <table>
+                  <thead><tr>
+                    <SortTh label="프로젝트" col="name"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
+                    <SortTh label="PM"       col="pm"       state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
+                    <SortTh label="계약금액" col="contract" state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                    <SortTh label="수금액"   col="tc"       state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                    <SortTh label="외주비"   col="to"       state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                    <SortTh label="순 실적"  col="net"      state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                  </tr></thead>
+                  <tbody>
+                    {sortRows(projSummary, projSort, function(p, col) {
+                      if (col==='name')     return p.name;
+                      if (col==='pm')       return uName(p.pm_id);
+                      if (col==='contract') return p.contractAmt;
+                      if (col==='tc')       return p.tc;
+                      if (col==='to')       return p.to;
+                      if (col==='net')      return p.net;
+                      return '';
+                    }).map(function(p) {
+                      return (
+                        <tr key={p.id}>
+                          <td style={{fontWeight:600}}>
+                            <div style={{display:'flex',alignItems:'center',gap:6}}>
+                              {p.category && (
+                                <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                  background: CAT_BG[p.category]||'#f1f5f9', color: CAT_TX[p.category]||'#475569',
+                                  border:'1px solid '+(CAT_COLOR[p.category]||'#e2e8f0')}}>
+                                  {p.category}
+                                </span>
+                              )}
+                              <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                                {p.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{p.client}</span>}
+                                <span>{p.name}</span>
+                              </span>
+                            </div>
+                          </td>
+                          <td>{uName(p.pm_id)}</td>
+                          <td className="tr" style={{color:'#475569'}}>{p.contractAmt > 0 ? fmtN(p.contractAmt)+'원' : '-'}</td>
+                          <td className="tr" style={{fontWeight:700,color:'#1d4ed8'}}>{fmtN(p.tc)}원</td>
+                          <td className="tr" style={{color:'#dc2626'}}>{p.to > 0 ? fmtN(p.to)+'원' : '-'}</td>
+                          <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(p.net)}원</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
