@@ -620,6 +620,8 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
   const [loading, setLoading] = useState(true);
   const [allMembers, setAllMembers] = useState([]);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  const [openInputId, setOpenInputId] = useState(null);   // PC 인라인 입력 패널
+  const [weeklyModal, setWeeklyModal] = useState(null);   // 모바일 모달
 
   useEffect(() => {
     const handle = () => setIsMobile(window.innerWidth < 768);
@@ -690,6 +692,14 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
   const memberPids = user?.role === 'contractor'
     ? new Set(allMembers.filter(m => m.user_id === user.id).map(m => m.project_id))
     : null;
+
+  // 주간보고 입력 권한 체크
+  const canInput = (p) => {
+    if (user?.role === 'admin') return true;
+    if (p.pm_id === user?.id) return true;
+    if (allMembers.some(m => m.user_id === user?.id && m.project_id === p.id)) return true;
+    return false;
+  };
 
   const sortedProjects = (() => {
     const catOrder = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
@@ -943,6 +953,18 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                     {r?.issues}
                   </div>
                 )}
+                {/* 모바일 입력 버튼 */}
+                {canInput(p) && !stopped && (
+                  <div className="no-print" style={{ marginTop: 8 }}>
+                    <button
+                      className="btn btn-success btn-sm"
+                      style={{ width: '100%' }}
+                      onClick={() => setWeeklyModal({ projectId: p.id, prevData: r })}
+                    >
+                      {r?.isThisWeek ? '✏️ 주간보고 수정' : '📝 주간보고 입력'}
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1020,14 +1042,138 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                       <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: r?.issues ? 3 : 0 }}>⚠ 준공일 초과</div>
                     )}
                     {r?.issues && <div style={{ color: '#dc2626' }}>{r.issues}</div>}
+                    {/* PC 입력 버튼 */}
+                    {canInput(p) && !stopped && (
+                      <button
+                        className="btn btn-success btn-sm no-print"
+                        style={{ marginTop: r?.issues ? 4 : 0, whiteSpace: 'nowrap' }}
+                        onClick={() => setOpenInputId(openInputId === p.id ? null : p.id)}
+                      >
+                        {openInputId === p.id ? '✕ 닫기' : (r?.isThisWeek ? '✏️ 수정' : '📝 입력')}
+                      </button>
+                    )}
                   </td>
                 </tr>
+                {/* 인라인 입력 패널 */}
+                {openInputId === p.id && (
+                  <tr className="no-print">
+                    <td colSpan={11} style={{ padding: 0, borderBottom: '2px solid #2563eb' }}>
+                      <WeeklyInlineForm
+                        projectId={p.id}
+                        userId={user?.id}
+                        selWeek={selWeek}
+                        existingReport={r?.isThisWeek ? r : null}
+                        prevReport={r?.isThisWeek ? null : r}
+                        onClose={() => setOpenInputId(null)}
+                        onSaved={() => { setOpenInputId(null); refresh(); }}
+                      />
+                    </td>
+                  </tr>
+                )}
               );
             })}
           </tbody>
         </table>
       </div>
       )}
+
+      {/* 모바일 주간보고 모달 */}
+      {weeklyModal && (
+        <WeeklyReportModal
+          projectId={weeklyModal.projectId}
+          userId={user?.id}
+          prevData={weeklyModal.prevData}
+          onClose={() => setWeeklyModal(null)}
+          onSaved={() => { setWeeklyModal(null); refresh(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Weekly Inline Form (주간보고 탭 PC 인라인 입력) ───
+function WeeklyInlineForm({ projectId, userId, selWeek, existingReport, prevReport, onClose, onSaved }) {
+  const defaultWeekDate = selWeek || reportMonday();
+  const [weekDate, setWeekDate] = useState(defaultWeekDate);
+  const [pct, setPct] = useState(existingReport?.progress_pct ?? prevReport?.progress_pct ?? 0);
+  const [prevPct, setPrevPct] = useState(existingReport?.prev_pct ?? prevReport?.progress_pct ?? 0);
+  const [summary, setSummary] = useState(existingReport?.summary ?? prevReport?.summary ?? '');
+  const [issues, setIssues] = useState(existingReport?.issues ?? '');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const save = async () => {
+    if (!summary.trim()) { setErr('과업진행사항을 입력해주세요.'); return; }
+    if (!isMonday(weekDate)) { setErr('보고 기준일은 월요일이어야 합니다.'); return; }
+    setLoading(true); setErr('');
+    const payload = {
+      project_id: projectId,
+      week_date: weekDate,
+      progress_pct: parseInt(pct) || 0,
+      prev_pct: parseInt(prevPct) || 0,
+      summary: summary.trim(),
+      next_plan: '',
+      issues: issues.trim(),
+      reported_by: userId,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
+    if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
+    await sb.from('change_logs').insert({
+      project_id: projectId, field_name: '주간보고',
+      old_value: String(prevPct) + '%',
+      new_value: String(parseInt(pct) || 0) + '% | ' + weekDate,
+      changed_by: userId, created_at: new Date().toISOString()
+    }).catch(() => {});
+    onSaved();
+  };
+
+  return (
+    <div style={{ background: '#f0f9ff', borderTop: '1px solid #bfdbfe', padding: '14px 18px' }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: '#1e40af', marginBottom: 12 }}>
+        📝 주간보고 {existingReport ? '수정' : '입력'}
+      </div>
+      {err && <div className="alert alert-error" style={{ marginBottom: 8 }}>{err}</div>}
+      <div style={{ display: 'grid', gridTemplateColumns: '160px 100px 100px 1fr', gap: 10, alignItems: 'end', marginBottom: 10 }}>
+        <div>
+          <label className="form-label">보고 기준일 (월요일)</label>
+          <input
+            type="date"
+            className="form-input"
+            value={weekDate}
+            onChange={e => { if (isMonday(e.target.value) || !e.target.value) setWeekDate(e.target.value); else setErr('월요일만 선택 가능합니다.'); }}
+          />
+        </div>
+        <div>
+          <label className="form-label">전주 공정률(%)</label>
+          <input type="number" className="form-input" min={0} max={100} value={prevPct} onChange={e => setPrevPct(e.target.value)} />
+        </div>
+        <div>
+          <label className="form-label">금주 공정률(%)</label>
+          <input type="number" className="form-input" min={0} max={100} value={pct} onChange={e => setPct(e.target.value)} />
+        </div>
+        <div>
+          <label className="form-label">이슈 (선택)</label>
+          <input className="form-input" value={issues} onChange={e => setIssues(e.target.value)} placeholder="없으면 비워두세요" />
+        </div>
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <label className="form-label">과업진행사항 *</label>
+        <textarea
+          className="form-input"
+          rows={3}
+          value={summary}
+          onChange={e => setSummary(e.target.value)}
+          placeholder="이번 주 과업 진행사항을 입력하세요"
+          style={{ resize: 'vertical' }}
+        />
+      </div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button className="btn btn-secondary btn-sm" onClick={onClose}>취소</button>
+        <button className="btn btn-primary btn-sm" onClick={save} disabled={loading}>
+          {loading ? '저장 중...' : '저장'}
+        </button>
+      </div>
     </div>
   );
 }
