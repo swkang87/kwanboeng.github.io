@@ -328,26 +328,8 @@ function _makeSb(userId, userRole) {
     global: { headers: extraHeaders }
   });
 }
-// ─── 비밀번호 해싱 (PBKDF2 + SHA-256, 100k iter, Web Crypto API) ──
-async function hashPassword(plain){
-  const salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');
-  const enc=new TextEncoder();
-  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
-  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
-  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  return 'pbkdf2$'+salt+'$'+hash;
-}
-async function verifyPassword(plain,stored){
-  if(!stored||plain==null)return false;
-  if(!String(stored).startsWith('pbkdf2$'))return plain===stored;
-  const parts=stored.split('$');if(parts.length!==3)return false;
-  const salt=parts[1];const enc=new TextEncoder();
-  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
-  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
-  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  return stored==='pbkdf2$'+salt+'$'+hash;
-}
-function isPlainPassword(stored){return stored&&!String(stored).startsWith('pbkdf2$');}
+// ── 비밀번호 해싱 → sysbar.js Sysbar.Auth 에 위임 ─────────
+const { hashPassword, verifyPassword, isPlainPassword } = Sysbar.Auth;
 
 let sb = _makeSb();
 
@@ -498,63 +480,8 @@ function MiniCalendar({ value, onChange, maxDate }) {
 
 const roleLabel = (r) => r === 'admin' ? '관리자' : r === 'manager' ? '팀장' : '팀원';
 
-// ─── LOGIN SCREEN ──────────────────────────────────────────────────────────
-function LoginScreen({ onLogin }) {
-  const [phone, setPhone] = useState('');
-  const [pw, setPw] = useState('');
-  const [err, setErr] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const doLogin = async () => {
-    if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
-    setLoading(true); setErr('');
-    try {
-      const { data, error } = await sb.from('users')
-        .select('*').eq('phone', phone.trim()).single();
-      if (error || !data) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); }
-      else {
-        const ok = await verifyPassword(pw, data.password);
-        if (!ok) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); }
-        else {
-          // Lazy migration: 평문이면 해시로 업그레이드
-          if (isPlainPassword(data.password)) {
-            try {
-              const h = await hashPassword(pw);
-              const tmpSb = _makeSb(data.id, data.role);
-              await tmpSb.from('users').update({ password: h }).eq('id', data.id);
-            } catch (e) { console.error('pw migration failed', e); }
-          }
-          onLogin(data);
-        }
-      }
-    } catch(e) { setErr('로그인 중 오류가 발생했습니다.'); }
-    setLoading(false);
-  };
-
-  const onKey = (e) => { if (e.key === 'Enter') doLogin(); };
-
-  return (
-    <div className="login-wrap">
-      <div className="login-box">
-        <div className="login-company">{CONFIG.COMPANY_NAME}</div>
-        <div className="login-title">{CONFIG.SYSTEM_NAME}</div>
-        <div className="login-field">
-          <input className="login-input" type="text" placeholder="아이디"
-            value={phone} onChange={e => setPhone(e.target.value)} onKeyDown={onKey} />
-        </div>
-        <div className="login-field">
-          <input className="login-input" type="password" placeholder="비밀번호"
-            value={pw} onChange={e => setPw(e.target.value)} onKeyDown={onKey} />
-        </div>
-        {err && <div className="login-error">{err}</div>}
-        <button className="login-btn" onClick={doLogin} disabled={loading}>
-          {loading ? '로그인 중...' : '로그인'}
-        </button>
-        <div className="login-back"><a href={CONFIG.HOME_URL}>← 홈으로 돌아가기</a></div>
-      </div>
-    </div>
-  );
-}
+// ── LoginScreen → sysbar.js createLoginComponent 로 일원화 ──
+const LoginScreen = Sysbar.createLoginComponent(React);
 
 // ─── TASK ITEM COMPONENT ───────────────────────────────────────────────────
 function TaskItem({ task, onChange, onDelete, showStatus }) {
@@ -1156,12 +1083,9 @@ function App() {
   }, [user && user.team_id]);
 
   const handleLogin = (u) => {
+    // doLogin()이 이미 세션 저장 완료 → sb 재생성 + state 반영만
     sb = _makeSb(u.id, u.role);
-    const safeU = {...u}; delete safeU.password;
-    localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
-    localStorage.removeItem('kwanbo_pm_user');
-    sessionStorage.removeItem('kwanbo_uid');
-    setUser(safeU);
+    setUser(u);
     Sysbar.SessionManager.onLogin(() => logout());
   };
 
@@ -1186,7 +1110,7 @@ function App() {
     </div>
   );
 
-  if (!user) return <LoginScreen onLogin={handleLogin} />;
+  if (!user) return <LoginScreen supabaseClient={sb} onLogin={handleLogin} subtitle="업무일지 시스템" />;
 
   // ── 기술지원(contractor) 접근 차단 ────────────────────────
   if (user.role === 'contractor') {

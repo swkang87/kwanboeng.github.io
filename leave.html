@@ -164,26 +164,8 @@ const typeLabel=(type,days)=>{
   return d<1?daysLabel(d):`${type} ${daysLabel(d)}`;
 };
 
-// ─── 비밀번호 해싱 (PBKDF2 + SHA-256, 100k iter, Web Crypto API) ──
-async function hashPassword(plain){
-  const salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');
-  const enc=new TextEncoder();
-  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
-  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
-  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  return 'pbkdf2$'+salt+'$'+hash;
-}
-async function verifyPassword(plain,stored){
-  if(!stored||plain==null)return false;
-  if(!String(stored).startsWith('pbkdf2$'))return plain===stored; // 평문 호환 (점진 마이그레이션)
-  const parts=stored.split('$');if(parts.length!==3)return false;
-  const salt=parts[1];const enc=new TextEncoder();
-  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
-  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
-  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  return stored==='pbkdf2$'+salt+'$'+hash;
-}
-function isPlainPassword(stored){return stored&&!String(stored).startsWith('pbkdf2$');}
+// ── 비밀번호 해싱 → sysbar.js Sysbar.Auth 에 위임 ─────────
+const { hashPassword, verifyPassword, isPlainPassword } = Sysbar.Auth;
 
 // RLS용 인증 컨텍스트 (로그인/로그아웃 시 갱신)
 let _authCtx = { id: null, role: null };
@@ -1019,33 +1001,27 @@ function AdminDash({user,users,teams,leaves,onNav}){
 }
 
 // ── Main App ──────────────────────────────────────────────
+// 로그인 전용 익명 Supabase 클라이언트 (모듈 레벨 1회 생성)
+const anonSb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
 const SysBar = Sysbar.createComponent(React);
 function App(){
-  // 세션 즉시 복원 (DB 조회 전에 localStorage에서 바로 읽기)
+  // 세션 즉시 복원 (Sysbar.Auth.getSession 사용)
   const initialUser = (() => {
-    try {
-      const sessRaw = localStorage.getItem('kwanbo_session');
-      if (!sessRaw) return null;
-      const v = JSON.parse(sessRaw);
-      if (v && v.id && v.role && v.role !== 'contractor') {
-        if (v.password) { delete v.password; localStorage.setItem('kwanbo_session', JSON.stringify(v)); }
-        _authCtx = { id: v.id, role: v.role };
-        return v;
-      }
-      return null;
-    } catch(e) { return null; }
+    const v = Sysbar.Auth.getSession();
+    if (v && v.role !== 'contractor') {
+      _authCtx = { id: v.id, role: v.role };
+      return v;
+    }
+    return null;
   })();
 
-  const [loading,setLoading]=useState(true);
+  const [loading,setLoading]=useState(!!initialUser); // 세션이 있을 때만 초기 로딩 표시
   const [users,setUsers]=useState([]);
   const [teams,setTeams]=useState([]);
   const [leaves,setLeaves]=useState([]);
   const [auditLogs,setAuditLogs]=useState([]);
   const [cu,setCu]=useState(initialUser);
   const [view,setView]=useState('calendar');
-  const [phone,setPhone]=useState('');
-  const [pw,setPw]=useState('');
-  const [err,setErr]=useState('');
   const [syncing,setSyncing]=useState(false);
   const [lastSync,setLastSync]=useState('');
   const [isMobile,setIsMobile]=useState(typeof window!=='undefined'&&window.innerWidth<768);
@@ -1057,41 +1033,18 @@ function App(){
   },[]);
 
   const load=useCallback(async()=>{
+    // ※ 로그인 후에만 호출됨 — _authCtx가 설정된 상태에서만 users를 조회
     try{
-      const [u,t]=await Promise.all([api.get('users','?order=name'),api.get('teams','?order=name')]);
-      const us=Array.isArray(u)?u:[];
-      setUsers(us);setTeams(Array.isArray(t)?t:[]);
-      // initialUser가 있으면 세션 이미 복원됨 → 최신 DB 정보로만 갱신
-      if (initialUser) {
-        const fresh = us.find(x => x.id === initialUser.id);
-        if (fresh && fresh.role !== 'contractor') {
-          _authCtx = { id: fresh.id, role: fresh.role };
-          const safeU = {...fresh}; delete safeU.password;
-          localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
-          setCu(safeU);
-          Sysbar.SessionManager.onLogin(()=>{_authCtx={id:null,role:null};setCu(null);setView('dashboard');localStorage.removeItem('kwanbo_session');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_pm_user');});
-        } else if (!fresh || fresh.role === 'contractor') {
-          // 권한 박탈된 경우
-          _authCtx={id:null,role:null}; setCu(null);
-          localStorage.removeItem('kwanbo_session');
-        }
-      } else {
-        // 구버전 세션 복원 (kwanbo_uid 등)
-        const legacyUid = sessionStorage.getItem('kwanbo_uid');
-        let autoUser = null;
-        if (legacyUid) autoUser = us.find(x => x.id === legacyUid) || null;
-        if (autoUser && autoUser.role !== 'contractor') {
-          _authCtx = { id: autoUser.id, role: autoUser.role };
-          setCu(autoUser);
-          const safeU = {...autoUser}; delete safeU.password;
-          localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
-          sessionStorage.removeItem('kwanbo_uid');
-          Sysbar.SessionManager.onLogin(()=>{_authCtx={id:null,role:null};setCu(null);setView('dashboard');localStorage.removeItem('kwanbo_session');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_pm_user');});
-        }
-      }
-      // RLS 보호 테이블 조회
-      const [l,a]=await Promise.all([api.get('leave_requests','?order=created_at.desc'),api.get('audit_logs','?order=created_at.desc&limit=200')]);
-      setLeaves(Array.isArray(l)?l:[]);setAuditLogs(Array.isArray(a)?a:[]);
+      const [u,t,l,a]=await Promise.all([
+        api.get('users','?order=name'),
+        api.get('teams','?order=name'),
+        api.get('leave_requests','?order=created_at.desc'),
+        api.get('audit_logs','?order=created_at.desc&limit=200'),
+      ]);
+      setUsers(Array.isArray(u)?u:[]);
+      setTeams(Array.isArray(t)?t:[]);
+      setLeaves(Array.isArray(l)?l:[]);
+      setAuditLogs(Array.isArray(a)?a:[]);
     }catch(e){console.error(e);}
     setLoading(false);
   },[]);
@@ -1102,7 +1055,9 @@ function App(){
     if(wasInvalidated){ setCu(null); _authCtx={id:null,role:null}; }
   },[]);
 
-  useEffect(()=>{loadNagerHolidays();load();},[]);
+  useEffect(()=>{loadNagerHolidays();},[]);
+  // 로그인 완료 후(cu 설정 시)에만 데이터 조회
+  useEffect(()=>{if(cu){load();}},[cu?.id]);
 
   // 30초 자동 폴링 (로그인 상태일 때만)
   useEffect(()=>{
@@ -1119,49 +1074,28 @@ function App(){
     setSyncing(false);
   };
 
-  const login=async()=>{const raw=phone.trim();const digits=raw.replace(/\D/g,'');const u=users.find(x=>(x.phone===raw||x.phone===digits));if(!u){setErr('아이디 또는 비밀번호가 올바르지 않습니다.');return;}if(u.role==='contractor'){setErr('연차 관리 시스템 접근 권한이 없습니다.');return;}const ok=await verifyPassword(pw,u.password);if(!ok){setErr('아이디 또는 비밀번호가 올바르지 않습니다.');return;}_authCtx={id:u.id,role:u.role};if(isPlainPassword(u.password)){try{const h=await hashPassword(pw);await api.patch('users',`?id=eq.${u.id}`,{password:h});}catch(e){console.error('pw migration failed',e);}}setCu(u);setErr('');setView('calendar');const safeU={...u};delete safeU.password;localStorage.setItem('kwanbo_session',JSON.stringify(safeU));sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_pm_user');load();};
-  const logout=()=>{_authCtx={id:null,role:null};setCu(null);setView('dashboard');localStorage.removeItem('kwanbo_session');sessionStorage.removeItem('kwanbo_uid');localStorage.removeItem('kwanbo_pm_user');};
+  // ── 로그인 핸들러 (Sysbar.Auth.doLogin 위임) ────────────────
+  // leave.html용 Supabase 클라이언트: _authCtx 없이 익명으로 단건 조회 전용
+  const handleLogin=(u)=>{
+    _authCtx={id:u.id,role:u.role};
+    setCu(u);
+    setView('calendar');
+    Sysbar.SessionManager.onLogin(()=>logout());
+  };
+  const logout=()=>{
+    Sysbar.SessionManager.onLogout();
+    _authCtx={id:null,role:null};
+    setCu(null);
+    setView('dashboard');
+    Sysbar.Auth.clearSession();
+    setUsers([]);setTeams([]);setLeaves([]);setAuditLogs([]);
+  };
   const refresh=()=>load();
 
   // ── 로그인 화면 ──────────────────────────────────────────
   if(!cu){
-    // 세션이 있는데 아직 DB 로딩 중 → 스피너만 표시 (로그인 화면 깜빡임 방지)
-    if(loading){
-      return(
-        <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-          <div style={{textAlign:'center',color:'#94a3b8'}}>
-            <div style={{fontSize:28,marginBottom:12}}>📅</div>
-            <div style={{fontSize:14}}>연결 중...</div>
-          </div>
-        </div>
-      );
-    }
-    const loginBox=(
-      <div style={{background:'white',borderRadius:18,padding:'34px 28px',width:'100%',maxWidth:340,boxShadow:'0 25px 70px rgba(0,0,0,.45)'}}>
-        <div style={{textAlign:'center',marginBottom:24}}>
-          <div style={{width:54,height:54,background:'linear-gradient(135deg,#1e40af,#3b82f6)',borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px',fontSize:24}}>📅</div>
-          <p style={{margin:'0 0 2px',fontSize:16,fontWeight:800,color:'#0f172a'}}>{APP_CONFIG.COMPANY_KO}</p>
-          <p style={{margin:0,fontSize:13,color:'#64748b'}}>연차 관리 시스템</p>
-        </div>
-        {loading?<p style={{textAlign:'center',color:'#94a3b8',fontSize:14}}>연결 중...</p>:<>
-          <div style={{marginBottom:13}}><label style={lbl}>아이디</label><input value={phone} onChange={e=>setPhone(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="전화번호 또는 아이디" style={{...inp,fontSize:16}}/></div>
-          <div style={{marginBottom:8}}><label style={lbl}>비밀번호</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&login()} placeholder="비밀번호 입력" style={{...inp,fontSize:16}}/></div>
-          {err&&<p style={{color:'#dc2626',fontSize:13,margin:'6px 0 0'}}>{err}</p>}
-          <button onClick={login} style={{...btn('primary'),width:'100%',padding:'13px',fontSize:15,marginTop:14}}>로그인</button>
-        </>}      </div>
-    );
-    if(isMobile){
-      return(
-        <div style={{minHeight:'100dvh',background:'linear-gradient(160deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:"'Noto Sans KR',sans-serif"}}>
-          {loginBox}
-        </div>
-      );
-    }
-    return(
-      <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:"'Noto Sans KR',sans-serif"}}>
-        {loginBox}
-      </div>
-    );
+    const SysbarLogin = Sysbar.createLoginComponent(React, { subtitle: '연차 관리 시스템', blockedRoles: ['contractor'] });
+    return <SysbarLogin supabaseClient={anonSb} onLogin={handleLogin} />;
   }
 
   // ── 기술지원(contractor) 접근 차단 ────────────────────────

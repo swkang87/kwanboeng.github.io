@@ -1,6 +1,11 @@
 /**
- * SYSBAR MODULE v2.2
+ * SYSBAR MODULE v2.3
  * 모든 페이지 공통: 상단 네비바 CSS + React 컴포넌트
+ *
+ * v2.3 변경사항:
+ *  - Auth 모듈 추가: hashPassword / verifyPassword / isPlainPassword / doLogin
+ *  - createLoginComponent(): 공통 로그인 화면 컴포넌트 반환
+ *  - 각 HTML 파일의 개별 LoginScreen / 해시 함수 제거 → 이 파일로 일원화
  */
 (function(global) {
   'use strict';
@@ -190,6 +195,228 @@
     };
   })();
 
+  // ── Auth 모듈 ───────────────────────────────────────────────
+  // PBKDF2 + SHA-256, 100k iterations, Web Crypto API
+  var Auth = (function() {
+
+    async function hashPassword(plain) {
+      var salt = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+      var enc  = new TextEncoder();
+      var km   = await crypto.subtle.importKey('raw', enc.encode(plain), {name:'PBKDF2'}, false, ['deriveBits']);
+      var bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt:enc.encode(salt), iterations:100000, hash:'SHA-256'}, km, 256);
+      var hash = Array.from(new Uint8Array(bits)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+      return 'pbkdf2$' + salt + '$' + hash;
+    }
+
+    async function verifyPassword(plain, stored) {
+      if (!stored || plain == null) return false;
+      if (!String(stored).startsWith('pbkdf2$')) return plain === stored; // 평문 호환 (lazy migration)
+      var parts = stored.split('$');
+      if (parts.length !== 3) return false;
+      var salt = parts[1];
+      var enc  = new TextEncoder();
+      var km   = await crypto.subtle.importKey('raw', enc.encode(plain), {name:'PBKDF2'}, false, ['deriveBits']);
+      var bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt:enc.encode(salt), iterations:100000, hash:'SHA-256'}, km, 256);
+      var hash = Array.from(new Uint8Array(bits)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+      return stored === 'pbkdf2$' + salt + '$' + hash;
+    }
+
+    function isPlainPassword(stored) {
+      return stored && !String(stored).startsWith('pbkdf2$');
+    }
+
+    /**
+     * doLogin(supabaseClient, phone, pw, opts)
+     *  - opts.allowedRoles: string[] — 이 역할만 허용 (미지정 시 전체 허용)
+     *  - opts.blockedRoles: string[] — 이 역할은 차단 (기본: ['contractor'])
+     *  - 성공 시 → { ok:true,  user: safeUser }
+     *  - 실패 시 → { ok:false, reason: '...' }
+     */
+    async function doLogin(sb, phone, pw, opts) {
+      opts = opts || {};
+      var blocked = opts.blockedRoles || ['contractor'];
+
+      try {
+        var res = await sb.from('users')
+          .select('*')
+          .eq('phone', phone.trim())
+          .single();
+
+        if (res.error || !res.data) {
+          return { ok: false, reason: '아이디 또는 비밀번호가 올바르지 않습니다.' };
+        }
+
+        var user = res.data;
+
+        // 역할 차단 체크
+        if (blocked.indexOf(user.role) !== -1) {
+          return { ok: false, reason: '이 시스템에 대한 접근 권한이 없습니다.' };
+        }
+        // 역할 허용 체크
+        if (opts.allowedRoles && opts.allowedRoles.indexOf(user.role) === -1) {
+          return { ok: false, reason: '이 시스템에 대한 접근 권한이 없습니다.' };
+        }
+
+        var ok = await verifyPassword(pw, user.password);
+        if (!ok) {
+          return { ok: false, reason: '아이디 또는 비밀번호가 올바르지 않습니다.' };
+        }
+
+        // Lazy migration: 평문이면 해시로 업그레이드
+        if (isPlainPassword(user.password)) {
+          try {
+            var hashed = await hashPassword(pw);
+            await sb.from('users').update({ password: hashed }).eq('id', user.id);
+          } catch(e) {}
+        }
+
+        // 세션에 저장할 안전한 사용자 객체 (password 제외)
+        var safeUser = Object.assign({}, user);
+        delete safeUser.password;
+
+        localStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
+        localStorage.removeItem('kwanbo_pm_user');
+        sessionStorage.removeItem('kwanbo_uid');
+
+        return { ok: true, user: safeUser };
+
+      } catch(e) {
+        return { ok: false, reason: '서버 오류가 발생했습니다.' };
+      }
+    }
+
+    /**
+     * getSession()
+     * localStorage에서 세션 복원. 없거나 형식 불량이면 null 반환.
+     */
+    function getSession() {
+      try {
+        var raw = localStorage.getItem(SESSION_KEY);
+        if (!raw) return null;
+        var v = JSON.parse(raw);
+        if (v && v.id && v.role) {
+          // 혹시 password가 남아있으면 제거
+          if (v.password) { delete v.password; localStorage.setItem(SESSION_KEY, JSON.stringify(v)); }
+          return v;
+        }
+        return null;
+      } catch(e) { return null; }
+    }
+
+    /**
+     * clearSession()
+     * 세션 및 관련 키 전체 제거
+     */
+    function clearSession() {
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem('kwanbo_pm_user');
+      sessionStorage.removeItem('kwanbo_uid');
+    }
+
+    return {
+      hashPassword:    hashPassword,
+      verifyPassword:  verifyPassword,
+      isPlainPassword: isPlainPassword,
+      doLogin:         doLogin,
+      getSession:      getSession,
+      clearSession:    clearSession,
+    };
+  })();
+
+  // ── 로그인 CSS 주입 ─────────────────────────────────────────
+  var LOGIN_CSS_INJECTED = false;
+  function injectLoginCss() {
+    if (LOGIN_CSS_INJECTED || document.getElementById('sysbar-login-css')) { LOGIN_CSS_INJECTED = true; return; }
+    var s = document.createElement('style');
+    s.id = 'sysbar-login-css';
+    s.textContent =
+      '.sb-lwrap{min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%);display:flex;align-items:center;justify-content:center;padding:16px;font-family:\'Pretendard\',\'Noto Sans KR\',sans-serif;}' +
+      '.sb-lbox{background:#fff;border-radius:16px;padding:32px 28px;width:100%;max-width:340px;box-shadow:0 24px 70px rgba(0,0,0,.45);}' +
+      '.sb-lco{font-size:15px;font-weight:800;color:#0f172a;text-align:center;margin-bottom:2px;}' +
+      '.sb-lsub{font-size:11px;color:#94a3b8;text-align:center;margin-bottom:22px;}' +
+      '.sb-lfl{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;}' +
+      '.sb-lfi{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;box-sizing:border-box;font-family:inherit;color:#0f172a;transition:border .15s;}' +
+      '.sb-lfi:focus{border-color:#3b82f6;}' +
+      '.sb-lerr{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:6px;padding:7px 11px;font-size:12px;margin-bottom:12px;}' +
+      '.sb-lbtn{width:100%;padding:11px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:6px;}' +
+      '.sb-lbtn:disabled{opacity:.6;cursor:default;}' +
+      '@media(max-width:400px){.sb-lbox{padding:28px 20px;}}';
+    var target = document.head || document.documentElement;
+    target.appendChild(s);
+    LOGIN_CSS_INJECTED = true;
+  }
+
+  /**
+   * createLoginComponent(React, options)
+   *  options.subtitle  : 로그인 박스 부제목 (기본: '통합 관리 시스템')
+   *  options.blockedRoles / allowedRoles: doLogin 에 그대로 전달
+   *
+   * 반환: LoginScreen 컴포넌트
+   *  props.supabaseClient : Supabase 클라이언트 (필수)
+   *  props.onLogin(user)  : 로그인 성공 콜백 (필수)
+   */
+  function createLoginComponent(React, options) {
+    if (!React) { console.error('[sysbar] React가 없습니다.'); return null; }
+    injectLoginCss();
+    options = options || {};
+
+    return function SysbarLoginScreen(props) {
+      var sb       = props.supabaseClient;
+      var onLogin  = props.onLogin;
+      var subtitle = props.subtitle || options.subtitle || '통합 관리 시스템';
+      var cfg      = global.APP_CONFIG || {};
+
+      var useState = React.useState;
+      var _phone   = useState('');
+      var phone    = _phone[0]; var setPhone = _phone[1];
+      var _pw      = useState('');
+      var pw       = _pw[0];    var setPw    = _pw[1];
+      var _err     = useState('');
+      var err      = _err[0];   var setErr   = _err[1];
+      var _loading = useState(false);
+      var loading  = _loading[0]; var setLoading = _loading[1];
+
+      var e = React.createElement;
+
+      var login = function() {
+        if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
+        setLoading(true); setErr('');
+        Auth.doLogin(sb, phone, pw, {
+          blockedRoles: options.blockedRoles,
+          allowedRoles: options.allowedRoles,
+        }).then(function(result) {
+          setLoading(false);
+          if (result.ok) { onLogin(result.user); }
+          else           { setErr(result.reason); }
+        });
+      };
+
+      var onKey = function(e) { if (e.key === 'Enter') login(); };
+
+      return e('div', { className: 'sb-lwrap' },
+        e('div', { className: 'sb-lbox' },
+          e('div', { className: 'sb-lco'  }, cfg.COMPANY_SHORT || cfg.COMPANY_KO || ''),
+          e('div', { className: 'sb-lsub' }, subtitle),
+          err ? e('div', { className: 'sb-lerr' }, err) : null,
+          e('div', { style: { marginBottom: 12 } },
+            e('label', { className: 'sb-lfl' }, '전화번호'),
+            e('input', { className:'sb-lfi', type:'text', placeholder:'전화번호', value:phone,
+              onChange: function(ev){ setPhone(ev.target.value); }, onKeyDown: onKey })
+          ),
+          e('div', { style: { marginBottom: 18 } },
+            e('label', { className: 'sb-lfl' }, '비밀번호'),
+            e('input', { className:'sb-lfi', type:'password', placeholder:'비밀번호', value:pw,
+              onChange: function(ev){ setPw(ev.target.value); }, onKeyDown: onKey })
+          ),
+          e('button', { className:'sb-lbtn', onClick:login, disabled:loading },
+            loading ? '로그인 중...' : '로그인'
+          )
+        )
+      );
+    };
+  }
+
   function createComponent(React) {
     if (!React) { console.error('[sysbar] React가 없습니다.'); return null; }
     injectCss();
@@ -240,8 +467,10 @@
     SESSION_KEY: SESSION_KEY,
     SYS_MENUS:   SYS_MENUS,
     injectCss:   injectCss,
-    createComponent: createComponent,
-    SessionManager:  SessionManager,
+    createComponent:      createComponent,
+    createLoginComponent: createLoginComponent,
+    SessionManager:       SessionManager,
+    Auth:                 Auth,
   };
 
 })(window);
