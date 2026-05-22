@@ -975,7 +975,8 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
           <table className="tbl" style={{ minWidth: 900 }}>
             <thead>
               <tr>
-                <th style={{ width: 32, textAlign: 'center' }}>번호</th>
+                <th style={{ width: 28, textAlign: 'center' }} className="no-print"></th>
+                <th style={{ width: 28, textAlign: 'center' }}>번호</th>
                 <th style={{ width: 44 }}>분류</th>
                 <th>용역명</th>
                 <th style={{ width: 110 }}>발주처</th>
@@ -999,6 +1000,25 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
               return (
                 <React.Fragment key={p.id}>
                 <tr style={{ opacity: stopped ? 0.55 : 1, background: stopped ? '#fafafa' : 'transparent', borderLeft: `3px solid ${CAT_COLOR[p.category]}` }}>
+                  <td className="tc no-print" style={{ padding: '4px 2px', verticalAlign: 'middle' }}>
+                    {canInput(p) && !stopped && (
+                      <button
+                        onClick={() => setOpenInputId(openInputId === p.id ? null : p.id)}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          width: 26, height: 32, border: 'none', borderRadius: 4, cursor: 'pointer',
+                          background: openInputId === p.id ? '#1d4ed8' : (r?.isThisWeek ? '#d1fae5' : '#fef3c7'),
+                          color: openInputId === p.id ? '#fff' : (r?.isThisWeek ? '#065f46' : '#92400e'),
+                          fontSize: 8, fontWeight: 700, lineHeight: 1.3, gap: 1,
+                          fontFamily: "'Noto Sans KR', sans-serif",
+                        }}
+                      >
+                        <span style={{ fontSize: 10 }}>{openInputId === p.id ? '✕' : '📝'}</span>
+                        <span>주간</span>
+                        <span>보고</span>
+                      </button>
+                    )}
+                  </td>
                   <td className="tc" style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>{idx+1}</td>
                   <td><Bd bg={CAT_COLOR[p.category]}>{p.category}</Bd>{stopped && <div style={{ fontSize: 9, color: '#9ca3af', marginTop: 1 }}>중지</div>}</td>
                   <td style={{ cursor: 'pointer' }} onClick={() => { if(setScrollY) setScrollY(window.scrollY); gp(p.id)}}>
@@ -1043,22 +1063,12 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                       <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: r?.issues ? 3 : 0 }}>⚠ 준공일 초과</div>
                     )}
                     {r?.issues && <div style={{ color: '#dc2626' }}>{r.issues}</div>}
-                    {/* PC 입력 버튼 */}
-                    {canInput(p) && !stopped && (
-                      <button
-                        className="btn btn-success btn-sm no-print"
-                        style={{ marginTop: r?.issues ? 4 : 0, whiteSpace: 'nowrap' }}
-                        onClick={() => setOpenInputId(openInputId === p.id ? null : p.id)}
-                      >
-                        {openInputId === p.id ? '✕ 닫기' : (r?.isThisWeek ? '✏️ 수정' : '📝 입력')}
-                      </button>
-                    )}
                   </td>
                 </tr>
                 {/* 인라인 입력 패널 */}
                 {openInputId === p.id && (
                   <tr className="no-print">
-                    <td colSpan={11} style={{ padding: 0, borderBottom: '2px solid #2563eb' }}>
+                    <td colSpan={12} style={{ padding: 0, borderBottom: '2px solid #2563eb' }}>
                       <WeeklyInlineForm
                         projectId={p.id}
                         userId={user?.id}
