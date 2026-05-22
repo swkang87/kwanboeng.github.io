@@ -189,6 +189,12 @@ function _makeSb(userId, userRole) {
 // ── 비밀번호 해싱 → sysbar.js Sysbar.Auth 에 위임 ─────────
 const { hashPassword, verifyPassword, isPlainPassword } = Sysbar.Auth;
 
+// ── 랜덤 초기 비밀번호 생성 (숫자 6자리) ──
+function genTempPw() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(6)))
+    .map(function(b){ return b % 10; }).join('');
+}
+
 let sb = _makeSb();
 
 const VIEWS = { WL:'wl', PF:'pf', SL:'sl', ST:'st' };
@@ -2095,7 +2101,7 @@ function StaffView({ user }) {
   function load() {
     setLoading(true);
     Promise.all([
-      sb.from('users').select('*').order('name'),
+      sb.from('users').select('id,name,phone,email,position,team_id,role,join_date,total_days,memo').order('name'),
       sb.from('teams').select('*').order('name'),
     ]).then(function(r) {
       setUsers(r[0].data||[]);
@@ -2138,8 +2144,15 @@ function StaffView({ user }) {
       if (editU) {
         p = sb.from('users').update(formWithoutMemo).eq('id', editU.id);
       } else {
-        var hashedPw = await hashPassword(form.phone);
+        var tempPw = genTempPw();
+        var hashedPw = await hashPassword(tempPw);
         p = sb.from('users').insert(Object.assign({}, formWithoutMemo, {password: hashedPw}));
+        var r = await p;
+        setSaving(false);
+        if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
+        setModal(false); load();
+        alert('✅ ' + form.name + ' 등록 완료\n\n초기 비밀번호: ' + tempPw + '\n\n반드시 본인에게 직접 전달하고 첫 로그인 후 변경을 안내해 주세요.');
+        return;
       }
       var r = await p;
       setSaving(false);
@@ -2340,7 +2353,7 @@ function App() {
       var v = JSON.parse(raw);
       var userId = v && v.userId;
       if (!userId) { setSsoChecked(true); return; }
-      sb.from('users').select('*').eq('id', userId).single().then(function(r) {
+      sb.from('users').select('id,name,phone,email,position,team_id,role,join_date,total_days').eq('id', userId).single().then(function(r) {
         if (r.data) {
           sb = _makeSb(r.data.id, r.data.role);
           var safeU = Object.assign({}, r.data); delete safeU.password;

@@ -167,6 +167,12 @@ const typeLabel=(type,days)=>{
 // ── 비밀번호 해싱 → sysbar.js Sysbar.Auth 에 위임 ─────────
 const { hashPassword, verifyPassword, isPlainPassword } = Sysbar.Auth;
 
+// ── 랜덤 초기 비밀번호 생성 (숫자 6자리) ──────────────────
+function genTempPw() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(6)))
+    .map(b => b % 10).join('');
+}
+
 // RLS용 인증 컨텍스트 (로그인/로그아웃 시 갱신)
 let _authCtx = { id: null, role: null };
 
@@ -827,16 +833,19 @@ function AdminTeams({user,teams,users,onRefresh}){
 // ── Admin Users ───────────────────────────────────────────
 function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
   const [showAdd,setShowAdd]=useState(false),[showBulk,setShowBulk]=useState(false),[editU,setEditU]=useState(null),[bulk,setBulk]=useState('');
-  const [form,setForm]=useState({name:'',phone:'',password:'1234',role:'employee',team_id:'',join_date:today(),total_days:15});
+  const [form,setForm]=useState({name:'',phone:'',password:'',role:'employee',team_id:'',join_date:today(),total_days:15});
   const getUsed=uid=>leaves.filter(l=>l.user_id===uid&&l.status==='approved'&&l.type==='연차'&&l.start_date?.startsWith(String(thisYear()))).reduce((s,l)=>s+Number(l.days),0);
   const addUser=async()=>{
     if(!form.name||!form.phone){alert('이름과 전화번호를 입력해 주세요.');return;}
     const ph=form.phone.replace(/\D/g,'');
     if(users.find(u=>u.phone===ph)){alert('이미 등록된 전화번호입니다.');return;}
-    const hashedPw=await hashPassword(form.password||'1234');
+    // 초기 비밀번호: 입력값 있으면 사용, 없으면 랜덤 6자리 생성
+    const tempPw = form.password.trim() || genTempPw();
+    const hashedPw=await hashPassword(tempPw);
     await api.post('users',{...form,phone:ph,password:hashedPw,total_days:Number(form.total_days)||15});
     await audit(adm.id,'직원추가',null,form.name);
-    setShowAdd(false);setForm({name:'',phone:'',password:'1234',role:'employee',team_id:'',join_date:today(),total_days:15});onRefresh();
+    setShowAdd(false);setForm({name:'',phone:'',password:'',role:'employee',team_id:'',join_date:today(),total_days:15});onRefresh();
+    alert(`✅ ${form.name} 등록 완료\n\n초기 비밀번호: ${tempPw}\n\n반드시 본인에게 직접 전달하고 첫 로그인 후 변경을 안내해 주세요.`);
   };
   const updateUser=async()=>{
     await api.patch('users',`?id=eq.${editU.id}`,{name:editU.name,phone:editU.phone.replace(/\D/g,''),role:editU.role,team_id:editU.team_id||null,total_days:Number(editU.total_days),join_date:editU.join_date});
@@ -845,18 +854,23 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
   const resetPw=async u=>{const pw=prompt(`${u.name}의 새 비밀번호 입력:\n(빈칸으로 확인 시 생년월일 6자리로 초기화)`);if(pw===null)return;const plain=pw.trim()||u.phone.slice(0,6);const h=await hashPassword(plain);await api.patch('users',`?id=eq.${u.id}`,{password:h});alert('비밀번호가 변경되었습니다.');};
   const processBulk=async()=>{
     let ok=0;
+    const pwLog=[];
     for(const row of bulk.trim().split('\n').filter(r=>r.trim())){
       const [name,phone,teamName,roleLabel,joinDate,daysStr]=row.split(/\t|,/).map(c=>c.trim());
       if(!name||!phone)continue;
       const ph=phone.replace(/\D/g,'');
       if(users.find(u=>u.phone===ph))continue;
       const team=teams.find(t=>t.name===teamName);
-      const hashedPw=await hashPassword('1234');
+      const tempPw=genTempPw();
+      const hashedPw=await hashPassword(tempPw);
       await api.post('users',{name,phone:ph,password:hashedPw,role:roleLabel==='팀장'?'manager':'employee',team_id:team?.id||null,join_date:joinDate||today(),total_days:Number(daysStr)||15});
+      pwLog.push(`${name}: ${tempPw}`);
       ok++;
     }
     await audit(adm.id,'일괄등록',null,`${ok}명 등록`);
-    alert(`${ok}명이 등록되었습니다.`);setBulk('');setShowBulk(false);onRefresh();
+    const pwMsg=pwLog.length>0?`\n\n초기 비밀번호 목록 (반드시 메모 후 본인에게 전달):\n${pwLog.join('\n')}`:'';
+    alert(`${ok}명이 등록되었습니다.${pwMsg}`);
+    setBulk('');setShowBulk(false);onRefresh();
   };
   const TEAM_ORDER=['설계1팀','설계2팀','지반팀','관리팀'];
   const emp=[...users.filter(u=>u.role!=='admin')].sort((a,b)=>{
@@ -892,7 +906,7 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
         );})}
       </div>
       {showAdd&&<Modal title="직원 추가" onClose={()=>setShowAdd(false)}>
-        {[{l:'이름',k:'name',ph:'홍길동'},{l:'전화번호',k:'phone',ph:'01012345678'},{l:'초기 비밀번호',k:'password',ph:'1234'},{l:'입사일',k:'join_date',type:'date'},{l:'연차 일수',k:'total_days',type:'number'}].map(f=><div key={f.k} style={{marginBottom:10}}><label style={lbl}>{f.l}</label><input type={f.type||'text'} value={form[f.k]} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} style={inp}/></div>)}
+        {[{l:'이름',k:'name',ph:'홍길동'},{l:'전화번호',k:'phone',ph:'01012345678'},{l:'초기 비밀번호',k:'password',ph:'비워두면 랜덤 생성'},{l:'입사일',k:'join_date',type:'date'},{l:'연차 일수',k:'total_days',type:'number'}].map(f=><div key={f.k} style={{marginBottom:10}}><label style={lbl}>{f.l}</label><input type={f.type||'text'} value={form[f.k]} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} style={inp}/></div>)}
         <div style={{marginBottom:10}}><label style={lbl}>직급</label><select value={form.role} onChange={e=>setForm(p=>({...p,role:e.target.value}))} style={inp}><option value="employee">팀원</option><option value="manager">팀장</option></select></div>
         <div style={{marginBottom:14}}><label style={lbl}>소속 팀</label><select value={form.team_id} onChange={e=>setForm(p=>({...p,team_id:e.target.value}))} style={inp}><option value="">팀 선택</option>{teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
         <div style={{display:'flex',gap:8}}><button onClick={()=>setShowAdd(false)} style={{...btn(),flex:1}}>취소</button><button onClick={addUser} style={{...btn('primary'),flex:1}}>추가</button></div>
@@ -1026,10 +1040,13 @@ function LeaveLoginScreen({ onLogin }) {
       if (user.role === 'contractor') { setErr('연차 관리 시스템 접근 권한이 없습니다.'); setLoading(false); return; }
 
       const ok = await Sysbar.Auth.verifyPassword(pw, user.password);
+      // 검증 직후 메모리에서 password 즉시 제거
+      const rawPw = user.password;
+      delete user.password;
       if (!ok) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
 
       // Lazy migration: 평문이면 해시로 업그레이드
-      if (Sysbar.Auth.isPlainPassword(user.password)) {
+      if (Sysbar.Auth.isPlainPassword(rawPw)) {
         try {
           const h = await Sysbar.Auth.hashPassword(pw);
           await fetch(`${SB_URL}/users?id=eq.${user.id}`, {
@@ -1041,9 +1058,8 @@ function LeaveLoginScreen({ onLogin }) {
         } catch(e) {}
       }
 
-      // 세션 저장 (password 제외)
+      // 세션 저장 (password 이미 제거됨)
       const safeUser = Object.assign({}, user);
-      delete safeUser.password;
       localStorage.setItem('kwanbo_session', JSON.stringify(safeUser));
       localStorage.removeItem('kwanbo_pm_user');
       sessionStorage.removeItem('kwanbo_uid');

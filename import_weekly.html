@@ -174,10 +174,15 @@ try {
   }
 } catch(e) {}
 let sb = _makeSb(_ssoUser?.id, _ssoUser?.role);
-// 세션이 없으면 RLS에 의해 모든 호출이 막힘 → 페이지 진입 자체를 차단
+// 세션 없음 → 로그인 페이지로
 if (!_ssoUser) {
   alert('로그인이 필요합니다. 메인 화면에서 다시 진입해주세요.');
   window.location.href = APP_CONFIG.HOME_URL || 'index.html';
+}
+// admin 역할 아님 → 접근 차단
+if (_ssoUser && _ssoUser.role !== 'admin') {
+  alert('관리자만 접근할 수 있습니다.');
+  window.location.href = APP_CONFIG.HOME_URL || 'home.html';
 }
 
 // ─── State ───
@@ -193,6 +198,17 @@ async function loadDB() {
   ]);
   existingProjects = pj.data || [];
   existingUsers    = us.data || [];
+}
+
+// ─── XSS 방어 ───
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ─── Helpers ───
@@ -342,6 +358,16 @@ function renderPreview(results) {
 
     const tr = document.createElement('tr');
     if (r.isNew) tr.className = 'is-new';
+    // XSS 방어: 외부 데이터(엑셀/DB) 이스케이프 처리
+    const eName    = escapeHtml(r.name);
+    const eNo      = escapeHtml(r.no);
+    const eClient  = escapeHtml(r.client);
+    const eMatchN  = r.matched ? escapeHtml(r.matched.name) : '';
+    const ePmName  = escapeHtml(r.pmUser?.name || parsePM(r.pmRaw) || '');
+    const eSummary = r.summary
+      ? escapeHtml(r.summary.length > 50 ? r.summary.slice(0,50)+'…' : r.summary)
+      : '—';
+
     tr.innerHTML = `
       <td style="text-align:center">
         <input type="checkbox" class="row-cb" data-idx="${idx}" checked>
@@ -354,20 +380,20 @@ function renderPreview(results) {
             : '<span class="badge bg-green">✅ 업데이트</span>'
         }
       </td>
-      <td style="color:#94a3b8;font-size:10px;text-align:center">${r.no}</td>
+      <td style="color:#94a3b8;font-size:10px;text-align:center">${eNo}</td>
       <td>
-        <div class="name-cell">${r.name}</div>
-        ${r.matched ? `<div class="db-name">↳ DB: ${r.matched.name.length > 35 ? r.matched.name.slice(0,35)+'…' : r.matched.name}</div>` : ''}
+        <div class="name-cell">${eName}</div>
+        ${r.matched ? `<div class="db-name">↳ DB: ${eMatchN.length > 35 ? eMatchN.slice(0,35)+'…' : eMatchN}</div>` : ''}
       </td>
-      <td style="font-size:11px;color:#475569;word-break:keep-all">${r.client}</td>
+      <td style="font-size:11px;color:#475569;word-break:keep-all">${eClient}</td>
       <td>
         ${r.isNew
           ? `<select class="cat-sel" data-idx="${idx}">${catOpts}</select>`
-          : `<span class="badge ${r.matched.category==='관급'?'bg-blue':r.matched.category==='사급'?'bg-green':'bg-yellow'}">${r.matched.category}</span>`
+          : `<span class="badge ${r.matched.category==='관급'?'bg-blue':r.matched.category==='사급'?'bg-green':'bg-yellow'}">${escapeHtml(r.matched.category)}</span>`
         }
       </td>
       <td style="font-size:11px;white-space:nowrap">
-        ${r.pmUser?.name || (parsePM(r.pmRaw) || '—')}
+        ${ePmName || '—'}
         ${!r.pmUser && parsePM(r.pmRaw) ? '<span style="font-size:9px;color:#f59e0b;display:block">미매칭</span>' : ''}
       </td>
       <td>
@@ -380,13 +406,13 @@ function renderPreview(results) {
           ? `<div class="pbar-wrap"><div class="pbar"><div class="pfill" style="width:${r.currPct}%;background:${barColor}"></div></div><span style="font-size:11px;font-weight:700;color:${barColor}">${r.currPct}%</span></div>`
           : '<span style="color:#94a3b8;font-size:11px">—</span>'}
       </td>
-      <td style="font-size:11px;color:#475569;white-space:nowrap">${r.startDate || '—'}</td>
+      <td style="font-size:11px;color:#475569;white-space:nowrap">${escapeHtml(r.startDate) || '—'}</td>
       <td style="font-size:11px;color:#475569;white-space:nowrap">
-        ${r.endDate || '—'}
+        ${escapeHtml(r.endDate) || '—'}
         ${r.stopped ? ' <span class="badge bg-gray" style="font-size:8px">중지</span>' : ''}
       </td>
       <td style="font-size:10px;color:#475569;max-width:200px;word-break:keep-all;line-height:1.5">
-        ${r.summary ? (r.summary.length > 50 ? r.summary.slice(0,50)+'…' : r.summary) : '—'}
+        ${eSummary}
       </td>
     `;
     tbody.appendChild(tr);
