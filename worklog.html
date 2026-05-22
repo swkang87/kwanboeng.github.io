@@ -1062,10 +1062,10 @@ function App() {
       const v = JSON.parse(raw);
       const userId = v && v.userId;
       if (!userId) { setSsoChecked(true); return; }
-      sb.from('users').select('*').eq('id', userId).single().then(({ data }) => {
+      sb.from('users').select('id,name,phone,email,position,team_id,role,join_date,total_days').eq('id', userId).single().then(({ data }) => {
         if (data) {
           sb = _makeSb(data.id, data.role);
-          const safeU = {...data}; delete safeU.password;
+          const safeU = {...data};
           // 통합 세션으로 마이그레이션
           localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
           setUser(safeU);
@@ -1092,9 +1092,7 @@ function App() {
   const logout = () => {
     Sysbar.SessionManager.onLogout();
     sb = _makeSb();
-    localStorage.removeItem('kwanbo_session');
-    localStorage.removeItem('kwanbo_pm_user');
-    sessionStorage.removeItem('kwanbo_uid');
+    Sysbar.Auth.clearSession();
     setUser(null);
     setView(VIEWS.MY_LOG);
   };

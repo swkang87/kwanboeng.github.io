@@ -606,7 +606,7 @@ function App(){
       const v=JSON.parse(raw);
       const uid=v&&v.userId;
       if(!uid){setChecked(true);return;}
-      getSb().from('users').select('*').eq('id',uid).single().then(({data})=>{
+      getSb().from('users').select('id,name,phone,email,position,team_id,role,join_date,total_days').eq('id',uid).single().then(({data})=>{
         if(data){
           if(data.role==='contractor'){window.location.replace('project.html');return;}
           sb=makeSb(data.id,data.role);
@@ -679,9 +679,7 @@ function App(){
 
   const logout=()=>{
     sb=null;
-    localStorage.removeItem('kwanbo_session');
-    localStorage.removeItem('kwanbo_pm_user');
-    sessionStorage.removeItem('kwanbo_uid');
+    Sysbar.Auth.clearSession();
     setUser(null);
   };
 

@@ -376,10 +376,9 @@ function App() {
     Sysbar.SessionManager.onLogin(() => handleLogout());
   };
   const handleLogout = () => {
+    Sysbar.SessionManager.onLogout();
     sb = _makeSb();
-    localStorage.removeItem('kwanbo_session');
-    localStorage.removeItem('kwanbo_pm_user');
-    sessionStorage.removeItem('kwanbo_uid');
+    Sysbar.Auth.clearSession();
     setUser(null);
   };
   const isAdmin = user?.role === 'admin';
@@ -2717,7 +2716,7 @@ function ChangePasswordModal({ user, onClose }) {
   const save = async () => {
     if (!curr || !next || !confirm) { setErr('모든 항목을 입력해주세요.'); return; }
     if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
-    if (next.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return; }
+    if (next.length < 6) { setErr('비밀번호는 6자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
     // Verify current password
     const { data: u } = await sb.from('users').select('password').eq('id', user.id).single();
@@ -2727,6 +2726,11 @@ function ChangePasswordModal({ user, onClose }) {
     const hashed = await hashPassword(next);
     const { error } = await sb.from('users').update({ password: hashed }).eq('id', user.id);
     if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
+    // 비밀번호 변경 기록 (change_logs)
+    await sb.from('change_logs').insert({
+      project_id: null, field_name: '비밀번호변경', old_value: '', new_value: '변경완료',
+      changed_by: user.id, created_at: new Date().toISOString()
+    }).catch(() => {});
     setOk(true); setLoading(false);
   };
 
@@ -2746,7 +2750,7 @@ function ChangePasswordModal({ user, onClose }) {
           </div>
           <div className="form-group">
             <label className="form-label">새 비밀번호</label>
-            <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder="새 비밀번호 (4자 이상)" />
+            <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder="새 비밀번호 (6자 이상)" />
           </div>
           <div className="form-group">
             <label className="form-label">새 비밀번호 확인</label>
@@ -2853,7 +2857,7 @@ function ProfileView({ user, onLogout }) {
   const savePw = async () => {
     if (!curr || !next || !confirm) { setErr('모든 항목을 입력해주세요.'); return; }
     if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
-    if (next.length < 4) { setErr('비밀번호는 4자 이상이어야 합니다.'); return; }
+    if (next.length < 6) { setErr('비밀번호는 6자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
     const { data: u } = await sb.from('users').select('password').eq('id', user.id).single();
     if (!u) { setErr('사용자 정보를 찾을 수 없습니다.'); setLoading(false); return; }
@@ -2862,6 +2866,11 @@ function ProfileView({ user, onLogout }) {
     const hashed = await hashPassword(next);
     const { error } = await sb.from('users').update({ password: hashed }).eq('id', user.id);
     if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
+    // 비밀번호 변경 기록 (change_logs)
+    await sb.from('change_logs').insert({
+      project_id: null, field_name: '비밀번호변경', old_value: '', new_value: '변경완료',
+      changed_by: user.id, created_at: new Date().toISOString()
+    }).catch(() => {});
     setOk(true); setCurr(''); setNext(''); setConfirm('');
     setLoading(false);
   };
@@ -2892,7 +2901,7 @@ function ProfileView({ user, onLogout }) {
         </div>
         <div className="form-group">
           <label className="form-label">새 비밀번호</label>
-          <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder="새 비밀번호 (4자 이상)" />
+          <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder="새 비밀번호 (6자 이상)" />
         </div>
         <div className="form-group">
           <label className="form-label">새 비밀번호 확인</label>

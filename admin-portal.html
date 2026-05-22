@@ -2397,9 +2397,7 @@ function App() {
   function logout() {
     Sysbar.SessionManager.onLogout();
     sb = _makeSb();
-    localStorage.removeItem('kwanbo_session');
-    localStorage.removeItem('kwanbo_pm_user');
-    sessionStorage.removeItem('kwanbo_uid');
+    Sysbar.Auth.clearSession();
     setUser(null); setTeamName(''); setHasAccess(false);
   }
 
