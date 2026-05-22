@@ -690,6 +690,11 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
       <col style="width:38%"/><col style="width:8%"/>
     </colgroup>`;
     const tableHead = `<tr><th>번호</th><th>분류</th><th>용역명</th><th>발주처</th><th>PM</th><th>준공일</th><th>전주</th><th>금주</th><th>±</th><th>과업진행사항 / 주요공정</th><th>비고</th></tr>`;
+    // XSS 방어 유틸 (인쇄 영역 innerHTML 이스케이프용)
+    const esc = (s) => s == null ? '' : String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
     const rows = sortedProjects.map((p, i) => {
       const r = getReport(p.id);
       const stopped = p.status === '중지';
@@ -727,11 +732,6 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
         <td style="font-size:6.5pt;color:${(isOverdue||r?.issues)?'#dc2626':'inherit'}">${esc(issueText)||''}</td>
       </tr>`;
     }).join('');
-    // ── XSS 방어 유틸 (인쇄 영역 innerHTML 이스케이프용) ──
-    const esc = (s) => s == null ? '' : String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-
         el.innerHTML = `
       <div class="print-header">
         <div class="print-title">주간 공정 보고서</div>
