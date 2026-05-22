@@ -918,7 +918,15 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                     ? (r.summary || <span style={{ color: '#94a3b8' }}>—</span>)
                     : stopped
                       ? <span style={{ color: '#9ca3af' }}>중지 상태</span>
-                      : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>
+                      : <span>
+                          <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>
+                          {r?.summary && (
+                            <div style={{ marginTop: 4, padding: '5px 8px', background: '#f8fafc', borderRadius: 5, fontSize: 11, color: '#94a3b8', borderLeft: '3px solid #e2e8f0', lineHeight: 1.5 }}>
+                              <span style={{ fontWeight: 600, color: '#64748b' }}>{ff(r.week_date)} 기준</span><br/>
+                              {r.summary}
+                            </div>
+                          )}
+                        </span>
                   }
                   {ne && (
                     <div style={{ marginTop: 4, padding: '3px 7px', background: ec(ne.type).bg, borderRadius: 4, fontSize: 11, color: ec(ne.type).tx, display: 'inline-block' }}>
@@ -994,7 +1002,15 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                   </td>
                   <td className="tc"><span style={{ fontSize: 11, fontWeight: 700, color: d>0?'#059669':d<0?'#dc2626':'#94a3b8' }}>{d>0?`▲${d}`:d<0?`▼${Math.abs(d)}`:'—'}</span></td>
                   <td style={{ fontSize: 11, color: '#334155', lineHeight: 1.5, wordBreak: 'keep-all', overflowWrap: 'break-word' }}>
-                    {r?.isThisWeek ? (r.summary || '—') : (stopped ? <span style={{ color: '#9ca3af' }}>중지 상태</span> : <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>)}
+                    {r?.isThisWeek
+                      ? (r.summary || '—')
+                      : stopped
+                        ? <span style={{ color: '#9ca3af' }}>중지 상태</span>
+                        : <span>
+                            <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ 미입력</span>
+                            {r?.summary && <span style={{ color: '#94a3b8', fontSize: 10, marginLeft: 4 }}>({ff(r.week_date)} 기준: {r.summary.length > 60 ? r.summary.slice(0, 60) + '…' : r.summary})</span>}
+                          </span>
+                    }
                     {ne && <div style={{ marginTop: 3, padding: '2px 5px', background: ec(ne.type).bg, borderRadius: 3, fontSize: 10, color: ec(ne.type).tx, display: 'inline-block' }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
                   </td>
                   <td style={{ fontSize: 10 }}>
@@ -1708,9 +1724,8 @@ function MyProjects({ user, gp, appData }) {
     };
     if (user.role === 'admin') return sortList(allProjects);
     const pmIds = new Set(allProjects.filter(p => p.pm_id === user.id).map(p => p.id));
-    // allMembers는 이미 user_id로 필터링된 데이터이므로 user_id 재비교 불필요
-    const myMemberPids = new Set(allMembers.map(m => String(m.project_id).trim()));
-    const mine = allProjects.filter(p => pmIds.has(String(p.id).trim()) || myMemberPids.has(String(p.id).trim()));
+    const myMemberPids = new Set(allMembers.filter(m => m.user_id === user.id).map(m => m.project_id));
+    const mine = allProjects.filter(p => pmIds.has(p.id) || myMemberPids.has(p.id));
     return sortList(mine);
   };
 
