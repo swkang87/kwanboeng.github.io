@@ -656,11 +656,24 @@ function WorklogView({ user }) {
             <span style={{fontSize:14,fontWeight:800,color:'#1e293b'}}>👥 관리팀 전체 · {allRangeLabel()}</span>
             <div className="wl-date-nav">
               <button className="wl-date-btn" onClick={function(){shiftAllDate(-1);}}>◀</button>
-              {allMode !== 'month' && (
+              {allMode === 'week' ? (function(){
+                var d = new Date(selDate+'T00:00:00');
+                var y = d.getFullYear();
+                var m = d.getMonth();
+                // 해당 월의 몇 번째 주인지 계산 (월요일 기준)
+                var firstDay = new Date(y, m, 1);
+                var weekNum = Math.ceil((d.getDate() + ((firstDay.getDay()+6)%7)) / 7);
+                return (
+                  <span style={{fontSize:13,fontWeight:700,color:'#1e293b',padding:'4px 10px',
+                    background:'#f1f5f9',borderRadius:6,whiteSpace:'nowrap'}}>
+                    {y}년 {m+1}월 {weekNum}주
+                  </span>
+                );
+              })() : allMode === 'day' ? (
                 <input type="date" className="fi" value={selDate} max={TODAY()}
                   onChange={function(e){setSelDate(e.target.value);}}
                   style={{width:'auto',maxWidth:140}} />
-              )}
+              ) : null}
               {allMode !== 'month' && <MiniCalendar value={selDate} maxDate={TODAY()} onChange={setSelDate} />}
               <button className="wl-date-btn" onClick={function(){shiftAllDate(1);}}>▶</button>
               <button className="wl-today-btn" onClick={function(){setSelDate(TODAY());}}>오늘</button>

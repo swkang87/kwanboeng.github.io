@@ -919,7 +919,14 @@ function AllLogsView({ user }) {
 
   const rangeLabel = () => {
     if (mode === 'day')  return fmtDate(selDate);
-    if (mode === 'week') { const w = getWeekDates(selDate); return fmtShort(w[0]) + ' ~ ' + fmtShort(w[4]); }
+    if (mode === 'week') {
+      const d = new Date(selDate + 'T00:00:00');
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      const firstDay = new Date(y, m, 1);
+      const weekNum = Math.ceil((d.getDate() + ((firstDay.getDay()+6)%7)) / 7);
+      return `${y}년 ${m+1}월 ${weekNum}주`;
+    }
     const { year, month } = getMonthInfo(selDate);
     return year + '년 ' + (month+1) + '월';
   };
