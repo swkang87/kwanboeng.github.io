@@ -1088,11 +1088,24 @@ function PerfView({ user }) {
       });
   }
 
+  // 감리 memo 파싱: "프로젝트명|발주처|메모" 형식
+  function parseSupvMemo(memo) {
+    if (!memo) return { name:'', client:'', note:'' };
+    var parts = memo.split('|');
+    return { name: parts[0]||'', client: parts[1]||'', note: parts[2]||'' };
+  }
+  function buildSupvMemo(name, client, note) {
+    // 뒤쪽 빈값 trim
+    var arr = [name||'', client||'', note||''];
+    while (arr.length > 1 && !arr[arr.length-1]) arr.pop();
+    return arr.join('|');
+  }
+
   function saveCol() {
     var isOut  = form.entry_type === 'outsource_only';
     var isSupv = form.entry_type === 'supervision';
     if (isSupv) {
-      if (!form.memo || !form.memo.trim()) { setErr('감리 프로젝트명을 입력해주세요.'); return; }
+      if (!form.supv_name || !form.supv_name.trim()) { setErr('감리 프로젝트명을 입력해주세요.'); return; }
       if (!form.collected_at) { setErr('수금일을 입력해주세요.'); return; }
       if (!form.amount) { setErr('수금액을 입력해주세요.'); return; }
     } else {
@@ -1106,7 +1119,7 @@ function PerfView({ user }) {
       amount: isOut ? 0 : numV(form.amount),
       outsource_cost: isSupv ? 0 : numV(form.outsource_cost),
       collected_at: form.collected_at,
-      memo: form.memo || '',
+      memo: isSupv ? buildSupvMemo(form.supv_name, form.supv_client, form.supv_note) : (form.memo || ''),
       entry_type: form.entry_type || 'both',
     };
     var isNew = !editItem;
@@ -1227,11 +1240,15 @@ function PerfView({ user }) {
                             var proj = projects.find(function(p){ return p.id === c.project_id; });
                             var cat  = proj ? proj.category : '';
                             if (c.entry_type === 'supervision') {
+                              var sp = parseSupvMemo(c.memo);
                               return (
                                 <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
                                   <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
                                     background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>감리</span>
-                                  <span style={{fontWeight:600}}>{c.memo||'-'}</span>
+                                  <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                                    {sp.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{sp.client}</span>}
+                                    <span style={{fontWeight:600}}>{sp.name||c.memo||'-'}</span>
+                                  </span>
                                 </div>
                               );
                             }
@@ -1266,9 +1283,20 @@ function PerfView({ user }) {
                         </td>
                         <td className="tr" style={{color:'#dc2626'}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
                         <td className="tr" style={{fontWeight:700,color: net < 0 ? '#dc2626' : '#7c3aed'}}>{fmtN(net)}원</td>
-                        <td style={{color:'#64748b',fontSize:12}}>{c.entry_type==='supervision' ? '' : (c.memo||'-')}</td>
+                        <td style={{color:'#64748b',fontSize:12}}>{c.entry_type==='supervision' ? (parseSupvMemo(c.memo).note||'') : (c.memo||'-')}</td>
                         <td style={{display:'flex',gap:4}}>
-                          <button className="btn btn-s btn-sm" onClick={function(){setEditItem(c);setForm(Object.assign({},c,{amount:c.amount?fmtN(c.amount):'',outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):'',entry_type:c.entry_type||'both'}));setModal('col');}}>수정</button>
+                          <button className="btn btn-s btn-sm" onClick={function(){
+                            setEditItem(c);
+                            var base = Object.assign({},c,{amount:c.amount?fmtN(c.amount):'',outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):'',entry_type:c.entry_type||'both'});
+                            if (c.entry_type === 'supervision') {
+                              var parsed = parseSupvMemo(c.memo);
+                              base.supv_name = parsed.name;
+                              base.supv_client = parsed.client;
+                              base.supv_note = parsed.note;
+                            }
+                            setForm(base);
+                            setModal('col');
+                          }}>수정</button>
                           <button className="btn btn-d btn-sm" onClick={function(){deleteCol(c.id);}}>삭제</button>
                         </td>
                       </tr>
@@ -1430,7 +1458,7 @@ function PerfView({ user }) {
 
 
       {modal === 'col' && (
-        <div className="mbg" onClick={function(){setModal('');}}>
+        <div className="mbg">
           <div className="mbox" onClick={function(e){e.stopPropagation();}}>
             <div className="mh">
               <span className="mht">
@@ -1472,7 +1500,10 @@ function PerfView({ user }) {
                     var prevSupv = cols
                       .filter(function(c){ return c.entry_type==='supervision' && c.memo; })
                       .reduce(function(acc, c) {
-                        if (!acc.find(function(x){ return x===c.memo; })) acc.push(c.memo);
+                        var parsed = parseSupvMemo(c.memo);
+                        var name = parsed.name;
+                        if (name && !acc.find(function(x){ return x.name===name; }))
+                          acc.push({ name: name, client: parsed.client });
                         return acc;
                       }, []);
                     if (prevSupv.length === 0) return null;
@@ -1482,11 +1513,12 @@ function PerfView({ user }) {
                         <select className="fi" value=""
                           onChange={function(e){
                             if (!e.target.value) return;
-                            setForm(function(p){ return Object.assign({},p,{memo:e.target.value}); });
+                            var found = prevSupv.find(function(x){ return x.name===e.target.value; });
+                            setForm(function(p){ return Object.assign({},p,{supv_name:found.name, supv_client:found.client||''}); });
                           }}>
                           <option value="">— 선택하면 자동 입력 —</option>
-                          {prevSupv.map(function(name) {
-                            return <option key={name} value={name}>{name}</option>;
+                          {prevSupv.map(function(item) {
+                            return <option key={item.name} value={item.name}>{item.name}{item.client?' ('+item.client+')':''}</option>;
                           })}
                         </select>
                       </div>
@@ -1494,8 +1526,13 @@ function PerfView({ user }) {
                   })()}
                   <div style={{marginBottom:12}}>
                     <label className="fl">감리 프로젝트명 *</label>
-                    <input className="fi" value={form.memo||''} placeholder="예) 덕천역 인근 하수관거 정비공사 감리"
-                      onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
+                    <input className="fi" value={form.supv_name||''} placeholder="예) 덕천역 인근 하수관거 정비공사 감리"
+                      onChange={function(e){setForm(function(p){return Object.assign({},p,{supv_name:e.target.value});});}} />
+                  </div>
+                  <div style={{marginBottom:12}}>
+                    <label className="fl">발주처</label>
+                    <input className="fi" value={form.supv_client||''} placeholder="예) 부산광역시 강서구청"
+                      onChange={function(e){setForm(function(p){return Object.assign({},p,{supv_client:e.target.value});});}} />
                   </div>
                   <div className="g2">
                     <div>
@@ -1507,6 +1544,11 @@ function PerfView({ user }) {
                       <input className="fi" value={form.amount||''} placeholder="0" style={{textAlign:'right'}}
                         onChange={function(e){onAmountChange('amount',e);}} />
                     </div>
+                  </div>
+                  <div style={{marginTop:12}}>
+                    <label className="fl">메모</label>
+                    <input className="fi" value={form.supv_note||''} placeholder="계약금, 중도금 등"
+                      onChange={function(e){setForm(function(p){return Object.assign({},p,{supv_note:e.target.value});});}} />
                   </div>
                 </div>
               ) : (
@@ -1845,7 +1887,7 @@ function PerfView({ user }) {
 
       {/* ── 계약금액 모달 ── */}
       {modal === 'contract' && (
-        <div className="mbg" onClick={function(){setModal('');}}>
+        <div className="mbg">
           <div className="mbox" onClick={function(e){e.stopPropagation();}}>
             <div className="mh"><span className="mht">📋 계약금액 입력</span><button className="mc" onClick={function(){setModal('');}}>×</button></div>
             <div className="mb">
@@ -1897,7 +1939,7 @@ function PerfView({ user }) {
 
       {/* ── 예상수금 모달 ── */}
       {modal === 'expected' && (
-        <div className="mbg" onClick={function(){setModal('');}}>
+        <div className="mbg">
           <div className="mbox" onClick={function(e){e.stopPropagation();}}>
             <div className="mh"><span className="mht">📅 예상수금 입력</span><button className="mc" onClick={function(){setModal('');}}>×</button></div>
             <div className="mb">
