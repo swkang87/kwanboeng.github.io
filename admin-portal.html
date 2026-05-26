@@ -1184,12 +1184,6 @@ function PerfView({ user }) {
         </div>
       </div>
 
-      <div className="g3">
-        <div className="stat blue"><div className="stat-l">총 수금액</div><div className="stat-v">{fmtN(totCol)}</div><div className="stat-s">원 ({year}년)</div></div>
-        <div className="stat red" style={{background:'#fff5f5',borderColor:'#fecaca'}}><div className="stat-l" style={{color:'#dc2626'}}>총 외주비</div><div className="stat-v" style={{color:'#dc2626'}}>{fmtN(totOut)}</div><div className="stat-s" style={{color:'#f87171'}}>원</div></div>
-        <div className="stat purple"><div className="stat-l">순 실적금액</div><div className="stat-v">{fmtN(totNet)}</div><div className="stat-s">원 (수금-외주비)</div></div>
-      </div>
-
       <div className="itabs">
         <button className={tab==='col'?'itab active':'itab'} onClick={function(){changeTab('col');}}>수금 내역</button>
         <button className={tab==='proj'?'itab active':'itab'} onClick={function(){changeTab('proj');}}>프로젝트별</button>
@@ -1311,6 +1305,21 @@ function PerfView({ user }) {
 
       {tab === 'proj' && (
         <div className="card">
+          {/* 요약 박스 - 압축형 */}
+          <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+            <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#eff6ff',border:'1px solid #bfdbfe',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+              <span style={{fontSize:11,fontWeight:600,color:'#1d4ed8',whiteSpace:'nowrap'}}>총 수금액</span>
+              <span style={{fontSize:13,fontWeight:800,color:'#1d4ed8',whiteSpace:'nowrap'}}>{fmtN(totCol)}원</span>
+            </div>
+            <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#fff5f5',border:'1px solid #fecaca',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+              <span style={{fontSize:11,fontWeight:600,color:'#dc2626',whiteSpace:'nowrap'}}>총 외주비</span>
+              <span style={{fontSize:13,fontWeight:800,color:'#dc2626',whiteSpace:'nowrap'}}>{fmtN(totOut)}원</span>
+            </div>
+            <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#f5f3ff',border:'1px solid #ddd6fe',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+              <span style={{fontSize:11,fontWeight:600,color:'#7c3aed',whiteSpace:'nowrap'}}>순 실적금액</span>
+              <span style={{fontSize:13,fontWeight:800,color:'#7c3aed',whiteSpace:'nowrap'}}>{fmtN(totNet)}원</span>
+            </div>
+          </div>
           <div className="st" style={{marginBottom:14}}>프로젝트별 실적 ({year}년)</div>
           {projSummary.length === 0 ? (
             <div className="empty"><div className="ei">📁</div><div className="et">수금 데이터가 없습니다</div></div>
@@ -1318,40 +1327,39 @@ function PerfView({ user }) {
             <div className="tbl-wrap">
               <table>
                 <thead><tr>
-                  <SortTh label="프로젝트" col="name"   state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
-                  <SortTh label="발주처"   col="client" state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
-                  <SortTh label="PM"       col="pm"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
-                  <SortTh label="수금액"   col="tc"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
-                  <SortTh label="외주비"   col="to"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
-                  <SortTh label="순 실적"  col="net"    state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                  <SortTh label="프로젝트" col="name" state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
+                  <SortTh label="PM"       col="pm"   state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
+                  <SortTh label="수금액"   col="tc"   state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                  <SortTh label="외주비"   col="to"   state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                  <SortTh label="순 실적"  col="net"  state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
                 </tr></thead>
                 <tbody>
                   {sortRows(projSummary, projSort, function(p, col) {
-                    if (col==='name')   return p.name;
-                    if (col==='client') return p.client||'';
-                    if (col==='pm')     return uName(p.pm_id);
-                    if (col==='tc')     return p.tc;
-                    if (col==='to')     return p.to;
-                    if (col==='net')    return p.net;
+                    if (col==='name') return p.name;
+                    if (col==='pm')   return uName(p.pm_id);
+                    if (col==='tc')   return p.tc;
+                    if (col==='to')   return p.to;
+                    if (col==='net')  return p.net;
                     return '';
                   }).map(function(p) {
+                    var projData = projects.find(function(x){ return x.id === p.id; });
                     return (
                       <tr key={p.id}>
                         <td style={{fontWeight:600}}>
                           <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                            {p.category && (
+                            {projData && projData.category && (
                               <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
-                                background: CAT_BG[p.category]||'#f1f5f9', color: CAT_TX[p.category]||'#475569',
-                                border:'1px solid '+(CAT_COLOR[p.category]||'#e2e8f0')}}>
-                                {p.category}
+                                background: CAT_BG[projData.category]||'#f1f5f9', color: CAT_TX[projData.category]||'#475569',
+                                border:'1px solid '+(CAT_COLOR[projData.category]||'#e2e8f0')}}>
+                                {projData.category}
                               </span>
                             )}
                             <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                              {p.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{p.client}</span>}
                               {p.name}
                             </span>
                           </div>
                         </td>
-                        <td style={{color:'#64748b',fontSize:12}}>{p.client||'-'}</td>
                         <td>{uName(p.pm_id)}</td>
                         <td className="tr">{fmtN(p.tc)}원</td>
                         <td className="tr" style={{color:'#dc2626'}}>{p.to > 0 ? fmtN(p.to)+'원' : '-'}</td>
@@ -1709,11 +1717,11 @@ function PerfView({ user }) {
                             </span>
                           </div>
                         </td>
+                        <td style={{fontSize:12,color:'#475569',whiteSpace:'nowrap'}}>{r.startDate ? fmtD(r.startDate) : <span style={{color:'#cbd5e1'}}>—</span>}</td>
                         <td>
                           <span className={p.status==='완료'?'badge bg':p.status==='중지'?'badge ba':'badge bb'}
                             style={{fontSize:10}}>{p.status}</span>
                         </td>
-                        <td style={{fontSize:12,color:'#475569',whiteSpace:'nowrap'}}>{r.startDate ? fmtD(r.startDate) : <span style={{color:'#cbd5e1'}}>—</span>}</td>
                         <td className="tr">
                           <span style={{fontWeight:700,color:'#1d4ed8',cursor:'pointer',textDecoration:'underline',textUnderlineOffset:2}}
                             onClick={function(){
