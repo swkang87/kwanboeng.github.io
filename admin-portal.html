@@ -475,7 +475,7 @@ function WorklogView({ user }) {
   // ── 내 업무일지 로드 ──────────────────────────────────────────────────────
   const loadMyLog = useCallback(async function(d) {
     setLoading(true);
-    const { data } = await sb.from('work_logs')
+    const { data } = await sb.from('admin_work_logs')
       .select('*').eq('user_id', user.id).eq('log_date', d).maybeSingle();
     if (data) {
       setTasks(data.tasks || []);
@@ -483,7 +483,7 @@ function WorklogView({ user }) {
     } else {
       // 빈 날짜 → 직전 근무일 진행중 업무 자동 불러오기
       const prevDs = prevWorkday(d);
-      const { data: pd } = await sb.from('work_logs')
+      const { data: pd } = await sb.from('admin_work_logs')
         .select('tasks').eq('user_id', user.id).eq('log_date', prevDs).maybeSingle();
       const pending = pd
         ? (pd.tasks || []).filter(function(t) { return t.status === '진행중'; })
@@ -515,7 +515,7 @@ function WorklogView({ user }) {
         if (allMode === 'day') { start = end = selDate; }
         else if (allMode === 'week') { const w = getWeekDates(selDate); start = w[0]; end = w[4]; }
         else { const m = getMonthInfo(selDate); start = m.firstDate; end = m.lastDate; }
-        sb.from('work_logs').select('*').gte('log_date', start).lte('log_date', end).then(function(lr) {
+        sb.from('admin_work_logs').select('*').gte('log_date', start).lte('log_date', end).then(function(lr) {
           setAllLogs(lr.data || []);
           setAllLoading(false);
         });
@@ -526,7 +526,7 @@ function WorklogView({ user }) {
   // ── 저장 ──────────────────────────────────────────────────────────────────
   function save() {
     setSaving(true);
-    sb.from('work_logs').upsert({
+    sb.from('admin_work_logs').upsert({
       user_id: user.id, log_date: date,
       tasks: tasks, tomorrow_tasks: [], issues: issues,
       updated_at: new Date().toISOString(),
