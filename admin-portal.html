@@ -215,16 +215,89 @@ const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStar
 const fmtDateKo = (ds) => { const d = new Date(ds + 'T00:00:00'); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`; };
 const DAY_KO = ['일','월','화','수','목','금','토'];
 
-// ── 공휴일 캐시 ──────────────────────────────────────────────────────────────
+// ── 공휴일 (하드코딩 + Nager.Date API 조합) ──────────────────────────────
+const HOLIDAYS = {
+  '2025-01-01':'신정',
+  '2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴',
+  '2025-03-01':'삼일절',
+  '2025-05-05':'어린이날',
+  '2025-06-03':'임시공휴일','2025-06-06':'현충일',
+  '2025-08-15':'광복절',
+  '2025-10-03':'개천절',
+  '2025-10-05':'추석','2025-10-06':'추석연휴','2025-10-07':'추석연휴',
+  '2025-10-09':'한글날',
+  '2025-12-25':'크리스마스',
+  '2026-01-01':'신정',
+  '2026-01-28':'설날연휴','2026-01-29':'설날','2026-01-30':'설날연휴',
+  '2026-03-01':'삼일절',
+  '2026-05-05':'어린이날','2026-05-24':'부처님오신날',
+  '2026-06-06':'현충일',
+  '2026-08-15':'광복절',
+  '2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴',
+  '2026-10-03':'개천절','2026-10-09':'한글날',
+  '2026-12-25':'크리스마스',
+};
+const SUBSTITUTE = {
+  '2025-05-06':'대체공휴일',
+  '2025-10-08':'대체공휴일',
+  '2026-03-02':'대체공휴일',
+  '2026-05-25':'대체공휴일',
+  '2026-06-08':'대체공휴일',
+  '2026-08-17':'대체공휴일',
+  '2026-09-28':'대체공휴일',
+  '2026-10-05':'대체공휴일',
+};
+const NAGER_KO = {
+  "New Year's Day":'신정',"Seollal":'설날',"Seollal Holiday":'설날연휴',
+  "Independence Movement Day":'삼일절',"Labor Day":'근로자의날',
+  "Children's Day":'어린이날',"Buddha's Birthday":'부처님오신날',
+  "Memorial Day":'현충일',"Liberation Day":'광복절',
+  "Chuseok":'추석',"Chuseok Holiday":'추석연휴',
+  "National Foundation Day":'개천절',"Hangul Day":'한글날',
+  "Christmas Day":'크리스마스',"Substitute Holiday":'대체공휴일',
+};
+function isHolidayDate(ds) { return !!(HOLIDAYS[ds] || SUBSTITUTE[ds]); }
+function getHolidayName(ds) { return HOLIDAYS[ds] || SUBSTITUTE[ds] || null; }
+
 const _holCache = {};
 async function fetchHolidays(year) {
   if (_holCache[year]) return _holCache[year];
+  const set = new Set([...Object.keys(HOLIDAYS), ...Object.keys(SUBSTITUTE)]
+    .filter(d => d.startsWith(String(year))));
   try {
     const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`);
     const data = await r.json();
-    _holCache[year] = new Set(data.map(h => h.date));
-  } catch(e) { _holCache[year] = new Set(); }
-  return _holCache[year];
+    data.forEach(h => {
+      if (!h.date) return;
+      const name = NAGER_KO[h.localName] || NAGER_KO[h.name] || h.localName || h.name;
+      set.add(h.date);
+      if (name === '대체공휴일') SUBSTITUTE[h.date] = '대체공휴일';
+      else if (!HOLIDAYS[h.date]) HOLIDAYS[h.date] = name;
+    });
+  } catch(e) {}
+  _holCache[year] = set;
+  return set;
+}
+
+// 직전 근무일 계산 (주말·공휴일 건너뜀)
+function prevWorkday(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  do {
+    d.setDate(d.getDate() - 1);
+    const s = localDateStr(d);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !isHolidayDate(s)) return s;
+  } while (true);
+}
+// 다음 근무일 계산
+function nextWorkday(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  do {
+    d.setDate(d.getDate() + 1);
+    const s = localDateStr(d);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !isHolidayDate(s)) return s;
+  } while (true);
 }
 
 // ── MiniCalendar ──────────────────────────────────────────────────────────────
@@ -408,10 +481,8 @@ function WorklogView({ user }) {
       setTasks(data.tasks || []);
       setIssues(data.issues || '');
     } else {
-      // 빈 날짜 → 전날 진행중 업무 자동 불러오기
-      const prev = new Date(d + 'T00:00:00');
-      prev.setDate(prev.getDate() - 1);
-      const prevDs = localDateStr(prev);
+      // 빈 날짜 → 직전 근무일 진행중 업무 자동 불러오기
+      const prevDs = prevWorkday(d);
       const { data: pd } = await sb.from('work_logs')
         .select('tasks').eq('user_id', user.id).eq('log_date', prevDs).maybeSingle();
       const pending = pd
@@ -467,9 +538,7 @@ function WorklogView({ user }) {
 
   // ── 날짜 이동 헬퍼 ────────────────────────────────────────────────────────
   function shiftDate(ds, dir, setter, max) {
-    const d = new Date(ds + 'T00:00:00');
-    d.setDate(d.getDate() + dir);
-    const next = localDateStr(d);
+    const next = dir < 0 ? prevWorkday(ds) : nextWorkday(ds);
     if (max && next > max) return;
     setter(next);
   }
