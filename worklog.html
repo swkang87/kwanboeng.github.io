@@ -952,7 +952,13 @@ function AllLogsView({ user }) {
         </div>
         <div className="date-nav">
           <button className="date-nav-btn" onClick={() => shift(-1)}>◀</button>
-          <span className="date-label">{rangeLabel()}</span>
+          <span className="date-label" style={{display:'flex',flexDirection:'column',alignItems:'center',gap:1}}>
+            <span>{rangeLabel()}</span>
+            {mode === 'week' && (function(){
+              const w = getWeekDates(selDate);
+              return <span style={{fontSize:11,fontWeight:500,color:'var(--text-sub)'}}>{fmtShort(w[0])} ~ {fmtShort(w[4])}</span>;
+            })()}
+          </span>
           <button className="date-nav-btn" onClick={() => shift(1)}>▶</button>
           {mode !== 'month' && <MiniCalendar value={selDate} onChange={v => setSelDate(v)} />}
           <button className="today-btn" onClick={() => setSelDate(todayStr())}>오늘</button>
