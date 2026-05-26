@@ -347,17 +347,29 @@ const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 const thisMonday = () => { const d = new Date(); d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1)); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const sixMonthsAgo = () => { const d = new Date(); d.setMonth(d.getMonth() - 6); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; };
 const reportMonday = () => {
+  // 1) 이번 주 월요일 계산 (화~일+월 묶음 기준)
   const d = new Date();
   const dow = d.getDay();
   let add;
-  if (dow === 1) add = 0;
-  else if (dow === 0) add = 1;
-  else add = 8 - dow;
+  if (dow === 1) add = 0;       // 오늘이 월요일
+  else if (dow === 0) add = 1;  // 오늘이 일요일 → 다음날(월)
+  else add = 8 - dow;           // 화~토 → 다음 월요일
   d.setDate(d.getDate() + add);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return yyyy + '-' + mm + '-' + dd;
+
+  // 2) 해당 월요일이 공휴일이면 다음 근무일로 순차 탐색
+  const toKey = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  const isHoliday = (dt) => {
+    const k = toKey(dt);
+    const weekday = dt.getDay();
+    return weekday === 0 || weekday === 6 || !!(HOLIDAYS[k] || SUBSTITUTE[k]);
+  };
+  // 최대 7일까지 탐색 (무한루프 방지)
+  for (let i = 0; i < 7; i++) {
+    if (!isHoliday(d)) break;
+    d.setDate(d.getDate() + 1);
+  }
+
+  return toKey(d);
 };
 const isMonday = (dateStr) => {
   if (!dateStr) return false;
