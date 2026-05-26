@@ -987,7 +987,6 @@ function PerfView({ user }) {
 
   function filterByCat(list, getCat) {
     if (catFilter === '전체') return list;
-    if (catFilter === '감리') return list.filter(function(x){ return getCat(x) === 'supervision'; });
     return list.filter(function(x){ return getCat(x) === catFilter; });
   }
 
@@ -1057,12 +1056,42 @@ function PerfView({ user }) {
   var totOut = yCols.reduce(function(s,c) { return s + (c.outsource_cost||0); }, 0);
   var totNet = yCols.reduce(function(s,c) { return s + (c.amount||0) - (c.outsource_cost||0); }, 0);
 
+  // 필터 적용 수금액 계산 (요약 박스용)
+  var filteredYCols = (function() {
+    if (catFilter === '전체') return yCols;
+    if (catFilter === '감리') return yCols.filter(function(c){ return c.entry_type === 'supervision'; });
+    return yCols.filter(function(c){
+      var proj = projects.find(function(p){ return p.id === c.project_id; });
+      return proj && proj.category === catFilter;
+    });
+  })();
+  var filtTotCol = filteredYCols.filter(function(c){ return c.entry_type !== 'outsource_only'; }).reduce(function(s,c){ return s+(c.amount||0); }, 0);
+  var filtTotOut = filteredYCols.reduce(function(s,c){ return s+(c.outsource_cost||0); }, 0);
+  var filtTotNet = filteredYCols.reduce(function(s,c){ return s+(c.amount||0)-(c.outsource_cost||0); }, 0);
+
+  // 일반 프로젝트 실적
   var projSummary = projects.map(function(p) {
     var pc = yCols.filter(function(c) { return c.project_id === p.id; });
     var tc = pc.reduce(function(s,c) { return s + (c.amount||0); }, 0);
     var to = pc.reduce(function(s,c) { return s + (c.outsource_cost||0); }, 0);
-    return { id:p.id, name:p.name, client:p.client, pm_id:p.pm_id, tc:tc, to:to, net:tc-to };
+    return { id:p.id, name:p.name, client:p.client, pm_id:p.pm_id, category:p.category, tc:tc, to:to, net:tc-to };
   }).filter(function(p) { return p.tc > 0; }).sort(function(a,b) { return b.net - a.net; });
+
+  // 감리 실적 집계 (project_id=NULL, entry_type='supervision')
+  var supvCols = yCols.filter(function(c){ return c.entry_type === 'supervision'; });
+  var supvByName = supvCols.reduce(function(acc, c) {
+    var parsed = (typeof parseSupvMemo === 'function') ? parseSupvMemo(c.memo) : { name: c.memo||'', client:'', note:'' };
+    var key = parsed.name || c.memo || '(감리)';
+    if (!acc[key]) acc[key] = { name:key, client:parsed.client, tc:0, to:0 };
+    acc[key].tc += (c.amount||0);
+    return acc;
+  }, {});
+  var supvSummary = Object.values(supvByName).map(function(s){
+    return { id:'supv_'+s.name, name:s.name, client:s.client, pm_id:null, category:'감리', tc:s.tc, to:0, net:s.tc };
+  }).sort(function(a,b){ return b.net - a.net; });
+
+  // 프로젝트별 + 감리 합산
+  var allProjSummary = projSummary.concat(supvSummary);
 
   // PM 자동 100% 포함한 유효 기여율 목록 생성
   var effectivePerfs = (function() {
@@ -1248,7 +1277,7 @@ function PerfView({ user }) {
                 </tr></thead>
                 <tbody>
                   {sortRows(filterByCat(yCols, function(c){
-                    if (c.entry_type==='supervision') return 'supervision';
+                    if (c.entry_type==='supervision') return '감리';
                     var proj = projects.find(function(p){ return p.id===c.project_id; });
                     return proj ? proj.category : '';
                   }), colSort, function(c, col) {
@@ -1340,23 +1369,23 @@ function PerfView({ user }) {
 
       {tab === 'proj' && (
         <div className="card">
-          {/* 요약 박스 - 압축형 */}
+          {/* 요약 박스 - 압축형, 필터 연동 */}
           <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
             <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#eff6ff',border:'1px solid #bfdbfe',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
               <span style={{fontSize:11,fontWeight:600,color:'#1d4ed8',whiteSpace:'nowrap'}}>총 수금액</span>
-              <span style={{fontSize:13,fontWeight:800,color:'#1d4ed8',whiteSpace:'nowrap'}}>{fmtN(totCol)}원</span>
+              <span style={{fontSize:13,fontWeight:800,color:'#1d4ed8',whiteSpace:'nowrap'}}>{fmtN(filtTotCol)}원</span>
             </div>
             <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#fff5f5',border:'1px solid #fecaca',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
               <span style={{fontSize:11,fontWeight:600,color:'#dc2626',whiteSpace:'nowrap'}}>총 외주비</span>
-              <span style={{fontSize:13,fontWeight:800,color:'#dc2626',whiteSpace:'nowrap'}}>{fmtN(totOut)}원</span>
+              <span style={{fontSize:13,fontWeight:800,color:'#dc2626',whiteSpace:'nowrap'}}>{fmtN(filtTotOut)}원</span>
             </div>
             <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#f5f3ff',border:'1px solid #ddd6fe',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
               <span style={{fontSize:11,fontWeight:600,color:'#7c3aed',whiteSpace:'nowrap'}}>순 실적금액</span>
-              <span style={{fontSize:13,fontWeight:800,color:'#7c3aed',whiteSpace:'nowrap'}}>{fmtN(totNet)}원</span>
+              <span style={{fontSize:13,fontWeight:800,color:'#7c3aed',whiteSpace:'nowrap'}}>{fmtN(filtTotNet)}원</span>
             </div>
           </div>
           <div className="st" style={{marginBottom:14}}>프로젝트별 실적 ({year}년)</div>
-          {projSummary.length === 0 ? (
+          {allProjSummary.length === 0 ? (
             <div className="empty"><div className="ei">📁</div><div className="et">수금 데이터가 없습니다</div></div>
           ) : (
             <div className="tbl-wrap">
@@ -1370,10 +1399,7 @@ function PerfView({ user }) {
                   <SortTh label="순 실적"  col="net"  state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
                 </tr></thead>
                 <tbody>
-                  {sortRows(filterByCat(projSummary, function(p){
-                    var projData = projects.find(function(x){ return x.id===p.id; });
-                    return projData ? projData.category : '';
-                  }), projSort, function(p, col) {
+                  {sortRows(filterByCat(allProjSummary, function(p){ return p.category; }), projSort, function(p, col) {
                     if (col==='name') return p.name;
                     if (col==='pm')   return uName(p.pm_id);
                     if (col==='tc')   return p.tc;
@@ -1381,25 +1407,28 @@ function PerfView({ user }) {
                     if (col==='net')  return p.net;
                     return '';
                   }).map(function(p) {
-                    var projData = projects.find(function(x){ return x.id === p.id; });
+                    var isSupv = p.category === '감리';
                     return (
                       <tr key={p.id}>
                         <td style={{fontWeight:600}}>
                           <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                            {projData && projData.category && (
+                            {isSupv ? (
                               <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
-                                background: CAT_BG[projData.category]||'#f1f5f9', color: CAT_TX[projData.category]||'#475569',
-                                border:'1px solid '+(CAT_COLOR[projData.category]||'#e2e8f0')}}>
-                                {projData.category}
+                                background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>감리</span>
+                            ) : p.category ? (
+                              <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                background: CAT_BG[p.category]||'#f1f5f9', color: CAT_TX[p.category]||'#475569',
+                                border:'1px solid '+(CAT_COLOR[p.category]||'#e2e8f0')}}>
+                                {p.category}
                               </span>
-                            )}
+                            ) : null}
                             <span style={{display:'flex',flexDirection:'column',gap:1}}>
                               {p.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{p.client}</span>}
                               {p.name}
                             </span>
                           </div>
                         </td>
-                        <td>{uName(p.pm_id)}</td>
+                        <td>{isSupv ? <span style={{color:'#94a3b8',fontSize:12}}>—</span> : uName(p.pm_id)}</td>
                         <td className="tr">{fmtN(p.tc)}원</td>
                         <td className="tr" style={{color:'#dc2626'}}>{p.to > 0 ? fmtN(p.to)+'원' : '-'}</td>
                         <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(p.net)}원</td>
@@ -1816,6 +1845,24 @@ function PerfView({ user }) {
         var overdueList = upcoming.filter(function(e){ return e.expected_date < today; });
         var overdueAmt  = overdueList.reduce(function(s,e){ return s + (e.amount||0); }, 0);
 
+        // 용역 종료일 기반 자동 잔금 예상
+        var autoExpected = projects
+          .filter(function(p){ return p.end_date && p.status !== '완료' && p.status !== '중지'; })
+          .map(function(p){
+            var ct = contracts.find(function(c){ return c.project_id === p.id; });
+            if (!ct || !ct.amount) return null;
+            var totalCol = cols.filter(function(c){ return c.project_id === p.id; })
+              .reduce(function(s,c){ return s+(c.amount||0); }, 0);
+            var totalOut = cols.filter(function(c){ return c.project_id === p.id; })
+              .reduce(function(s,c){ return s+(c.outsource_cost||0); }, 0);
+            var remain = ct.amount - (totalCol - totalOut);
+            if (remain <= 0) return null;
+            return { p:p, remain:remain, endDate:p.end_date, isPast: p.end_date < today };
+          })
+          .filter(Boolean)
+          .sort(function(a,b){ return a.endDate.localeCompare(b.endDate); });
+        var autoTotal = autoExpected.reduce(function(s,r){ return s+r.remain; }, 0);
+
         function markDone(e) {
           if (!window.confirm('수금 완료로 처리하시겠습니까?')) return;
           sb.from('expected_collections').update({is_done:true, updated_at:new Date().toISOString()})
@@ -1857,7 +1904,75 @@ function PerfView({ user }) {
               </div>
             </div>
 
-            {/* 미수금 목록 */}
+            {/* 용역 종료일 기반 자동 잔금 예상 */}
+            {autoExpected.length > 0 && (
+              <div style={{marginBottom:20}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                  <span className="st">📅 용역 종료일 기준 예상 잔금 ({autoExpected.length}건)</span>
+                  <span style={{fontSize:11,color:'#94a3b8'}}>계약금액 - 누적순수금</span>
+                  <span style={{marginLeft:'auto',fontSize:13,fontWeight:800,color:'#7c3aed'}}>{fmtN(autoTotal)}원</span>
+                </div>
+                <div className="tbl-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>용역명</th>
+                        <th>종료일</th>
+                        <th>D-day</th>
+                        <th className="tr">예상 잔금</th>
+                        <th className="tr">수금률</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {autoExpected.map(function(r) {
+                        var daysLeft = Math.round((new Date(r.endDate+'T00:00:00') - new Date(today+'T00:00:00')) / 86400000);
+                        var ct = contracts.find(function(c){ return c.project_id === r.p.id; });
+                        var totalCol = cols.filter(function(c){ return c.project_id === r.p.id; })
+                          .reduce(function(s,c){ return s+(c.amount||0); }, 0);
+                        var totalOut = cols.filter(function(c){ return c.project_id === r.p.id; })
+                          .reduce(function(s,c){ return s+(c.outsource_cost||0); }, 0);
+                        var netCol = totalCol - totalOut;
+                        var pct = ct && ct.amount > 0 ? Math.min(100, Math.round(netCol / ct.amount * 100)) : 0;
+                        return (
+                          <tr key={r.p.id} style={{background: r.isPast ? '#fff5f5' : ''}}>
+                            <td>
+                              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                                {r.p.category && (
+                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                    background:CAT_BG[r.p.category]||'#f1f5f9',color:CAT_TX[r.p.category]||'#475569',
+                                    border:'1px solid '+(CAT_COLOR[r.p.category]||'#e2e8f0')}}>{r.p.category}</span>
+                                )}
+                                <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                                  {r.p.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{r.p.client}</span>}
+                                  <span style={{fontWeight:600}}>{r.p.name}</span>
+                                </span>
+                              </div>
+                            </td>
+                            <td style={{whiteSpace:'nowrap',color: r.isPast?'#dc2626':'#475569',fontWeight: r.isPast?700:400}}>
+                              {fmtD(r.endDate)}{r.isPast && <span style={{fontSize:10,marginLeft:4}}>⚠ 종료</span>}
+                            </td>
+                            <td style={{whiteSpace:'nowrap',fontSize:12,color: r.isPast?'#dc2626':daysLeft<=30?'#f59e0b':'#64748b',fontWeight:600}}>
+                              {r.isPast ? '+'+Math.abs(daysLeft)+'일 경과' : 'D-'+daysLeft}
+                            </td>
+                            <td className="tr" style={{fontWeight:800,color:'#7c3aed'}}>{fmtN(r.remain)}원</td>
+                            <td className="tr">
+                              <div style={{display:'flex',alignItems:'center',gap:6,justifyContent:'flex-end'}}>
+                                <div style={{width:50,height:5,background:'#e2e8f0',borderRadius:3,overflow:'hidden'}}>
+                                  <div style={{width:pct+'%',height:'100%',background:pct>=100?'#059669':'#7c3aed',borderRadius:3}}></div>
+                                </div>
+                                <span style={{fontSize:11,fontWeight:700,color:pct>=100?'#059669':'#7c3aed',minWidth:28}}>{pct}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 수동 입력 미수금 목록 */}
             {upcoming.length > 0 && (
               <div style={{marginBottom:20}}>
                 <div className="st" style={{marginBottom:8}}>📋 예정 수금 ({upcoming.length}건)</div>
