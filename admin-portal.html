@@ -46,11 +46,11 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font
 table{width:100%;border-collapse:collapse;}
 thead{background:#f8fafc;}
 th{padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:1px solid #e2e8f0;}
-td{padding:11px 14px;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+td{padding:9px 8px;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:#f8fafc;}
-.tr{text-align:right;}
-.tc{text-align:center;}
+.tr{text-align:right;white-space:nowrap;}
+.tc{text-align:center;white-space:nowrap;}
 .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;}
 .bg{background:#dcfce7;color:#166534;}
 .bb{background:#dbeafe;color:#1e40af;}
@@ -186,14 +186,26 @@ function _makeSb(userId, userRole) {
     global: { headers: extraHeaders }
   });
 }
-// ── 비밀번호 해싱 → sysbar.js Sysbar.Auth 에 위임 ─────────
-const { hashPassword, verifyPassword, isPlainPassword } = Sysbar.Auth;
-
-// ── 랜덤 초기 비밀번호 생성 (숫자 6자리) ──
-function genTempPw() {
-  return Array.from(crypto.getRandomValues(new Uint8Array(6)))
-    .map(function(b){ return b % 10; }).join('');
+// ─── 비밀번호 해싱 (PBKDF2 + SHA-256, 100k iter, Web Crypto API) ──
+async function hashPassword(plain){
+  const salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');
+  const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return 'pbkdf2$'+salt+'$'+hash;
 }
+async function verifyPassword(plain,stored){
+  if(!stored||plain==null)return false;
+  if(!String(stored).startsWith('pbkdf2$'))return plain===stored;
+  const parts=stored.split('$');if(parts.length!==3)return false;
+  const salt=parts[1];const enc=new TextEncoder();
+  const km=await crypto.subtle.importKey('raw',enc.encode(plain),{name:'PBKDF2'},false,['deriveBits']);
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:100000,hash:'SHA-256'},km,256);
+  const hash=Array.from(new Uint8Array(bits)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return stored==='pbkdf2$'+salt+'$'+hash;
+}
+function isPlainPassword(stored){return stored&&!String(stored).startsWith('pbkdf2$');}
 
 let sb = _makeSb();
 
@@ -1019,9 +1031,7 @@ function PerfView({ user }) {
     var pc = yCols.filter(function(c) { return c.project_id === p.id; });
     var tc = pc.reduce(function(s,c) { return s + (c.amount||0); }, 0);
     var to = pc.reduce(function(s,c) { return s + (c.outsource_cost||0); }, 0);
-    var ct = contracts.find(function(c) { return c.project_id === p.id; });
-    var contractAmt = ct ? (ct.contract_amount || 0) : 0;
-    return { id:p.id, name:p.name, client:p.client, pm_id:p.pm_id, category:p.category, tc:tc, to:to, net:tc-to, contractAmt:contractAmt };
+    return { id:p.id, name:p.name, client:p.client, pm_id:p.pm_id, tc:tc, to:to, net:tc-to };
   }).filter(function(p) { return p.tc > 0; }).sort(function(a,b) { return b.net - a.net; });
 
   // PM 자동 100% 포함한 유효 기여율 목록 생성
@@ -1079,15 +1089,22 @@ function PerfView({ user }) {
   }
 
   function saveCol() {
-    var isOut = form.entry_type === 'outsource_only';
-    if (!form.project_id || !form.collected_at) { setErr('프로젝트와 날짜는 필수입니다.'); return; }
-    if (!isOut && !form.amount) { setErr('수금액을 입력해주세요.'); return; }
-    if (isOut && !form.outsource_cost) { setErr('외주비를 입력해주세요.'); return; }
+    var isOut  = form.entry_type === 'outsource_only';
+    var isSupv = form.entry_type === 'supervision';
+    if (isSupv) {
+      if (!form.memo || !form.memo.trim()) { setErr('감리 프로젝트명을 입력해주세요.'); return; }
+      if (!form.collected_at) { setErr('수금일을 입력해주세요.'); return; }
+      if (!form.amount) { setErr('수금액을 입력해주세요.'); return; }
+    } else {
+      if (!form.project_id || !form.collected_at) { setErr('프로젝트와 날짜는 필수입니다.'); return; }
+      if (!isOut && !form.amount) { setErr('수금액을 입력해주세요.'); return; }
+      if (isOut && !form.outsource_cost) { setErr('외주비를 입력해주세요.'); return; }
+    }
     setSaving(true); setErr('');
     var payload = {
-      project_id: form.project_id,
+      project_id: isSupv ? null : form.project_id,
       amount: isOut ? 0 : numV(form.amount),
-      outsource_cost: numV(form.outsource_cost),
+      outsource_cost: isSupv ? 0 : numV(form.outsource_cost),
       collected_at: form.collected_at,
       memo: form.memo || '',
       entry_type: form.entry_type || 'both',
@@ -1154,6 +1171,12 @@ function PerfView({ user }) {
         </div>
       </div>
 
+      <div className="g3">
+        <div className="stat blue"><div className="stat-l">총 수금액</div><div className="stat-v">{fmtN(totCol)}</div><div className="stat-s">원 ({year}년)</div></div>
+        <div className="stat red" style={{background:'#fff5f5',borderColor:'#fecaca'}}><div className="stat-l" style={{color:'#dc2626'}}>총 외주비</div><div className="stat-v" style={{color:'#dc2626'}}>{fmtN(totOut)}</div><div className="stat-s" style={{color:'#f87171'}}>원</div></div>
+        <div className="stat purple"><div className="stat-l">순 실적금액</div><div className="stat-v">{fmtN(totNet)}</div><div className="stat-s">원 (수금-외주비)</div></div>
+      </div>
+
       <div className="itabs">
         <button className={tab==='col'?'itab active':'itab'} onClick={function(){changeTab('col');}}>수금 내역</button>
         <button className={tab==='proj'?'itab active':'itab'} onClick={function(){changeTab('proj');}}>프로젝트별</button>
@@ -1175,19 +1198,11 @@ function PerfView({ user }) {
             <div className="empty"><div className="ei">💰</div><div className="et">수금 내역이 없습니다</div></div>
           ) : (
             <div className="tbl-wrap">
-              <table style={{tableLayout:'fixed',width:'100%'}}>
-                <colgroup>
-                  <col style={{width:'35%'}} />
-                  <col style={{width:'70px'}} />
-                  <col style={{width:'13%'}} />
-                  <col style={{width:'13%'}} />
-                  <col style={{width:'13%'}} />
-                  <col style={{width:'8%'}} />
-                  <col style={{width:'80px'}} />
-                </colgroup>
+              <table>
                 <thead><tr>
                   <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
                   <SortTh label="날짜"     col="date"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
+                  <SortTh label="유형"     col="type"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
                   <SortTh label="수금액"   col="amount" state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
                   <SortTh label="외주비"   col="out"    state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
                   <SortTh label="순 실적"  col="net"    state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
@@ -1197,6 +1212,7 @@ function PerfView({ user }) {
                   {sortRows(yCols, colSort, function(c, col) {
                     if (col==='proj')   return pName(c.project_id);
                     if (col==='date')   return c.collected_at;
+                    if (col==='type')   return c.entry_type;
                     if (col==='amount') return c.amount||0;
                     if (col==='out')    return c.outsource_cost||0;
                     if (col==='net')    return (c.amount||0)-(c.outsource_cost||0);
@@ -1204,43 +1220,56 @@ function PerfView({ user }) {
                   }).map(function(c) {
                     var isOut = c.entry_type === 'outsource_only';
                     var net   = (c.amount||0) - (c.outsource_cost||0);
-                    var proj  = projects.find(function(p){ return p.id === c.project_id; });
-                    var cat   = proj ? proj.category : '';
-                    /* 날짜: MM.DD 형식 */
-                    var dateShort = (function(){
-                      if (!c.collected_at) return '-';
-                      var dt = new Date(c.collected_at + 'T00:00:00');
-                      return String(dt.getMonth()+1).padStart(2,'0') + '.' + String(dt.getDate()).padStart(2,'0');
-                    })();
                     return (
                       <tr key={c.id} style={{background: isOut ? '#fff5f5' : ''}}>
-                        <td style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                          <div style={{display:'flex',alignItems:'center',gap:5}}>
-                            {cat && (
-                              <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 5px',borderRadius:4,
-                                background: CAT_BG[cat]||'#f1f5f9', color: CAT_TX[cat]||'#475569',
-                                border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0'),whiteSpace:'nowrap'}}>
-                                {cat}
-                              </span>
-                            )}
-                            <span style={{display:'flex',flexDirection:'column',gap:0,overflow:'hidden'}}>
-                              {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{proj.client}</span>}
-                              <span style={{fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{pName(c.project_id)}</span>
-                            </span>
-                          </div>
+                        <td>
+                          {(function(){
+                            var proj = projects.find(function(p){ return p.id === c.project_id; });
+                            var cat  = proj ? proj.category : '';
+                            if (c.entry_type === 'supervision') {
+                              return (
+                                <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                    background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>감리</span>
+                                  <span style={{fontWeight:600}}>{c.memo||'-'}</span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                                {cat && (
+                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                    background: CAT_BG[cat]||'#f1f5f9', color: CAT_TX[cat]||'#475569',
+                                    border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0')}}>
+                                    {cat}
+                                  </span>
+                                )}
+                                <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                                  {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{proj.client}</span>}
+                                  <span style={{fontWeight:600}}>{pName(c.project_id)}</span>
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </td>
-                        <td style={{whiteSpace:'nowrap',fontSize:12}}>{dateShort}</td>
-                        <td className="tr" style={{whiteSpace:'nowrap',fontWeight:700,color: isOut ? '#94a3b8' : '#1d4ed8',fontSize:12}}>
+                        <td style={{whiteSpace:'nowrap'}}>{fmtD(c.collected_at)}</td>
+                        <td>
+                          {c.entry_type==='supervision'
+                            ? <span className="badge" style={{fontSize:10,background:'#ecfdf5',color:'#065f46'}}>감리</span>
+                            : isOut
+                              ? <span className="badge bgr" style={{fontSize:10}}>외주비만</span>
+                              : <span className="badge bg" style={{fontSize:10}}>수금</span>
+                          }
+                        </td>
+                        <td className="tr" style={{fontWeight:700,color: isOut ? '#94a3b8' : '#1d4ed8'}}>
                           {isOut ? '—' : fmtN(c.amount)+'원'}
                         </td>
-                        <td className="tr" style={{whiteSpace:'nowrap',color:'#dc2626',fontSize:12}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
-                        <td className="tr" style={{whiteSpace:'nowrap',fontWeight:700,color: net < 0 ? '#dc2626' : '#7c3aed',fontSize:12}}>{fmtN(net)}원</td>
-                        <td style={{color:'#64748b',fontSize:11,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{c.memo||'-'}</td>
-                        <td style={{whiteSpace:'nowrap'}}>
-                          <div style={{display:'flex',gap:4}}>
-                            <button className="btn btn-s btn-sm" onClick={function(){setEditItem(c);setForm(Object.assign({},c,{amount:c.amount?fmtN(c.amount):'',outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):'',entry_type:c.entry_type||'both'}));setModal('col');}}>수정</button>
-                            <button className="btn btn-d btn-sm" onClick={function(){deleteCol(c.id);}}>삭제</button>
-                          </div>
+                        <td className="tr" style={{color:'#dc2626'}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
+                        <td className="tr" style={{fontWeight:700,color: net < 0 ? '#dc2626' : '#7c3aed'}}>{fmtN(net)}원</td>
+                        <td style={{color:'#64748b',fontSize:12}}>{c.entry_type==='supervision' ? '' : (c.memo||'-')}</td>
+                        <td style={{display:'flex',gap:4}}>
+                          <button className="btn btn-s btn-sm" onClick={function(){setEditItem(c);setForm(Object.assign({},c,{amount:c.amount?fmtN(c.amount):'',outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):'',entry_type:c.entry_type||'both'}));setModal('col');}}>수정</button>
+                          <button className="btn btn-d btn-sm" onClick={function(){deleteCol(c.id);}}>삭제</button>
                         </td>
                       </tr>
                     );
@@ -1253,81 +1282,59 @@ function PerfView({ user }) {
       )}
 
       {tab === 'proj' && (
-        <div>
-          {/* 컴팩트 요약 카드 */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:12}}>
-            <div style={{background:'linear-gradient(135deg,#1d4ed8,#1e40af)',borderRadius:8,padding:'8px 14px',color:'#fff'}}>
-              <div style={{fontSize:10,fontWeight:600,opacity:.8,marginBottom:2}}>총 수금액</div>
-              <div style={{fontSize:14,fontWeight:800}}>{fmtN(totCol)}원</div>
-              <div style={{fontSize:10,opacity:.7}}>{year}년</div>
-            </div>
-            <div style={{background:'#fff5f5',border:'1px solid #fecaca',borderRadius:8,padding:'8px 14px'}}>
-              <div style={{fontSize:10,fontWeight:600,color:'#dc2626',marginBottom:2}}>총 외주비</div>
-              <div style={{fontSize:14,fontWeight:800,color:'#dc2626'}}>{fmtN(totOut)}원</div>
-              <div style={{fontSize:10,color:'#f87171'}}>원</div>
-            </div>
-            <div style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',borderRadius:8,padding:'8px 14px',color:'#fff'}}>
-              <div style={{fontSize:10,fontWeight:600,opacity:.8,marginBottom:2}}>순 실적금액</div>
-              <div style={{fontSize:14,fontWeight:800}}>{fmtN(totNet)}원</div>
-              <div style={{fontSize:10,opacity:.7}}>수금−외주비</div>
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="st" style={{marginBottom:14}}>프로젝트별 실적 ({year}년)</div>
-            {projSummary.length === 0 ? (
-              <div className="empty"><div className="ei">📁</div><div className="et">수금 데이터가 없습니다</div></div>
-            ) : (
-              <div className="tbl-wrap">
-                <table>
-                  <thead><tr>
-                    <SortTh label="프로젝트" col="name"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
-                    <SortTh label="PM"       col="pm"       state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
-                    <SortTh label="계약금액" col="contract" state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
-                    <SortTh label="수금액"   col="tc"       state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
-                    <SortTh label="외주비"   col="to"       state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
-                    <SortTh label="순 실적"  col="net"      state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
-                  </tr></thead>
-                  <tbody>
-                    {sortRows(projSummary, projSort, function(p, col) {
-                      if (col==='name')     return p.name;
-                      if (col==='pm')       return uName(p.pm_id);
-                      if (col==='contract') return p.contractAmt;
-                      if (col==='tc')       return p.tc;
-                      if (col==='to')       return p.to;
-                      if (col==='net')      return p.net;
-                      return '';
-                    }).map(function(p) {
-                      return (
-                        <tr key={p.id}>
-                          <td style={{fontWeight:600}}>
-                            <div style={{display:'flex',alignItems:'center',gap:6}}>
-                              {p.category && (
-                                <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
-                                  background: CAT_BG[p.category]||'#f1f5f9', color: CAT_TX[p.category]||'#475569',
-                                  border:'1px solid '+(CAT_COLOR[p.category]||'#e2e8f0')}}>
-                                  {p.category}
-                                </span>
-                              )}
-                              <span style={{display:'flex',flexDirection:'column',gap:1}}>
-                                {p.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{p.client}</span>}
-                                <span>{p.name}</span>
+        <div className="card">
+          <div className="st" style={{marginBottom:14}}>프로젝트별 실적 ({year}년)</div>
+          {projSummary.length === 0 ? (
+            <div className="empty"><div className="ei">📁</div><div className="et">수금 데이터가 없습니다</div></div>
+          ) : (
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr>
+                  <SortTh label="프로젝트" col="name"   state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
+                  <SortTh label="발주처"   col="client" state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
+                  <SortTh label="PM"       col="pm"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
+                  <SortTh label="수금액"   col="tc"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                  <SortTh label="외주비"   col="to"     state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                  <SortTh label="순 실적"  col="net"    state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
+                </tr></thead>
+                <tbody>
+                  {sortRows(projSummary, projSort, function(p, col) {
+                    if (col==='name')   return p.name;
+                    if (col==='client') return p.client||'';
+                    if (col==='pm')     return uName(p.pm_id);
+                    if (col==='tc')     return p.tc;
+                    if (col==='to')     return p.to;
+                    if (col==='net')    return p.net;
+                    return '';
+                  }).map(function(p) {
+                    return (
+                      <tr key={p.id}>
+                        <td style={{fontWeight:600}}>
+                          <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                            {p.category && (
+                              <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                background: CAT_BG[p.category]||'#f1f5f9', color: CAT_TX[p.category]||'#475569',
+                                border:'1px solid '+(CAT_COLOR[p.category]||'#e2e8f0')}}>
+                                {p.category}
                               </span>
-                            </div>
-                          </td>
-                          <td>{uName(p.pm_id)}</td>
-                          <td className="tr" style={{color:'#475569'}}>{p.contractAmt > 0 ? fmtN(p.contractAmt)+'원' : '-'}</td>
-                          <td className="tr" style={{fontWeight:700,color:'#1d4ed8'}}>{fmtN(p.tc)}원</td>
-                          <td className="tr" style={{color:'#dc2626'}}>{p.to > 0 ? fmtN(p.to)+'원' : '-'}</td>
-                          <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(p.net)}원</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                            )}
+                            <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                              {p.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{color:'#64748b',fontSize:12}}>{p.client||'-'}</td>
+                        <td>{uName(p.pm_id)}</td>
+                        <td className="tr">{fmtN(p.tc)}원</td>
+                        <td className="tr" style={{color:'#dc2626'}}>{p.to > 0 ? fmtN(p.to)+'원' : '-'}</td>
+                        <td className="tr" style={{fontWeight:700,color:'#7c3aed'}}>{fmtN(p.net)}원</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -1426,72 +1433,140 @@ function PerfView({ user }) {
         <div className="mbg" onClick={function(){setModal('');}}>
           <div className="mbox" onClick={function(e){e.stopPropagation();}}>
             <div className="mh">
-              <span className="mht">{form.entry_type==='outsource_only' ? '💸 외주비 입력' : '💰 수금 입력'}</span>
+              <span className="mht">
+                {form.entry_type==='outsource_only' ? '💸 외주비 입력' : form.entry_type==='supervision' ? '🏗️ 감리비 입력' : '💰 수금 입력'}
+              </span>
               <button className="mc" onClick={function(){setModal('');}}>×</button>
             </div>
             <div className="mb">
               {err && <div className="al al-e">{err}</div>}
-              {/* 유형 선택 */}
-              <div style={{display:'flex',gap:8,marginBottom:14}}>
-                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'6px 12px',borderRadius:6,border:'1.5px solid',borderColor:form.entry_type!=='outsource_only'?'#7c3aed':'#e2e8f0',background:form.entry_type!=='outsource_only'?'#f5f3ff':'#fff',fontWeight:600,fontSize:13}}>
-                  <input type="radio" name="entry_type" value="both" checked={form.entry_type!=='outsource_only'}
-                    onChange={function(){setForm(function(p){return Object.assign({},p,{entry_type:'both'});});}} style={{display:'none'}} />
+              <div style={{display:'flex',gap:8,marginBottom:14,flexWrap:'wrap'}}>
+                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'6px 12px',borderRadius:6,border:'1.5px solid',
+                  borderColor:(!form.entry_type||form.entry_type==='both')?'#7c3aed':'#e2e8f0',
+                  background:(!form.entry_type||form.entry_type==='both')?'#f5f3ff':'#fff',fontWeight:600,fontSize:13}}>
+                  <input type="radio" name="entry_type" value="both" checked={!form.entry_type||form.entry_type==='both'}
+                    onChange={function(){setForm(function(p){return Object.assign({},p,{entry_type:'both',memo:''});});}} style={{display:'none'}} />
                   💰 수금 + 외주비
                 </label>
-                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'6px 12px',borderRadius:6,border:'1.5px solid',borderColor:form.entry_type==='outsource_only'?'#dc2626':'#e2e8f0',background:form.entry_type==='outsource_only'?'#fff5f5':'#fff',fontWeight:600,fontSize:13,color:form.entry_type==='outsource_only'?'#dc2626':'#475569'}}>
+                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'6px 12px',borderRadius:6,border:'1.5px solid',
+                  borderColor:form.entry_type==='outsource_only'?'#dc2626':'#e2e8f0',
+                  background:form.entry_type==='outsource_only'?'#fff5f5':'#fff',fontWeight:600,fontSize:13,
+                  color:form.entry_type==='outsource_only'?'#dc2626':'#475569'}}>
                   <input type="radio" name="entry_type" value="outsource_only" checked={form.entry_type==='outsource_only'}
-                    onChange={function(){setForm(function(p){return Object.assign({},p,{entry_type:'outsource_only',amount:''});});}} style={{display:'none'}} />
+                    onChange={function(){setForm(function(p){return Object.assign({},p,{entry_type:'outsource_only',amount:'',memo:''});});}} style={{display:'none'}} />
                   💸 외주비만
                 </label>
+                <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'6px 12px',borderRadius:6,border:'1.5px solid',
+                  borderColor:form.entry_type==='supervision'?'#059669':'#e2e8f0',
+                  background:form.entry_type==='supervision'?'#ecfdf5':'#fff',fontWeight:600,fontSize:13,
+                  color:form.entry_type==='supervision'?'#065f46':'#475569'}}>
+                  <input type="radio" name="entry_type" value="supervision" checked={form.entry_type==='supervision'}
+                    onChange={function(){setForm(function(p){return Object.assign({},p,{entry_type:'supervision',project_id:null,outsource_cost:'',memo:''});});}} style={{display:'none'}} />
+                  🏗️ 감리비
+                </label>
               </div>
-              <div style={{marginBottom:12}}>
-                <label className="fl">프로젝트 *</label>
-                <select className="fi" value={form.project_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{project_id:e.target.value});});}}>
-                  <option value="">선택하세요</option>
-                  {projects.map(function(p) { return <option key={p.id} value={p.id}>{p.name}</option>; })}
-                </select>
-              </div>
-              <div className="g2">
+
+              {form.entry_type === 'supervision' ? (
                 <div>
-                  <label className="fl">{form.entry_type==='outsource_only' ? '외주비 발생일 *' : '수금일 *'}</label>
-                  <input type="date" className="fi" value={form.collected_at||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{collected_at:e.target.value});});}} />
-                </div>
-                {form.entry_type !== 'outsource_only' && (
-                  <div>
-                    <label className="fl">수금액 (원) *</label>
-                    <input className="fi" value={form.amount||''} placeholder="0" style={{textAlign:'right'}}
-                      onChange={function(e){onAmountChange('amount',e);}} />
+                  {(function(){
+                    var prevSupv = cols
+                      .filter(function(c){ return c.entry_type==='supervision' && c.memo; })
+                      .reduce(function(acc, c) {
+                        if (!acc.find(function(x){ return x===c.memo; })) acc.push(c.memo);
+                        return acc;
+                      }, []);
+                    if (prevSupv.length === 0) return null;
+                    return (
+                      <div style={{marginBottom:12}}>
+                        <label className="fl">이전 감리 프로젝트 불러오기</label>
+                        <select className="fi" value=""
+                          onChange={function(e){
+                            if (!e.target.value) return;
+                            setForm(function(p){ return Object.assign({},p,{memo:e.target.value}); });
+                          }}>
+                          <option value="">— 선택하면 자동 입력 —</option>
+                          {prevSupv.map(function(name) {
+                            return <option key={name} value={name}>{name}</option>;
+                          })}
+                        </select>
+                      </div>
+                    );
+                  })()}
+                  <div style={{marginBottom:12}}>
+                    <label className="fl">감리 프로젝트명 *</label>
+                    <input className="fi" value={form.memo||''} placeholder="예) 덕천역 인근 하수관거 정비공사 감리"
+                      onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
                   </div>
-                )}
-              </div>
-              <div className="g2">
-                <div>
-                  <label className="fl">외주비 (원) {form.entry_type==='outsource_only'?'*':''}</label>
-                  <input className="fi" value={form.outsource_cost||''} placeholder="0" style={{textAlign:'right'}}
-                    onChange={function(e){onAmountChange('outsource_cost',e);}} />
+                  <div className="g2">
+                    <div>
+                      <label className="fl">수금일 *</label>
+                      <input type="date" className="fi" value={form.collected_at||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{collected_at:e.target.value});});}} />
+                    </div>
+                    <div>
+                      <label className="fl">수금액 (원) *</label>
+                      <input className="fi" value={form.amount||''} placeholder="0" style={{textAlign:'right'}}
+                        onChange={function(e){onAmountChange('amount',e);}} />
+                    </div>
+                  </div>
                 </div>
+              ) : (
                 <div>
-                  <label className="fl">메모</label>
-                  <input className="fi" value={form.memo||''} placeholder="계약금, 중도금, 외주처 등" onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
+                  <div style={{marginBottom:12}}>
+                    <label className="fl">프로젝트 *</label>
+                    <select className="fi" value={form.project_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{project_id:e.target.value});});}}>
+                      <option value="">선택하세요</option>
+                      {projects.map(function(p) { return <option key={p.id} value={p.id}>{p.name}</option>; })}
+                    </select>
+                  </div>
+                  <div className="g2">
+                    <div>
+                      <label className="fl">{form.entry_type==='outsource_only' ? '외주비 발생일 *' : '수금일 *'}</label>
+                      <input type="date" className="fi" value={form.collected_at||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{collected_at:e.target.value});});}} />
+                    </div>
+                    {form.entry_type !== 'outsource_only' && (
+                      <div>
+                        <label className="fl">수금액 (원) *</label>
+                        <input className="fi" value={form.amount||''} placeholder="0" style={{textAlign:'right'}}
+                          onChange={function(e){onAmountChange('amount',e);}} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="g2">
+                    <div>
+                      <label className="fl">외주비 (원) {form.entry_type==='outsource_only'?'*':''}</label>
+                      <input className="fi" value={form.outsource_cost||''} placeholder="0" style={{textAlign:'right'}}
+                        onChange={function(e){onAmountChange('outsource_cost',e);}} />
+                    </div>
+                    <div>
+                      <label className="fl">메모</label>
+                      <input className="fi" value={form.memo||''} placeholder="계약금, 중도금, 외주처 등" onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
+                    </div>
+                  </div>
                 </div>
-              </div>
-              {/* 미리보기 */}
+              )}
+
               {(numV(form.amount) > 0 || numV(form.outsource_cost) > 0) && (
                 <div style={{marginTop:12,padding:'10px 14px',background:'#f8fafc',borderRadius:8,fontSize:13}}>
-                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-                    <span style={{color:'#64748b'}}>수금액</span>
-                    <span style={{color:'#1d4ed8',fontWeight:700}}>{fmtN(numV(form.amount))}원</span>
-                  </div>
-                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
-                    <span style={{color:'#64748b'}}>외주비</span>
-                    <span style={{color:'#dc2626',fontWeight:700}}>-{fmtN(numV(form.outsource_cost))}원</span>
-                  </div>
-                  <div style={{display:'flex',justifyContent:'space-between',borderTop:'1px solid #e2e8f0',paddingTop:4}}>
-                    <span style={{fontWeight:700}}>순 실적</span>
-                    <span style={{fontWeight:800,color: numV(form.amount)-numV(form.outsource_cost) < 0 ? '#dc2626':'#7c3aed'}}>
-                      {fmtN(numV(form.amount)-numV(form.outsource_cost))}원
-                    </span>
-                  </div>
+                  {form.entry_type !== 'outsource_only' && (
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                      <span style={{color:'#64748b'}}>수금액</span>
+                      <span style={{color:'#1d4ed8',fontWeight:700}}>{fmtN(numV(form.amount))}원</span>
+                    </div>
+                  )}
+                  {form.entry_type !== 'supervision' && numV(form.outsource_cost) > 0 && (
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                      <span style={{color:'#64748b'}}>외주비</span>
+                      <span style={{color:'#dc2626',fontWeight:700}}>-{fmtN(numV(form.outsource_cost))}원</span>
+                    </div>
+                  )}
+                  {form.entry_type !== 'supervision' && (
+                    <div style={{display:'flex',justifyContent:'space-between',borderTop:'1px solid #e2e8f0',paddingTop:4}}>
+                      <span style={{fontWeight:700}}>순 실적</span>
+                      <span style={{fontWeight:800,color: numV(form.amount)-numV(form.outsource_cost) < 0 ? '#dc2626':'#7c3aed'}}>
+                        {fmtN(numV(form.amount)-numV(form.outsource_cost))}원
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1596,7 +1671,7 @@ function PerfView({ user }) {
                           <span className={p.status==='완료'?'badge bg':p.status==='중지'?'badge ba':'badge bb'}
                             style={{fontSize:10}}>{p.status}</span>
                         </td>
-                        <td style={{fontSize:12,color:'#475569'}}>{r.startDate ? fmtD(r.startDate) : <span style={{color:'#cbd5e1'}}>—</span>}</td>
+                        <td style={{fontSize:12,color:'#475569',whiteSpace:'nowrap'}}>{r.startDate ? fmtD(r.startDate) : <span style={{color:'#cbd5e1'}}>—</span>}</td>
                         <td className="tr">
                           <span style={{fontWeight:700,color:'#1d4ed8',cursor:'pointer',textDecoration:'underline',textUnderlineOffset:2}}
                             onClick={function(){
@@ -2124,7 +2199,7 @@ function StaffView({ user }) {
   function load() {
     setLoading(true);
     Promise.all([
-      sb.from('users').select('id,name,phone,email,position,team_id,role,join_date,total_days,memo').order('name'),
+      sb.from('users').select('*').order('name'),
       sb.from('teams').select('*').order('name'),
     ]).then(function(r) {
       setUsers(r[0].data||[]);
@@ -2167,15 +2242,8 @@ function StaffView({ user }) {
       if (editU) {
         p = sb.from('users').update(formWithoutMemo).eq('id', editU.id);
       } else {
-        var tempPw = genTempPw();
-        var hashedPw = await hashPassword(tempPw);
+        var hashedPw = await hashPassword(form.phone);
         p = sb.from('users').insert(Object.assign({}, formWithoutMemo, {password: hashedPw}));
-        var r = await p;
-        setSaving(false);
-        if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
-        setModal(false); load();
-        alert('✅ ' + form.name + ' 등록 완료\n\n초기 비밀번호: ' + tempPw + '\n\n반드시 본인에게 직접 전달하고 첫 로그인 후 변경을 안내해 주세요.');
-        return;
       }
       var r = await p;
       setSaving(false);
@@ -2323,8 +2391,58 @@ function StaffView({ user }) {
 }
 
 // ── 로그인 ────────────────────────────────────────────────────────────────
-// ── LoginScreen → sysbar.js createLoginComponent 로 일원화 ──
-const LoginScreen = Sysbar.createLoginComponent(React, { subtitle: '관리포털 · 관리팀/관리자 전용' });
+function LoginScreen({ onLogin }) {
+  const [phone, setPhone] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function doLogin() {
+    if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
+    setLoading(true); setErr('');
+    try {
+      const r = await sb.from('users').select('*').eq('phone', phone.trim()).single();
+      if (r.error||!r.data) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+      const ok = await verifyPassword(pw, r.data.password);
+      if (!ok) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+      // Lazy migration: 평문이면 해시로 업그레이드
+      if (isPlainPassword(r.data.password)) {
+        try {
+          const h = await hashPassword(pw);
+          const tmpSb = _makeSb(r.data.id, r.data.role);
+          await tmpSb.from('users').update({ password: h }).eq('id', r.data.id);
+        } catch (e) { console.error('pw migration failed', e); }
+      }
+      setLoading(false);
+      onLogin(r.data);
+    } catch (e) {
+      setLoading(false);
+      setErr('로그인 중 오류가 발생했습니다.');
+    }
+  }
+
+  return (
+    <div className="lwrap">
+      <div className="lbox">
+        <div className="llogo">🏢</div>
+        <div className="ltit">{APP_CONFIG.COMPANY_SHORT}</div>
+        <div className="lsub">관리포털 · 관리팀/관리자 전용</div>
+        {err && <div className="al al-e">{err}</div>}
+        <div style={{marginBottom:12}}>
+          <label className="fl">아이디 (전화번호)</label>
+          <input className="fi" value={phone} placeholder="전화번호 입력" onChange={function(e){setPhone(e.target.value);}} onKeyDown={function(e){if(e.key==='Enter')document.getElementById('ap-pw').focus();}} />
+        </div>
+        <div style={{marginBottom:20}}>
+          <label className="fl">비밀번호</label>
+          <input id="ap-pw" type="password" className="fi" value={pw} placeholder="비밀번호 입력" onChange={function(e){setPw(e.target.value);}} onKeyDown={function(e){if(e.key==='Enter')doLogin();}} />
+        </div>
+        <button className="btn btn-p" onClick={doLogin} disabled={loading} style={{width:'100%',justifyContent:'center',padding:'12px'}}>
+          {loading?'로그인 중...':'로그인'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ── APP ───────────────────────────────────────────────────────────────────
 const SysBar = Sysbar.createComponent(React);
@@ -2376,7 +2494,7 @@ function App() {
       var v = JSON.parse(raw);
       var userId = v && v.userId;
       if (!userId) { setSsoChecked(true); return; }
-      sb.from('users').select('id,name,phone,email,position,team_id,role,join_date,total_days').eq('id', userId).single().then(function(r) {
+      sb.from('users').select('*').eq('id', userId).single().then(function(r) {
         if (r.data) {
           sb = _makeSb(r.data.id, r.data.role);
           var safeU = Object.assign({}, r.data); delete safeU.password;
@@ -2411,16 +2529,21 @@ function App() {
   }, [user ? user.id : null]);
 
   function handleLogin(u) {
-    // doLogin()이 이미 세션 저장 완료 → sb 재생성 + state 반영만
     sb = _makeSb(u.id, u.role);
-    setUser(u);
+    var safeU = Object.assign({}, u); delete safeU.password;
+    localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+    localStorage.removeItem('kwanbo_pm_user');
+    sessionStorage.removeItem('kwanbo_uid');
+    setUser(safeU);
     Sysbar.SessionManager.onLogin(function() { logout(); });
   }
 
   function logout() {
     Sysbar.SessionManager.onLogout();
     sb = _makeSb();
-    Sysbar.Auth.clearSession();
+    localStorage.removeItem('kwanbo_session');
+    localStorage.removeItem('kwanbo_pm_user');
+    sessionStorage.removeItem('kwanbo_uid');
     setUser(null); setTeamName(''); setHasAccess(false);
   }
 
@@ -2430,7 +2553,7 @@ function App() {
     </div>
   );
 
-  if (!user) return <LoginScreen supabaseClient={sb} onLogin={handleLogin} />;
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
 
   if (user.role !== 'admin' && !hasAccess) return (
     <div className="lwrap">
