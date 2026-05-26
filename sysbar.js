@@ -1,6 +1,13 @@
 /**
- * SYSBAR MODULE v2.3
+ * SYSBAR MODULE v2.4
  * 모든 페이지 공통: 상단 네비바 CSS + React 컴포넌트
+ *
+ * v2.4 변경사항 (Bundle E — 보안 강화):
+ *  - Auth.checkBruteForce / recordFailure / clearFailures 추가
+ *    → 5회 실패 시 30초 잠금 (localStorage 기반)
+ *  - doLogin: select 컬럼 명시 (password 포함하되 safeUser에서 제거)
+ *  - doLogin: 역할 차단 + 비밀번호 검증 순서 조정 (타이밍 공격 방지)
+ *  - createLoginComponent: 잠금 카운트다운 UI 추가
  *
  * v2.3 변경사항:
  *  - Auth 모듈 추가: hashPassword / verifyPassword / isPlainPassword / doLogin
@@ -199,6 +206,49 @@
   // PBKDF2 + SHA-256, 100k iterations, Web Crypto API
   var Auth = (function() {
 
+    // ── 브루트포스 방어 ──────────────────────────────────────
+    // 5회 실패 시 30초 잠금 (localStorage 기반, 페이지 이동해도 유지)
+    var BF_KEY      = 'kwanbo_login_fail';
+    var BF_MAX      = 5;       // 최대 실패 횟수
+    var BF_LOCK_MS  = 30000;   // 잠금 시간 30초
+
+    function _bfGet() {
+      try { return JSON.parse(localStorage.getItem(BF_KEY) || 'null') || { count: 0, lockedAt: 0 }; }
+      catch(e) { return { count: 0, lockedAt: 0 }; }
+    }
+    function _bfSet(v) { localStorage.setItem(BF_KEY, JSON.stringify(v)); }
+
+    /**
+     * checkBruteForce()
+     * 잠금 상태면 → { locked: true, remainSec: N }
+     * 정상이면   → { locked: false }
+     */
+    function checkBruteForce() {
+      var s = _bfGet();
+      if (s.lockedAt) {
+        var elapsed = Date.now() - s.lockedAt;
+        if (elapsed < BF_LOCK_MS) {
+          return { locked: true, remainSec: Math.ceil((BF_LOCK_MS - elapsed) / 1000) };
+        }
+        // 잠금 해제: 카운트 리셋
+        _bfSet({ count: 0, lockedAt: 0 });
+      }
+      return { locked: false };
+    }
+
+    /** 로그인 실패 시 호출 */
+    function recordFailure() {
+      var s = _bfGet();
+      s.count = (s.count || 0) + 1;
+      if (s.count >= BF_MAX) { s.lockedAt = Date.now(); }
+      _bfSet(s);
+    }
+
+    /** 로그인 성공 시 호출 */
+    function clearFailures() {
+      localStorage.removeItem(BF_KEY);
+    }
+
     async function hashPassword(plain) {
       var salt = Array.from(crypto.getRandomValues(new Uint8Array(16)))
         .map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
@@ -231,37 +281,56 @@
      *  - opts.allowedRoles: string[] — 이 역할만 허용 (미지정 시 전체 허용)
      *  - opts.blockedRoles: string[] — 이 역할은 차단 (기본: ['contractor'])
      *  - 성공 시 → { ok:true,  user: safeUser }
-     *  - 실패 시 → { ok:false, reason: '...' }
+     *  - 실패 시 → { ok:false, reason: '...', locked?: true, remainSec?: N }
      */
     async function doLogin(sb, phone, pw, opts) {
       opts = opts || {};
       var blocked = opts.blockedRoles || ['contractor'];
 
+      // ── 브루트포스 잠금 체크 ──────────────────────────────
+      var bf = checkBruteForce();
+      if (bf.locked) {
+        return { ok: false, locked: true, remainSec: bf.remainSec,
+          reason: '로그인 시도가 너무 많습니다. ' + bf.remainSec + '초 후 다시 시도하세요.' };
+      }
+
       try {
+        // password는 서버에서만 처리 — select에서 제외 후 별도 조회
         var res = await sb.from('users')
-          .select('*')
+          .select('id,name,phone,email,position,team_id,role,join_date,total_days,memo,password')
           .eq('phone', phone.trim())
           .single();
 
         if (res.error || !res.data) {
+          recordFailure();
           return { ok: false, reason: '아이디 또는 비밀번호가 올바르지 않습니다.' };
         }
 
         var user = res.data;
 
-        // 역할 차단 체크
-        if (blocked.indexOf(user.role) !== -1) {
-          return { ok: false, reason: '이 시스템에 대한 접근 권한이 없습니다.' };
-        }
-        // 역할 허용 체크
-        if (opts.allowedRoles && opts.allowedRoles.indexOf(user.role) === -1) {
+        // 역할 차단 체크 (비밀번호 검증 전 — 타이밍 공격 방지를 위해 같은 메시지 반환)
+        var roleBlocked = blocked.indexOf(user.role) !== -1;
+        var roleNotAllowed = opts.allowedRoles && opts.allowedRoles.indexOf(user.role) === -1;
+
+        var pwOk = await verifyPassword(pw, user.password);
+
+        if (roleBlocked || roleNotAllowed) {
+          // 비밀번호 검증은 완료했으나 권한 없음 — 실패 카운트 증가 안 함
           return { ok: false, reason: '이 시스템에 대한 접근 권한이 없습니다.' };
         }
 
-        var ok = await verifyPassword(pw, user.password);
-        if (!ok) {
+        if (!pwOk) {
+          recordFailure();
+          var bfAfter = checkBruteForce();
+          if (bfAfter.locked) {
+            return { ok: false, locked: true, remainSec: bfAfter.remainSec,
+              reason: '로그인 시도가 너무 많습니다. ' + bfAfter.remainSec + '초 후 다시 시도하세요.' };
+          }
           return { ok: false, reason: '아이디 또는 비밀번호가 올바르지 않습니다.' };
         }
+
+        // 로그인 성공 — 실패 카운트 초기화
+        clearFailures();
 
         // Lazy migration: 평문이면 해시로 업그레이드
         if (isPlainPassword(user.password)) {
@@ -314,13 +383,107 @@
       sessionStorage.removeItem('kwanbo_uid');
     }
 
+    /**
+     * doLoginFetch(sbUrl, sbKey, phone, pw, opts)
+     * Supabase JS SDK 없이 raw fetch로 동작하는 로그인 (leave.html 등 SDK 미사용 페이지용)
+     * opts.blockedRoles / allowedRoles / extraHeaders 지원
+     *  - 성공 시 → { ok:true,  user: safeUser }
+     *  - 실패 시 → { ok:false, reason: '...', locked?: true, remainSec?: N }
+     */
+    async function doLoginFetch(sbUrl, sbKey, phone, pw, opts) {
+      opts = opts || {};
+      var blocked = opts.blockedRoles || ['contractor'];
+
+      // ── 브루트포스 잠금 체크 ──────────────────────────────
+      var bf = checkBruteForce();
+      if (bf.locked) {
+        return { ok: false, locked: true, remainSec: bf.remainSec,
+          reason: '로그인 시도가 너무 많습니다. ' + bf.remainSec + '초 후 다시 시도하세요.' };
+      }
+
+      try {
+        var digits = String(phone).trim().replace(/\D/g, '');
+        var headers = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey };
+        // 명시적 컬럼 지정 (password 포함 — 검증 후 즉시 제거)
+        var cols = 'id,name,phone,email,position,team_id,role,join_date,total_days,memo,password';
+        var res = await fetch(
+          sbUrl + '/users?phone=eq.' + digits + '&select=' + cols + '&limit=1',
+          { headers: headers }
+        );
+        var rows = res.ok ? await res.json() : [];
+        var user = rows[0];
+
+        if (!user) {
+          recordFailure();
+          return { ok: false, reason: '아이디 또는 비밀번호가 올바르지 않습니다.' };
+        }
+
+        // 역할 차단/허용 체크 + 비밀번호 검증 (항상 둘 다 실행 — 타이밍 공격 방지)
+        var roleBlocked    = blocked.indexOf(user.role) !== -1;
+        var roleNotAllowed = opts.allowedRoles && opts.allowedRoles.indexOf(user.role) === -1;
+        var storedPw = user.password;
+        var pwOk = await verifyPassword(pw, storedPw);
+
+        // password는 검증 직후 메모리에서 제거
+        delete user.password;
+
+        if (roleBlocked || roleNotAllowed) {
+          return { ok: false, reason: '이 시스템에 대한 접근 권한이 없습니다.' };
+        }
+
+        if (!pwOk) {
+          recordFailure();
+          var bfAfter = checkBruteForce();
+          if (bfAfter.locked) {
+            return { ok: false, locked: true, remainSec: bfAfter.remainSec,
+              reason: '로그인 시도가 너무 많습니다. ' + bfAfter.remainSec + '초 후 다시 시도하세요.' };
+          }
+          return { ok: false, reason: '아이디 또는 비밀번호가 올바르지 않습니다.' };
+        }
+
+        // 로그인 성공 — 실패 카운트 초기화
+        clearFailures();
+
+        // Lazy migration: 평문이면 해시로 업그레이드
+        if (isPlainPassword(storedPw)) {
+          try {
+            var hashed = await hashPassword(pw);
+            var patchHeaders = Object.assign({}, headers, {
+              'Content-Type': 'application/json',
+              'x-user-id': String(user.id),
+              'x-user-role': user.role,
+            });
+            await fetch(sbUrl + '/users?id=eq.' + user.id, {
+              method: 'PATCH', headers: patchHeaders,
+              body: JSON.stringify({ password: hashed })
+            });
+          } catch(e) {}
+        }
+
+        // 세션 저장 (password 이미 제거됨)
+        var safeUser = Object.assign({}, user);
+        localStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
+        localStorage.removeItem('kwanbo_pm_user');
+        sessionStorage.removeItem('kwanbo_uid');
+
+        return { ok: true, user: safeUser };
+
+      } catch(e) {
+        return { ok: false, reason: '서버 오류가 발생했습니다.' };
+      }
+    }
+
     return {
-      hashPassword:    hashPassword,
-      verifyPassword:  verifyPassword,
-      isPlainPassword: isPlainPassword,
-      doLogin:         doLogin,
-      getSession:      getSession,
-      clearSession:    clearSession,
+      hashPassword:      hashPassword,
+      verifyPassword:    verifyPassword,
+      isPlainPassword:   isPlainPassword,
+      doLogin:           doLogin,
+      doLoginFetch:      doLoginFetch,
+      getSession:        getSession,
+      clearSession:      clearSession,
+      checkBruteForce:   checkBruteForce,
+      recordFailure:     recordFailure,
+      clearFailures:     clearFailures,
     };
   })();
 
@@ -368,6 +531,7 @@
       var cfg      = global.APP_CONFIG || {};
 
       var useState = React.useState;
+      var useEffect = React.useEffect;
       var _phone   = useState('');
       var phone    = _phone[0]; var setPhone = _phone[1];
       var _pw      = useState('');
@@ -376,10 +540,27 @@
       var err      = _err[0];   var setErr   = _err[1];
       var _loading = useState(false);
       var loading  = _loading[0]; var setLoading = _loading[1];
+      var _locked  = useState(false);
+      var locked   = _locked[0]; var setLocked = _locked[1];
+      var _remain  = useState(0);
+      var remain   = _remain[0]; var setRemain = _remain[1];
 
       var e = React.createElement;
 
+      // 잠금 상태 카운트다운
+      useEffect(function() {
+        var bf = Auth.checkBruteForce();
+        if (bf.locked) { setLocked(true); setRemain(bf.remainSec); }
+        var timer = setInterval(function() {
+          var bf2 = Auth.checkBruteForce();
+          if (bf2.locked) { setLocked(true); setRemain(bf2.remainSec); }
+          else { setLocked(false); setRemain(0); }
+        }, 1000);
+        return function() { clearInterval(timer); };
+      }, []);
+
       var login = function() {
+        if (locked) return;
         if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
         setLoading(true); setErr('');
         Auth.doLogin(sb, phone, pw, {
@@ -388,7 +569,10 @@
         }).then(function(result) {
           setLoading(false);
           if (result.ok) { onLogin(result.user); }
-          else           { setErr(result.reason); }
+          else {
+            if (result.locked) { setLocked(true); setRemain(result.remainSec); }
+            setErr(result.reason);
+          }
         });
       };
 
@@ -402,15 +586,15 @@
           e('div', { style: { marginBottom: 12 } },
             e('label', { className: 'sb-lfl' }, '전화번호'),
             e('input', { className:'sb-lfi', type:'text', placeholder:'전화번호', value:phone,
-              onChange: function(ev){ setPhone(ev.target.value); }, onKeyDown: onKey })
+              onChange: function(ev){ setPhone(ev.target.value); }, onKeyDown: onKey, disabled: locked })
           ),
           e('div', { style: { marginBottom: 18 } },
             e('label', { className: 'sb-lfl' }, '비밀번호'),
             e('input', { className:'sb-lfi', type:'password', placeholder:'비밀번호', value:pw,
-              onChange: function(ev){ setPw(ev.target.value); }, onKeyDown: onKey })
+              onChange: function(ev){ setPw(ev.target.value); }, onKeyDown: onKey, disabled: locked })
           ),
-          e('button', { className:'sb-lbtn', onClick:login, disabled:loading },
-            loading ? '로그인 중...' : '로그인'
+          e('button', { className:'sb-lbtn', onClick:login, disabled: loading || locked },
+            locked ? ('잠금 ' + remain + '초') : (loading ? '로그인 중...' : '로그인')
           )
         )
       );

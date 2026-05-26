@@ -1033,59 +1033,40 @@ function AdminDash({user,users,teams,leaves,onNav}){
 
 // ── Main App ──────────────────────────────────────────────
 // ── LeaveLoginScreen ─────────────────────────────────────────
-// leave.html은 Supabase SDK 미사용(fetch 직접 방식)이므로 전용 컴포넌트 사용
-// 비밀번호 해시는 Sysbar.Auth에 위임
+// Sysbar.Auth.doLoginFetch 에 위임 (브루트포스 방어 + 잠금 UI 포함)
 function LeaveLoginScreen({ onLogin }) {
   const [phone, setPhone] = useState('');
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [remain, setRemain] = useState(0);
+
+  // 잠금 상태 카운트다운
+  useEffect(() => {
+    const bf = Sysbar.Auth.checkBruteForce();
+    if (bf.locked) { setLocked(true); setRemain(bf.remainSec); }
+    const timer = setInterval(() => {
+      const bf2 = Sysbar.Auth.checkBruteForce();
+      if (bf2.locked) { setLocked(true); setRemain(bf2.remainSec); }
+      else { setLocked(false); setRemain(0); }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const doLogin = async () => {
+    if (locked) return;
     if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
     setLoading(true); setErr('');
-    try {
-      // 서버에서 단건 조회 (인증 없이 전화번호로만 조회)
-      const digits = phone.trim().replace(/\D/g, '');
-      const res = await fetch(
-        `${SB_URL}/users?phone=eq.${digits}&limit=1`,
-        { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } }
-      );
-      const rows = res.ok ? await res.json() : [];
-      const user = rows[0];
-      if (!user) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
-      if (user.role === 'contractor') { setErr('연차 관리 시스템 접근 권한이 없습니다.'); setLoading(false); return; }
-
-      const ok = await Sysbar.Auth.verifyPassword(pw, user.password);
-      // 검증 직후 메모리에서 password 즉시 제거
-      const rawPw = user.password;
-      delete user.password;
-      if (!ok) { setErr('아이디 또는 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
-
-      // Lazy migration: 평문이면 해시로 업그레이드
-      if (Sysbar.Auth.isPlainPassword(rawPw)) {
-        try {
-          const h = await Sysbar.Auth.hashPassword(pw);
-          await fetch(`${SB_URL}/users?id=eq.${user.id}`, {
-            method: 'PATCH',
-            headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`,
-                       'Content-Type': 'application/json', 'x-user-id': String(user.id), 'x-user-role': user.role },
-            body: JSON.stringify({ password: h })
-          });
-        } catch(e) {}
-      }
-
-      // 세션 저장 (password 이미 제거됨)
-      const safeUser = Object.assign({}, user);
-      localStorage.setItem('kwanbo_session', JSON.stringify(safeUser));
-      localStorage.removeItem('kwanbo_pm_user');
-      sessionStorage.removeItem('kwanbo_uid');
-
-      setLoading(false);
-      onLogin(safeUser);
-    } catch(e) {
-      setErr('서버 오류가 발생했습니다.');
-      setLoading(false);
+    const result = await Sysbar.Auth.doLoginFetch(SB_URL, SB_KEY, phone, pw, {
+      blockedRoles: ['contractor'],
+    });
+    setLoading(false);
+    if (result.ok) {
+      onLogin(result.user);
+    } else {
+      if (result.locked) { setLocked(true); setRemain(result.remainSec); }
+      setErr(result.reason);
     }
   };
 
@@ -1101,17 +1082,17 @@ function LeaveLoginScreen({ onLogin }) {
         {err && <div style={{background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:6,padding:'7px 11px',fontSize:12,marginBottom:12}}>{err}</div>}
         <div style={{marginBottom:12}}>
           <label style={{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:4}}>전화번호</label>
-          <input value={phone} onChange={e=>setPhone(e.target.value)} onKeyDown={onKey}
+          <input value={phone} onChange={e=>setPhone(e.target.value)} onKeyDown={onKey} disabled={locked}
             placeholder="전화번호" style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box'}}/>
         </div>
         <div style={{marginBottom:18}}>
           <label style={{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:4}}>비밀번호</label>
-          <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={onKey}
+          <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={onKey} disabled={locked}
             placeholder="비밀번호" style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box'}}/>
         </div>
-        <button onClick={doLogin} disabled={loading}
-          style={{width:'100%',padding:11,background:'#1d4ed8',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:700,cursor:'pointer'}}>
-          {loading ? '로그인 중...' : '로그인'}
+        <button onClick={doLogin} disabled={loading || locked}
+          style={{width:'100%',padding:11,background:'#1d4ed8',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:700,cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.6 : 1}}>
+          {locked ? `잠금 ${remain}초` : (loading ? '로그인 중...' : '로그인')}
         </button>
       </div>
     </div>
