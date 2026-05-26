@@ -931,6 +931,7 @@ function PerfView({ user }) {
   function changeTab(newTab) {
     history.pushState({ pfTab: newTab }, '', '');
     setTab(newTab);
+    setCatFilter('전체');
   }
 
   // 뒤로가기 감지
@@ -960,6 +961,35 @@ function PerfView({ user }) {
   var [projSort, setProjSort] = useState({ col: null, dir: 'asc' });
   var [pfSort,   setPfSort]   = useState({ col: null, dir: 'asc' });
   var [ctSort,   setCtSort]   = useState({ col: null, dir: 'asc' });
+
+  // ── 카테고리 필터 ──
+  var [catFilter, setCatFilter] = useState('전체');
+  var CAT_FILTERS = ['전체','기술지원','관급','사급','감리'];
+
+  function CatFilterBar() {
+    return (
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
+        {CAT_FILTERS.map(function(c) {
+          var active = catFilter === c;
+          var bg = active ? (c==='전체'?'#1e293b':c==='기술지원'?'#f59e0b':c==='관급'?'#3b82f6':c==='사급'?'#8b5cf6':'#059669') : '#f1f5f9';
+          var color = active ? '#fff' : '#64748b';
+          return (
+            <button key={c} onClick={function(){ setCatFilter(c); }}
+              style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,border:'none',cursor:'pointer',
+                background:bg,color:color,transition:'all 0.15s'}}>
+              {c}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function filterByCat(list, getCat) {
+    if (catFilter === '전체') return list;
+    if (catFilter === '감리') return list.filter(function(x){ return getCat(x) === 'supervision'; });
+    return list.filter(function(x){ return getCat(x) === catFilter; });
+  }
 
   function mkSortHandler(state, setter) {
     return function(col) {
@@ -1205,6 +1235,7 @@ function PerfView({ user }) {
             <div className="empty"><div className="ei">💰</div><div className="et">수금 내역이 없습니다</div></div>
           ) : (
             <div className="tbl-wrap">
+              <CatFilterBar />
               <table>
                 <thead><tr>
                   <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
@@ -1216,7 +1247,11 @@ function PerfView({ user }) {
                   <th>메모</th><th></th>
                 </tr></thead>
                 <tbody>
-                  {sortRows(yCols, colSort, function(c, col) {
+                  {sortRows(filterByCat(yCols, function(c){
+                    if (c.entry_type==='supervision') return 'supervision';
+                    var proj = projects.find(function(p){ return p.id===c.project_id; });
+                    return proj ? proj.category : '';
+                  }), colSort, function(c, col) {
                     if (col==='proj')   return pName(c.project_id);
                     if (col==='date')   return c.collected_at;
                     if (col==='type')   return c.entry_type;
@@ -1325,6 +1360,7 @@ function PerfView({ user }) {
             <div className="empty"><div className="ei">📁</div><div className="et">수금 데이터가 없습니다</div></div>
           ) : (
             <div className="tbl-wrap">
+              <CatFilterBar />
               <table>
                 <thead><tr>
                   <SortTh label="프로젝트" col="name" state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
@@ -1334,7 +1370,10 @@ function PerfView({ user }) {
                   <SortTh label="순 실적"  col="net"  state={projSort} onSort={mkSortHandler(projSort,setProjSort)} className="tr" />
                 </tr></thead>
                 <tbody>
-                  {sortRows(projSummary, projSort, function(p, col) {
+                  {sortRows(filterByCat(projSummary, function(p){
+                    var projData = projects.find(function(x){ return x.id===p.id; });
+                    return projData ? projData.category : '';
+                  }), projSort, function(p, col) {
                     if (col==='name') return p.name;
                     if (col==='pm')   return uName(p.pm_id);
                     if (col==='tc')   return p.tc;
@@ -1680,12 +1719,22 @@ function PerfView({ user }) {
               <span style={{fontSize:12,color:'#94a3b8'}}>계약금액 클릭 시 입력/수정</span>
             </div>
             {/* 요약 */}
-            <div className="g3" style={{marginBottom:16}}>
-              <div className="stat blue"><div className="stat-l">총 계약금액</div><div className="stat-v">{fmtN(totalContract)}</div><div className="stat-s">원</div></div>
-              <div className="stat green"><div className="stat-l">누적 순수금</div><div className="stat-v">{fmtN(totalNetCol)}</div><div className="stat-s">원</div></div>
-              <div className="stat purple"><div className="stat-l">총 잔금</div><div className="stat-v">{fmtN(totalRemain)}</div><div className="stat-s">원</div></div>
+            <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+              <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#eff6ff',border:'1px solid #bfdbfe',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                <span style={{fontSize:11,fontWeight:600,color:'#1d4ed8',whiteSpace:'nowrap'}}>총 계약금액</span>
+                <span style={{fontSize:13,fontWeight:800,color:'#1d4ed8',whiteSpace:'nowrap'}}>{fmtN(totalContract)}원</span>
+              </div>
+              <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#f0fdf4',border:'1px solid #bbf7d0',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                <span style={{fontSize:11,fontWeight:600,color:'#15803d',whiteSpace:'nowrap'}}>누적 순수금</span>
+                <span style={{fontSize:13,fontWeight:800,color:'#15803d',whiteSpace:'nowrap'}}>{fmtN(totalNetCol)}원</span>
+              </div>
+              <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#f5f3ff',border:'1px solid #ddd6fe',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                <span style={{fontSize:11,fontWeight:600,color:'#7c3aed',whiteSpace:'nowrap'}}>총 잔금</span>
+                <span style={{fontSize:13,fontWeight:800,color:'#7c3aed',whiteSpace:'nowrap'}}>{fmtN(totalRemain)}원</span>
+              </div>
             </div>
             <div className="tbl-wrap">
+              <CatFilterBar />
               <table>
                 <thead>
                   <tr>
@@ -1699,7 +1748,7 @@ function PerfView({ user }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(function(r) {
+                  {filterByCat(rows, function(r){ return r.p.category; }).map(function(r) {
                     var p = r.p;
                     var isCompleted = p.status === '완료';
                     return (
@@ -1793,14 +1842,19 @@ function PerfView({ user }) {
             </div>
 
             {/* 요약 카드 */}
-            <div className="g3" style={{marginBottom:16}}>
-              <div className="stat blue"><div className="stat-l">예상 수금 합계</div><div className="stat-v">{fmtN(totalUpcoming)}</div><div className="stat-s">원 (미수금)</div></div>
-              <div className="stat red" style={{background:'#fff5f5',borderColor:'#fecaca'}}>
-                <div className="stat-l" style={{color:'#dc2626'}}>연체 금액</div>
-                <div className="stat-v" style={{color:'#dc2626'}}>{fmtN(overdueAmt)}</div>
-                <div className="stat-s" style={{color:'#f87171'}}>{overdueList.length}건 기한초과</div>
+            <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+              <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#eff6ff',border:'1px solid #bfdbfe',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                <span style={{fontSize:11,fontWeight:600,color:'#1d4ed8',whiteSpace:'nowrap'}}>예상 수금 합계</span>
+                <span style={{fontSize:13,fontWeight:800,color:'#1d4ed8',whiteSpace:'nowrap'}}>{fmtN(totalUpcoming)}원</span>
               </div>
-              <div className="stat green"><div className="stat-l">수금완료</div><div className="stat-v">{done.length}</div><div className="stat-s">건</div></div>
+              <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#fff5f5',border:'1px solid #fecaca',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                <span style={{fontSize:11,fontWeight:600,color:'#dc2626',whiteSpace:'nowrap'}}>연체 금액</span>
+                <span style={{fontSize:13,fontWeight:800,color:'#dc2626',whiteSpace:'nowrap'}}>{fmtN(overdueAmt)}원 <span style={{fontSize:10,fontWeight:500}}>({overdueList.length}건)</span></span>
+              </div>
+              <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#f0fdf4',border:'1px solid #bbf7d0',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+                <span style={{fontSize:11,fontWeight:600,color:'#15803d',whiteSpace:'nowrap'}}>수금완료</span>
+                <span style={{fontSize:13,fontWeight:800,color:'#15803d',whiteSpace:'nowrap'}}>{done.length}건</span>
+              </div>
             </div>
 
             {/* 미수금 목록 */}
