@@ -432,7 +432,7 @@ let sb = _makeSb();
 const { useState, useEffect, useCallback, useRef } = React;
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────
-const VIEWS = { MY_LOG: 'my_log', ALL_LOGS: 'all_logs', HISTORY: 'history' };
+const VIEWS = { MY_LOG: 'my_log', ALL_LOGS: 'all_logs', HISTORY: 'history', LOGS: 'logs' };
 const STATUS = ['완료', '진행중', '보류'];
 const STATUS_CLS = { '완료': 'done-active', '진행중': 'prog-active', '보류': 'hold-active' };
 const STATUS_BADGE = { '완료': 'vt-done', '진행중': 'vt-prog', '보류': 'vt-hold' };
@@ -840,9 +840,13 @@ function MyLogView({ user, canWrite }) {
   useEffect(() => { loadLog(date); }, [date, loadLog]);
 
   const save = async () => {
-    // 종료가 19:00 초과 시 계상 (오전 자정 넘김 옵션 제거)
     const hasOvertime = !!(overtimeEnd && overtimeEnd > OT_START);
     setSaving(true);
+
+    // 기존 로그 존재 여부 확인 (create vs update 판별)
+    const { data: existing } = await sb.from('work_logs')
+      .select('id').eq('user_id', user.id).eq('log_date', date).maybeSingle();
+
     const { error } = await sb.from('work_logs').upsert({
       user_id: user.id,
       log_date: date,
@@ -856,11 +860,27 @@ function MyLogView({ user, canWrite }) {
       linked_events: linkedEvents.map(e => ({ event_id: e.eventId, note: e.note })),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,log_date' });
-    setSaving(false);
+
     if (!error) {
+      // 이력 기록 (fire-and-forget)
+      sb.from('work_logs_history').insert({
+        work_log_id: existing?.id || null,
+        user_id: user.id,
+        log_date: date,
+        action: existing ? 'update' : 'create',
+        saved_at: new Date().toISOString(),
+        overtime: hasOvertime,
+        overtime_start: hasOvertime ? OT_START : null,
+        overtime_end:   hasOvertime ? overtimeEnd : null,
+        overtime_reason: hasOvertime ? overtimeReason : '',
+        task_count: tasks.length,
+        has_issues: !!(issues && issues.trim()),
+      }).then(({ error: he }) => { if (he) console.warn('[history]', he); });
+
       setSavedMsg('저장되었습니다');
       setTimeout(() => setSavedMsg(''), 2500);
     }
+    setSaving(false);
   };
 
   const prevDay = () => setDate(prevWorkday(date));
@@ -1433,6 +1453,180 @@ function AllLogsView({ user }) {
 }
 
 // ─── MY HISTORY VIEW ───────────────────────────────────────────────────────
+// ─── LOGS VIEW (admin 전용 — 작성/수정 이력) ───────────────────────────────
+function LogsView({ user }) {
+  const [logs, setLogs]       = useState([]);
+  const [users, setUsers]     = useState([]);
+  const [teams, setTeams]     = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // 필터
+  const [selMonth, setSelMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  });
+  const [selTeam, setSelTeam]   = useState('all');
+  const [selUser, setSelUser]   = useState('all');
+  const [selAction, setSelAction] = useState('all'); // all / create / update
+
+  // 유저/팀 목록 로드
+  useEffect(() => {
+    const load = async () => {
+      const { data: td } = await sb.from('teams').select('id, name').order('name');
+      const { data: ud } = await sb.from('users').select('id, name, team_id, role')
+        .neq('role', 'contractor').order('name');
+      setTeams(td || []);
+      setUsers(ud || []);
+    };
+    load();
+  }, []);
+
+  // 이력 로드
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const start = selMonth + '-01';
+      const d = new Date(selMonth + '-01T00:00:00');
+      d.setMonth(d.getMonth() + 1); d.setDate(0);
+      const end = localDateStr(d);
+      const { data } = await sb.from('work_logs_history')
+        .select('*')
+        .gte('log_date', start)
+        .lte('log_date', end)
+        .order('saved_at', { ascending: false });
+      setLogs(data || []);
+      setLoading(false);
+    };
+    load();
+  }, [selMonth]);
+
+  // 필터 적용
+  const teamUserIds = selTeam === 'all' ? null
+    : new Set(users.filter(u => u.team_id === selTeam).map(u => u.id));
+
+  const filtered = logs.filter(l => {
+    if (selTeam !== 'all' && teamUserIds && !teamUserIds.has(l.user_id)) return false;
+    if (selUser !== 'all' && l.user_id !== selUser) return false;
+    if (selAction !== 'all' && l.action !== selAction) return false;
+    return true;
+  });
+
+  const userName = (uid) => users.find(u => u.id === uid)?.name || uid;
+  const teamName = (uid) => {
+    const u = users.find(u => u.id === uid);
+    return teams.find(t => t.id === u?.team_id)?.name || '-';
+  };
+  const fmtSavedAt = (ts) => {
+    if (!ts) return '-';
+    // KST 변환
+    const ms = new Date(ts).getTime() + 32400000;
+    const d = new Date(ms);
+    return `${d.getUTCFullYear()}.${String(d.getUTCMonth()+1).padStart(2,'0')}.${String(d.getUTCDate()).padStart(2,'0')} `
+      + `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}:${String(d.getUTCSeconds()).padStart(2,'0')}`;
+  };
+
+  const actionBadge = (action) => action === 'create'
+    ? <span style={{ fontSize:11, fontWeight:800, padding:'2px 8px', borderRadius:4, background:'#dcfce7', color:'#16a34a' }}>최초작성</span>
+    : <span style={{ fontSize:11, fontWeight:800, padding:'2px 8px', borderRadius:4, background:'#eff6ff', color:'#2563eb' }}>수정</span>;
+
+  // 팀 필터 변경 시 직원 필터 초기화
+  const onTeamChange = (v) => { setSelTeam(v); setSelUser('all'); };
+
+  const filteredUsers = selTeam === 'all'
+    ? users
+    : users.filter(u => u.team_id === selTeam);
+
+  return (
+    <div className="view-wrap">
+      <div className="view-header">
+        <div>
+          <div className="view-title">🗒️ 작성 이력</div>
+          <div className="view-sub">업무일지 작성·수정 기록 (관리자 전용)</div>
+        </div>
+      </div>
+
+      {/* 필터 */}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:20 }}>
+        <input type="month"
+          style={{ padding:'7px 10px', border:'1.5px solid var(--border)', borderRadius:6,
+            fontSize:13, fontWeight:700, color:'var(--text)', outline:'none', cursor:'pointer' }}
+          value={selMonth} onChange={e => setSelMonth(e.target.value)} />
+        <select
+          style={{ padding:'7px 10px', border:'1.5px solid var(--border)', borderRadius:6,
+            fontSize:13, color:'var(--text)', background:'#fff', outline:'none', cursor:'pointer' }}
+          value={selTeam} onChange={e => onTeamChange(e.target.value)}>
+          <option value="all">전체 팀</option>
+          {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <select
+          style={{ padding:'7px 10px', border:'1.5px solid var(--border)', borderRadius:6,
+            fontSize:13, color:'var(--text)', background:'#fff', outline:'none', cursor:'pointer' }}
+          value={selUser} onChange={e => setSelUser(e.target.value)}>
+          <option value="all">전체 직원</option>
+          {filteredUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+        </select>
+        <select
+          style={{ padding:'7px 10px', border:'1.5px solid var(--border)', borderRadius:6,
+            fontSize:13, color:'var(--text)', background:'#fff', outline:'none', cursor:'pointer' }}
+          value={selAction} onChange={e => setSelAction(e.target.value)}>
+          <option value="all">전체 구분</option>
+          <option value="create">최초작성</option>
+          <option value="update">수정</option>
+        </select>
+        <span style={{ display:'flex', alignItems:'center', fontSize:12, color:'var(--text-sub)' }}>
+          총 {filtered.length}건
+        </span>
+      </div>
+
+      {/* 테이블 */}
+      {loading ? <div className="loading">불러오는 중...</div> : (
+        filtered.length === 0
+          ? <div className="empty-state">
+              <div className="empty-icon">🗒️</div>
+              <div className="empty-text">이력이 없습니다</div>
+              <div className="empty-sub">해당 기간에 작성된 업무일지가 없습니다</div>
+            </div>
+          : <div style={{ background:'var(--card)', border:'1.5px solid var(--border)', borderRadius:'var(--radius)', overflow:'hidden' }}>
+              {/* 헤더 */}
+              <div style={{ display:'grid', gridTemplateColumns:'80px 70px 90px 1fr 140px 70px', gap:0,
+                background:'var(--bg)', borderBottom:'1.5px solid var(--border)', padding:'8px 14px',
+                fontSize:11, fontWeight:800, color:'var(--text-sub)', textTransform:'uppercase', letterSpacing:'.04em' }}>
+                <span>팀</span>
+                <span>이름</span>
+                <span>일지 날짜</span>
+                <span>저장 시각</span>
+                <span style={{ textAlign:'center' }}>구분</span>
+                <span style={{ textAlign:'center' }}>초과근무</span>
+              </div>
+              {/* 행 */}
+              {filtered.map((l, i) => (
+                <div key={l.id} style={{ display:'grid', gridTemplateColumns:'80px 70px 90px 1fr 140px 70px', gap:0,
+                  padding:'9px 14px', borderBottom: i < filtered.length-1 ? '1px solid var(--border)' : 'none',
+                  fontSize:13, alignItems:'center',
+                  background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <span style={{ color:'var(--text-sub)', fontSize:12 }}>{teamName(l.user_id)}</span>
+                  <span style={{ fontWeight:700 }}>{userName(l.user_id)}</span>
+                  <span style={{ color:'var(--text-sub)' }}>{l.log_date}</span>
+                  <span style={{ fontSize:12, color:'var(--text)', fontFamily:'monospace' }}>{fmtSavedAt(l.saved_at)}</span>
+                  <span style={{ textAlign:'center' }}>{actionBadge(l.action)}</span>
+                  <span style={{ textAlign:'center' }}>
+                    {l.overtime
+                      ? <span style={{ fontSize:11, fontWeight:700, color:'#1d4ed8' }}>
+                          <span style={{ display:'inline-block', width:7, height:7, borderRadius:'50%',
+                            background:'#3b82f6', marginRight:4, verticalAlign:'middle' }}></span>
+                          {l.overtime_end}
+                        </span>
+                      : <span style={{ fontSize:11, color:'var(--text-muted)' }}>-</span>
+                    }
+                  </span>
+                </div>
+              ))}
+            </div>
+      )}
+    </div>
+  );
+}
+
 function MyHistoryView({ user }) {
   const [logs, setLogs]   = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1481,6 +1675,9 @@ function TopNavBar({ view, setView, user, onLogout, canWrite }) {
     { id: VIEWS.MY_LOG,   icon: '📝', label: '내 업무일지' },
     { id: VIEWS.ALL_LOGS, icon: '👥', label: '전체 업무일지' },
     { id: VIEWS.HISTORY,  icon: '📅', label: '내 기록' },
+    ...(user?.role === 'admin'
+      ? [{ id: VIEWS.LOGS, icon: '🗒️', label: '작성이력' }]
+      : []),
   ];
   return (
     <div className="top-nav-bar">
@@ -1655,6 +1852,7 @@ function App() {
           {view === VIEWS.MY_LOG   && <MyLogView user={user} canWrite={canWrite} />}
           {view === VIEWS.ALL_LOGS && <AllLogsView user={user} />}
           {view === VIEWS.HISTORY  && <MyHistoryView user={user} />}
+          {view === VIEWS.LOGS     && user.role === 'admin' && <LogsView user={user} />}
         </main>
         <MobileNav view={view} setView={nv} />
       </div>
