@@ -288,20 +288,6 @@ a { text-decoration: none; }
   font-size: 14px; font-weight: 600; color: var(--text-sub);
   background: var(--bg); width: 100%; display: flex; align-items: center;
 }
-/* ─── SELECT TIME PICKER ─────────────────────────────────── */
-.stp-wrap {
-  display: flex; align-items: center; gap: 4px; width: 100%;
-}
-.stp-select {
-  flex: 1; padding: 9px 6px; border: 1.5px solid var(--border); border-radius: 8px;
-  font-size: 14px; font-weight: 600; color: var(--text);
-  background: #fff; outline: none; cursor: pointer;
-  transition: border .2s; text-align: center;
-  appearance: none; -webkit-appearance: none;
-}
-.stp-select:focus { border-color: #fca5a5; }
-.stp-select.active { border-color: #fca5a5; background: #fef2f2; }
-.stp-sep { font-size: 16px; font-weight: 800; color: var(--text-sub); flex-shrink: 0; }
 .overtime-reason-input {
   width: 100%; padding: 9px 12px;
   border: 1.5px solid var(--border); border-radius: 8px;
@@ -574,65 +560,6 @@ function prevWorkday(ds) {
   } while (true);
 }
 
-
-// ─── SELECT TIME PICKER ────────────────────────────────────────────────────
-// value: "HH:MM" (24h) or ''  /  onChange: (val: "HH:MM") => void
-// isNextDay: 오전 선택 시 다음날 새벽 여부 표시용 (optional)
-const HOURS_12 = [12,1,2,3,4,5,6,7,8,9,10,11];
-const MINS_10  = [0,10,20,30,40,50];
-
-function SelectTimePicker({ value, onChange }) {
-  // value → 내부 상태 파싱
-  const parse = (v) => {
-    if (!v) return { ampm: '오후', hour: 7, min: 0 };
-    const [hStr, mStr] = v.split(':');
-    const h24 = parseInt(hStr, 10);
-    const m   = parseInt(mStr, 10);
-    const ampm = h24 < 12 ? '오전' : '오후';
-    const hour = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
-    return { ampm, hour, min: m };
-  };
-
-  const [ampm, setAmpm] = useState(() => parse(value).ampm);
-  const [hour, setHour] = useState(() => parse(value).hour);
-  const [min,  setMin]  = useState(() => parse(value).min);
-
-  // value prop 외부 변경 시 동기화
-  useEffect(() => {
-    const p = parse(value);
-    setAmpm(p.ampm); setHour(p.hour); setMin(p.min);
-  }, [value]);
-
-  const emit = (a, h, m) => {
-    let h24 = h;
-    if (a === '오전') { h24 = h === 12 ? 0 : h; }
-    else              { h24 = h === 12 ? 12 : h + 12; }
-    onChange(String(h24).padStart(2,'0') + ':' + String(m).padStart(2,'0'));
-  };
-
-  const onAmpm = (e) => { const v = e.target.value; setAmpm(v); emit(v, hour, min); };
-  const onHour = (e) => { const v = parseInt(e.target.value); setHour(v); emit(ampm, v, min); };
-  const onMin  = (e) => { const v = parseInt(e.target.value); setMin(v);  emit(ampm, hour, v); };
-
-  const isActive = !!(value && value > '19:00' || (value && value < '12:00'));
-
-  return (
-    <div className="stp-wrap">
-      <select className={`stp-select ${isActive ? 'active' : ''}`} value={ampm} onChange={onAmpm}
-        style={{ flex:'0 0 68px' }}>
-        <option value="오전">오전</option>
-        <option value="오후">오후</option>
-      </select>
-      <select className={`stp-select ${isActive ? 'active' : ''}`} value={hour} onChange={onHour}>
-        {HOURS_12.map(h => <option key={h} value={h}>{String(h).padStart(2,'0')}</option>)}
-      </select>
-      <span className="stp-sep">:</span>
-      <select className={`stp-select ${isActive ? 'active' : ''}`} value={min} onChange={onMin}>
-        {MINS_10.map(m => <option key={m} value={m}>{String(m).padStart(2,'0')}</option>)}
-      </select>
-    </div>
-  );
-}
 
 function MiniCalendar({ value, onChange, maxDate }) {
   const [open, setOpen] = useState(false);
@@ -1058,10 +985,11 @@ function MyLogView({ user, canWrite }) {
             </div>
             <div className="overtime-field">
               <span className="overtime-label">종료 시각</span>
-              <SelectTimePicker
+              <input type="time"
+                className={`overtime-time-input ${overtimeEnd && (overtimeEnd > OT_START || overtimeEnd < '12:00') ? 'has-value' : ''}`}
                 value={overtimeEnd || OT_START}
-                onChange={setOvertimeEnd}
-              />
+                step="600"
+                onChange={e => setOvertimeEnd(e.target.value)} />
             </div>
           </div>
           <input
