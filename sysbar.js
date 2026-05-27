@@ -567,7 +567,11 @@
         if (locked) return;
         if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
         setLoading(true); setErr('');
-        Auth.doLogin(sb, phone, pw, {
+        // 로그인 전에는 RLS 헤더가 없으므로 SDK 클라이언트 대신
+        // raw fetch 기반 doLoginFetch 사용 (apikey만으로 조회 가능)
+        var sbUrl = cfg.SUPABASE_URL ? cfg.SUPABASE_URL + '/rest/v1' : '';
+        var sbKey = cfg.SUPABASE_KEY || '';
+        Auth.doLoginFetch(sbUrl, sbKey, phone, pw, {
           blockedRoles: options.blockedRoles,
           allowedRoles: options.allowedRoles,
         }).then(function(result) {
