@@ -402,16 +402,20 @@
       }
 
       try {
-        var digits = String(phone).trim().replace(/\D/g, '');
+        var phoneRaw    = String(phone).trim();
+        var phoneDigits = phoneRaw.replace(/\D/g, "");
         var headers = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey };
-        // 명시적 컬럼 지정 (password 포함 — 검증 후 즉시 제거)
         var cols = 'id,name,phone,email,position,team_id,role,join_date,total_days,memo,password';
-        var res = await fetch(
-          sbUrl + '/users?phone=eq.' + digits + '&select=' + cols + '&limit=1',
-          { headers: headers }
-        );
-        var rows = res.ok ? await res.json() : [];
-        var user = rows[0];
+        var user = null;
+        var queries = phoneDigits !== phoneRaw ? [phoneRaw, phoneDigits] : [phoneRaw];
+        for (var qi = 0; qi < queries.length; qi++) {
+          var res = await fetch(
+            sbUrl + '/users?phone=eq.' + encodeURIComponent(queries[qi]) + '&select=' + cols + '&limit=1',
+            { headers: headers }
+          );
+          var rows = res.ok ? await res.json() : [];
+          if (rows[0]) { user = rows[0]; break; }
+        }
 
         if (!user) {
           recordFailure();
