@@ -557,20 +557,38 @@ function CalView({users,teams,leaves}){
             {WD.map((d,i)=><div key={d} style={{textAlign:'center',padding:'3px 0',fontSize:10,fontWeight:700,color:i===0?'#ef4444':i===6?'#3b82f6':'#94a3b8'}}>{d}</div>)}
             {Array.from({length:cells}).map((_,i)=>{
               const dn=i-fd+1,valid=dn>=1&&dn<=dim;
-              const ds=valid?`${yr}-${String(mo+1).padStart(2,'0')}-${String(dn).padStart(2,'0')}`:null;
-              const people=ds?getDayPeople(ds):[];
-              const hol=ds?HOLIDAYS[ds]:null;
-              const sub=ds?SUBSTITUTE[ds]:null;
+              // 전달 / 다음달 날짜 계산
+              const prevDim=new Date(yr,mo,0).getDate();
+              const otherDn=dn<1?prevDim+dn:dn>dim?dn-dim:null;
+              const otherMo=dn<1?(mo===0?12:mo):(mo===11?1:mo+2);
+              const otherYr=dn<1?(mo===0?yr-1:yr):(mo===11?yr+1:yr);
+              const ds=valid
+                ?`${yr}-${String(mo+1).padStart(2,'0')}-${String(dn).padStart(2,'0')}`
+                :`${otherYr}-${String(otherMo).padStart(2,'0')}-${String(otherDn).padStart(2,'0')}`;
+              const people=getDayPeople(ds);
+              const hol=HOLIDAYS[ds]||null;
+              const sub=SUBSTITUTE[ds]||null;
               const isHolDay=!!(hol||sub);
               const dow=i%7,isTday=ds===todayStr;
-              const bg=sel===ds?'#eff6ff':isTday?'#fef9c3':isHolDay?'#fff1f2':(dow===0||dow===6)?'#fafafa':'white';
-              const numColor=isHolDay?'#dc2626':dow===0?'#ef4444':dow===6?'#3b82f6':'#374151';
+              // 배경색: 현재 달 vs 다른 달
+              const bg=valid
+                ?(sel===ds?'#eff6ff':isTday?'#fef9c3':isHolDay?'#fff1f2':(dow===0||dow===6)?'#fafafa':'white')
+                :'#f1f5f9';
+              // 테두리: 현재 달 선택/오늘 강조, 다른 달은 약한 테두리
+              const border=valid
+                ?(sel===ds?'2px solid #1e40af':isTday?'2px solid #f59e0b':'1px solid #f1f5f9')
+                :'1px solid #e2e8f0';
+              // 날짜 숫자 색: 현재 달 → 원래 색상, 다른 달 → 흐리게
+              const numColor=valid
+                ?(isHolDay?'#dc2626':dow===0?'#ef4444':dow===6?'#3b82f6':'#374151')
+                :(isHolDay?'#f87171':dow===0?'#f87171':dow===6?'#93c5fd':'#b0b8c4');
+              const displayDn=valid?dn:otherDn;
               return(
-                <div key={i} onClick={()=>ds&&setSel(sel===ds?null:ds)} style={{minHeight:62,padding:'2px',borderRadius:5,cursor:valid?'pointer':'default',background:bg,border:sel===ds?'2px solid #1e40af':isTday?'2px solid #f59e0b':'1px solid #f1f5f9'}}>
+                <div key={i} onClick={()=>valid&&setSel(sel===ds?null:ds)} style={{minHeight:62,padding:'2px',borderRadius:5,cursor:valid?'pointer':'default',background:bg,border}}>
+                  <div style={{fontSize:10,fontWeight:(valid&&(isTday||isHolDay))?700:400,color:numColor}}>{displayDn}</div>
+                  {hol&&<div style={{fontSize:8,color:valid?'#dc2626':'#f87171',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>{hol}</div>}
+                  {sub&&<div style={{fontSize:8,color:valid?'#dc2626':'#f87171',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>대체공휴일</div>}
                   {valid&&(<>
-                    <div style={{fontSize:10,fontWeight:isTday||isHolDay?700:400,color:numColor}}>{dn}</div>
-                    {hol&&<div style={{fontSize:8,color:'#dc2626',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>{hol}</div>}
-                    {sub&&<div style={{fontSize:8,color:'#dc2626',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>대체공휴일</div>}
                     {people.slice(0,2).map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:2,padding:'1px 2px',fontSize:8,marginBottom:1,overflow:'hidden',whiteSpace:'nowrap'}}>{calLabel(p)}</div>)}
                     {people.length>2&&<div style={{fontSize:8,color:'#94a3b8'}}>+{people.length-2}</div>}
                   </>)}
