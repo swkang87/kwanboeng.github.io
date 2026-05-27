@@ -284,16 +284,13 @@
      *  - 실패 시 → { ok:false, reason: '...', locked?: true, remainSec?: N }
      */
     async function doLogin(sb, phone, pw, opts) {
-      // ── sb 객체에서 URL/KEY 추출 → doLoginFetch에 위임 ──────────
-      // 로그인 전에는 RLS 헤더(x-user-id)가 없으므로 SDK 클라이언트로
-      // users 조회 시 RLS에 막힘. raw fetch(apikey 기반)로 우회.
-      var cfg  = (typeof global !== 'undefined' && global.APP_CONFIG) ? global.APP_CONFIG : {};
-      var url  = cfg.SUPABASE_URL  || '';
-      var key  = cfg.SUPABASE_KEY  || '';
-      // sb 객체에서 직접 추출 시도 (APP_CONFIG 미존재 환경 대비)
-      if (!url && sb && sb.supabaseUrl)  url = sb.supabaseUrl;
-      if (!key && sb && sb.supabaseKey)  key = sb.supabaseKey;
-      return doLoginFetch(url + '/rest/v1', key, phone, pw, opts);
+      // 로그인 전에는 RLS 헤더(x-user-id)가 없어 SDK 클라이언트로
+      // users 조회 시 RLS에 막혀 400 에러 발생.
+      // raw fetch 기반 doLoginFetch에 위임.
+      var cfg  = global.APP_CONFIG || {};
+      var sbUrl = (cfg.SUPABASE_URL || '') + '/rest/v1';
+      var sbKey = cfg.SUPABASE_KEY || '';
+      return doLoginFetch(sbUrl, sbKey, phone, pw, opts);
     }
 
     /**
@@ -508,7 +505,10 @@
         if (locked) return;
         if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
         setLoading(true); setErr('');
-        Auth.doLogin(sb, phone, pw, {
+        // 로그인 전 RLS 헤더 없음 → doLoginFetch(raw fetch) 직접 호출
+        var sbUrl = (cfg.SUPABASE_URL || '') + '/rest/v1';
+        var sbKey = cfg.SUPABASE_KEY || '';
+        Auth.doLoginFetch(sbUrl, sbKey, phone, pw, {
           blockedRoles: options.blockedRoles,
           allowedRoles: options.allowedRoles,
         }).then(function(result) {

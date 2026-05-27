@@ -576,11 +576,12 @@ function LoginScreen({ onLogin }) {
     if (locked) return;
     if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
     setLoading(true); setErr('');
-    // 로그인 전엔 RLS 헤더가 없으므로 raw fetch 기반 doLoginFetch 사용
-    const result = await Sysbar.Auth.doLoginFetch(
-      CONFIG.SUPABASE_URL + '/rest/v1', CONFIG.SUPABASE_KEY, phone, pw, {
-        blockedRoles: ['contractor'],
-      });
+    // 로그인 전 RLS 헤더 없음 → doLoginFetch(raw fetch) 직접 호출
+    const sbUrl = APP_CONFIG.SUPABASE_URL + '/rest/v1';
+    const sbKey = APP_CONFIG.SUPABASE_KEY;
+    const result = await Sysbar.Auth.doLoginFetch(sbUrl, sbKey, phone, pw, {
+      blockedRoles: ['contractor'],
+    });
     setLoading(false);
     if (result.ok) {
       onLogin(result.user);
