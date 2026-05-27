@@ -586,7 +586,7 @@ function App() {
       </div>
 
       {/* 3줄: 가로 네비 탭 */}
-      <div className="no-print" style={{ background: '#1e293b', padding: '0 14px', display: 'flex', alignItems: 'center', flexShrink: 0, height: 36, gap: 1, borderBottom: '1px solid #0f172a', position: 'sticky', top: 74, zIndex: 100, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div className="no-print" style={{ background: '#1e293b', padding: '0 14px', display: 'flex', alignItems: 'center', flexShrink: 0, height: 36, gap: 1, borderBottom: '1px solid #0f172a', position: 'sticky', top: 83, zIndex: 100, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {menuItems.map(t => (
           <button key={t.k} onClick={() => nv(t.k)}
             style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 11px', background: (view === t.k || (view === 'project' && t.k === 'projects')) ? '#1d4ed8' : 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', color: (view === t.k || (view === 'project' && t.k === 'projects')) ? 'white' : '#94a3b8', fontFamily: "'Noto Sans KR',sans-serif", fontSize: 11, fontWeight: (view === t.k || (view === 'project' && t.k === 'projects')) ? 700 : 400, whiteSpace: 'nowrap', height: 26, flexShrink: 0 }}>
