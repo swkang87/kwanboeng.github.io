@@ -288,6 +288,14 @@ a { text-decoration: none; }
   font-size: 14px; font-weight: 600; color: var(--text-sub);
   background: var(--bg); width: 100%; display: flex; align-items: center;
 }
+.overtime-end-select {
+  width: 100%; padding: 9px 12px;
+  border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 14px; font-weight: 600; color: var(--text);
+  background: #fff; outline: none; cursor: pointer; transition: border .2s;
+}
+.overtime-end-select:focus { border-color: #fca5a5; }
+.overtime-end-select.has-value { border-color: #fca5a5; background: #fef2f2; }
 .overtime-reason-input {
   width: 100%; padding: 9px 12px;
   border: 1.5px solid var(--border); border-radius: 8px;
@@ -436,7 +444,29 @@ const ALLOWANCE_EVENT_TYPES = ['위원회', '보고회', '착수보고', '중간
 // ─── ID 생성 ────────────────────────────────────────────────────────────────
 const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-// ─── UTILS ─────────────────────────────────────────────────────────────────
+// ─── 초과근무 종료시각 옵션 (19:00~23:50, 00:00~11:50, 10분단위) ───────────
+const OT_END_OPTIONS = (() => {
+  const opts = [];
+  // 19:00 ~ 23:50
+  for (let h = 19; h <= 23; h++) {
+    for (let m = 0; m < 60; m += 10) {
+      const label = `오후 ${h}:${String(m).padStart(2,'0')}`;
+      const value = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      opts.push({ label, value });
+    }
+  }
+  // 00:00 ~ 11:50
+  for (let h = 0; h <= 11; h++) {
+    for (let m = 0; m < 60; m += 10) {
+      const hDisp = h === 0 ? 12 : h;
+      const ap = h === 0 ? '오전' : '오전';
+      const label = `오전 ${hDisp}:${String(m).padStart(2,'0')}`;
+      const value = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      opts.push({ label, value });
+    }
+  }
+  return opts;
+})();
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
 const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -985,11 +1015,14 @@ function MyLogView({ user, canWrite }) {
             </div>
             <div className="overtime-field">
               <span className="overtime-label">종료 시각</span>
-              <input type="time"
-                className={`overtime-time-input ${overtimeEnd && (overtimeEnd > OT_START || overtimeEnd < '12:00') ? 'has-value' : ''}`}
+              <select
+                className={`overtime-end-select ${overtimeEnd && (overtimeEnd > OT_START || overtimeEnd < '12:00') ? 'has-value' : ''}`}
                 value={overtimeEnd || OT_START}
-                step="600"
-                onChange={e => setOvertimeEnd(e.target.value)} />
+                onChange={e => setOvertimeEnd(e.target.value)}>
+                {OT_END_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
             </div>
           </div>
           <input
