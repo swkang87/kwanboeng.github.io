@@ -2699,11 +2699,11 @@ function LoginScreen({ onLogin }) {
     if (locked) return;
     if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
     setLoading(true); setErr('');
-    // Sysbar.Auth.doLogin에 위임
     // allowedRoles: admin, manager만 허용 (employee/staff/contractor 차단)
-    const result = await Sysbar.Auth.doLogin(sb, phone, pw, {
-      allowedRoles: ['admin', 'manager'],
-    });
+    const result = await Sysbar.Auth.doLoginFetch(
+      APP_CONFIG.SUPABASE_URL + '/rest/v1', APP_CONFIG.SUPABASE_KEY, phone, pw, {
+        allowedRoles: ['admin', 'manager'],
+      });
     setLoading(false);
     if (result.ok) {
       onLogin(result.user);
