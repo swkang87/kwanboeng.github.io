@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js"></script>
+<script src="sysbar.js?v=20250527"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -2699,11 +2699,11 @@ function LoginScreen({ onLogin }) {
     if (locked) return;
     if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
     setLoading(true); setErr('');
+    // Sysbar.Auth.doLogin에 위임
     // allowedRoles: admin, manager만 허용 (employee/staff/contractor 차단)
-    const result = await Sysbar.Auth.doLoginFetch(
-      APP_CONFIG.SUPABASE_URL + '/rest/v1', APP_CONFIG.SUPABASE_KEY, phone, pw, {
-        allowedRoles: ['admin', 'manager'],
-      });
+    const result = await Sysbar.Auth.doLogin(sb, phone, pw, {
+      allowedRoles: ['admin', 'manager'],
+    });
     setLoading(false);
     if (result.ok) {
       onLogin(result.user);
