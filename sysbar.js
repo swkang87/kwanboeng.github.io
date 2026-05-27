@@ -487,7 +487,8 @@
         if (locked) return;
         if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
         setLoading(true); setErr('');
-        Auth.doLoginFetch((cfg.SUPABASE_URL||'') + '/rest/v1', cfg.SUPABASE_KEY||'', phone, pw, {
+        var _cfg = window.APP_CONFIG || cfg;
+        Auth.doLoginFetch((_cfg.SUPABASE_URL||'') + '/rest/v1', _cfg.SUPABASE_KEY||'', phone, pw, {
           blockedRoles: options.blockedRoles,
           allowedRoles: options.allowedRoles,
         }).then(function(result) {
