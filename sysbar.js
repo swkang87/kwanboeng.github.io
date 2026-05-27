@@ -277,23 +277,6 @@
     }
 
     /**
-     * doLogin(supabaseClient, phone, pw, opts)
-     *  - opts.allowedRoles: string[] — 이 역할만 허용 (미지정 시 전체 허용)
-     *  - opts.blockedRoles: string[] — 이 역할은 차단 (기본: ['contractor'])
-     *  - 성공 시 → { ok:true,  user: safeUser }
-     *  - 실패 시 → { ok:false, reason: '...', locked?: true, remainSec?: N }
-     */
-    async function doLogin(sb, phone, pw, opts) {
-      // 로그인 전에는 RLS 헤더(x-user-id)가 없어 SDK 클라이언트로
-      // users 조회 시 RLS에 막혀 400 에러 발생.
-      // raw fetch 기반 doLoginFetch에 위임.
-      var cfg  = global.APP_CONFIG || {};
-      var sbUrl = (cfg.SUPABASE_URL || '') + '/rest/v1';
-      var sbKey = cfg.SUPABASE_KEY || '';
-      return doLoginFetch(sbUrl, sbKey, phone, pw, opts);
-    }
-
-    /**
      * getSession()
      * localStorage에서 세션 복원. 없거나 형식 불량이면 null 반환.
      */
@@ -343,7 +326,7 @@
         var phoneRaw    = String(phone).trim();
         var phoneDigits = phoneRaw.replace(/\D/g, "");
         var headers = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey };
-        var cols = 'id,name,phone,email,position,team_id,role,join_date,total_days,memo,password';
+        var cols = 'id,name,phone,email,position,team_id,role,join_date,total_days,used_days,password';
         var user = null;
         var queries = phoneDigits !== phoneRaw ? [phoneRaw, phoneDigits] : [phoneRaw];
         for (var qi = 0; qi < queries.length; qi++) {
@@ -419,7 +402,6 @@
       hashPassword:      hashPassword,
       verifyPassword:    verifyPassword,
       isPlainPassword:   isPlainPassword,
-      doLogin:           doLogin,
       doLoginFetch:      doLoginFetch,
       getSession:        getSession,
       clearSession:      clearSession,
@@ -505,10 +487,7 @@
         if (locked) return;
         if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
         setLoading(true); setErr('');
-        // 로그인 전 RLS 헤더 없음 → doLoginFetch(raw fetch) 직접 호출
-        var sbUrl = (cfg.SUPABASE_URL || '') + '/rest/v1';
-        var sbKey = cfg.SUPABASE_KEY || '';
-        Auth.doLoginFetch(sbUrl, sbKey, phone, pw, {
+        Auth.doLoginFetch((cfg.SUPABASE_URL||'') + '/rest/v1', cfg.SUPABASE_KEY||'', phone, pw, {
           blockedRoles: options.blockedRoles,
           allowedRoles: options.allowedRoles,
         }).then(function(result) {
