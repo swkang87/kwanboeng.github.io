@@ -12,7 +12,7 @@
  *  5. 메뉴 활성화 여부 (active) 조정
  */
 
-const APP_CONFIG = {
+var APP_CONFIG = {
 
   // ── 회사 정보 (Company Info) ──────────────────────────────────
   COMPANY_KO:     '(주)관보종합기술단',
