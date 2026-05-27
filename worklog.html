@@ -262,33 +262,43 @@ a { text-decoration: none; }
 .loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
 
 /* ─── OVERTIME SECTION ───────────────────────────────────── */
-.overtime-row {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+.overtime-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
 }
-.overtime-checkbox-wrap {
-  display: flex; align-items: center; gap: 8px; cursor: pointer;
-  padding: 8px 14px; border-radius: 8px;
-  border: 1.5px solid var(--border); background: var(--bg);
-  transition: all .15s; user-select: none;
+@media (max-width: 480px) {
+  .overtime-grid { grid-template-columns: 1fr; }
 }
-.overtime-checkbox-wrap:hover { border-color: var(--accent); }
-.overtime-checkbox-wrap.checked {
-  background: #fef2f2; border-color: #fca5a5; color: #dc2626;
+.overtime-field { display: flex; flex-direction: column; gap: 5px; }
+.overtime-label {
+  font-size: 11px; font-weight: 700; color: var(--text-sub);
+  text-transform: uppercase; letter-spacing: .04em;
 }
-.overtime-checkbox-wrap input[type="checkbox"] {
-  width: 16px; height: 16px; accent-color: #dc2626; cursor: pointer;
+.overtime-time-input {
+  padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 14px; font-weight: 600; color: var(--text);
+  outline: none; background: #fff; transition: border .2s; width: 100%;
 }
-.overtime-checkbox-label {
-  font-size: 13px; font-weight: 700;
-}
+.overtime-time-input:focus { border-color: #fca5a5; }
+.overtime-time-input.has-value { border-color: #fca5a5; background: #fef2f2; }
 .overtime-reason-input {
-  flex: 1; min-width: 180px;
-  padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+  width: 100%; padding: 9px 12px;
+  border: 1.5px solid var(--border); border-radius: 8px;
   font-size: 13px; color: var(--text); outline: none; background: #fff;
   transition: border .2s;
 }
 .overtime-reason-input:focus { border-color: #fca5a5; }
+.overtime-reason-input.has-value { border-color: #fca5a5; }
 .overtime-reason-input::placeholder { color: var(--text-muted); }
+.overtime-summary {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 6px;
+  background: #fef2f2; border: 1px solid #fca5a5;
+  font-size: 12px; font-weight: 700; color: #dc2626;
+  margin-top: 2px;
+}
 
 /* ─── LINKED EVENTS SECTION ──────────────────────────────── */
 .linked-event-item {
@@ -718,10 +728,11 @@ function TaskItem({ task, onChange, onDelete, showStatus }) {
 
 // ─── MY LOG VIEW ───────────────────────────────────────────────────────────
 function MyLogView({ user, canWrite }) {
-  const [date, setDate]         = useState(todayStr());
-  const [tasks, setTasks]       = useState([]);
-  const [issues, setIssues]     = useState('');
-  const [overtime, setOvertime] = useState(false);
+  const [date, setDate]             = useState(todayStr());
+  const [tasks, setTasks]           = useState([]);
+  const [issues, setIssues]         = useState('');
+  const [overtimeStart, setOvertimeStart] = useState('');
+  const [overtimeEnd, setOvertimeEnd]     = useState('');
   const [overtimeReason, setOvertimeReason] = useState('');
   // linkedEvents: [{ eventId, type, title, projectName, note }]
   const [linkedEvents, setLinkedEvents] = useState([]);
@@ -785,7 +796,8 @@ function MyLogView({ user, canWrite }) {
     if (data) {
       setTasks(data.tasks || []);
       setIssues(data.issues || '');
-      setOvertime(data.overtime || false);
+      setOvertimeStart(data.overtime_start || '');
+      setOvertimeEnd(data.overtime_end || '');
       setOvertimeReason(data.overtime_reason || '');
     } else {
       // 빈 날짜 → 직전 근무일의 진행중 업무 자동 불러오기
@@ -797,7 +809,8 @@ function MyLogView({ user, canWrite }) {
         : [];
       setTasks(pending);
       setIssues('');
-      setOvertime(false);
+      setOvertimeStart('');
+      setOvertimeEnd('');
       setOvertimeReason('');
     }
     // 연동 이벤트는 항상 공정관리에서 최신 조회
@@ -808,6 +821,8 @@ function MyLogView({ user, canWrite }) {
   useEffect(() => { loadLog(date); }, [date, loadLog]);
 
   const save = async () => {
+    // 시작·종료 모두 있을 때만 초과근무 계상
+    const hasOvertime = !!(overtimeStart && overtimeEnd);
     setSaving(true);
     const { error } = await sb.from('work_logs').upsert({
       user_id: user.id,
@@ -815,8 +830,10 @@ function MyLogView({ user, canWrite }) {
       tasks,
       tomorrow_tasks: [],
       issues,
-      overtime,
-      overtime_reason: overtime ? overtimeReason : '',
+      overtime: hasOvertime,
+      overtime_start: overtimeStart || null,
+      overtime_end: overtimeEnd || null,
+      overtime_reason: hasOvertime ? overtimeReason : '',
       linked_events: linkedEvents.map(e => ({ event_id: e.eventId, note: e.note })),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,log_date' });
@@ -934,26 +951,42 @@ function MyLogView({ user, canWrite }) {
         {/* 초과근무 */}
         <div className="log-section">
           <div className="sec-header">
-            <div className="sec-title"><span className="sec-icon">⏰</span>초과근무</div>
+            <div className="sec-title">
+              <span className="sec-icon">⏰</span>초과근무
+              {overtimeStart && overtimeEnd && (
+                <span className="overtime-summary">
+                  🔴 {overtimeStart} ~ {overtimeEnd}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="overtime-row">
-            <label className={`overtime-checkbox-wrap ${overtime ? 'checked' : ''}`}>
-              <input type="checkbox" checked={overtime}
-                onChange={e => { setOvertime(e.target.checked); if (!e.target.checked) setOvertimeReason(''); }} />
-              <span className="overtime-checkbox-label">
-                {overtime ? '🔴 초과근무 있음' : '초과근무 없음'}
-              </span>
-            </label>
-            {overtime && (
+          <div className="overtime-grid">
+            <div className="overtime-field">
+              <span className="overtime-label">시작 시각</span>
               <input
-                className="overtime-reason-input"
-                type="text"
-                placeholder="초과근무 사유를 입력하세요 (예: 설계도서 납품 준비)"
-                value={overtimeReason}
-                onChange={e => setOvertimeReason(e.target.value)}
+                type="time"
+                className={`overtime-time-input ${overtimeStart ? 'has-value' : ''}`}
+                value={overtimeStart}
+                onChange={e => setOvertimeStart(e.target.value)}
               />
-            )}
+            </div>
+            <div className="overtime-field">
+              <span className="overtime-label">종료 시각</span>
+              <input
+                type="time"
+                className={`overtime-time-input ${overtimeEnd ? 'has-value' : ''}`}
+                value={overtimeEnd}
+                onChange={e => setOvertimeEnd(e.target.value)}
+              />
+            </div>
           </div>
+          <input
+            className={`overtime-reason-input ${overtimeReason ? 'has-value' : ''}`}
+            type="text"
+            placeholder="초과근무 사유 (예: 설계도서 납품 준비) — 시작·종료 시각 입력 시 자동 계상"
+            value={overtimeReason}
+            onChange={e => setOvertimeReason(e.target.value)}
+          />
         </div>
 
         {/* 이슈 / 공유사항 */}
@@ -1054,7 +1087,11 @@ function LogCard({ log, name, defaultOpen }) {
             <div className="card-sec">
               <div className="card-sec-title">⏰ 초과근무</div>
               <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-                <span className="overtime-badge">🔴 초과근무</span>
+                <span className="overtime-badge">
+                  🔴 {log.overtime_start && log.overtime_end
+                    ? `${log.overtime_start} ~ ${log.overtime_end}`
+                    : '초과근무'}
+                </span>
                 {log.overtime_reason && (
                   <span style={{ fontSize:13, color:'var(--text)' }}>{log.overtime_reason}</span>
                 )}
