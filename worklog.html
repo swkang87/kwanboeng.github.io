@@ -1339,7 +1339,24 @@ function AllLogsView({ user }) {
         if (userErr) console.error('[AllLogs] users fetch error:', userErr);
         const allUsers = userData || [];
         const allowedTeamIds = allTeams.filter(t => ALLOWED_TEAMS.includes(t.name)).map(t => t.id);
-        setUsers(allUsers.filter(u => u.role !== 'contractor' && allowedTeamIds.includes(u.team_id)));
+
+        // ── 역할별 조회 범위 ─────────────────────────────────
+        // admin: 전체
+        // manager: 관리팀 제외 전체 (모든 팀원 + 타팀 팀장)
+        // employee: 관리팀 제외 + 팀장 전체 제외 (팀원끼리만)
+        let filtered = allUsers.filter(u => u.role !== 'contractor');
+        if (user.role === 'admin') {
+          // 전체 허용 (contractor만 제외)
+        } else if (user.role === 'manager') {
+          // 관리팀 제외
+          filtered = filtered.filter(u => allowedTeamIds.includes(u.team_id));
+        } else {
+          // employee: 관리팀 제외 + 팀장 전체 제외
+          filtered = filtered.filter(u =>
+            allowedTeamIds.includes(u.team_id) && u.role !== 'manager'
+          );
+        }
+        setUsers(filtered);
       } catch(e) {
         console.error('[AllLogs] load error:', e);
       } finally {
