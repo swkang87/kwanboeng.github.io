@@ -302,6 +302,10 @@ a { text-decoration: none; }
   background: #1e293b; color: #f1f5f9;
   font-size: 12px; font-weight: 700;
 }
+.ot-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: #3b82f6; flex-shrink: 0;
+}
 .overtime-reason-input {
   width: 100%; padding: 9px 12px;
   border: 1.5px solid var(--border); border-radius: 8px;
@@ -977,12 +981,18 @@ function MyLogView({ user, canWrite }) {
         <div className="log-section" style={{ padding:0, overflow:'hidden' }}>
           <div className="sec-header"
             style={{ padding:'14px 20px', cursor:'pointer', marginBottom:0 }}
-            onClick={() => setOvertimeOpen(o => !o)}>
+            onClick={() => {
+              setOvertimeOpen(o => {
+                // 처음 펼 때 overtimeEnd가 없으면 기본값(19:00) 세팅
+                if (!o && !overtimeEnd) setOvertimeEnd('19:00');
+                return !o;
+              });
+            }}>
             <div className="sec-title">
               <span className="sec-icon">⏰</span>초과근무
               {overtimeEnd && overtimeEnd > OT_START && (
                 <span className="overtime-summary">
-                  🔴 오후 18:30 ~ 오후 {overtimeEnd.replace(':','시 ')}분
+                  <span className="ot-dot"></span> 오후 18:30 ~ 오후 {overtimeEnd.replace(':','시 ')}분
                 </span>
               )}
             </div>
@@ -992,20 +1002,21 @@ function MyLogView({ user, canWrite }) {
           </div>
           {overtimeOpen && (
             <div style={{ padding:'0 20px 16px', borderTop:'1px solid var(--border)' }}>
-              <div className="overtime-grid" style={{ marginTop:14 }}>
-                <div className="overtime-field" style={{ flex:'0 0 auto', minWidth:0 }}>
+              <div style={{ display:'flex', alignItems:'flex-end', gap:0, marginTop:14 }}>
+                {/* 시작 시각 */}
+                <div className="overtime-field" style={{ flex:'0 0 200px' }}>
                   <span className="overtime-label">시작 시각</span>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <div className="overtime-time-fixed" style={{ width:'auto', paddingLeft:14, paddingRight:14 }}>
-                      오후 18:30
-                    </div>
-                    <span style={{ fontSize:16, fontWeight:700, color:'var(--text-muted)', flexShrink:0 }}>~</span>
-                  </div>
+                  <div className="overtime-time-fixed" style={{ width:'100%' }}>오후 18:30</div>
                 </div>
-                <div className="overtime-field">
+                {/* ~ 구분자 */}
+                <div style={{ display:'flex', alignItems:'center', padding:'0 12px', paddingBottom:2 }}>
+                  <span style={{ fontSize:18, fontWeight:700, color:'var(--text-muted)' }}>~</span>
+                </div>
+                {/* 종료 시각 */}
+                <div className="overtime-field" style={{ flex:1 }}>
                   <span className="overtime-label">종료 시각</span>
                   {(() => {
-                    const [endH, endM] = (overtimeEnd || OT_START).split(':').map(Number);
+                    const [endH, endM] = (overtimeEnd || '19:00').split(':').map(Number);
                     const setH = (h) => setOvertimeEnd(`${String(h).padStart(2,'0')}:${String(endM).padStart(2,'0')}`);
                     const setM = (m) => setOvertimeEnd(`${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
                     const isActive = overtimeEnd && overtimeEnd > OT_START;
@@ -1075,7 +1086,7 @@ function LogCard({ log, name, defaultOpen }) {
             <div className="card-meta">
               업무 {total}건
               {total > 0 && <span className="card-done"> · 완료 {done}건</span>}
-              {hasOvertime && <span style={{ color:'#dc2626', fontWeight:700 }}> · 🔴 초과근무</span>}
+              {hasOvertime && <span style={{ color:'#1d4ed8', fontWeight:700 }}> · <span style={{display:'inline-block',width:7,height:7,borderRadius:'50%',background:'#3b82f6',marginRight:3,verticalAlign:'middle'}}></span>초과근무</span>}
               {linkedEvs.length > 0 && <span style={{ color:'#7c3aed', fontWeight:700 }}> · 🏛️ {linkedEvs.length}건</span>}
             </div>
           </div>
@@ -1125,7 +1136,7 @@ function LogCard({ log, name, defaultOpen }) {
               <div className="card-sec-title">⏰ 초과근무</div>
               <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                 <span className="overtime-badge">
-                  🔴 {log.overtime_start && log.overtime_end
+                  <span className="ot-dot"></span> {log.overtime_start && log.overtime_end
                     ? `${log.overtime_start} ~ ${log.overtime_end}`
                     : '초과근무'}
                 </span>
@@ -1408,7 +1419,7 @@ function AllLogsView({ user }) {
                     onClick={() => changeMode('day', ds)}>
                     <div className={'md-num ' + (isT?'today':'')}>{day}</div>
                     {cnt > 0 && <div className="md-info">{cnt}명 작성</div>}
-                    {otCnt > 0 && <div style={{ fontSize:9, color:'#dc2626', fontWeight:700, marginTop:1 }}>🔴 초과 {otCnt}명</div>}
+                    {otCnt > 0 && <div style={{ fontSize:9, color:'#1d4ed8', fontWeight:700, marginTop:1 }}>● 초과 {otCnt}명</div>}
                   </div>
                 );
               })}
