@@ -283,6 +283,11 @@ a { text-decoration: none; }
 }
 .overtime-time-input:focus { border-color: #fca5a5; }
 .overtime-time-input.has-value { border-color: #fca5a5; background: #fef2f2; }
+.overtime-time-fixed {
+  padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 14px; font-weight: 600; color: var(--text-sub);
+  background: var(--bg); width: 100%; display: flex; align-items: center;
+}
 .overtime-reason-input {
   width: 100%; padding: 9px 12px;
   border: 1.5px solid var(--border); border-radius: 8px;
@@ -731,9 +736,8 @@ function MyLogView({ user, canWrite }) {
   const [date, setDate]             = useState(todayStr());
   const [tasks, setTasks]           = useState([]);
   const [issues, setIssues]         = useState('');
-  const [overtimeStart, setOvertimeStart] = useState('');
-  const [overtimeEnd, setOvertimeEnd]     = useState('');
-  const [overtimeReason, setOvertimeReason] = useState('');
+  const [overtimeEnd, setOvertimeEnd]         = useState('');
+  const [overtimeReason, setOvertimeReason]   = useState('');
   // linkedEvents: [{ eventId, type, title, projectName, note }]
   const [linkedEvents, setLinkedEvents] = useState([]);
   const [saving, setSaving]   = useState(false);
@@ -796,7 +800,6 @@ function MyLogView({ user, canWrite }) {
     if (data) {
       setTasks(data.tasks || []);
       setIssues(data.issues || '');
-      setOvertimeStart(data.overtime_start || '');
       setOvertimeEnd(data.overtime_end || '');
       setOvertimeReason(data.overtime_reason || '');
     } else {
@@ -809,7 +812,6 @@ function MyLogView({ user, canWrite }) {
         : [];
       setTasks(pending);
       setIssues('');
-      setOvertimeStart('');
       setOvertimeEnd('');
       setOvertimeReason('');
     }
@@ -820,8 +822,9 @@ function MyLogView({ user, canWrite }) {
 
   useEffect(() => { loadLog(date); }, [date, loadLog]);
 
+  const OT_START = '19:00';
   const save = async () => {
-    const hasOvertime = !!(overtimeStart && overtimeEnd && overtimeEnd > overtimeStart);
+    const hasOvertime = !!(overtimeEnd && overtimeEnd > OT_START);
     setSaving(true);
     const { error } = await sb.from('work_logs').upsert({
       user_id: user.id,
@@ -830,7 +833,7 @@ function MyLogView({ user, canWrite }) {
       tomorrow_tasks: [],
       issues,
       overtime: hasOvertime,
-      overtime_start: hasOvertime ? overtimeStart : null,
+      overtime_start: hasOvertime ? OT_START : null,
       overtime_end:   hasOvertime ? overtimeEnd : null,
       overtime_reason: hasOvertime ? overtimeReason : '',
       linked_events: linkedEvents.map(e => ({ event_id: e.eventId, note: e.note })),
@@ -947,14 +950,24 @@ function MyLogView({ user, canWrite }) {
           </div>
         )}
 
+        {/* 이슈 / 공유사항 */}
+        <div className="log-section">
+          <div className="sec-header">
+            <div className="sec-title"><span className="sec-icon">💬</span>이슈 / 공유사항</div>
+          </div>
+          <textarea className="issues-ta" rows={4} value={issues}
+            placeholder="공유할 이슈, 리소스 요청, 협업 필요사항 등을 자유롭게 적으세요"
+            onChange={e => setIssues(e.target.value)} />
+        </div>
+
         {/* 초과근무 */}
         <div className="log-section">
           <div className="sec-header">
             <div className="sec-title">
               <span className="sec-icon">⏰</span>초과근무
-              {overtimeStart && overtimeEnd && overtimeEnd > overtimeStart && (
+              {overtimeEnd && overtimeEnd > OT_START && (
                 <span className="overtime-summary">
-                  🔴 {overtimeStart} ~ {overtimeEnd}
+                  🔴 19:00 ~ {overtimeEnd}
                 </span>
               )}
             </div>
@@ -962,16 +975,15 @@ function MyLogView({ user, canWrite }) {
           <div className="overtime-grid">
             <div className="overtime-field">
               <span className="overtime-label">시작 시각</span>
-              <input type="time"
-                className={`overtime-time-input ${overtimeStart ? 'has-value' : ''}`}
-                value={overtimeStart}
-                onChange={e => setOvertimeStart(e.target.value)} />
+              <div className="overtime-time-fixed">19:00</div>
             </div>
             <div className="overtime-field">
               <span className="overtime-label">종료 시각</span>
               <input type="time"
-                className={`overtime-time-input ${overtimeEnd ? 'has-value' : ''}`}
-                value={overtimeEnd}
+                className={`overtime-time-input ${overtimeEnd && overtimeEnd > OT_START ? 'has-value' : ''}`}
+                value={overtimeEnd || OT_START}
+                min={OT_START}
+                step="600"
                 onChange={e => setOvertimeEnd(e.target.value)} />
             </div>
           </div>
@@ -982,16 +994,6 @@ function MyLogView({ user, canWrite }) {
             value={overtimeReason}
             onChange={e => setOvertimeReason(e.target.value)}
           />
-        </div>
-
-        {/* 이슈 / 공유사항 */}
-        <div className="log-section">
-          <div className="sec-header">
-            <div className="sec-title"><span className="sec-icon">💬</span>이슈 / 공유사항</div>
-          </div>
-          <textarea className="issues-ta" rows={4} value={issues}
-            placeholder="공유할 이슈, 리소스 요청, 협업 필요사항 등을 자유롭게 적으세요"
-            onChange={e => setIssues(e.target.value)} />
         </div>
 
         <div className="save-row">
