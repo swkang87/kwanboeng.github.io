@@ -284,75 +284,16 @@
      *  - 실패 시 → { ok:false, reason: '...', locked?: true, remainSec?: N }
      */
     async function doLogin(sb, phone, pw, opts) {
-      opts = opts || {};
-      var blocked = opts.blockedRoles || ['contractor'];
-
-      // ── 브루트포스 잠금 체크 ──────────────────────────────
-      var bf = checkBruteForce();
-      if (bf.locked) {
-        return { ok: false, locked: true, remainSec: bf.remainSec,
-          reason: '로그인 시도가 너무 많습니다. ' + bf.remainSec + '초 후 다시 시도하세요.' };
-      }
-
-      try {
-        // password는 서버에서만 처리 — select에서 제외 후 별도 조회
-        var res = await sb.from('users')
-          .select('id,name,phone,email,position,team_id,role,join_date,total_days,memo,password')
-          .eq('phone', phone.trim())
-          .single();
-
-        if (res.error || !res.data) {
-          recordFailure();
-          return { ok: false, reason: '아이디 또는 비밀번호가 올바르지 않습니다.' };
-        }
-
-        var user = res.data;
-
-        // 역할 차단 체크 (비밀번호 검증 전 — 타이밍 공격 방지를 위해 같은 메시지 반환)
-        var roleBlocked = blocked.indexOf(user.role) !== -1;
-        var roleNotAllowed = opts.allowedRoles && opts.allowedRoles.indexOf(user.role) === -1;
-
-        var pwOk = await verifyPassword(pw, user.password);
-
-        if (roleBlocked || roleNotAllowed) {
-          // 비밀번호 검증은 완료했으나 권한 없음 — 실패 카운트 증가 안 함
-          return { ok: false, reason: '이 시스템에 대한 접근 권한이 없습니다.' };
-        }
-
-        if (!pwOk) {
-          recordFailure();
-          var bfAfter = checkBruteForce();
-          if (bfAfter.locked) {
-            return { ok: false, locked: true, remainSec: bfAfter.remainSec,
-              reason: '로그인 시도가 너무 많습니다. ' + bfAfter.remainSec + '초 후 다시 시도하세요.' };
-          }
-          return { ok: false, reason: '아이디 또는 비밀번호가 올바르지 않습니다.' };
-        }
-
-        // 로그인 성공 — 실패 카운트 초기화
-        clearFailures();
-
-        // Lazy migration: 평문이면 해시로 업그레이드
-        if (isPlainPassword(user.password)) {
-          try {
-            var hashed = await hashPassword(pw);
-            await sb.from('users').update({ password: hashed }).eq('id', user.id);
-          } catch(e) {}
-        }
-
-        // 세션에 저장할 안전한 사용자 객체 (password 제외)
-        var safeUser = Object.assign({}, user);
-        delete safeUser.password;
-
-        localStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
-        localStorage.removeItem('kwanbo_pm_user');
-        sessionStorage.removeItem('kwanbo_uid');
-
-        return { ok: true, user: safeUser };
-
-      } catch(e) {
-        return { ok: false, reason: '서버 오류가 발생했습니다.' };
-      }
+      // ── sb 객체에서 URL/KEY 추출 → doLoginFetch에 위임 ──────────
+      // 로그인 전에는 RLS 헤더(x-user-id)가 없으므로 SDK 클라이언트로
+      // users 조회 시 RLS에 막힘. raw fetch(apikey 기반)로 우회.
+      var cfg  = (typeof global !== 'undefined' && global.APP_CONFIG) ? global.APP_CONFIG : {};
+      var url  = cfg.SUPABASE_URL  || '';
+      var key  = cfg.SUPABASE_KEY  || '';
+      // sb 객체에서 직접 추출 시도 (APP_CONFIG 미존재 환경 대비)
+      if (!url && sb && sb.supabaseUrl)  url = sb.supabaseUrl;
+      if (!key && sb && sb.supabaseKey)  key = sb.supabaseKey;
+      return doLoginFetch(url + '/rest/v1', key, phone, pw, opts);
     }
 
     /**
@@ -567,11 +508,7 @@
         if (locked) return;
         if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
         setLoading(true); setErr('');
-        // 로그인 전에는 RLS 헤더가 없으므로 SDK 클라이언트 대신
-        // raw fetch 기반 doLoginFetch 사용 (apikey만으로 조회 가능)
-        var sbUrl = cfg.SUPABASE_URL ? cfg.SUPABASE_URL + '/rest/v1' : '';
-        var sbKey = cfg.SUPABASE_KEY || '';
-        Auth.doLoginFetch(sbUrl, sbKey, phone, pw, {
+        Auth.doLogin(sb, phone, pw, {
           blockedRoles: options.blockedRoles,
           allowedRoles: options.allowedRoles,
         }).then(function(result) {
