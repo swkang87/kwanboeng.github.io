@@ -576,10 +576,11 @@ function LoginScreen({ onLogin }) {
     if (locked) return;
     if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
     setLoading(true); setErr('');
-    // Sysbar.Auth.doLogin에 위임 (contractor 차단 + 브루트포스 방어 + lazy migration 포함)
-    const result = await Sysbar.Auth.doLogin(sb, phone, pw, {
-      blockedRoles: ['contractor'],
-    });
+    // 로그인 전엔 RLS 헤더가 없으므로 raw fetch 기반 doLoginFetch 사용
+    const result = await Sysbar.Auth.doLoginFetch(
+      CONFIG.SUPABASE_URL + '/rest/v1', CONFIG.SUPABASE_KEY, phone, pw, {
+        blockedRoles: ['contractor'],
+      });
     setLoading(false);
     if (result.ok) {
       onLogin(result.user);
