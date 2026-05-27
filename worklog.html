@@ -261,6 +261,74 @@ a { text-decoration: none; }
 .empty-sub { font-size: 13px; color: var(--text-muted); }
 .loading { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
 
+/* ─── OVERTIME SECTION ───────────────────────────────────── */
+.overtime-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.overtime-checkbox-wrap {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 8px 14px; border-radius: 8px;
+  border: 1.5px solid var(--border); background: var(--bg);
+  transition: all .15s; user-select: none;
+}
+.overtime-checkbox-wrap:hover { border-color: var(--accent); }
+.overtime-checkbox-wrap.checked {
+  background: #fef2f2; border-color: #fca5a5; color: #dc2626;
+}
+.overtime-checkbox-wrap input[type="checkbox"] {
+  width: 16px; height: 16px; accent-color: #dc2626; cursor: pointer;
+}
+.overtime-checkbox-label {
+  font-size: 13px; font-weight: 700;
+}
+.overtime-reason-input {
+  flex: 1; min-width: 180px;
+  padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: 13px; color: var(--text); outline: none; background: #fff;
+  transition: border .2s;
+}
+.overtime-reason-input:focus { border-color: #fca5a5; }
+.overtime-reason-input::placeholder { color: var(--text-muted); }
+
+/* ─── LINKED EVENTS SECTION ──────────────────────────────── */
+.linked-event-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; border-radius: 8px;
+  border: 1.5px solid #e9d5ff; background: #faf5ff;
+  margin-bottom: 8px;
+}
+.linked-event-item:last-child { margin-bottom: 0; }
+.linked-event-badge {
+  font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 4px;
+  background: #7c3aed; color: #fff; white-space: nowrap; flex-shrink: 0; margin-top: 1px;
+}
+.linked-event-content { flex: 1; min-width: 0; }
+.linked-event-title {
+  font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px;
+}
+.linked-event-meta { font-size: 12px; color: #7c3aed; }
+.linked-event-note-input {
+  width: 100%; margin-top: 6px;
+  padding: 7px 10px; border: 1.5px solid #e9d5ff; border-radius: 6px;
+  font-size: 12px; color: var(--text); outline: none; background: #fff;
+  transition: border .2s; resize: vertical;
+}
+.linked-event-note-input:focus { border-color: #7c3aed; }
+.linked-event-note-input::placeholder { color: var(--text-muted); }
+.linked-event-view {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; border-radius: 8px;
+  border: 1.5px solid #e9d5ff; background: #faf5ff;
+  margin-bottom: 8px;
+}
+
+/* ─── OVERTIME BADGE (열람용) ────────────────────────────── */
+.overtime-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 5px;
+  background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5;
+}
+
 /* ─── MOBILE NAV ─────────────────────────────────────────── */
 .mobile-nav { display: none; }
 
@@ -346,6 +414,12 @@ const STATUS_BADGE = { '완료': 'vt-done', '진행중': 'vt-prog', '보류': 'v
 // ─── 업무일지 허용 팀 ───────────────────────────────────────────────────────
 const ALLOWED_TEAMS = ['설계1팀', '설계2팀', '지반팀'];
 const DAY_KR = ['일','월','화','수','목','금','토'];
+
+// ─── 수당 연동 이벤트 유형 (공정관리 project_events.type 기준) ───────────────
+const ALLOWANCE_EVENT_TYPES = ['위원회', '보고회', '착수보고', '중간보고', '최종보고'];
+
+// ─── ID 생성 ────────────────────────────────────────────────────────────────
+const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
 // ─── UTILS ─────────────────────────────────────────────────────────────────
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -644,12 +718,65 @@ function TaskItem({ task, onChange, onDelete, showStatus }) {
 
 // ─── MY LOG VIEW ───────────────────────────────────────────────────────────
 function MyLogView({ user, canWrite }) {
-  const [date, setDate]     = useState(todayStr());
-  const [tasks, setTasks]   = useState([]);
-  const [issues, setIssues] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [date, setDate]         = useState(todayStr());
+  const [tasks, setTasks]       = useState([]);
+  const [issues, setIssues]     = useState('');
+  const [overtime, setOvertime] = useState(false);
+  const [overtimeReason, setOvertimeReason] = useState('');
+  // linkedEvents: [{ eventId, type, title, projectName, note }]
+  const [linkedEvents, setLinkedEvents] = useState([]);
+  const [saving, setSaving]   = useState(false);
   const [loading, setLoading] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
+
+  // 공정관리에서 해당 날짜 + 본인 PM인 수당 이벤트 조회
+  const loadLinkedEvents = useCallback(async (d) => {
+    try {
+      // project_events 조회: 해당 날짜, 수당 유형
+      const { data: evData } = await sb
+        .from('project_events')
+        .select('id, type, title, project_id')
+        .eq('event_date', d)
+        .in('type', ALLOWANCE_EVENT_TYPES);
+      if (!evData || evData.length === 0) { setLinkedEvents([]); return; }
+
+      // 프로젝트 PM 확인
+      const pids = [...new Set(evData.map(e => e.project_id))];
+      const { data: projData } = await sb
+        .from('projects')
+        .select('id, name, pm_id')
+        .in('id', pids);
+
+      // 본인이 PM인 이벤트만 필터
+      const myEvents = evData.filter(e => {
+        const proj = (projData || []).find(p => p.id === e.project_id);
+        return proj && proj.pm_id === user.id;
+      });
+
+      if (myEvents.length === 0) { setLinkedEvents([]); return; }
+
+      // 기존 업무일지에 저장된 note 불러오기 (있으면)
+      const { data: existLog } = await sb.from('work_logs')
+        .select('linked_events')
+        .eq('user_id', user.id).eq('log_date', d).maybeSingle();
+      const savedLinked = existLog?.linked_events || [];
+
+      setLinkedEvents(myEvents.map(e => {
+        const proj = (projData || []).find(p => p.id === e.project_id);
+        const saved = savedLinked.find(s => s.event_id === e.id);
+        return {
+          eventId: e.id,
+          type: e.type,
+          title: e.title || e.type,
+          projectName: proj?.name || '',
+          note: saved?.note || '',
+        };
+      }));
+    } catch(err) {
+      console.error('[linkedEvents]', err);
+      setLinkedEvents([]);
+    }
+  }, [user.id]);
 
   const loadLog = useCallback(async (d) => {
     setLoading(true);
@@ -658,6 +785,8 @@ function MyLogView({ user, canWrite }) {
     if (data) {
       setTasks(data.tasks || []);
       setIssues(data.issues || '');
+      setOvertime(data.overtime || false);
+      setOvertimeReason(data.overtime_reason || '');
     } else {
       // 빈 날짜 → 직전 근무일의 진행중 업무 자동 불러오기
       const prevDs = prevWorkday(d);
@@ -668,9 +797,13 @@ function MyLogView({ user, canWrite }) {
         : [];
       setTasks(pending);
       setIssues('');
+      setOvertime(false);
+      setOvertimeReason('');
     }
+    // 연동 이벤트는 항상 공정관리에서 최신 조회
+    await loadLinkedEvents(d);
     setLoading(false);
-  }, [user.id]);
+  }, [user.id, loadLinkedEvents]);
 
   useEffect(() => { loadLog(date); }, [date, loadLog]);
 
@@ -682,6 +815,9 @@ function MyLogView({ user, canWrite }) {
       tasks,
       tomorrow_tasks: [],
       issues,
+      overtime,
+      overtime_reason: overtime ? overtimeReason : '',
+      linked_events: linkedEvents.map(e => ({ event_id: e.eventId, note: e.note })),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,log_date' });
     setSaving(false);
@@ -708,9 +844,19 @@ function MyLogView({ user, canWrite }) {
   const addTask = () => setTasks(p => [...p, { id: genId(), content: '', status: '진행중' }]);
   const updTask = (id, t) => setTasks(p => p.map(x => x.id === id ? t : x));
   const delTask = (id) => setTasks(p => p.filter(x => x.id !== id));
+  const updLinkedNote = (eventId, note) =>
+    setLinkedEvents(p => p.map(e => e.eventId === eventId ? { ...e, note } : e));
 
   const isToday = date === todayStr();
   const dayName = DAY_KR[new Date(date + 'T00:00:00').getDay()];
+
+  // 이벤트 유형별 색상
+  const evColor = (type) => {
+    if (type === '위원회') return { bg: '#fce7f3', bd: '#ec4899', tx: '#9d174d' };
+    if (type === '보고회' || type === '착수보고' || type === '중간보고' || type === '최종보고')
+      return { bg: '#eff6ff', bd: '#3b82f6', tx: '#1d4ed8' };
+    return { bg: '#f3f4f6', bd: '#9ca3af', tx: '#374151' };
+  };
 
   return (
     <div className="view-wrap">
@@ -747,6 +893,69 @@ function MyLogView({ user, canWrite }) {
           }
         </div>
 
+        {/* 위원회 / 보고회 자동 연동 */}
+        {linkedEvents.length > 0 && (
+          <div className="log-section">
+            <div className="sec-header">
+              <div className="sec-title">
+                <span className="sec-icon">🏛️</span>
+                공정관리 연동 일정
+                <span style={{ fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:4,
+                  background:'#ede9fe', color:'#7c3aed', marginLeft:4 }}>자동</span>
+              </div>
+            </div>
+            <div style={{ fontSize:12, color:'var(--text-sub)', marginBottom:10 }}>
+              공정관리에 등록된 일정입니다. 메모를 추가할 수 있습니다.
+            </div>
+            {linkedEvents.map(ev => {
+              const col = evColor(ev.type);
+              return (
+                <div key={ev.eventId} className="linked-event-item"
+                  style={{ borderColor: col.bd, background: col.bg }}>
+                  <span className="linked-event-badge"
+                    style={{ background: col.tx }}>{ev.type}</span>
+                  <div className="linked-event-content">
+                    <div className="linked-event-title">{ev.title}</div>
+                    <div className="linked-event-meta">📁 {ev.projectName}</div>
+                    <textarea
+                      className="linked-event-note-input"
+                      rows={2}
+                      placeholder="메모 (선택사항)"
+                      value={ev.note}
+                      onChange={e => updLinkedNote(ev.eventId, e.target.value)}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* 초과근무 */}
+        <div className="log-section">
+          <div className="sec-header">
+            <div className="sec-title"><span className="sec-icon">⏰</span>초과근무</div>
+          </div>
+          <div className="overtime-row">
+            <label className={`overtime-checkbox-wrap ${overtime ? 'checked' : ''}`}>
+              <input type="checkbox" checked={overtime}
+                onChange={e => { setOvertime(e.target.checked); if (!e.target.checked) setOvertimeReason(''); }} />
+              <span className="overtime-checkbox-label">
+                {overtime ? '🔴 초과근무 있음' : '초과근무 없음'}
+              </span>
+            </label>
+            {overtime && (
+              <input
+                className="overtime-reason-input"
+                type="text"
+                placeholder="초과근무 사유를 입력하세요 (예: 설계도서 납품 준비)"
+                value={overtimeReason}
+                onChange={e => setOvertimeReason(e.target.value)}
+              />
+            )}
+          </div>
+        </div>
+
         {/* 이슈 / 공유사항 */}
         <div className="log-section">
           <div className="sec-header">
@@ -775,6 +984,16 @@ function LogCard({ log, name, defaultOpen }) {
   const [open, setOpen] = useState(defaultOpen || false);
   const done  = (log.tasks || []).filter(t => t.status === '완료').length;
   const total = (log.tasks || []).length;
+  const hasOvertime = log.overtime === true;
+  const linkedEvs = log.linked_events || [];
+
+  // 이벤트 유형별 색상
+  const evColor = (type) => {
+    if (type === '위원회') return { bg: '#fce7f3', bd: '#ec4899', tx: '#9d174d' };
+    if (['보고회','착수보고','중간보고','최종보고'].includes(type))
+      return { bg: '#eff6ff', bd: '#3b82f6', tx: '#1d4ed8' };
+    return { bg: '#f3f4f6', bd: '#9ca3af', tx: '#374151' };
+  };
 
   return (
     <div className={`log-card ${!log ? 'no-entry' : ''}`}>
@@ -786,6 +1005,8 @@ function LogCard({ log, name, defaultOpen }) {
             <div className="card-meta">
               업무 {total}건
               {total > 0 && <span className="card-done"> · 완료 {done}건</span>}
+              {hasOvertime && <span style={{ color:'#dc2626', fontWeight:700 }}> · 🔴 초과근무</span>}
+              {linkedEvs.length > 0 && <span style={{ color:'#7c3aed', fontWeight:700 }}> · 🏛️ {linkedEvs.length}건</span>}
             </div>
           </div>
         </div>
@@ -806,6 +1027,40 @@ function LogCard({ log, name, defaultOpen }) {
                 ))
             }
           </div>
+          {linkedEvs.length > 0 && (
+            <div className="card-sec">
+              <div className="card-sec-title">🏛️ 공정관리 연동 일정</div>
+              {linkedEvs.map((e, i) => {
+                const col = evColor(e.type || '');
+                return (
+                  <div key={i} className="linked-event-view"
+                    style={{ borderColor: col.bd, background: col.bg, marginBottom: i < linkedEvs.length-1 ? 6 : 0 }}>
+                    <span style={{ fontSize:11, fontWeight:800, padding:'2px 8px', borderRadius:4,
+                      background: col.tx, color:'#fff', whiteSpace:'nowrap', flexShrink:0, marginTop:1 }}>
+                      {e.type}
+                    </span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>
+                        {e.project_name || '프로젝트'}
+                      </div>
+                      {e.note && <div style={{ fontSize:12, color:'#475569', marginTop:3 }}>{e.note}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {hasOvertime && (
+            <div className="card-sec">
+              <div className="card-sec-title">⏰ 초과근무</div>
+              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                <span className="overtime-badge">🔴 초과근무</span>
+                {log.overtime_reason && (
+                  <span style={{ fontSize:13, color:'var(--text)' }}>{log.overtime_reason}</span>
+                )}
+              </div>
+            </div>
+          )}
           {(log.tomorrow_tasks || []).length > 0 && (
             <div className="card-sec">
               <div className="card-sec-title">📋 내일 할 일</div>
@@ -1055,12 +1310,14 @@ function AllLogsView({ user }) {
                 const day = i + 1;
                 const ds  = mInfo.year + '-' + String(mInfo.month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
                 const cnt = logs.filter(l => l.log_date === ds).length;
+                const otCnt = logs.filter(l => l.log_date === ds && l.overtime === true).length;
                 const isT = ds === todayStr();
                 return (
                   <div key={day} className={'month-day ' + (isT?'today ':' ') + (cnt>0?'has-logs':'')}
                     onClick={() => changeMode('day', ds)}>
                     <div className={'md-num ' + (isT?'today':'')}>{day}</div>
                     {cnt > 0 && <div className="md-info">{cnt}명 작성</div>}
+                    {otCnt > 0 && <div style={{ fontSize:9, color:'#dc2626', fontWeight:700, marginTop:1 }}>🔴 초과 {otCnt}명</div>}
                   </div>
                 );
               })}

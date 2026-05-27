@@ -75,20 +75,7 @@ var APP_CONFIG = {
       url:  'admin-portal.html',
       active: true,
     },
-    {
-      icon: '✅',
-      name: '전자결재',
-      desc: '기안·결재·문서함 관리',
-      url:  null,
-      active: false,
-    },
-    {
-      icon: '🕐',
-      name: '근태관리',
-      desc: '출퇴근 기록 및 초과근무 신청',
-      url:  null,
-      active: false,
-    },
+
   ],
 
   // ── 시스템 내부 링크 ──────────────────────────────────────────
