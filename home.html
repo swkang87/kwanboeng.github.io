@@ -748,11 +748,11 @@ function App(){
   const initUser=(()=>{
     try{
       if(Sysbar.SessionManager.checkOnLoad())return null;
-      const raw=localStorage.getItem('kwanbo_session');
+      const raw=sessionStorage.getItem('kwanbo_session');
       if(!raw)return null;
       const v=JSON.parse(raw);
       if(v&&v.id&&v.role){
-        if(v.password){delete v.password;localStorage.setItem('kwanbo_session',JSON.stringify(v));}
+        if(v.password){delete v.password;sessionStorage.setItem('kwanbo_session',JSON.stringify(v));}
         sb=makeSb(v.id,v.role);
         if(v.role==='contractor'){window.location.replace('project.html');return null;}
         return v;
@@ -771,7 +771,7 @@ function App(){
   // 구버전 세션 복원
   useEffect(()=>{
     if(initUser){return;}
-    const raw=localStorage.getItem('kwanbo_session');
+    const raw=sessionStorage.getItem('kwanbo_session');
     if(!raw){setChecked(true);return;}
     try{
       const v=JSON.parse(raw);
@@ -782,7 +782,7 @@ function App(){
           if(data.role==='contractor'){window.location.replace('project.html');return;}
           sb=makeSb(data.id,data.role);
           const su={...data};delete su.password;
-          localStorage.setItem('kwanbo_session',JSON.stringify(su));
+          sessionStorage.setItem('kwanbo_session',JSON.stringify(su));
           setUser(su);
         }
         setChecked(true);
