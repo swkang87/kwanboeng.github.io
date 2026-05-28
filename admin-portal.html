@@ -1770,7 +1770,7 @@ function PerfView({ user }) {
             var netCol   = totalCol - totalOut;
             var remain   = contractAmt - netCol;
             var pct      = contractAmt > 0 ? Math.min(100, Math.round(netCol / contractAmt * 100)) : 0;
-            return { p:p, ct:ct, contractAmt:contractAmt, netCol:netCol, remain:remain, pct:pct, startDate:ct?ct.start_date:null };
+            return { p:p, ct:ct, contractAmt:contractAmt, netCol:netCol, remain:remain, pct:pct, startDate:(ct&&ct.start_date)?ct.start_date:(p.start_date||null) };
           })
           .sort(function(a,b){
             var catOrd = function(c){ return c==='사급'?0:c==='관급'?1:2; };
