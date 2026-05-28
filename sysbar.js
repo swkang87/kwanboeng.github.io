@@ -72,8 +72,7 @@
   var SessionManager = (function() {
     var ACTIVE_KEY  = 'kwanbo_last_active';  // 마지막 활동 시각
     var LOGIN_KEY   = 'kwanbo_login_ts';     // 로그인 시각 (세션 생성 시 기록)
-    var NAV_KEY     = 'kwanbo_nav_ts';       // 페이지 이동 타임스탬프
-    var NAV_WINDOW  = 15000;                 // 15초 이내 = 페이지 이동 (Babel 컴파일 고려)
+    var TAB_KEY     = 'kwanbo_tab_alive';    // 탭 생존 마커 (sessionStorage — 탭/창 닫으면 소멸)
     var TIMEOUT_MS  = 60 * 60 * 1000;       // 1시간 비활동 시 로그아웃
     var WARN_MS     = 55 * 60 * 1000;       // 55분 경과 시 경고
     var THROTTLE_MS = 30 * 1000;            // 활동감지 30초 쓰로틀
@@ -151,20 +150,16 @@
       checkOnLoad: function() {
         if (!localStorage.getItem(SESSION_KEY)) return false;
 
-        // 페이지 이동 여부 확인 (15초 이내 = 같은 탭 내 이동)
-        var navTs = parseInt(localStorage.getItem(NAV_KEY) || '0');
-        var isNav = navTs > 0 && (Date.now() - navTs) < NAV_WINDOW;
-        if (isNav) {
-          localStorage.removeItem(NAV_KEY);
-          return false;
-        }
+        // sessionStorage가 살아있으면 = 같은 탭/창 내 페이지 이동
+        // 브라우저를 닫지 않은 것이므로 만료 체크 스킵
+        if (sessionStorage.getItem(TAB_KEY)) return false;
 
-        // 브라우저/컴퓨터 재시작 후 → 1시간 초과 여부 체크
+        // sessionStorage 없음 = 브라우저/탭이 새로 열린 것
+        // 1시간 초과 여부 체크
         if (_isExpired()) {
           localStorage.removeItem(SESSION_KEY);
           localStorage.removeItem(ACTIVE_KEY);
           localStorage.removeItem(LOGIN_KEY);
-          localStorage.removeItem(NAV_KEY);
           return true; // 만료 → 로그아웃
         }
 
@@ -181,13 +176,11 @@
           localStorage.setItem(LOGIN_KEY, Date.now().toString());
         }
 
+        // 탭 생존 마커 기록 (sessionStorage — 탭/창 닫으면 자동 소멸)
+        sessionStorage.setItem(TAB_KEY, '1');
+
         _startWatching(logoutCb);
         _touch(); // 즉시 활동 시각 기록
-
-        // 페이지 이동 시 NAV_KEY 타임스탬프 찍기
-        window.addEventListener('beforeunload', function() {
-          localStorage.setItem(NAV_KEY, Date.now().toString());
-        });
       },
 
       // 로그아웃 시 호출
@@ -195,7 +188,7 @@
         _stop();
         localStorage.removeItem(ACTIVE_KEY);
         localStorage.removeItem(LOGIN_KEY);
-        localStorage.removeItem(NAV_KEY);
+        sessionStorage.removeItem(TAB_KEY);
         var el = document.getElementById('kwanbo-timeout-toast');
         if (el) el.remove();
       }
