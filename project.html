@@ -2982,7 +2982,7 @@ function ChangePasswordModal({ user, onClose }) {
 
 // ─── User List (Admin) ───
 function UserList({ users, onSaved }) {
-  const [newUser, setNewUser] = useState({ name:'', phone:'', password:'', role:'employee' });
+  const [newUser, setNewUser] = useState({ name:'', phone:'', role:'employee' });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const set = (k,v) => setNewUser(f => ({...f,[k]:v}));
@@ -2990,10 +2990,9 @@ function UserList({ users, onSaved }) {
   const addUser = async () => {
     if (!newUser.name || !newUser.phone) { setErr('이름과 전화번호는 필수입니다.'); return; }
     setLoading(true); setErr('');
-    const pw = newUser.password || newUser.phone; // 비번 미입력시 전화번호로
-    const { error } = await sb.from('users').insert({ ...newUser, password: pw, join_date: today(), total_days: 0, used_days: 0 });
+    const { error } = await sb.from('users').insert({ ...newUser, join_date: today(), total_days: 0, used_days: 0 });
     if (error) { setErr('등록 오류: ' + error.message); setLoading(false); return; }
-    setNewUser({ name:'', phone:'', password:'', role:'employee' });
+    setNewUser({ name:'', phone:'', role:'employee' });
     onSaved();
     setLoading(false);
   };
@@ -3072,8 +3071,6 @@ function ProfileView({ user, onLogout }) {
     if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
     if (next.length < 6) { setErr('비밀번호는 6자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
-    const { data: u } = await sb.from('users').select('password').eq('id', user.id).single();
-    if (!u) { setErr('사용자 정보를 찾을 수 없습니다.'); setLoading(false); return; }
     const { error: signInErr2 } = await sb.auth.signInWithPassword({
       email: (user.phone ? user.phone.replace(/\D/g,'') : user.phone) + '@kwanbo.internal', password: curr
     });

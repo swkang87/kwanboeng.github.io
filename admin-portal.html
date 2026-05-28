@@ -2513,13 +2513,8 @@ function StaffView({ user }) {
         // Auth 계정 생성 (초기 비밀번호: 전화번호)
         const phoneDigits = (form.phone||'').replace(/\D/g,'');
         const emailLocal = phoneDigits.length > 0 ? phoneDigits : form.phone;
-        const { data: authData } = await sb.auth.admin.createUser({
-          email: emailLocal + '@kwanbo.internal',
-          password: form.phone,
-          email_confirm: true,
-        }).catch(() => ({ data: null }));
-        const authId = authData?.user?.id || null;
-        p = sb.from('users').insert(Object.assign({}, formWithoutMemo, {password: form.phone, auth_id: authId}));
+        const authId = null; // Auth 계정은 Supabase 대시보드에서 직접 생성
+        p = sb.from('users').insert(Object.assign({}, formWithoutMemo, {auth_id: authId}));
       }
       var r = await p;
       setSaving(false);
