@@ -255,8 +255,10 @@
       }
 
       try {
-        var phoneDigits = String(phone).trim().replace(/\D/g, '');
-        var email = phoneDigits + '@kwanbo.internal';
+        var phoneRaw    = String(phone).trim();
+        var phoneDigits = phoneRaw.replace(/\D/g, '');
+        var emailLocal  = phoneDigits.length > 0 ? phoneDigits : phoneRaw;
+        var email = emailLocal + '@kwanbo.internal';
 
         // Supabase Auth 로그인
         var authRes = await sbClient.auth.signInWithPassword({ email: email, password: String(pw) });

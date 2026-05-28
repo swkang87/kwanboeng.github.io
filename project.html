@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=20250527"></script>
+<script src="sysbar.js?v=20260528"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -275,22 +275,7 @@ loadNagerHolidays();
 const { useState, useEffect, useCallback, useRef } = React;
 
 // ─── Supabase ───
-const { createClient } = supabase;
-// RLS용: 로그인 후 user 헤더를 포함한 Supabase 클라이언트 생성
-function _makeSb(userId, userRole) {
-  const extraHeaders = {};
-  if (userId) {
-    extraHeaders['x-user-id'] = String(userId);
-    extraHeaders['x-user-role'] = userRole || '';
-  }
-  return createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY, {
-    global: { headers: extraHeaders }
-  });
-}
-// ── 비밀번호 해싱 → sysbar.js Sysbar.Auth 에 위임 ─────────
-const { hashPassword, verifyPassword, isPlainPassword } = Sysbar.Auth;
-
-let sb = _makeSb();
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
 
 // ─── Constants ───
 const CAT_COLOR = { '관급': '#2563eb', '사급': '#059669', '기술지원': '#d97706' };
@@ -423,24 +408,13 @@ function App() {
         // 신규 형태: user 객체 전체 (id 포함)
         if (v && v.id && v.role) {
           if (v.password) { delete v.password; sessionStorage.setItem('kwanbo_session', JSON.stringify(v)); }
-          sb = _makeSb(v.id, v.role); // RLS 헤더 복원
-          // 구버전 키 정리
           localStorage.removeItem('kwanbo_pm_user');
           return v;
         }
         // 구버전: {userId} → useEffect에서 DB 조회로 복원
       }
       // 더 구버전: kwanbo_pm_user 키
-      const pm = localStorage.getItem('kwanbo_pm_user');
-      if (pm) {
-        const u = JSON.parse(pm);
-        if (u.password) delete u.password;
-        sb = _makeSb(u.id, u.role);
-        // 통합 세션 키로 마이그레이션 후 구버전 키 삭제
-        sessionStorage.setItem('kwanbo_session', JSON.stringify(u));
-        localStorage.removeItem('kwanbo_pm_user');
-        return u;
-      }
+      localStorage.removeItem('kwanbo_pm_user');
       return null;
     } catch { return null; }
   });
@@ -454,15 +428,13 @@ function App() {
   const [weeklyScrollY, setWeeklyScrollY] = useState(0);
 
   const handleLogin = (u) => {
-    // doLogin()이 이미 세션 저장 완료 → sb 재생성 + state 반영만
-    sb = _makeSb(u.id, u.role);
     setUser(u);
     Sysbar.SessionManager.onLogin(() => handleLogout());
   };
   const handleLogout = () => {
     Sysbar.SessionManager.onLogout();
-    sb = _makeSb();
     Sysbar.Auth.clearSession();
+    sb.auth.signOut();
     setUser(null);
   };
   const isAdmin = user?.role === 'admin';
@@ -519,11 +491,9 @@ function App() {
       // 여기 도달 = 구버전 {userId} 형태이므로 DB 조회로 복원
       const userId = v && v.userId;
       if (!userId) { setSsoChecked(true); return; }
-      sb.from('users').select('*').eq('id', userId).single().then(({ data }) => {
+      sb.from('users').select('id,name,phone,email,position,team_id,role,join_date,total_days,used_days').eq('id', userId).single().then(({ data }) => {
         if (data) {
-          sb = _makeSb(data.id, data.role); // RLS 헤더 복원
-          const safeU = {...data}; delete safeU.password;
-          // 통합 세션으로 마이그레이션
+          const safeU = {...data};
           sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
           localStorage.removeItem('kwanbo_pm_user');
           setUser(safeU);
@@ -2960,13 +2930,15 @@ function ChangePasswordModal({ user, onClose }) {
     if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
     if (next.length < 6) { setErr('비밀번호는 6자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
-    // Verify current password
-    const { data: u } = await sb.from('users').select('password').eq('id', user.id).single();
-    if (!u) { setErr('사용자 정보를 찾을 수 없습니다.'); setLoading(false); return; }
-    const ok = await verifyPassword(curr, u.password);
-    if (!ok) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
-    const hashed = await hashPassword(next);
-    const { error } = await sb.from('users').update({ password: hashed }).eq('id', user.id);
+    // Verify current password via Auth re-login
+    const { data: uData } = await sb.from('users').select('phone').eq('id', user.id).single();
+    const phoneDigits = uData?.phone ? uData.phone.replace(/\D/g,'') : uData?.phone;
+    const emailLocal = phoneDigits && phoneDigits.length > 0 ? phoneDigits : uData?.phone;
+    const { error: signInErr } = await sb.auth.signInWithPassword({
+      email: (emailLocal || '') + '@kwanbo.internal', password: curr
+    });
+    if (signInErr) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+    const { error } = await sb.auth.updateUser({ password: next });
     if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
     // 비밀번호 변경 기록 (change_logs)
     await sb.from('change_logs').insert({
@@ -3019,8 +2991,7 @@ function UserList({ users, onSaved }) {
     if (!newUser.name || !newUser.phone) { setErr('이름과 전화번호는 필수입니다.'); return; }
     setLoading(true); setErr('');
     const pw = newUser.password || newUser.phone; // 비번 미입력시 전화번호로
-    const hashedPw = await hashPassword(pw);
-    const { error } = await sb.from('users').insert({ ...newUser, password: hashedPw, join_date: today(), total_days: 0, used_days: 0 });
+    const { error } = await sb.from('users').insert({ ...newUser, password: pw, join_date: today(), total_days: 0, used_days: 0 });
     if (error) { setErr('등록 오류: ' + error.message); setLoading(false); return; }
     setNewUser({ name:'', phone:'', password:'', role:'employee' });
     onSaved();
@@ -3103,10 +3074,11 @@ function ProfileView({ user, onLogout }) {
     setLoading(true); setErr('');
     const { data: u } = await sb.from('users').select('password').eq('id', user.id).single();
     if (!u) { setErr('사용자 정보를 찾을 수 없습니다.'); setLoading(false); return; }
-    const ok = await verifyPassword(curr, u.password);
-    if (!ok) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
-    const hashed = await hashPassword(next);
-    const { error } = await sb.from('users').update({ password: hashed }).eq('id', user.id);
+    const { error: signInErr2 } = await sb.auth.signInWithPassword({
+      email: (user.phone ? user.phone.replace(/\D/g,'') : user.phone) + '@kwanbo.internal', password: curr
+    });
+    if (signInErr2) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
+    const { error } = await sb.auth.updateUser({ password: next });
     if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
     // 비밀번호 변경 기록 (change_logs)
     await sb.from('change_logs').insert({
