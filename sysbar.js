@@ -1,18 +1,19 @@
 /**
- * SYSBAR MODULE v2.4
+ * SYSBAR MODULE v3.0
  * 모든 페이지 공통: 상단 네비바 CSS + React 컴포넌트
+ *
+ * v3.0 변경사항 (Phase 3 — Supabase Auth 도입):
+ *  - 로그인: doLoginFetch(PBKDF2) → signInWithPassword(Supabase Auth JWT)
+ *  - 인증: x-user-id/x-user-role 헤더 제거 → JWT 자동 처리
+ *  - _makeSb() extraHeaders 제거 → createClient 단순화
+ *  - hashPassword/verifyPassword/isPlainPassword 제거
+ *  - Auth 성공 후 users 테이블에서 프로필(name,role,team_id 등) 조회
+ *  - SessionManager 타임아웃/경고 토스트 유지
+ *  - 브루트포스 방어 유지 (localStorage 기반)
  *
  * v2.4 변경사항 (Bundle E — 보안 강화):
  *  - Auth.checkBruteForce / recordFailure / clearFailures 추가
  *    → 5회 실패 시 30초 잠금 (localStorage 기반)
- *  - doLogin: select 컬럼 명시 (password 포함하되 safeUser에서 제거)
- *  - doLogin: 역할 차단 + 비밀번호 검증 순서 조정 (타이밍 공격 방지)
- *  - createLoginComponent: 잠금 카운트다운 UI 추가
- *
- * v2.3 변경사항:
- *  - Auth 모듈 추가: hashPassword / verifyPassword / isPlainPassword / doLogin
- *  - createLoginComponent(): 공통 로그인 화면 컴포넌트 반환
- *  - 각 HTML 파일의 개별 LoginScreen / 해시 함수 제거 → 이 파일로 일원화
  */
 (function(global) {
   'use strict';
@@ -34,6 +35,8 @@
     var s = document.createElement('style');
     s.id = 'sysbar-css';
     s.textContent =
+      '@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css");' +
+      'body,button,input,select,textarea{font-family:\'Pretendard\',\'Noto Sans KR\',sans-serif!important;}' +
       '.sys-bar{position:sticky;top:0;z-index:300;background:#0f172a;height:38px;display:flex;align-items:center;padding:0 10px;gap:3px;border-bottom:1px solid #1e293b;flex-shrink:0;}' +
       '.sys-co{font-size:11px;font-weight:800;color:#94a3b8;margin-right:6px;letter-spacing:-.3px;white-space:nowrap;text-decoration:none;flex-shrink:0;}' +
       '.sys-link{display:flex;align-items:center;justify-content:center;gap:3px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;color:#94a3b8;background:#1e293b;white-space:nowrap;flex-shrink:0;border:none;cursor:pointer;font-family:inherit;}' +
@@ -48,16 +51,10 @@
         '.sys-bar{padding:0 4px;gap:2px;}' +
         '.sys-co{display:none;}' +
         '.sys-link{flex:1;padding:4px 1px;font-size:10px;gap:1px;}' +
-        '.sys-user{display:none;}' +
-        '.sys-logout{padding:3px 6px;font-size:10px;}' +
-      '}';
-    if (document.head) {
-      document.head.appendChild(s);
-    } else {
-      document.addEventListener('DOMContentLoaded', function() {
-        document.head.appendChild(s);
-      });
-    }
+      '}' +
+      '@media print{.no-print{display:none!important;}}';
+    var target = document.head || document.documentElement;
+    target.appendChild(s);
     CSS_INJECTED = true;
   }
 
@@ -70,12 +67,12 @@
   // ── SessionManager ─────────────────────────────────────────
   // 1시간 비활동 자동 로그아웃 + 브라우저/컴퓨터 재시작 후 만료 체크
   var SessionManager = (function() {
-    var ACTIVE_KEY  = 'kwanbo_last_active';  // 마지막 활동 시각
-    var LOGIN_KEY   = 'kwanbo_login_ts';     // 로그인 시각 (세션 생성 시 기록)
-    var ORIGIN_KEY  = 'kwanbo_browser_origin'; // 브라우저 기동 시각 (performance.timeOrigin, sessionStorage)
-    var TIMEOUT_MS  = 60 * 60 * 1000;       // 1시간 비활동 시 로그아웃
-    var WARN_MS     = 55 * 60 * 1000;       // 55분 경과 시 경고
-    var THROTTLE_MS = 30 * 1000;            // 활동감지 30초 쓰로틀
+    var ACTIVE_KEY  = 'kwanbo_last_active';
+    var LOGIN_KEY   = 'kwanbo_login_ts';
+    var ORIGIN_KEY  = 'kwanbo_browser_origin';
+    var TIMEOUT_MS  = 60 * 60 * 1000;  // 1시간
+    var WARN_MS     = 55 * 60 * 1000;  // 55분 경과 시 경고
+    var THROTTLE_MS = 30 * 1000;
 
     var _timer      = null;
     var _lastTouch  = 0;
@@ -114,9 +111,8 @@
         document.addEventListener(ev, _touch, { passive: true, capture: true });
       });
       _timer = setInterval(function() {
-        if (!sessionStorage.getItem(SESSION_KEY)) { _stop(); return; }
         var lastActive = parseInt(localStorage.getItem(ACTIVE_KEY) || '0');
-        if (lastActive === 0) return; // 아직 _touch 미실행 시 무시
+        if (lastActive === 0) return;
         var elapsed = Date.now() - lastActive;
         if (elapsed >= TIMEOUT_MS) {
           _stop();
@@ -136,61 +132,40 @@
     }
 
     function _isExpired() {
-      // 마지막 활동 시각 기준으로 1시간 초과 여부 확인
-      // ACTIVE_KEY 없으면 LOGIN_KEY 기준으로 체크 (첫 페이지 진입 등)
       var lastActive = parseInt(localStorage.getItem(ACTIVE_KEY) || '0');
       var loginTs    = parseInt(localStorage.getItem(LOGIN_KEY)  || '0');
       var base = lastActive > 0 ? lastActive : loginTs;
-      if (base === 0) return false; // 기준값 없으면 만료 아님
+      if (base === 0) return false;
       return (Date.now() - base) > TIMEOUT_MS;
     }
 
     return {
-      // 페이지 로드 시 호출 — true: 만료(로그아웃) / false: 유효
       checkOnLoad: function() {
         if (!sessionStorage.getItem(SESSION_KEY)) return false;
-
-        // performance.timeOrigin = 브라우저 프로세스 기동 시각(ms)
-        // 저장값과 현재값이 같으면 → 같은 브라우저 세션(탭 이동) → 만료 체크 스킵
-        // 다르거나 없으면 → 브라우저 재시작 (Chrome 세션복원도 여기서 걸림) → 만료 체크
         var storedOrigin  = sessionStorage.getItem(ORIGIN_KEY);
         var currentOrigin = String(Math.round(performance.timeOrigin));
         if (storedOrigin && storedOrigin === currentOrigin) return false;
-
-        // origin 불일치 = 브라우저 재시작 → sessionStorage의 SESSION_KEY도 없을 것이므로
-        // 여기서도 SESSION_KEY를 localStorage에서 찾아 sessionStorage로 이관하지 않음
-        // (localStorage에 남은 구버전 세션이 있으면 제거)
         localStorage.removeItem(SESSION_KEY);
-
-        // 브라우저가 새로 시작된 것 → 1시간 초과 여부 체크
         if (_isExpired()) {
           sessionStorage.removeItem(SESSION_KEY);
           localStorage.removeItem(ACTIVE_KEY);
           localStorage.removeItem(LOGIN_KEY);
-          return true; // 만료 → 로그아웃
+          return true;
         }
-
         return false;
       },
 
-      // 로그인 성공 / SSO 복원 후 호출
       onLogin: function(logoutCb) {
         if (_registered) { _logoutCb = logoutCb; return; }
         _registered = true;
-
-        // 로그인 시각 기록 (ACTIVE_KEY 없을 때 기준값으로 사용)
         if (!localStorage.getItem(LOGIN_KEY)) {
           localStorage.setItem(LOGIN_KEY, Date.now().toString());
         }
-
-        // 브라우저 기동 시각을 sessionStorage에 기록 (재시작 감지용)
         sessionStorage.setItem(ORIGIN_KEY, String(Math.round(performance.timeOrigin)));
-
         _startWatching(logoutCb);
-        _touch(); // 즉시 활동 시각 기록
+        _touch();
       },
 
-      // 로그아웃 시 호출
       onLogout: function() {
         _stop();
         localStorage.removeItem(ACTIVE_KEY);
@@ -203,14 +178,12 @@
   })();
 
   // ── Auth 모듈 ───────────────────────────────────────────────
-  // PBKDF2 + SHA-256, 100k iterations, Web Crypto API
   var Auth = (function() {
 
     // ── 브루트포스 방어 ──────────────────────────────────────
-    // 5회 실패 시 30초 잠금 (localStorage 기반, 페이지 이동해도 유지)
-    var BF_KEY      = 'kwanbo_login_fail';
-    var BF_MAX      = 5;       // 최대 실패 횟수
-    var BF_LOCK_MS  = 30000;   // 잠금 시간 30초
+    var BF_KEY     = 'kwanbo_login_fail';
+    var BF_MAX     = 5;
+    var BF_LOCK_MS = 5 * 60 * 1000;  // 5분 잠금
 
     function _bfGet() {
       try { return JSON.parse(localStorage.getItem(BF_KEY) || 'null') || { count: 0, lockedAt: 0 }; }
@@ -218,11 +191,6 @@
     }
     function _bfSet(v) { localStorage.setItem(BF_KEY, JSON.stringify(v)); }
 
-    /**
-     * checkBruteForce()
-     * 잠금 상태면 → { locked: true, remainSec: N }
-     * 정상이면   → { locked: false }
-     */
     function checkBruteForce() {
       var s = _bfGet();
       if (s.lockedAt) {
@@ -230,13 +198,11 @@
         if (elapsed < BF_LOCK_MS) {
           return { locked: true, remainSec: Math.ceil((BF_LOCK_MS - elapsed) / 1000) };
         }
-        // 잠금 해제: 카운트 리셋
         _bfSet({ count: 0, lockedAt: 0 });
       }
       return { locked: false };
     }
 
-    /** 로그인 실패 시 호출 */
     function recordFailure() {
       var s = _bfGet();
       s.count = (s.count || 0) + 1;
@@ -244,154 +210,95 @@
       _bfSet(s);
     }
 
-    /** 로그인 성공 시 호출 */
     function clearFailures() {
       localStorage.removeItem(BF_KEY);
     }
 
-    async function hashPassword(plain) {
-      var salt = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-        .map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
-      var enc  = new TextEncoder();
-      var km   = await crypto.subtle.importKey('raw', enc.encode(plain), {name:'PBKDF2'}, false, ['deriveBits']);
-      var bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt:enc.encode(salt), iterations:100000, hash:'SHA-256'}, km, 256);
-      var hash = Array.from(new Uint8Array(bits)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
-      return 'pbkdf2$' + salt + '$' + hash;
-    }
-
-    async function verifyPassword(plain, stored) {
-      if (!stored || plain == null) return false;
-      if (!String(stored).startsWith('pbkdf2$')) return plain === stored; // 평문 호환 (lazy migration)
-      var parts = stored.split('$');
-      if (parts.length !== 3) return false;
-      var salt = parts[1];
-      var enc  = new TextEncoder();
-      var km   = await crypto.subtle.importKey('raw', enc.encode(plain), {name:'PBKDF2'}, false, ['deriveBits']);
-      var bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt:enc.encode(salt), iterations:100000, hash:'SHA-256'}, km, 256);
-      var hash = Array.from(new Uint8Array(bits)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
-      return stored === 'pbkdf2$' + salt + '$' + hash;
-    }
-
-    function isPlainPassword(stored) {
-      return stored && !String(stored).startsWith('pbkdf2$');
-    }
-
     /**
      * getSession()
-     * localStorage에서 세션 복원. 없거나 형식 불량이면 null 반환.
+     * sessionStorage에서 user 프로필 복원
      */
     function getSession() {
       try {
         var raw = sessionStorage.getItem(SESSION_KEY);
         if (!raw) return null;
         var v = JSON.parse(raw);
-        if (v && v.id && v.role) {
-          // 혹시 password가 남아있으면 제거
-          if (v.password) { delete v.password; sessionStorage.setItem(SESSION_KEY, JSON.stringify(v)); }
-          return v;
-        }
+        if (v && v.id && v.role) return v;
         return null;
       } catch(e) { return null; }
     }
 
     /**
      * clearSession()
-     * 세션 및 관련 키 전체 제거
      */
     function clearSession() {
       sessionStorage.removeItem(SESSION_KEY);
-      localStorage.removeItem('kwanbo_pm_user');
       sessionStorage.removeItem('kwanbo_uid');
     }
 
     /**
-     * doLoginFetch(sbUrl, sbKey, phone, pw, opts)
-     * Supabase JS SDK 없이 raw fetch로 동작하는 로그인 (leave.html 등 SDK 미사용 페이지용)
-     * opts.blockedRoles / allowedRoles / extraHeaders 지원
-     *  - 성공 시 → { ok:true,  user: safeUser }
-     *  - 실패 시 → { ok:false, reason: '...', locked?: true, remainSec?: N }
+     * doLogin(sbClient, phone, pw, opts)
+     * Supabase Auth signInWithPassword 기반 로그인
+     *  - email: 전화번호@kwanbo.internal
+     *  - 성공 시 users 테이블에서 프로필 조회 후 sessionStorage 저장
+     *  - opts.blockedRoles / allowedRoles 지원
      */
-    async function doLoginFetch(sbUrl, sbKey, phone, pw, opts) {
+    async function doLogin(sbClient, phone, pw, opts) {
       opts = opts || {};
       var blocked = opts.blockedRoles || ['contractor'];
 
-      // ── 브루트포스 잠금 체크 ──────────────────────────────
+      // 브루트포스 잠금 체크
       var bf = checkBruteForce();
       if (bf.locked) {
         return { ok: false, locked: true, remainSec: bf.remainSec,
-          reason: '로그인 시도가 너무 많습니다. ' + bf.remainSec + '초 후 다시 시도하세요.' };
+          reason: '로그인 시도가 너무 많습니다. ' + Math.ceil(bf.remainSec / 60) + '분 후 다시 시도하세요.' };
       }
 
       try {
-        var phoneRaw    = String(phone).trim();
-        var phoneDigits = phoneRaw.replace(/\D/g, "");
-        var headers = { 'apikey': sbKey, 'Authorization': 'Bearer ' + sbKey };
-        var cols = 'id,name,phone,email,position,team_id,role,join_date,total_days,used_days,password';
-        var user = null;
-        var queries = phoneDigits !== phoneRaw ? [phoneRaw, phoneDigits] : [phoneRaw];
-        for (var qi = 0; qi < queries.length; qi++) {
-          var res = await fetch(
-            sbUrl + '/users?phone=eq.' + encodeURIComponent(queries[qi]) + '&select=' + cols + '&limit=1',
-            { headers: headers }
-          );
-          var rows = res.ok ? await res.json() : [];
-          if (rows[0]) { user = rows[0]; break; }
-        }
+        var phoneDigits = String(phone).trim().replace(/\D/g, '');
+        var email = phoneDigits + '@kwanbo.internal';
 
-        if (!user) {
-          recordFailure();
-          return { ok: false, reason: '아이디 또는 비밀번호가 올바르지 않습니다.' };
-        }
+        // Supabase Auth 로그인
+        var authRes = await sbClient.auth.signInWithPassword({ email: email, password: String(pw) });
 
-        // 역할 차단/허용 체크 + 비밀번호 검증 (항상 둘 다 실행 — 타이밍 공격 방지)
-        var roleBlocked    = blocked.indexOf(user.role) !== -1;
-        var roleNotAllowed = opts.allowedRoles && opts.allowedRoles.indexOf(user.role) === -1;
-        var storedPw = user.password;
-        var pwOk = await verifyPassword(pw, storedPw);
-
-        // password는 검증 직후 메모리에서 제거
-        delete user.password;
-
-        if (roleBlocked || roleNotAllowed) {
-          return { ok: false, reason: '이 시스템에 대한 접근 권한이 없습니다.' };
-        }
-
-        if (!pwOk) {
+        if (authRes.error) {
           recordFailure();
           var bfAfter = checkBruteForce();
           if (bfAfter.locked) {
             return { ok: false, locked: true, remainSec: bfAfter.remainSec,
-              reason: '로그인 시도가 너무 많습니다. ' + bfAfter.remainSec + '초 후 다시 시도하세요.' };
+              reason: '로그인 시도가 너무 많습니다. ' + Math.ceil(bfAfter.remainSec / 60) + '분 후 다시 시도하세요.' };
           }
           return { ok: false, reason: '아이디 또는 비밀번호가 올바르지 않습니다.' };
         }
 
-        // 로그인 성공 — 실패 카운트 초기화
-        clearFailures();
+        // Auth 성공 → users 테이블에서 프로필 조회
+        var profileRes = await sbClient
+          .from('users')
+          .select('id,name,phone,email,position,team_id,role,join_date,total_days,used_days')
+          .eq('auth_id', authRes.data.user.id)
+          .single();
 
-        // Lazy migration: 평문이면 해시로 업그레이드
-        if (isPlainPassword(storedPw)) {
-          try {
-            var hashed = await hashPassword(pw);
-            var patchHeaders = Object.assign({}, headers, {
-              'Content-Type': 'application/json',
-              'x-user-id': String(user.id),
-              'x-user-role': user.role,
-            });
-            await fetch(sbUrl + '/users?id=eq.' + user.id, {
-              method: 'PATCH', headers: patchHeaders,
-              body: JSON.stringify({ password: hashed })
-            });
-          } catch(e) {}
+        if (profileRes.error || !profileRes.data) {
+          await sbClient.auth.signOut();
+          return { ok: false, reason: '사용자 정보를 찾을 수 없습니다. 관리자에게 문의하세요.' };
         }
 
-        // 세션 저장 (password 이미 제거됨)
-        var safeUser = Object.assign({}, user);
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
-        localStorage.removeItem('kwanbo_pm_user');
+        var user = profileRes.data;
+
+        // 역할 차단/허용 체크
+        var roleBlocked    = blocked.indexOf(user.role) !== -1;
+        var roleNotAllowed = opts.allowedRoles && opts.allowedRoles.indexOf(user.role) === -1;
+        if (roleBlocked || roleNotAllowed) {
+          await sbClient.auth.signOut();
+          return { ok: false, reason: '이 시스템에 대한 접근 권한이 없습니다.' };
+        }
+
+        // 로그인 성공
+        clearFailures();
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
         sessionStorage.removeItem('kwanbo_uid');
 
-        return { ok: true, user: safeUser };
+        return { ok: true, user: user };
 
       } catch(e) {
         return { ok: false, reason: '서버 오류가 발생했습니다.' };
@@ -399,10 +306,7 @@
     }
 
     return {
-      hashPassword:      hashPassword,
-      verifyPassword:    verifyPassword,
-      isPlainPassword:   isPlainPassword,
-      doLoginFetch:      doLoginFetch,
+      doLogin:           doLogin,
       getSession:        getSession,
       clearSession:      clearSession,
       checkBruteForce:   checkBruteForce,
@@ -436,12 +340,12 @@
 
   /**
    * createLoginComponent(React, options)
-   *  options.subtitle  : 로그인 박스 부제목 (기본: '통합 관리 시스템')
-   *  options.blockedRoles / allowedRoles: doLogin 에 그대로 전달
+   *  options.subtitle      : 로그인 박스 부제목
+   *  options.blockedRoles  : 차단할 role 목록
+   *  options.allowedRoles  : 허용할 role 목록
    *
-   * 반환: LoginScreen 컴포넌트
-   *  props.supabaseClient : Supabase 클라이언트 (필수)
-   *  props.onLogin(user)  : 로그인 성공 콜백 (필수)
+   * props.supabaseClient : Supabase 클라이언트 (필수)
+   * props.onLogin(user)  : 로그인 성공 콜백 (필수)
    */
   function createLoginComponent(React, options) {
     if (!React) { console.error('[sysbar] React가 없습니다.'); return null; }
@@ -454,7 +358,7 @@
       var subtitle = props.subtitle || options.subtitle || '통합 관리 시스템';
       var cfg      = global.APP_CONFIG || {};
 
-      var useState = React.useState;
+      var useState  = React.useState;
       var useEffect = React.useEffect;
       var _phone   = useState('');
       var phone    = _phone[0]; var setPhone = _phone[1];
@@ -471,7 +375,6 @@
 
       var e = React.createElement;
 
-      // 잠금 상태 카운트다운
       useEffect(function() {
         var bf = Auth.checkBruteForce();
         if (bf.locked) { setLocked(true); setRemain(bf.remainSec); }
@@ -487,8 +390,7 @@
         if (locked) return;
         if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
         setLoading(true); setErr('');
-        var _cfg = window.APP_CONFIG || cfg;
-        Auth.doLoginFetch((_cfg.SUPABASE_URL||'') + '/rest/v1', _cfg.SUPABASE_KEY||'', phone, pw, {
+        Auth.doLogin(sb, phone, pw, {
           blockedRoles: options.blockedRoles,
           allowedRoles: options.allowedRoles,
         }).then(function(result) {
@@ -501,7 +403,7 @@
         });
       };
 
-      var onKey = function(e) { if (e.key === 'Enter') login(); };
+      var onKey = function(ev) { if (ev.key === 'Enter') login(); };
 
       return e('div', { className: 'sb-lwrap' },
         e('div', { className: 'sb-lbox' },
@@ -519,7 +421,7 @@
               onChange: function(ev){ setPw(ev.target.value); }, onKeyDown: onKey, disabled: locked })
           ),
           e('button', { className:'sb-lbtn', onClick:login, disabled: loading || locked },
-            locked ? ('잠금 ' + remain + '초') : (loading ? '로그인 중...' : '로그인')
+            locked ? ('잠금 ' + Math.ceil(remain / 60) + '분') : (loading ? '로그인 중...' : '로그인')
           )
         )
       );
@@ -530,7 +432,8 @@
     if (!React) { console.error('[sysbar] React가 없습니다.'); return null; }
     injectCss();
 
-    return function SysBar(props) {      var cfg        = global.APP_CONFIG || {};
+    return function SysBar(props) {
+      var cfg        = global.APP_CONFIG || {};
       var user       = props.user;
       var activeKey  = props.activeKey;
       var teamName   = props.teamName        || '';
