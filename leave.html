@@ -17,15 +17,15 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <body>
 <div id="app"></div>
 <script src="config.js"></script>
-<script src="sysbar.js?v=20250527"></script>
+<script src="sysbar.js?v=20260528"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script type="text/babel" data-presets="react">
 const {useState,useEffect,useCallback,useRef}=React;
 
-const SB_URL=APP_CONFIG.SUPABASE_URL+'/rest/v1';
-const SB_KEY=APP_CONFIG.SUPABASE_KEY;
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
 
 // ── 공휴일 데이터 (하드코딩 폴백 + Nager.Date API 자동 갱신) ──
 const HOLIDAYS={
@@ -173,21 +173,13 @@ function genTempPw() {
     .map(b => b % 10).join('');
 }
 
-// RLS용 인증 컨텍스트 (로그인/로그아웃 시 갱신)
-let _authCtx = { id: null, role: null };
-
 const api={
-  headers:()=>{
-    const h={'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json','Prefer':'return=representation'};
-    if(_authCtx.id){h['x-user-id']=String(_authCtx.id);h['x-user-role']=_authCtx.role||'';}
-    return h;
-  },
-  get:(t,q='')=>fetch(`${SB_URL}/${t}${q}`,{headers:api.headers()}).then(r=>r.ok?r.json():[]),
-  post:(t,b)=>fetch(`${SB_URL}/${t}`,{method:'POST',headers:api.headers(),body:JSON.stringify(b)}).then(r=>r.json()),
-  patch:(t,q,b)=>fetch(`${SB_URL}/${t}${q}`,{method:'PATCH',headers:api.headers(),body:JSON.stringify(b)}),
-  del:(t,q)=>fetch(`${SB_URL}/${t}${q}`,{method:'DELETE',headers:api.headers()}),
+  get:  (t,q='') => sb.from(t).select(q||'*').then(r=>r.data||[]),
+  post: (t,b)    => sb.from(t).insert(b).select().then(r=>r.data||[]),
+  patch:(t,q,b)  => sb.from(t).update(b).match(q),
+  del:  (t,q)    => sb.from(t).delete().match(q),
 };
-const audit=(uid,action,tid,detail)=>api.post('audit_logs',{user_id:uid,action,target_id:tid||null,detail});
+const audit=(uid,action,tid,detail)=>sb.from('audit_logs').insert({user_id:uid,action,target_id:tid||null,detail});
 
 // Styles
 const inp={width:'100%',padding:'9px 11px',border:'1.5px solid #e2e8f0',borderRadius:7,fontSize:13,outline:'none',boxSizing:'border-box',fontFamily:"'Noto Sans KR',sans-serif",background:'white',color:'#0f172a'};
@@ -395,7 +387,7 @@ function ApplyView({user,users,leaves,onRefresh,onNav}){
     if(!confirm(confirmMsg))return;
     setBusy(true);
     try{
-      const res=await api.post('leave_requests',{user_id:user.id,type,start_date:start,end_date:endDate,start_time:singleMode?st:null,end_time:singleMode?et:null,days:pd,reason:reason||null,status:getStatus(),is_retroactive:isRetro,cancel_requested:false});
+      const res=await sb.from('leave_requests').insert({user_id:user.id,type,start_date:start,end_date:endDate,start_time:singleMode?st:null,end_time:singleMode?et:null,days:pd,reason:reason||null,status:getStatus(),is_retroactive:isRetro,cancel_requested:false}).select().single().then(r=>r.data);
       await audit(user.id,'연차신청',res[0]?.id,`${type} ${pd}일`);
       setDone(true);onRefresh();
     }catch{setErr('오류가 발생했습니다.');}
@@ -479,8 +471,8 @@ function ApplyView({user,users,leaves,onRefresh,onNav}){
 function HistoryView({user,leaves,onRefresh}){
   const my=leaves.filter(l=>l.user_id===user.id).sort((a,b)=>b.created_at?.localeCompare(a.created_at));
   const cancel=async l=>{
-    if(l.status==='approved'){if(!confirm('승인된 연차 취소를 요청하시겠습니까?'))return;await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'cancel_pending',cancel_requested:true});await audit(user.id,'취소요청',l.id,'');}
-    else{if(!confirm('취소하시겠습니까?'))return;await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'cancelled'});await audit(user.id,'취소',l.id,'');}
+    if(l.status==='approved'){if(!confirm('승인된 연차 취소를 요청하시겠습니까?'))return;await sb.from('leave_requests').update({status:'cancel_pending',cancel_requested:true}).eq('id',l.id);await audit(user.id,'취소요청',l.id,'');}
+    else{if(!confirm('취소하시겠습니까?'))return;await sb.from('leave_requests').update({status:'cancelled'}).eq('id',l.id);await audit(user.id,'취소',l.id,'');}
     onRefresh();
   };
   return(
@@ -679,8 +671,8 @@ function CalView({users,teams,leaves}){
 function MgrApprove({user,users,leaves,onRefresh}){
   const [rid,setRid]=useState(null),[rr,setRr]=useState('');
   const team=leaves.filter(l=>{const lu=users.find(u=>u.id===l.user_id);return lu?.team_id===user.team_id&&lu?.id!==user.id&&l.status==='pending';});
-  const approve=async l=>{await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'manager_approved'});await audit(user.id,'1차승인',l.id,'');onRefresh();};
-  const reject=async()=>{await api.patch('leave_requests',`?id=eq.${rid}`,{status:'rejected',reject_reason:rr||null});await audit(user.id,'반려',rid,rr||'');setRid(null);setRr('');onRefresh();};
+  const approve=async l=>{await sb.from('leave_requests').update({status:'manager_approved'}).eq('id',l.id);await audit(user.id,'1차승인',l.id,'');onRefresh();};
+  const reject=async()=>{await sb.from('leave_requests').update({status:'rejected',reject_reason:rr||null}).eq('id',rid);await audit(user.id,'반려',rid,rr||'');setRid(null);setRr('');onRefresh();};
   return(
     <div>
       <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>팀원 결재</p>
@@ -730,20 +722,20 @@ function AdminApprove({user,users,teams,leaves,onRefresh}){
       ?`${lu?.name}의 취소 요청을 승인하시겠습니까?`
       :`${lu?.name}의 ${typeLabel(l.type,l.days)} 신청을 최종 승인하시겠습니까?`;
     if(!confirm(msg))return;
-    await api.patch('leave_requests',`?id=eq.${l.id}`,{status:l.status==='cancel_pending'?'cancelled':'approved'});
+    await sb.from('leave_requests').update({status:l.status==='cancel_pending'?'cancelled':'approved'}).eq('id',l.id);
     await audit(user.id,'최종승인',l.id,'');
     onRefresh();
   };
   const adminDirectApprove=async l=>{
     const lu=getU(l.user_id);
     if(!confirm(`${lu?.name}의 신청을 팀장 결재 없이 직접 승인하시겠습니까?`))return;
-    await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'approved'});
+    await sb.from('leave_requests').update({status:'approved'}).eq('id',l.id);
     await audit(user.id,'관리자직접승인',l.id,'팀장 결재 없이 승인');
     onRefresh();
   };
-  const adminDirectReject=async l=>{const reason=prompt('반려 사유 (선택):');if(reason===null)return;await api.patch('leave_requests',`?id=eq.${l.id}`,{status:'rejected',reject_reason:reason||null});await audit(user.id,'관리자직접반려',l.id,reason||'');onRefresh();};
-  const reject=async()=>{await api.patch('leave_requests',`?id=eq.${rid}`,{status:'rejected',reject_reason:rr||null});await audit(user.id,'반려',rid,rr||'');setRid(null);setRr('');onRefresh();};
-  const delLeave=async l=>{if(!confirm('이 내역을 목록에서 삭제하시겠습니까?'))return;await api.del('leave_requests',`?id=eq.${l.id}`);onRefresh();};
+  const adminDirectReject=async l=>{const reason=prompt('반려 사유 (선택):');if(reason===null)return;await sb.from('leave_requests').update({status:'rejected',reject_reason:reason||null});await audit(user.id,'관리자직접반려',l.id,reason||'');onRefresh();};
+  const reject=async()=>{await sb.from('leave_requests').update({status:'rejected',reject_reason:rr||null}).eq('id',rid);await audit(user.id,'반려',rid,rr||'');setRid(null);setRr('');onRefresh();};
+  const delLeave=async l=>{if(!confirm('이 내역을 목록에서 삭제하시겠습니까?'))return;await sb.from('leave_requests').delete().eq('id',l.id);onRefresh();};
 
   const LeaveCard=({l,children})=>{
     const lu=getU(l.user_id);
@@ -831,8 +823,8 @@ function AdminApprove({user,users,teams,leaves,onRefresh}){
 // ── Admin Teams ───────────────────────────────────────────
 function AdminTeams({user,teams,users,onRefresh}){
   const [showAdd,setShowAdd]=useState(false),[nm,setNm]=useState('');
-  const add=async()=>{if(!nm.trim())return;await api.post('teams',{name:nm.trim()});await audit(user.id,'팀생성',null,nm);setNm('');setShowAdd(false);onRefresh();};
-  const del=async t=>{if(users.some(u=>u.team_id===t.id)){alert('팀원이 있는 팀은 삭제할 수 없습니다.');return;}if(!confirm(`"${t.name}" 팀을 삭제하시겠습니까?`))return;await api.del('teams',`?id=eq.${t.id}`);onRefresh();};
+  const add=async()=>{if(!nm.trim())return;await sb.from('teams').insert({name:nm.trim()});await audit(user.id,'팀생성',null,nm);setNm('');setShowAdd(false);onRefresh();};
+  const del=async t=>{if(users.some(u=>u.team_id===t.id)){alert('팀원이 있는 팀은 삭제할 수 없습니다.');return;}if(!confirm(`"${t.name}" 팀을 삭제하시겠습니까?`))return;await sb.from('teams').delete().eq('id',t.id);onRefresh();};
   return(
     <div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}><p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:0}}>팀 관리</p><button onClick={()=>setShowAdd(true)} style={btn('primary')}>+ 팀 추가</button></div>
@@ -860,13 +852,13 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
     // 초기 비밀번호: 입력값 있으면 사용, 없으면 랜덤 6자리 생성
     const tempPw = form.password.trim() || genTempPw();
     const hashedPw=await hashPassword(tempPw);
-    await api.post('users',{...form,phone:ph,password:hashedPw,total_days:Number(form.total_days)||15});
+    await sb.from('users').insert({...form,phone:ph,password:hashedPw,total_days:Number(form.total_days)||15});
     await audit(adm.id,'직원추가',null,form.name);
     setShowAdd(false);setForm({name:'',phone:'',password:'',role:'employee',team_id:'',join_date:today(),total_days:15});onRefresh();
     alert(`✅ ${form.name} 등록 완료\n\n초기 비밀번호: ${tempPw}\n\n반드시 본인에게 직접 전달하고 첫 로그인 후 변경을 안내해 주세요.`);
   };
   const updateUser=async()=>{
-    await api.patch('users',`?id=eq.${editU.id}`,{name:editU.name,phone:editU.phone.replace(/\D/g,''),role:editU.role,team_id:editU.team_id||null,total_days:Number(editU.total_days),join_date:editU.join_date});
+    await sb.from('users').update({name:editU.name,phone:editU.phone.replace(/\D/g,''),role:editU.role,team_id:editU.team_id||null,total_days:Number(editU.total_days),join_date:editU.join_date}).eq('id',editU.id);
     await audit(adm.id,'직원수정',editU.id,editU.name);setEditU(null);onRefresh();
   };
   const resetPw=async u=>{
@@ -874,7 +866,7 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
     if(pw===null)return;
     const plain=pw.trim()||genTempPw();
     const h=await hashPassword(plain);
-    await api.patch('users',`?id=eq.${u.id}`,{password:h});
+    await sb.from('users').update({password:h}).eq('id',u.id);
     await audit(adm.id,'비밀번호초기화',u.id,u.name);
     alert(`${u.name}의 비밀번호가 변경되었습니다.${pw.trim()?'':'\n\n임시 비밀번호: '+plain+'\n\n본인에게 직접 전달해 주세요.'}`);
   };
@@ -889,7 +881,7 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
       const team=teams.find(t=>t.name===teamName);
       const tempPw=genTempPw();
       const hashedPw=await hashPassword(tempPw);
-      await api.post('users',{name,phone:ph,password:hashedPw,role:roleLabel==='팀장'?'manager':'employee',team_id:team?.id||null,join_date:joinDate||today(),total_days:Number(daysStr)||15});
+      await sb.from('users').insert({name,phone:ph,password:hashedPw,role:roleLabel==='팀장'?'manager':'employee',team_id:team?.id||null,join_date:joinDate||today(),total_days:Number(daysStr)||15});
       pwLog.push(`${name}: ${tempPw}`);
       ok++;
     }
@@ -983,7 +975,7 @@ function AdminStats({users,teams,leaves}){
 function AdminAudit({user,users,auditLogs,onRefresh}){
   const logs=[...auditLogs].sort((a,b)=>b.created_at?.localeCompare(a.created_at));
   const getU=id=>users.find(u=>u.id===id);
-  const delLog=async id=>{if(!confirm('이 로그를 삭제하시겠습니까?'))return;await api.del('audit_logs',`?id=eq.${id}`);onRefresh();};
+  const delLog=async id=>{if(!confirm('이 로그를 삭제하시겠습니까?'))return;await sb.from('audit_logs').delete().eq('id',id);onRefresh();};
   return(
     <div>
       <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>감사 로그</p>
@@ -1014,7 +1006,7 @@ function ProfileView({user,onLogout,onRefresh}){
     if(nw.length<6){setMsg('새 비밀번호는 6자 이상이어야 합니다.');return;}
     if(nw!==cf){setMsg('새 비밀번호가 일치하지 않습니다.');return;}
     const h=await hashPassword(nw);
-    await api.patch('users',`?id=eq.${user.id}`,{password:h});
+    await sb.from('users').update({password:h}).eq('id',user.id);
     await audit(user.id,'비밀번호변경',null,'본인 변경');
     setMsg('done');setCur('');setNw('');setCf('');onRefresh();
   };
@@ -1050,82 +1042,17 @@ function AdminDash({user,users,teams,leaves,onNav}){
 }
 
 // ── Main App ──────────────────────────────────────────────
-// ── LeaveLoginScreen ─────────────────────────────────────────
-// Sysbar.Auth.doLoginFetch 에 위임 (브루트포스 방어 + 잠금 UI 포함)
-function LeaveLoginScreen({ onLogin }) {
-  const [phone, setPhone] = useState('');
-  const [pw, setPw] = useState('');
-  const [err, setErr] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [locked, setLocked] = useState(false);
-  const [remain, setRemain] = useState(0);
-
-  // 잠금 상태 카운트다운
-  useEffect(() => {
-    const bf = Sysbar.Auth.checkBruteForce();
-    if (bf.locked) { setLocked(true); setRemain(bf.remainSec); }
-    const timer = setInterval(() => {
-      const bf2 = Sysbar.Auth.checkBruteForce();
-      if (bf2.locked) { setLocked(true); setRemain(bf2.remainSec); }
-      else { setLocked(false); setRemain(0); }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const doLogin = async () => {
-    if (locked) return;
-    if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
-    setLoading(true); setErr('');
-    const result = await Sysbar.Auth.doLoginFetch(SB_URL, SB_KEY, phone, pw, {
-      blockedRoles: ['contractor'],
-    });
-    setLoading(false);
-    if (result.ok) {
-      onLogin(result.user);
-    } else {
-      if (result.locked) { setLocked(true); setRemain(result.remainSec); }
-      setErr(result.reason);
-    }
-  };
-
-  const onKey = (e) => { if (e.key === 'Enter') doLogin(); };
-
-  return (
-    <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
-      <div style={{background:'#fff',borderRadius:16,padding:'32px 28px',width:'100%',maxWidth:340,boxShadow:'0 24px 70px rgba(0,0,0,.45)'}}>
-        <div style={{textAlign:'center',marginBottom:22}}>
-          <div style={{fontSize:15,fontWeight:800,color:'#0f172a'}}>{APP_CONFIG.COMPANY_SHORT}</div>
-          <div style={{fontSize:11,color:'#94a3b8',marginTop:3}}>연차 관리 시스템</div>
-        </div>
-        {err && <div style={{background:'#fef2f2',color:'#dc2626',border:'1px solid #fecaca',borderRadius:6,padding:'7px 11px',fontSize:12,marginBottom:12}}>{err}</div>}
-        <div style={{marginBottom:12}}>
-          <label style={{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:4}}>전화번호</label>
-          <input value={phone} onChange={e=>setPhone(e.target.value)} onKeyDown={onKey} disabled={locked}
-            placeholder="전화번호" style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box'}}/>
-        </div>
-        <div style={{marginBottom:18}}>
-          <label style={{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:4}}>비밀번호</label>
-          <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={onKey} disabled={locked}
-            placeholder="비밀번호" style={{width:'100%',padding:'9px 12px',border:'1.5px solid #e2e8f0',borderRadius:8,fontSize:14,outline:'none',boxSizing:'border-box'}}/>
-        </div>
-        <button onClick={doLogin} disabled={loading || locked}
-          style={{width:'100%',padding:11,background:'#1d4ed8',color:'#fff',border:'none',borderRadius:8,fontSize:14,fontWeight:700,cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.6 : 1}}>
-          {locked ? `잠금 ${remain}초` : (loading ? '로그인 중...' : '로그인')}
-        </button>
-      </div>
-    </div>
-  );
-}
+const LeaveLoginScreen = Sysbar.createLoginComponent(React, {
+  subtitle: '연차 관리 시스템',
+  blockedRoles: ['contractor'],
+});
 
 const SysBar = Sysbar.createComponent(React);
 function App(){
-  // 세션 즉시 복원 (Sysbar.Auth.getSession 사용)
+  // 세션 즉시 복원
   const initialUser = (() => {
     const v = Sysbar.Auth.getSession();
-    if (v && v.role !== 'contractor') {
-      _authCtx = { id: v.id, role: v.role };
-      return v;
-    }
+    if (v && v.role !== 'contractor') return v;
     return null;
   })();
 
@@ -1147,13 +1074,13 @@ function App(){
   },[]);
 
   const load=useCallback(async()=>{
-    // ※ 로그인 후에만 호출됨 — _authCtx가 설정된 상태에서만 users를 조회
+    // ※ 로그인 후에만 호출됨 — Auth 세션이 있을 때만 데이터 조회
     try{
       const [u,t,l,a]=await Promise.all([
-        api.get('users','?order=name'),
-        api.get('teams','?order=name'),
-        api.get('leave_requests','?order=created_at.desc'),
-        api.get('audit_logs','?order=created_at.desc&limit=200'),
+        sb.from('users').select('id,name,phone,email,position,team_id,role,join_date,total_days,used_days').order('name').then(r=>r.data||[]),
+        sb.from('teams').select('*').order('name').then(r=>r.data||[]),
+        sb.from('leave_requests').select('*').order('created_at',{ascending:false}).then(r=>r.data||[]),
+        sb.from('audit_logs').select('*').order('created_at',{ascending:false}).limit(200).then(r=>r.data||[]),
       ]);
       setUsers(Array.isArray(u)?u:[]);
       setTeams(Array.isArray(t)?t:[]);
@@ -1166,7 +1093,7 @@ function App(){
   // checkOnLoad: 렌더 후 실행 (Babel 컴파일 완료 이후 → NAV_WINDOW 오인 방지)
   useEffect(()=>{
     const wasInvalidated = Sysbar.SessionManager.checkOnLoad();
-    if(wasInvalidated){ setCu(null); _authCtx={id:null,role:null}; }
+    if(wasInvalidated){ setCu(null); Sysbar.Auth.clearSession(); sb.auth.signOut(); }
   },[]);
 
   useEffect(()=>{loadNagerHolidays();},[]);
@@ -1188,26 +1115,24 @@ function App(){
     setSyncing(false);
   };
 
-  // ── 로그인 핸들러 (Sysbar.Auth.doLogin 위임) ────────────────
-  // leave.html용 Supabase 클라이언트: _authCtx 없이 익명으로 단건 조회 전용
+  // ── 로그인/로그아웃 핸들러 ──────────────────────────────────
   const handleLogin=(u)=>{
-    _authCtx={id:u.id,role:u.role};
     setCu(u);
     setView('calendar');
     Sysbar.SessionManager.onLogin(()=>logout());
   };
   const logout=()=>{
     Sysbar.SessionManager.onLogout();
-    _authCtx={id:null,role:null};
     setCu(null);
     setView('dashboard');
     Sysbar.Auth.clearSession();
+    sb.auth.signOut();
     setUsers([]);setTeams([]);setLeaves([]);setAuditLogs([]);
   };
   const refresh=()=>load();
 
   // ── 로그인 화면 ──────────────────────────────────────────
-  if(!cu) return <LeaveLoginScreen onLogin={handleLogin} />;
+  if(!cu) return <LeaveLoginScreen supabaseClient={sb} onLogin={handleLogin} />;
 
   // ── 기술지원(contractor) 접근 차단 ────────────────────────
   if(cu.role==='contractor'){
