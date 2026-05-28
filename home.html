@@ -577,6 +577,7 @@ const SysBar=Sysbar.createComponent(React);
 function App(){
   const initUser=(()=>{
     try{
+      if(Sysbar.SessionManager.checkOnLoad())return null;
       const raw=localStorage.getItem('kwanbo_session');
       if(!raw)return null;
       const v=JSON.parse(raw);

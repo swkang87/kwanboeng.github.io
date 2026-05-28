@@ -416,6 +416,7 @@ const SysBar = Sysbar.createComponent(React);
 function App() {
   const [user, setUser] = useState(() => {
     try {
+      if (Sysbar.SessionManager.checkOnLoad()) return null;
       // 통합 세션 읽기
       const sessRaw = localStorage.getItem('kwanbo_session');
       if (sessRaw) {
