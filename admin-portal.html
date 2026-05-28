@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=20250527"></script>
+<script src="sysbar.js?v=20260528"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -174,23 +174,7 @@ tr:hover td{background:#f8fafc;}
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
-const { createClient } = supabase;
-// RLS용: 로그인 후 user 헤더를 포함한 Supabase 클라이언트 생성
-function _makeSb(userId, userRole) {
-  const extraHeaders = {};
-  if (userId) {
-    extraHeaders['x-user-id'] = String(userId);
-    extraHeaders['x-user-role'] = userRole || '';
-  }
-  return createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY, {
-    global: { headers: extraHeaders }
-  });
-}
-// ─── 비밀번호 해싱 → sysbar.js Sysbar.Auth에 위임 ──────────
-const { hashPassword, verifyPassword, isPlainPassword } = Sysbar.Auth;
-
-
-let sb = _makeSb();
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
 
 const VIEWS = { WL:'wl', PF:'pf', SL:'sl', ST:'st' };
 const TODAY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -2526,8 +2510,16 @@ function StaffView({ user }) {
       if (editU) {
         p = sb.from('users').update(formWithoutMemo).eq('id', editU.id);
       } else {
-        var hashedPw = await hashPassword(form.phone);
-        p = sb.from('users').insert(Object.assign({}, formWithoutMemo, {password: hashedPw}));
+        // Auth 계정 생성 (초기 비밀번호: 전화번호)
+        const phoneDigits = (form.phone||'').replace(/\D/g,'');
+        const emailLocal = phoneDigits.length > 0 ? phoneDigits : form.phone;
+        const { data: authData } = await sb.auth.admin.createUser({
+          email: emailLocal + '@kwanbo.internal',
+          password: form.phone,
+          email_confirm: true,
+        }).catch(() => ({ data: null }));
+        const authId = authData?.user?.id || null;
+        p = sb.from('users').insert(Object.assign({}, formWithoutMemo, {password: form.phone, auth_id: authId}));
       }
       var r = await p;
       setSaving(false);
@@ -2700,8 +2692,7 @@ function LoginScreen({ onLogin }) {
     if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
     setLoading(true); setErr('');
     // allowedRoles: contractor만 차단 (팀 권한은 hasAccess로 판단)
-    const result = await Sysbar.Auth.doLoginFetch(
-      APP_CONFIG.SUPABASE_URL + '/rest/v1', APP_CONFIG.SUPABASE_KEY, phone, pw, {
+    const result = await Sysbar.Auth.doLogin(sb, phone, pw, {
         allowedRoles: ['admin', 'manager', 'staff', 'employee'],
       });
     setLoading(false);
@@ -2750,7 +2741,6 @@ function App() {
       var v = JSON.parse(raw);
       if (v && v.id && v.role) {
         if (v.password) { delete v.password; sessionStorage.setItem('kwanbo_session', JSON.stringify(v)); }
-        sb = _makeSb(v.id, v.role);
         return v;
       }
       return null;
@@ -2792,7 +2782,6 @@ function App() {
       if (!userId) { setSsoChecked(true); return; }
       sb.from('users').select('*').eq('id', userId).single().then(function(r) {
         if (r.data) {
-          sb = _makeSb(r.data.id, r.data.role);
           var safeU = Object.assign({}, r.data); delete safeU.password;
           sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
           localStorage.removeItem('kwanbo_pm_user');
@@ -2825,21 +2814,14 @@ function App() {
   }, [user ? user.id : null]);
 
   function handleLogin(u) {
-    sb = _makeSb(u.id, u.role);
-    var safeU = Object.assign({}, u); delete safeU.password;
-    sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
-    localStorage.removeItem('kwanbo_pm_user');
-    sessionStorage.removeItem('kwanbo_uid');
-    setUser(safeU);
+    setUser(u);
     Sysbar.SessionManager.onLogin(function() { logout(); });
   }
 
   function logout() {
     Sysbar.SessionManager.onLogout();
-    sb = _makeSb();
-    sessionStorage.removeItem('kwanbo_session');
-    localStorage.removeItem('kwanbo_pm_user');
-    sessionStorage.removeItem('kwanbo_uid');
+    Sysbar.Auth.clearSession();
+    sb.auth.signOut();
     setUser(null); setTeamName(''); setHasAccess(false);
   }
 
