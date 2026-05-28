@@ -74,7 +74,7 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
 }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js"></script>
+<script src="sysbar.js?v=20260528"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -85,16 +85,9 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
 <script type="text/babel" data-presets="react">
 const {useState,useEffect,useCallback} = React;
 
-// ── 비밀번호 해싱 → sysbar.js Sysbar.Auth.doLogin 으로 일원화 ─
-
 // ── Supabase 클라이언트 ────────────────────────────────────
-function makeSb(uid,role){
-  const h={};
-  if(uid){h['x-user-id']=String(uid);h['x-user-role']=role||'';}
-  return supabase.createClient(APP_CONFIG.SUPABASE_URL,APP_CONFIG.SUPABASE_KEY,{global:{headers:h}});
-}
-let sb=null;
-function getSb(){if(!sb)sb=makeSb();return sb;}
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+function getSb(){ return sb; }
 
 // ── 공휴일 ──────────────────────────────────────────────
 const HOL={
@@ -753,7 +746,6 @@ function App(){
       const v=JSON.parse(raw);
       if(v&&v.id&&v.role){
         if(v.password){delete v.password;sessionStorage.setItem('kwanbo_session',JSON.stringify(v));}
-        sb=makeSb(v.id,v.role);
         if(v.role==='contractor'){window.location.replace('project.html');return null;}
         return v;
       }
@@ -780,7 +772,6 @@ function App(){
       getSb().from('users').select('id,name,phone,email,position,team_id,role,join_date,total_days').eq('id',uid).single().then(({data})=>{
         if(data){
           if(data.role==='contractor'){window.location.replace('project.html');return;}
-          sb=makeSb(data.id,data.role);
           const su={...data};delete su.password;
           sessionStorage.setItem('kwanbo_session',JSON.stringify(su));
           setUser(su);
@@ -841,16 +832,15 @@ function App(){
   },[user]);
 
   const handleLogin=u=>{
-    // doLogin()이 이미 세션 저장 완료 → sb 재생성 + state 반영만
     if(u.role==='contractor'){window.location.replace('project.html');return;}
-    sb=makeSb(u.id,u.role);
     setUser(u);
     Sysbar.SessionManager.onLogin(()=>logout());
   };
 
   const logout=()=>{
-    sb=null;
     Sysbar.Auth.clearSession();
+    sb.auth.signOut();
+    Sysbar.SessionManager.onLogout();
     setUser(null);
   };
 
