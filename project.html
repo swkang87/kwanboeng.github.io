@@ -394,7 +394,7 @@ const Modal = ({ title, onClose, children, wide }) => (
 
 // ─── Login ───
 // ── LoginScreen → sysbar.js createLoginComponent 로 일원화 ──
-const Login = Sysbar.createLoginComponent(React);
+const Login = Sysbar.createLoginComponent(React, { blockedRoles: [] });
 
 // ─── Main App ───
 const SysBar = Sysbar.createComponent(React);
