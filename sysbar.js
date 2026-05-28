@@ -114,7 +114,7 @@
         document.addEventListener(ev, _touch, { passive: true, capture: true });
       });
       _timer = setInterval(function() {
-        if (!localStorage.getItem(SESSION_KEY)) { _stop(); return; }
+        if (!sessionStorage.getItem(SESSION_KEY)) { _stop(); return; }
         var lastActive = parseInt(localStorage.getItem(ACTIVE_KEY) || '0');
         if (lastActive === 0) return; // 아직 _touch 미실행 시 무시
         var elapsed = Date.now() - lastActive;
@@ -148,7 +148,7 @@
     return {
       // 페이지 로드 시 호출 — true: 만료(로그아웃) / false: 유효
       checkOnLoad: function() {
-        if (!localStorage.getItem(SESSION_KEY)) return false;
+        if (!sessionStorage.getItem(SESSION_KEY)) return false;
 
         // performance.timeOrigin = 브라우저 프로세스 기동 시각(ms)
         // 저장값과 현재값이 같으면 → 같은 브라우저 세션(탭 이동) → 만료 체크 스킵
@@ -157,9 +157,14 @@
         var currentOrigin = String(Math.round(performance.timeOrigin));
         if (storedOrigin && storedOrigin === currentOrigin) return false;
 
+        // origin 불일치 = 브라우저 재시작 → sessionStorage의 SESSION_KEY도 없을 것이므로
+        // 여기서도 SESSION_KEY를 localStorage에서 찾아 sessionStorage로 이관하지 않음
+        // (localStorage에 남은 구버전 세션이 있으면 제거)
+        localStorage.removeItem(SESSION_KEY);
+
         // 브라우저가 새로 시작된 것 → 1시간 초과 여부 체크
         if (_isExpired()) {
-          localStorage.removeItem(SESSION_KEY);
+          sessionStorage.removeItem(SESSION_KEY);
           localStorage.removeItem(ACTIVE_KEY);
           localStorage.removeItem(LOGIN_KEY);
           return true; // 만료 → 로그아웃
@@ -277,12 +282,12 @@
      */
     function getSession() {
       try {
-        var raw = localStorage.getItem(SESSION_KEY);
+        var raw = sessionStorage.getItem(SESSION_KEY);
         if (!raw) return null;
         var v = JSON.parse(raw);
         if (v && v.id && v.role) {
           // 혹시 password가 남아있으면 제거
-          if (v.password) { delete v.password; localStorage.setItem(SESSION_KEY, JSON.stringify(v)); }
+          if (v.password) { delete v.password; sessionStorage.setItem(SESSION_KEY, JSON.stringify(v)); }
           return v;
         }
         return null;
@@ -294,7 +299,7 @@
      * 세션 및 관련 키 전체 제거
      */
     function clearSession() {
-      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
       localStorage.removeItem('kwanbo_pm_user');
       sessionStorage.removeItem('kwanbo_uid');
     }
@@ -382,7 +387,7 @@
 
         // 세션 저장 (password 이미 제거됨)
         var safeUser = Object.assign({}, user);
-        localStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(safeUser));
         localStorage.removeItem('kwanbo_pm_user');
         sessionStorage.removeItem('kwanbo_uid');
 

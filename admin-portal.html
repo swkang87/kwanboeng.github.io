@@ -2745,11 +2745,11 @@ const SysBar = Sysbar.createComponent(React);
 function App() {
   var initialUser = (function() {
     try {
-      var raw = localStorage.getItem('kwanbo_session');
+      var raw = sessionStorage.getItem('kwanbo_session');
       if (!raw) return null;
       var v = JSON.parse(raw);
       if (v && v.id && v.role) {
-        if (v.password) { delete v.password; localStorage.setItem('kwanbo_session', JSON.stringify(v)); }
+        if (v.password) { delete v.password; sessionStorage.setItem('kwanbo_session', JSON.stringify(v)); }
         sb = _makeSb(v.id, v.role);
         return v;
       }
@@ -2784,7 +2784,7 @@ function App() {
     // checkOnLoad: 렌더 후 실행 (Babel 컴파일 완료 이후 → NAV_WINDOW 오인 방지)
     var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
     if (wasInvalidated) { setUser(null); return; }
-    var raw = localStorage.getItem('kwanbo_session');
+    var raw = sessionStorage.getItem('kwanbo_session');
     if (!raw) { setSsoChecked(true); return; }
     try {
       var v = JSON.parse(raw);
@@ -2794,7 +2794,7 @@ function App() {
         if (r.data) {
           sb = _makeSb(r.data.id, r.data.role);
           var safeU = Object.assign({}, r.data); delete safeU.password;
-          localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+          sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
           localStorage.removeItem('kwanbo_pm_user');
           setUser(safeU);
           Sysbar.SessionManager.onLogin(function() { logout(); });
@@ -2827,7 +2827,7 @@ function App() {
   function handleLogin(u) {
     sb = _makeSb(u.id, u.role);
     var safeU = Object.assign({}, u); delete safeU.password;
-    localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+    sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
     localStorage.removeItem('kwanbo_pm_user');
     sessionStorage.removeItem('kwanbo_uid');
     setUser(safeU);
@@ -2837,7 +2837,7 @@ function App() {
   function logout() {
     Sysbar.SessionManager.onLogout();
     sb = _makeSb();
-    localStorage.removeItem('kwanbo_session');
+    sessionStorage.removeItem('kwanbo_session');
     localStorage.removeItem('kwanbo_pm_user');
     sessionStorage.removeItem('kwanbo_uid');
     setUser(null); setTeamName(''); setHasAccess(false);

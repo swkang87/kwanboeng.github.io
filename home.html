@@ -259,6 +259,7 @@ function NoticeView({user,teamName,readIds,onRead}){
 // CalendarView
 // ═══════════════════════════════════════════════════════
 const CATS=['일반','회식','워크숍','교육','행사'];
+const WD=['일','월','화','수','목','금','토'];
 
 function CalendarView({user,teamName}){
   const now=new Date();
@@ -336,11 +337,10 @@ function CalendarView({user,teamName}){
       let n=0;
       while(cur<=end&&n<31){
         const ds=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
-        add(ds,{k:'comp',label:c.title,bg:'#f3e8ff',tx:'#6b21a8',raw:c});
+        add(ds,{k:'comp',label:c.title,bg:'#f3e8ff',tx:'#6b21a8',bd:'#a855f7',raw:c});
         cur.setDate(cur.getDate()+1);n++;
       }
     });
-    // 착수일 / 준공일 (완료된 프로젝트 준공일은 회색)
     projs.forEach(p=>{
       if(p.start_date) add(p.start_date,{k:'proj',type:'착수일',label:p.name,bg:'#eff6ff',tx:'#1d4ed8',bd:'#3b82f6',pname:p.name});
       if(p.end_date){
@@ -352,6 +352,11 @@ function CalendarView({user,teamName}){
   };
   const evMap=buildMap();
 
+  // ── 날짜 유틸 ──────────────────────────────────────────
+  const mkDs=(y,m,d)=>y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+  const ds2=d=>d?mkDs(yr,mo,d):null;
+
+  // ── 월간 셀 데이터 ─────────────────────────────────────
   const dim=new Date(yr,mo+1,0).getDate();
   const fd=new Date(yr,mo,1).getDay();
   const cells=[];
@@ -359,15 +364,26 @@ function CalendarView({user,teamName}){
   for(let d=1;d<=dim;d++)cells.push(d);
   while(cells.length%7!==0)cells.push(null);
 
-  const ds2=d=>d?yr+'-'+String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'):null;
-
-  const wdays=Array.from({length:7},(_,i)=>{const x=new Date(ws);x.setDate(ws.getDate()+i);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');});
+  // ── 주간 날짜 목록 ─────────────────────────────────────
+  const wdays=Array.from({length:7},(_,i)=>{const x=new Date(ws);x.setDate(ws.getDate()+i);return mkDs(x.getFullYear(),x.getMonth(),x.getDate());});
   const wlabel=()=>{const s=new Date(ws),e=new Date(ws);e.setDate(s.getDate()+6);return s.getMonth()===e.getMonth()?s.getFullYear()+'년 '+(s.getMonth()+1)+'월 '+s.getDate()+'~'+e.getDate()+'일':(s.getMonth()+1)+'/'+(s.getDate())+' ~ '+(e.getMonth()+1)+'/'+(e.getDate());};
 
-  const prev=()=>{if(tab==='week'){const d=new Date(ws);d.setDate(d.getDate()-7);setWs(d);}else if(mo===0){setMo(11);setYr(y=>y-1);}else setMo(m=>m-1);};
-  const next=()=>{if(tab==='week'){const d=new Date(ws);d.setDate(d.getDate()+7);setWs(d);}else if(mo===11){setMo(0);setYr(y=>y+1);}else setMo(m=>m+1);};
-  const navLbl=tab==='week'?wlabel():yr+'년 '+(mo+1)+'월';
+  // ── 네비게이션 ─────────────────────────────────────────
+  const prev=()=>{
+    if(tab==='week'){const d=new Date(ws);d.setDate(d.getDate()-7);setWs(d);}
+    else if(tab==='year'){setYr(y=>y-1);}
+    else if(mo===0){setMo(11);setYr(y=>y-1);}
+    else setMo(m=>m-1);
+  };
+  const next=()=>{
+    if(tab==='week'){const d=new Date(ws);d.setDate(d.getDate()+7);setWs(d);}
+    else if(tab==='year'){setYr(y=>y+1);}
+    else if(mo===11){setMo(0);setYr(y=>y+1);}
+    else setMo(m=>m+1);
+  };
+  const navLbl=tab==='week'?wlabel():tab==='year'?yr+'년':yr+'년 '+(mo+1)+'월';
 
+  // ── 이벤트 모달 ────────────────────────────────────────
   const openDay=ds=>{
     const evs=evMap[ds]||[];
     const h=HOL[ds]||SUB[ds];
@@ -375,6 +391,7 @@ function CalendarView({user,teamName}){
     setSelDay({date:ds,events:evs,hol:h});
   };
 
+  // ── 회사일정 CRUD ──────────────────────────────────────
   const saveEv=async()=>{
     if(!evF.title.trim()||!evF.date)return;
     setSaving(true);
@@ -385,35 +402,17 @@ function CalendarView({user,teamName}){
       }else{
         result=await getSb().from('company_events').insert({title:evF.title,date:evF.date,end_date:evF.end_date||null,category:evF.category,memo:evF.memo||null,created_by:user.id});
       }
-      if(result&&result.error){
-        alert('저장 오류: '+result.error.message);
-        setSaving(false);return;
-      }
+      if(result&&result.error){alert('저장 오류: '+result.error.message);setSaving(false);return;}
     }catch(ex){alert('저장 중 오류가 발생했습니다.');}
     setSaving(false);setShowEvF(false);setEditEv(null);setEvF({title:'',date:'',end_date:'',category:'일반',memo:''});load();
   };
-
   const delEv=async id=>{
     if(!confirm('삭제하시겠습니까?'))return;
     await getSb().from('company_events').delete().eq('id',id);
     setSelDay(null);load();
   };
 
-  const WD=['일','월','화','수','목','금','토'];
-
-  const renderEv=(ev,j)=>{
-    if(ev.k==='proj'){
-      const c=evc(ev.type);
-      return(
-        <div key={j} style={{display:'flex',alignItems:'center',gap:2,marginBottom:1,overflow:'hidden'}}>
-          <span style={{background:c.bg,color:c.tx,border:'1px solid '+c.bd,borderRadius:2,padding:'0 3px',fontSize:7,fontWeight:700,whiteSpace:'nowrap',flexShrink:0}}>{ev.type}</span>
-          {ev.label!==ev.type&&<span style={{fontSize:7,color:'#475569',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ev.label}</span>}
-        </div>
-      );
-    }
-    return(<div key={j} className="cal-ev" style={{background:ev.bg,color:ev.tx}}>{ev.label}</div>);
-  };
-
+  // ── 월간 셀 렌더 ───────────────────────────────────────
   const renderCell=(ds,d,dow)=>{
     const allEvs=evMap[ds]||[];
     const h=HOL[ds],s=SUB[ds];
@@ -421,22 +420,16 @@ function CalendarView({user,teamName}){
     const isTd=ds===td,isSun=dow===0,isSat=dow===6;
     const nc=isHol?'#dc2626':isSun?'#ef4444':isSat?'#3b82f6':'#374151';
     const bg=isTd?'#fef9c3':isHol?'#fff1f2':(isSun||isSat)?'#fafafa':'#fff';
-
-    // 이벤트 분류
     const projEvs=allEvs.filter(e=>e.k==='proj');
     const compEvs=allEvs.filter(e=>e.k==='comp');
     const lvEvs=allEvs.filter(e=>e.k==='leave');
-
     return(
       <div key={ds} className={'cal-cell'+(isTd?' today':'')}
         style={{background:bg,border:isTd?'2px solid #f59e0b':'0.5px solid #f1f5f9',cursor:allEvs.length||h||s?'pointer':'default'}}
         onClick={()=>openDay(ds)}>
-        {/* 날짜 숫자 */}
         <div className={'cal-dn'+(isTd?' t':'')} style={{color:isTd?'#fff':nc,fontWeight:isHol?700:400}}>{d}</div>
-        {/* 공휴일 */}
         {h&&<div className="cal-hol">{h}</div>}
         {s&&!h&&<div className="cal-hol">대체공휴일</div>}
-        {/* ① 주요공정 — 상단 우선, 간결 표시 (클릭 시 상세) */}
         {projEvs.map((ev,j)=>{
           const isAuto=ev.type==='착수일'||ev.type==='준공일';
           const dispText=isAuto?(ev.type==='착수일'?'🚀 착수':'📅 준공'):ev.type;
@@ -446,11 +439,9 @@ function CalendarView({user,teamName}){
             </div>
           );
         })}
-        {/* ② 회사일정 — 보라 바 */}
         {compEvs.slice(0,1).map((ev,j)=>(
           <div key={'c'+j} style={{background:'#f3e8ff',border:'1px solid #a855f7',borderRadius:4,padding:'2px 5px',fontSize:9,fontWeight:700,color:'#6b21a8',marginBottom:2,overflow:'hidden',whiteSpace:'nowrap'}}>{ev.label}</div>
         ))}
-        {/* ③ 연차 — 이름+시간 약어 원으로 표시 */}
         {lvEvs.length>0&&(
           <div style={{display:'flex',flexWrap:'wrap',gap:2,marginTop:2}}>
             {lvEvs.slice(0,4).map((ev,j)=>(
@@ -464,6 +455,175 @@ function CalendarView({user,teamName}){
       </div>
     );
   };
+
+  // ── 주간 뷰 ────────────────────────────────────────────
+  const renderWeekView=()=>{
+    return(
+      <div style={{overflowX:'auto'}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,minmax(120px,1fr))',minWidth:700}}>
+          {/* 요일 헤더 */}
+          {wdays.map((ds,i)=>{
+            const dow=new Date(ds+'T12:00:00').getDay();
+            const dn=parseInt(ds.split('-')[2]);
+            const mm=parseInt(ds.split('-')[1]);
+            const h=HOL[ds]||SUB[ds];
+            const isHol=!!h;
+            const isTd=ds===td,isSun=dow===0,isSat=dow===6;
+            const hc=isHol?'#dc2626':isSun?'#ef4444':isSat?'#3b82f6':'#e2e8f0';
+            const bg=isTd?'#1d4ed8':isHol?'#7f1d1d':(isSun||isSat)?'#1e293b':'#0f172a';
+            const tc=isTd?'#fff':isHol?'#fca5a5':(isSun||isSat)?'#94a3b8':'#e2e8f0';
+            return(
+              <div key={ds} style={{background:bg,padding:'8px 10px',borderRight:'1px solid #1e293b',textAlign:'center'}}>
+                <div style={{fontSize:10,color:hc,fontWeight:600,marginBottom:2}}>{WD[dow]}</div>
+                <div style={{fontSize:18,fontWeight:800,color:tc,lineHeight:1}}>{dn}</div>
+                <div style={{fontSize:9,color:'#64748b',marginTop:1}}>{mm}월</div>
+                {h&&<div style={{fontSize:9,color:'#fca5a5',marginTop:3,fontWeight:700,lineHeight:1.2}}>{h}</div>}
+              </div>
+            );
+          })}
+          {/* 이벤트 열 */}
+          {wdays.map((ds,i)=>{
+            const dow=new Date(ds+'T12:00:00').getDay();
+            const allEvs=evMap[ds]||[];
+            const h=HOL[ds],s=SUB[ds];
+            const isHol=!!(h||s);
+            const isTd=ds===td,isSun=dow===0,isSat=dow===6;
+            const bg=isTd?'#fffbeb':isHol?'#fff5f5':(isSun||isSat)?'#f8fafc':'#fff';
+            const projEvs=allEvs.filter(e=>e.k==='proj');
+            const compEvs=allEvs.filter(e=>e.k==='comp');
+            const lvEvs=allEvs.filter(e=>e.k==='leave');
+            const isEmpty=!allEvs.length&&!h&&!s;
+            return(
+              <div key={ds} style={{background:bg,borderRight:'1px solid #f1f5f9',borderTop:'2px solid '+(isTd?'#f59e0b':isHol?'#fca5a5':(isSun||isSat)?'#e2e8f0':'#f1f5f9'),padding:'8px 6px',minHeight:160,cursor:isEmpty?'default':'pointer'}}
+                onClick={()=>openDay(ds)}>
+                {isEmpty&&<div style={{color:'#cbd5e1',fontSize:11,textAlign:'center',marginTop:20}}>—</div>}
+                {/* 대체공휴일 */}
+                {s&&!h&&(
+                  <div style={{background:'#fee2e2',color:'#dc2626',borderRadius:5,padding:'3px 7px',fontSize:10,fontWeight:700,marginBottom:5}}>🎌 대체공휴일</div>
+                )}
+                {/* 주요공정 — 전부 표시 */}
+                {projEvs.map((ev,j)=>{
+                  const isAuto=ev.type==='착수일'||ev.type==='준공일';
+                  return(
+                    <div key={'wp'+j} style={{background:ev.bg,border:'1px solid '+ev.bd,borderRadius:5,padding:'4px 7px',marginBottom:5,display:'flex',alignItems:'flex-start',gap:5}}>
+                      <span style={{background:isAuto?ev.bg:ev.bd,color:isAuto?ev.tx:'#fff',border:isAuto?'1px solid '+ev.bd:'none',borderRadius:3,padding:'0 4px',fontSize:9,fontWeight:800,whiteSpace:'nowrap',flexShrink:0,lineHeight:'16px'}}>
+                        {isAuto?(ev.type==='착수일'?'🚀착수':'📅준공'):ev.type}
+                      </span>
+                      {ev.pname&&<span style={{fontSize:10,color:ev.tx,fontWeight:700,lineHeight:'16px',wordBreak:'keep-all'}}>{ev.pname}</span>}
+                    </div>
+                  );
+                })}
+                {/* 회사일정 — 전부 표시 */}
+                {compEvs.map((ev,j)=>(
+                  <div key={'wc'+j} style={{background:'#f3e8ff',border:'1px solid #a855f7',borderRadius:5,padding:'4px 7px',marginBottom:5}}>
+                    <div style={{fontSize:10,fontWeight:700,color:'#6b21a8',wordBreak:'keep-all'}}>{ev.label}</div>
+                    {ev.raw&&ev.raw.category&&ev.raw.category!=='일반'&&<div style={{fontSize:9,color:'#94a3b8',marginTop:1}}>{ev.raw.category}</div>}
+                  </div>
+                ))}
+                {/* 연차/공가 — 전부 표시 */}
+                {lvEvs.map((ev,j)=>(
+                  <div key={'wl'+j} style={{background:ev.bg,borderRadius:5,padding:'4px 7px',marginBottom:5,display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                    <span style={{color:'#fff',fontSize:10,fontWeight:800}}>{ev.fullName||ev.label}</span>
+                    <span style={{background:'rgba(255,255,255,0.25)',color:'#fff',borderRadius:3,padding:'0 4px',fontSize:8,fontWeight:700}}>
+                      {ev.type==='공가'?'공가':'연차'}{ev.timeTag!=='DAY'?' · '+ev.timeTag:''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // ── 연간 뷰 ────────────────────────────────────────────
+  const renderMiniMonth=(y,m)=>{
+    const dim2=new Date(y,m+1,0).getDate();
+    const fd2=new Date(y,m,1).getDay();
+    const cells2=[];
+    for(let i=0;i<fd2;i++)cells2.push(null);
+    for(let d=1;d<=dim2;d++)cells2.push(d);
+    while(cells2.length%7!==0)cells2.push(null);
+    return(
+      <div key={m} style={{background:'#fff',borderRadius:8,border:'1px solid #e2e8f0',overflow:'hidden',cursor:'default'}}>
+        {/* 미니 월 헤더 */}
+        <div style={{background:'#0f172a',padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <span style={{fontSize:12,fontWeight:800,color:'#fff'}}>{m+1}월</span>
+          <span style={{fontSize:10,color:'#64748b'}}>{y}</span>
+        </div>
+        {/* 요일 헤더 */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',background:'#f8fafc'}}>
+          {WD.map((w,i)=>(
+            <div key={w} style={{textAlign:'center',fontSize:8,fontWeight:700,padding:'3px 0',color:i===0?'#ef4444':i===6?'#3b82f6':'#94a3b8'}}>{w}</div>
+          ))}
+        </div>
+        {/* 날짜 그리드 */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)'}}>
+          {cells2.map((d2,idx)=>{
+            if(!d2)return<div key={'me'+idx} style={{padding:'3px 0',minHeight:28}}/>;
+            const ds=mkDs(y,m,d2);
+            const dow=idx%7;
+            const h2=HOL[ds]||SUB[ds];
+            const isHol2=!!h2;
+            const isTd2=ds===td,isSun2=dow===0,isSat2=dow===6;
+            const hasEv=(evMap[ds]||[]).length>0;
+            const nc2=isHol2?'#dc2626':isSun2?'#ef4444':isSat2?'#3b82f6':'#374151';
+            const bg2=isTd2?'#1d4ed8':isHol2?'#fff1f2':'transparent';
+            const tc2=isTd2?'#fff':nc2;
+            return(
+              <div key={ds} style={{textAlign:'center',padding:'2px 0',minHeight:28,cursor:hasEv||isHol2?'pointer':'default',background:bg2,borderRadius:isTd2?'50%':'0'}}
+                onClick={()=>openDay(ds)}>
+                <div style={{fontSize:9,fontWeight:isHol2||isTd2?700:400,color:tc2,lineHeight:'16px'}}>{d2}</div>
+                {/* 이벤트 점 표시 */}
+                {hasEv&&!isTd2&&(
+                  <div style={{display:'flex',justifyContent:'center',gap:1,marginTop:1}}>
+                    {(evMap[ds]||[]).filter(e=>e.k==='proj').length>0&&<div style={{width:4,height:4,borderRadius:'50%',background:'#3b82f6'}}/>}
+                    {(evMap[ds]||[]).filter(e=>e.k==='comp').length>0&&<div style={{width:4,height:4,borderRadius:'50%',background:'#a855f7'}}/>}
+                    {(evMap[ds]||[]).filter(e=>e.k==='leave').length>0&&<div style={{width:4,height:4,borderRadius:'50%',background:'#22c55e'}}/>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderYearView=()=>(
+    <div style={{padding:'14px 14px 10px'}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+        {Array.from({length:12},(_,m)=>renderMiniMonth(yr,m))}
+      </div>
+      {/* 연간 범례 */}
+      <div style={{display:'flex',flexWrap:'wrap',gap:10,padding:'12px 2px 0',borderTop:'1px solid #f1f5f9',marginTop:12}}>
+        <div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#64748b'}}>
+          <div style={{width:8,height:8,borderRadius:'50%',background:'#3b82f6'}}/><span>공정</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#64748b'}}>
+          <div style={{width:8,height:8,borderRadius:'50%',background:'#a855f7'}}/><span>회사일정</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#64748b'}}>
+          <div style={{width:8,height:8,borderRadius:'50%',background:'#22c55e'}}/><span>연차</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#64748b'}}>
+          <div style={{width:10,height:10,borderRadius:'50%',background:'#1d4ed8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,color:'#fff',fontWeight:800}}>오</div><span>오늘</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#64748b'}}>
+          <span style={{color:'#ef4444',fontWeight:700}}>일</span><span>/ 공휴일</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── 탭 버튼 스타일 ─────────────────────────────────────
+  const tabBtn=(key,label)=>(
+    <button key={key} onClick={()=>setTab(key)}
+      style={{background:tab===key?'#1d4ed8':'#1e293b',color:tab===key?'#fff':'#94a3b8',border:'none',borderRadius:4,padding:'2px 9px',fontSize:10,fontWeight:700,cursor:'pointer'}}>
+      {label}
+    </button>
+  );
 
   return(
     <div>
@@ -489,34 +649,47 @@ function CalendarView({user,teamName}){
           </div>
         </div>
       )}
+
       <div className="cal-wrap">
+        {/* 헤더 — 공통 */}
         <div className="cal-hdr">
           <button className="cal-nav" onClick={prev}>‹</button>
           <span className="cal-title">{navLbl}</span>
           <button className="cal-nav" onClick={next}>›</button>
           <div style={{display:'flex',gap:4,marginLeft:8}}>
-            <button onClick={()=>setTab('month')} style={{background:tab==='month'?'#1d4ed8':'#1e293b',color:tab==='month'?'#fff':'#94a3b8',border:'none',borderRadius:4,padding:'2px 9px',fontSize:10,fontWeight:700,cursor:'pointer'}}>월간</button>
-            <button onClick={()=>setTab('week')}  style={{background:tab==='week' ?'#1d4ed8':'#1e293b',color:tab==='week' ?'#fff':'#94a3b8',border:'none',borderRadius:4,padding:'2px 9px',fontSize:10,fontWeight:700,cursor:'pointer'}}>주간</button>
+            {tabBtn('year','연간')}
+            {tabBtn('month','월간')}
+            {tabBtn('week','주간')}
           </div>
         </div>
-        <div className="cal-grid">
-          {WD.map((d,i)=><div key={d} className="cal-dh" style={{color:i===0?'#ef4444':i===6?'#3b82f6':'#64748b'}}>{d}</div>)}
-          {tab==='month'&&cells.map((d,i)=>{
-            if(!d)return<div key={'e'+i} className="cal-cell" style={{background:'#fafafa',border:'0.5px solid #f1f5f9'}}/>;
-            return renderCell(ds2(d),d,i%7);
-          })}
-          {tab==='week'&&wdays.map((ds,i)=>{
-            const dn=parseInt(ds.split('-')[2]);
-            return renderCell(ds,dn,new Date(ds+'T12:00:00').getDay());
-          })}
-        </div>
-        <div className="legend">
-          <div className="legend-item"><div className="legend-dot" style={{background:'#2563eb'}}/><span>연차/공가(팀색)</span></div>
-          <div className="legend-item"><div className="legend-dot" style={{background:'#dbeafe',border:'1px solid #3b82f6'}}/><span>주요공정</span></div>
-          <div className="legend-item"><div className="legend-dot" style={{background:'#f3e8ff',border:'1px solid #a855f7'}}/><span>회사일정</span></div>
-          <div className="legend-item"><div className="legend-dot" style={{background:'#fee2e2',border:'1px solid #ef4444'}}/><span>공휴일</span></div>
-        </div>
+
+        {/* 월간 */}
+        {tab==='month'&&(
+          <>
+            <div className="cal-grid">
+              {WD.map((d,i)=><div key={d} className="cal-dh" style={{color:i===0?'#ef4444':i===6?'#3b82f6':'#64748b'}}>{d}</div>)}
+              {cells.map((d,i)=>{
+                if(!d)return<div key={'e'+i} className="cal-cell" style={{background:'#fafafa',border:'0.5px solid #f1f5f9'}}/>;
+                return renderCell(ds2(d),d,i%7);
+              })}
+            </div>
+            <div className="legend">
+              <div className="legend-item"><div className="legend-dot" style={{background:'#2563eb'}}/><span>연차/공가(팀색)</span></div>
+              <div className="legend-item"><div className="legend-dot" style={{background:'#dbeafe',border:'1px solid #3b82f6'}}/><span>주요공정</span></div>
+              <div className="legend-item"><div className="legend-dot" style={{background:'#f3e8ff',border:'1px solid #a855f7'}}/><span>회사일정</span></div>
+              <div className="legend-item"><div className="legend-dot" style={{background:'#fee2e2',border:'1px solid #ef4444'}}/><span>공휴일</span></div>
+            </div>
+          </>
+        )}
+
+        {/* 주간 */}
+        {tab==='week'&&renderWeekView()}
+
+        {/* 연간 */}
+        {tab==='year'&&renderYearView()}
       </div>
+
+      {/* 일별 상세 모달 */}
       {selDay&&(
         <div className="mbg" onClick={()=>setSelDay(null)}>
           <div className="mbox" onClick={e=>e.stopPropagation()}>
@@ -526,7 +699,6 @@ function CalendarView({user,teamName}){
               {selDay.events.length===0&&<div style={{color:'#94a3b8',fontSize:13}}>이벤트 없음</div>}
               {selDay.events.map((ev,i)=>(
                 <div key={i} style={{borderRadius:7,padding:'8px 12px',marginBottom:8,background:'#fff',border:'1px solid #e2e8f0',borderLeft:'4px solid '+(ev.bd||ev.bg)}}>
-                  {/* 주요공정 (착수/준공/이벤트) */}
                   {ev.k==='proj'&&(
                     <div>
                       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:ev.pname?4:0}}>
@@ -536,7 +708,6 @@ function CalendarView({user,teamName}){
                       {ev.pname&&<div style={{fontSize:12,color:'#334155',fontWeight:600,marginTop:2}}>📋 {ev.pname}</div>}
                     </div>
                   )}
-                  {/* 연차/공가 — 이름 + 시간 상세 */}
                   {ev.k==='leave'&&(
                     <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                       <span style={{background:ev.bg,color:'#fff',borderRadius:10,padding:'2px 10px',fontSize:13,fontWeight:800}}>{ev.fullName||ev.label}</span>
@@ -544,7 +715,6 @@ function CalendarView({user,teamName}){
                       {ev.raw&&ev.raw.start_time&&<span style={{fontSize:11,color:'#64748b'}}>{ev.raw.start_time.slice(0,5)}~{ev.raw.end_time&&ev.raw.end_time.slice(0,5)}</span>}
                     </div>
                   )}
-                  {/* 회사일정 */}
                   {ev.k==='comp'&&(
                     <div>
                       <div style={{fontSize:12,fontWeight:700,color:ev.tx}}>{ev.label}</div>
