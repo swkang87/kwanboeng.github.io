@@ -1094,7 +1094,7 @@ function PerfView({ user }) {
   function load() {
     setLoading(true);
     Promise.all([
-      sb.from('projects').select('id,name,client,pm_id,status,category,end_date').order('name'),
+      sb.from('projects').select('id,name,client,pm_id,status,category,end_date,start_date').order('name'),
       sb.from('users').select('id,name').neq('role','contractor').order('name'),
       sb.from('collections').select('*').order('collected_at', { ascending: false }),
       sb.from('performance').select('*'),
@@ -1869,7 +1869,7 @@ function PerfView({ user }) {
                           <span style={{fontWeight:700,color:'#1d4ed8',cursor:'pointer',textDecoration:'underline',textUnderlineOffset:2}}
                             onClick={function(){
                               setEditItem(r.ct || {project_id:p.id});
-                              setForm({project_id:p.id, amount:r.ct?fmtN(r.ct.amount):'', memo:r.ct?r.ct.memo:'', start_date:r.ct?r.ct.start_date:''});
+                              setForm({project_id:p.id, amount:r.ct?fmtN(r.ct.amount):'', memo:r.ct?r.ct.memo:'', start_date:r.ct&&r.ct.start_date ? r.ct.start_date : (p.start_date||'')});
                               setModal('contract');
                             }}>
                             {r.contractAmt > 0 ? fmtN(r.contractAmt)+'원' : '+ 입력'}
