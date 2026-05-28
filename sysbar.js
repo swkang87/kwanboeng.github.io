@@ -72,7 +72,7 @@
   var SessionManager = (function() {
     var ACTIVE_KEY  = 'kwanbo_last_active';  // 마지막 활동 시각
     var LOGIN_KEY   = 'kwanbo_login_ts';     // 로그인 시각 (세션 생성 시 기록)
-    var TAB_KEY     = 'kwanbo_tab_alive';    // 탭 생존 마커 (sessionStorage — 탭/창 닫으면 소멸)
+    var ORIGIN_KEY  = 'kwanbo_browser_origin'; // 브라우저 기동 시각 (performance.timeOrigin, sessionStorage)
     var TIMEOUT_MS  = 60 * 60 * 1000;       // 1시간 비활동 시 로그아웃
     var WARN_MS     = 55 * 60 * 1000;       // 55분 경과 시 경고
     var THROTTLE_MS = 30 * 1000;            // 활동감지 30초 쓰로틀
@@ -150,12 +150,14 @@
       checkOnLoad: function() {
         if (!localStorage.getItem(SESSION_KEY)) return false;
 
-        // sessionStorage가 살아있으면 = 같은 탭/창 내 페이지 이동
-        // 브라우저를 닫지 않은 것이므로 만료 체크 스킵
-        if (sessionStorage.getItem(TAB_KEY)) return false;
+        // performance.timeOrigin = 브라우저 프로세스 기동 시각(ms)
+        // 저장값과 현재값이 같으면 → 같은 브라우저 세션(탭 이동) → 만료 체크 스킵
+        // 다르거나 없으면 → 브라우저 재시작 (Chrome 세션복원도 여기서 걸림) → 만료 체크
+        var storedOrigin  = sessionStorage.getItem(ORIGIN_KEY);
+        var currentOrigin = String(Math.round(performance.timeOrigin));
+        if (storedOrigin && storedOrigin === currentOrigin) return false;
 
-        // sessionStorage 없음 = 브라우저/탭이 새로 열린 것
-        // 1시간 초과 여부 체크
+        // 브라우저가 새로 시작된 것 → 1시간 초과 여부 체크
         if (_isExpired()) {
           localStorage.removeItem(SESSION_KEY);
           localStorage.removeItem(ACTIVE_KEY);
@@ -176,8 +178,8 @@
           localStorage.setItem(LOGIN_KEY, Date.now().toString());
         }
 
-        // 탭 생존 마커 기록 (sessionStorage — 탭/창 닫으면 자동 소멸)
-        sessionStorage.setItem(TAB_KEY, '1');
+        // 브라우저 기동 시각을 sessionStorage에 기록 (재시작 감지용)
+        sessionStorage.setItem(ORIGIN_KEY, String(Math.round(performance.timeOrigin)));
 
         _startWatching(logoutCb);
         _touch(); // 즉시 활동 시각 기록
@@ -188,7 +190,7 @@
         _stop();
         localStorage.removeItem(ACTIVE_KEY);
         localStorage.removeItem(LOGIN_KEY);
-        sessionStorage.removeItem(TAB_KEY);
+        sessionStorage.removeItem(ORIGIN_KEY);
         var el = document.getElementById('kwanbo-timeout-toast');
         if (el) el.remove();
       }
