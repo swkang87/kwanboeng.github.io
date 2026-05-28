@@ -133,7 +133,7 @@ const evc=t=>EV_C[t]||EV_C['기타'];
 const TCOL={'설계1팀':'#2563eb','설계2팀':'#059669','지반팀':'#d97706','관리팀':'#7c3aed'};
 
 // ── LoginScreen → sysbar.js createLoginComponent 로 일원화 ──
-const LoginScreen = Sysbar.createLoginComponent(React);
+const LoginScreen = Sysbar.createLoginComponent(React, { blockedRoles: [] });
 
 // ═══════════════════════════════════════════════════════
 // NoticeView
