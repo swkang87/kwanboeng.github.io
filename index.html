@@ -1516,7 +1516,7 @@ function renderLoginSection(user) {
         }
 
         var u = profileRes.data;
-        sessionStorage.setItem('kwanbo_session', JSON.stringify(u));
+        localStorage.setItem('kwanbo_session', JSON.stringify(u));
         localStorage.removeItem('kwanbo_pm_user');
         sessionStorage.removeItem('kwanbo_uid');
         window.location.href = (u.role === 'contractor') ? 'project.html' : 'home.html';
