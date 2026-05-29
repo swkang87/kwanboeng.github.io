@@ -1765,12 +1765,13 @@ function PerfView({ user }) {
           .map(function(p){
             var ct = getContract(p.id);
             var contractAmt = ct ? (ct.amount||0) : 0;
+            var priorCollected = ct ? (ct.prior_collected||0) : 0;
             var totalCol = getTotalCol(p.id);
             var totalOut = getTotalOut(p.id);
             var netCol   = totalCol - totalOut;
-            var remain   = contractAmt - netCol;
+            var remain   = contractAmt - priorCollected - netCol;
             var pct      = contractAmt > 0 ? Math.min(100, Math.round(netCol / contractAmt * 100)) : 0;
-            return { p:p, ct:ct, contractAmt:contractAmt, netCol:netCol, remain:remain, pct:pct, startDate:(ct&&ct.start_date)?ct.start_date:(p.start_date||null) };
+            return { p:p, ct:ct, contractAmt:contractAmt, priorCollected:priorCollected, netCol:netCol, remain:remain, pct:pct, startDate:(ct&&ct.start_date)?ct.start_date:(p.start_date||null) };
           })
           .sort(function(a,b){
             var catOrd = function(c){ return c==='사급'?0:c==='관급'?1:2; };
@@ -1853,7 +1854,7 @@ function PerfView({ user }) {
                           <span style={{fontWeight:700,color:'#1d4ed8',cursor:'pointer',textDecoration:'underline',textUnderlineOffset:2}}
                             onClick={function(){
                               setEditItem(r.ct || {project_id:p.id});
-                              setForm({project_id:p.id, amount:r.ct?fmtN(r.ct.amount):'', memo:r.ct?r.ct.memo:'', start_date:r.ct&&r.ct.start_date ? r.ct.start_date : (p.start_date||'')});
+                              setForm({project_id:p.id, amount:r.ct?fmtN(r.ct.amount):'', prior_collected:r.ct&&r.ct.prior_collected?fmtN(r.ct.prior_collected):'', memo:r.ct?r.ct.memo:'', start_date:r.ct&&r.ct.start_date ? r.ct.start_date : (p.start_date||'')});
                               setModal('contract');
                             }}>
                             {r.contractAmt > 0 ? fmtN(r.contractAmt)+'원' : '+ 입력'}
@@ -1862,6 +1863,9 @@ function PerfView({ user }) {
                         <td className="tr" style={{color:'#059669',fontWeight:600}}>{fmtN(r.netCol)}원</td>
                         <td className="tr" style={{fontWeight:700,color:r.remain<0?'#dc2626':r.remain===0?'#94a3b8':'#7c3aed'}}>
                           {r.remain < 0 ? '초과 '+fmtN(Math.abs(r.remain)) : fmtN(r.remain)}원
+                          {r.priorCollected > 0 && (
+                            <div style={{fontSize:10,color:'#94a3b8',fontWeight:400,marginTop:1}}>기수금 {fmtN(r.priorCollected)}원 제외</div>
+                          )}
                         </td>
                         <td>
                           {r.contractAmt > 0 ? (
@@ -1904,7 +1908,7 @@ function PerfView({ user }) {
               .reduce(function(s,c){ return s+(c.amount||0); }, 0);
             var totalOut = cols.filter(function(c){ return c.project_id === p.id; })
               .reduce(function(s,c){ return s+(c.outsource_cost||0); }, 0);
-            var remain = ct.amount - (totalCol - totalOut);
+            var remain = ct.amount - (ct.prior_collected||0) - (totalCol - totalOut);
             if (remain <= 0) return null;
             return { p:p, remain:remain, endDate:p.end_date, isPast: p.end_date < today };
           })
@@ -1958,7 +1962,7 @@ function PerfView({ user }) {
               <div style={{marginBottom:20}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
                   <span className="st">📅 용역 종료일 기준 예상 잔금 ({autoExpected.length}건)</span>
-                  <span style={{fontSize:11,color:'#94a3b8'}}>계약금액 - 누적순수금</span>
+                  <span style={{fontSize:11,color:'#94a3b8'}}>계약금액 - 기수금 - 누적순수금</span>
                   <span style={{marginLeft:'auto',fontSize:13,fontWeight:800,color:'#7c3aed'}}>{fmtN(autoTotal)}원</span>
                 </div>
                 <div className="tbl-wrap">
@@ -2136,6 +2140,12 @@ function PerfView({ user }) {
                     onChange={function(e){onAmountChange('amount',e);}} />
                 </div>
               </div>
+              <div style={{marginBottom:12}}>
+                <label className="fl">기 수금액 (원)</label>
+                <input className="fi" value={form.prior_collected||''} placeholder="전년도까지 수금된 금액 (당해연도 실적 미포함)" style={{textAlign:'right'}}
+                  onChange={function(e){onAmountChange('prior_collected',e);}} />
+                <div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>다년도 프로젝트에서 이전 연도에 이미 수금된 금액을 입력하세요.</div>
+              </div>
               <div>
                 <label className="fl">메모</label>
                 <input className="fi" value={form.memo||''} placeholder="계약 관련 메모"
@@ -2147,7 +2157,7 @@ function PerfView({ user }) {
               <button className="btn btn-p" onClick={function(){
                 if (!form.amount) { setErr('계약금액을 입력해주세요.'); return; }
                 setSaving(true); setErr('');
-                var payload = { project_id:form.project_id, amount:numV(form.amount), memo:form.memo||'', start_date:form.start_date||null, updated_at:new Date().toISOString() };
+                var payload = { project_id:form.project_id, amount:numV(form.amount), prior_collected:numV(form.prior_collected||'0'), memo:form.memo||'', start_date:form.start_date||null, updated_at:new Date().toISOString() };
                 var q = editItem && editItem.id
                   ? sb.from('contracts').update(payload).eq('id', editItem.id)
                   : sb.from('contracts').upsert(payload, {onConflict:'project_id'});
