@@ -1764,12 +1764,16 @@ function PerfView({ user }) {
           .filter(function(p){ return getContract(p.id) || p.status !== '완료'; })
           .map(function(p){
             var ct = getContract(p.id);
-            var contractAmt = ct ? (ct.amount||0) : 0;
+            var contractAmt    = ct ? (ct.amount||0) : 0;
             var priorCollected = ct ? (ct.prior_collected||0) : 0;
+            var expectedOut    = ct ? (ct.expected_outsource||0) : 0;
             var totalCol = getTotalCol(p.id);
-            var remain   = contractAmt - priorCollected - totalCol;
+            var totalOut = getTotalOut(p.id);
+            var netContractAmt = contractAmt - expectedOut;
+            var netCol         = totalCol - totalOut;
+            var remain   = netContractAmt - priorCollected - netCol;
             var pct      = contractAmt > 0 ? Math.min(100, Math.round(totalCol / contractAmt * 100)) : 0;
-            return { p:p, ct:ct, contractAmt:contractAmt, priorCollected:priorCollected, totalCol:totalCol, remain:remain, pct:pct, startDate:(ct&&ct.start_date)?ct.start_date:(p.start_date||null) };
+            return { p:p, ct:ct, contractAmt:contractAmt, expectedOut:expectedOut, netContractAmt:netContractAmt, priorCollected:priorCollected, totalCol:totalCol, remain:remain, pct:pct, startDate:(ct&&ct.start_date)?ct.start_date:(p.start_date||null) };
           })
           .sort(function(a,b){
             var catOrd = function(c){ return c==='사급'?0:c==='관급'?1:2; };
@@ -1852,7 +1856,7 @@ function PerfView({ user }) {
                           <span style={{fontWeight:700,color:'#1d4ed8',cursor:'pointer',textDecoration:'underline',textUnderlineOffset:2}}
                             onClick={function(){
                               setEditItem(r.ct || {project_id:p.id});
-                              setForm({project_id:p.id, amount:r.ct?fmtN(r.ct.amount):'', prior_collected:r.ct&&r.ct.prior_collected?fmtN(r.ct.prior_collected):'', memo:r.ct?r.ct.memo:'', start_date:r.ct&&r.ct.start_date ? r.ct.start_date : (p.start_date||'')});
+                              setForm({project_id:p.id, amount:r.ct?fmtN(r.ct.amount):'', prior_collected:r.ct&&r.ct.prior_collected?fmtN(r.ct.prior_collected):'', expected_outsource:r.ct&&r.ct.expected_outsource?fmtN(r.ct.expected_outsource):'', memo:r.ct?r.ct.memo:'', start_date:r.ct&&r.ct.start_date ? r.ct.start_date : (p.start_date||'')});
                               setModal('contract');
                             }}>
                             {r.contractAmt > 0 ? fmtN(r.contractAmt)+'원' : '+ 입력'}
@@ -1861,6 +1865,9 @@ function PerfView({ user }) {
                         <td className="tr" style={{color:'#059669',fontWeight:600}}>{fmtN(r.totalCol)}원</td>
                         <td className="tr" style={{fontWeight:700,color:r.remain<0?'#dc2626':r.remain===0?'#94a3b8':'#7c3aed'}}>
                           {r.remain < 0 ? '초과 '+fmtN(Math.abs(r.remain)) : fmtN(r.remain)}원
+                          {r.expectedOut > 0 && (
+                            <div style={{fontSize:10,color:'#94a3b8',fontWeight:400,marginTop:1}}>예상외주 {fmtN(r.expectedOut)}원 제외</div>
+                          )}
                           {r.priorCollected > 0 && (
                             <div style={{fontSize:10,color:'#94a3b8',fontWeight:400,marginTop:1}}>기수금 {fmtN(r.priorCollected)}원 제외</div>
                           )}
@@ -1904,7 +1911,11 @@ function PerfView({ user }) {
             if (!ct || !ct.amount) return null;
             var totalCol = cols.filter(function(c){ return c.project_id === p.id; })
               .reduce(function(s,c){ return s+(c.amount||0); }, 0);
-            var remain = ct.amount - (ct.prior_collected||0) - totalCol;
+            var totalOut = cols.filter(function(c){ return c.project_id === p.id; })
+              .reduce(function(s,c){ return s+(c.outsource_cost||0); }, 0);
+            var netContractAmt = ct.amount - (ct.expected_outsource||0);
+            var netCol = totalCol - totalOut;
+            var remain = netContractAmt - (ct.prior_collected||0) - netCol;
             if (remain <= 0) return null;
             return { p:p, remain:remain, endDate:p.end_date, isPast: p.end_date < today };
           })
@@ -1958,7 +1969,7 @@ function PerfView({ user }) {
               <div style={{marginBottom:20}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
                   <span className="st">📅 용역 종료일 기준 예상 잔금 ({autoExpected.length}건)</span>
-                  <span style={{fontSize:11,color:'#94a3b8'}}>계약금액 - 기수금 - 수금액</span>
+                  <span style={{fontSize:11,color:'#94a3b8'}}>(계약금액 - 예상외주비) - 기수금 - (수금액 - 실외주비)</span>
                   <span style={{marginLeft:'auto',fontSize:13,fontWeight:800,color:'#7c3aed'}}>{fmtN(autoTotal)}원</span>
                 </div>
                 <div className="tbl-wrap">
@@ -2139,6 +2150,12 @@ function PerfView({ user }) {
                   onChange={function(e){onAmountChange('prior_collected',e);}} />
                 <div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>다년도 프로젝트에서 이전 연도에 이미 수금된 금액을 입력하세요.</div>
               </div>
+              <div style={{marginBottom:12}}>
+                <label className="fl">예상 외주비 (원)</label>
+                <input className="fi" value={form.expected_outsource||''} placeholder="계약 시 확정된 외주 예정 금액" style={{textAlign:'right'}}
+                  onChange={function(e){onAmountChange('expected_outsource',e);}} />
+                <div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>잔금 및 예상수금 계산 시 계약금액에서 차감됩니다.</div>
+              </div>
               <div>
                 <label className="fl">메모</label>
                 <input className="fi" value={form.memo||''} placeholder="계약 관련 메모"
@@ -2150,7 +2167,7 @@ function PerfView({ user }) {
               <button className="btn btn-p" onClick={function(){
                 if (!form.amount) { setErr('계약금액을 입력해주세요.'); return; }
                 setSaving(true); setErr('');
-                var payload = { project_id:form.project_id, amount:numV(form.amount), prior_collected:numV(form.prior_collected||'0'), memo:form.memo||'', start_date:form.start_date||null, updated_at:new Date().toISOString() };
+                var payload = { project_id:form.project_id, amount:numV(form.amount), prior_collected:numV(form.prior_collected||'0'), expected_outsource:numV(form.expected_outsource||'0'), memo:form.memo||'', start_date:form.start_date||null, updated_at:new Date().toISOString() };
                 var q = editItem && editItem.id
                   ? sb.from('contracts').update(payload).eq('id', editItem.id)
                   : sb.from('contracts').upsert(payload, {onConflict:'project_id'});
