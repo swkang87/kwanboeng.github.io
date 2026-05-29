@@ -141,13 +141,13 @@
 
     return {
       checkOnLoad: function() {
-        if (!sessionStorage.getItem(SESSION_KEY)) return false;
+        if (!localStorage.getItem(SESSION_KEY)) return false;
         var storedOrigin  = sessionStorage.getItem(ORIGIN_KEY);
         var currentOrigin = String(Math.round(performance.timeOrigin));
         if (storedOrigin && storedOrigin === currentOrigin) return false;
         localStorage.removeItem(SESSION_KEY);
         if (_isExpired()) {
-          sessionStorage.removeItem(SESSION_KEY);
+          localStorage.removeItem(SESSION_KEY);
           localStorage.removeItem(ACTIVE_KEY);
           localStorage.removeItem(LOGIN_KEY);
           return true;
@@ -220,7 +220,7 @@
      */
     function getSession() {
       try {
-        var raw = sessionStorage.getItem(SESSION_KEY);
+        var raw = localStorage.getItem(SESSION_KEY);
         if (!raw) return null;
         var v = JSON.parse(raw);
         if (v && v.id && v.role) return v;
@@ -232,7 +232,7 @@
      * clearSession()
      */
     function clearSession() {
-      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem('kwanbo_uid');
     }
 
@@ -297,7 +297,7 @@
 
         // 로그인 성공
         clearFailures();
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
+        localStorage.setItem(SESSION_KEY, JSON.stringify(user));
         sessionStorage.removeItem('kwanbo_uid');
 
         return { ok: true, user: user };

@@ -2731,11 +2731,11 @@ const SysBar = Sysbar.createComponent(React);
 function App() {
   var initialUser = (function() {
     try {
-      var raw = sessionStorage.getItem('kwanbo_session');
+      var raw = localStorage.getItem('kwanbo_session');
       if (!raw) return null;
       var v = JSON.parse(raw);
       if (v && v.id && v.role) {
-        if (v.password) { delete v.password; sessionStorage.setItem('kwanbo_session', JSON.stringify(v)); }
+        if (v.password) { delete v.password; localStorage.setItem('kwanbo_session', JSON.stringify(v)); }
         return v;
       }
       return null;
@@ -2769,7 +2769,7 @@ function App() {
     // checkOnLoad: 렌더 후 실행 (Babel 컴파일 완료 이후 → NAV_WINDOW 오인 방지)
     var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
     if (wasInvalidated) { setUser(null); return; }
-    var raw = sessionStorage.getItem('kwanbo_session');
+    var raw = localStorage.getItem('kwanbo_session');
     if (!raw) { setSsoChecked(true); return; }
     try {
       var v = JSON.parse(raw);
@@ -2778,7 +2778,7 @@ function App() {
       sb.from('users').select('*').eq('id', userId).single().then(function(r) {
         if (r.data) {
           var safeU = Object.assign({}, r.data); delete safeU.password;
-          sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+          localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
           localStorage.removeItem('kwanbo_pm_user');
           setUser(safeU);
           Sysbar.SessionManager.onLogin(function() { logout(); });
