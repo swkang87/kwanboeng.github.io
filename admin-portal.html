@@ -1752,11 +1752,11 @@ function PerfView({ user }) {
 
         function getContract(pid) { return contracts.find(function(c){ return c.project_id === pid; }); }
         function getTotalCol(pid) {
-          return cols.filter(function(c){ return c.project_id === pid; })
+          return yCols.filter(function(c){ return c.project_id === pid; })
             .reduce(function(s,c){ return s + (c.amount||0); }, 0);
         }
         function getTotalOut(pid) {
-          return cols.filter(function(c){ return c.project_id === pid; })
+          return yCols.filter(function(c){ return c.project_id === pid; })
             .reduce(function(s,c){ return s + (c.outsource_cost||0); }, 0);
         }
 
