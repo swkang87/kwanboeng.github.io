@@ -142,16 +142,16 @@
     return {
       checkOnLoad: function() {
         if (!localStorage.getItem(SESSION_KEY)) return false;
-        // localStorage 기반 세션은 탭간 공유가 정상 동작
+        // localStorage 기반 세션 → 탭·페이지 이동 시에도 유지
         // 만료 여부만 체크
         if (_isExpired()) {
           localStorage.removeItem(SESSION_KEY);
           localStorage.removeItem(ACTIVE_KEY);
           localStorage.removeItem(LOGIN_KEY);
           sessionStorage.removeItem(ORIGIN_KEY);
-          return true;  // 만료 → 로그인 화면
+          return true;  // 만료 → 로그인 필요
         }
-        return false;   // 유효한 세션
+        return false;   // 유효 → 세션 유지
       },
 
       onLogin: function(logoutCb) {
