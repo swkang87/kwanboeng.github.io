@@ -1906,9 +1906,7 @@ function PerfView({ user }) {
             if (!ct || !ct.amount) return null;
             var totalCol = cols.filter(function(c){ return c.project_id === p.id; })
               .reduce(function(s,c){ return s+(c.amount||0); }, 0);
-            var totalOut = cols.filter(function(c){ return c.project_id === p.id; })
-              .reduce(function(s,c){ return s+(c.outsource_cost||0); }, 0);
-            var remain = ct.amount - (ct.prior_collected||0) - (totalCol - totalOut);
+            var remain = ct.amount - (ct.prior_collected||0) - totalCol;
             if (remain <= 0) return null;
             return { p:p, remain:remain, endDate:p.end_date, isPast: p.end_date < today };
           })
@@ -1962,7 +1960,7 @@ function PerfView({ user }) {
               <div style={{marginBottom:20}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
                   <span className="st">📅 용역 종료일 기준 예상 잔금 ({autoExpected.length}건)</span>
-                  <span style={{fontSize:11,color:'#94a3b8'}}>계약금액 - 기수금 - 누적순수금</span>
+                  <span style={{fontSize:11,color:'#94a3b8'}}>계약금액 - 기수금 - 수금액</span>
                   <span style={{marginLeft:'auto',fontSize:13,fontWeight:800,color:'#7c3aed'}}>{fmtN(autoTotal)}원</span>
                 </div>
                 <div className="tbl-wrap">
@@ -1982,10 +1980,7 @@ function PerfView({ user }) {
                         var ct = contracts.find(function(c){ return c.project_id === r.p.id; });
                         var totalCol = cols.filter(function(c){ return c.project_id === r.p.id; })
                           .reduce(function(s,c){ return s+(c.amount||0); }, 0);
-                        var totalOut = cols.filter(function(c){ return c.project_id === r.p.id; })
-                          .reduce(function(s,c){ return s+(c.outsource_cost||0); }, 0);
-                        var netCol = totalCol - totalOut;
-                        var pct = ct && ct.amount > 0 ? Math.min(100, Math.round(netCol / ct.amount * 100)) : 0;
+                        var pct = ct && ct.amount > 0 ? Math.min(100, Math.round(totalCol / ct.amount * 100)) : 0;
                         return (
                           <tr key={r.p.id} style={{background: r.isPast ? '#fff5f5' : ''}}>
                             <td>
