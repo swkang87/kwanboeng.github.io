@@ -142,17 +142,16 @@
     return {
       checkOnLoad: function() {
         if (!localStorage.getItem(SESSION_KEY)) return false;
-        var storedOrigin  = sessionStorage.getItem(ORIGIN_KEY);
-        var currentOrigin = String(Math.round(performance.timeOrigin));
-        if (storedOrigin && storedOrigin === currentOrigin) return false;
-        localStorage.removeItem(SESSION_KEY);
+        // localStorage 기반 세션은 탭간 공유가 정상 동작
+        // 만료 여부만 체크
         if (_isExpired()) {
           localStorage.removeItem(SESSION_KEY);
           localStorage.removeItem(ACTIVE_KEY);
           localStorage.removeItem(LOGIN_KEY);
-          return true;
+          sessionStorage.removeItem(ORIGIN_KEY);
+          return true;  // 만료 → 로그인 화면
         }
-        return false;
+        return false;   // 유효한 세션
       },
 
       onLogin: function(logoutCb) {
