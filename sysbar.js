@@ -83,7 +83,7 @@
     function _touch() {
       var now = Date.now();
       if (now - _lastTouch < THROTTLE_MS) return;
-      localStorage.setItem(ACTIVE_KEY, now.toString());
+      sessionStorage.setItem(ACTIVE_KEY, now.toString());
       _lastTouch = now;
       if (_warnShown) {
         _warnShown = false;
@@ -111,7 +111,7 @@
         document.addEventListener(ev, _touch, { passive: true, capture: true });
       });
       _timer = setInterval(function() {
-        var lastActive = parseInt(localStorage.getItem(ACTIVE_KEY) || '0');
+        var lastActive = parseInt(sessionStorage.getItem(ACTIVE_KEY) || '0');
         if (lastActive === 0) return;
         var elapsed = Date.now() - lastActive;
         if (elapsed >= TIMEOUT_MS) {
@@ -132,8 +132,8 @@
     }
 
     function _isExpired() {
-      var lastActive = parseInt(localStorage.getItem(ACTIVE_KEY) || '0');
-      var loginTs    = parseInt(localStorage.getItem(LOGIN_KEY)  || '0');
+      var lastActive = parseInt(sessionStorage.getItem(ACTIVE_KEY) || '0');
+      var loginTs    = parseInt(sessionStorage.getItem(LOGIN_KEY)  || '0');
       var base = lastActive > 0 ? lastActive : loginTs;
       if (base === 0) return false;
       return (Date.now() - base) > TIMEOUT_MS;
@@ -141,13 +141,13 @@
 
     return {
       checkOnLoad: function() {
-        if (!localStorage.getItem(SESSION_KEY)) return false;
-        // localStorage 기반 세션 → 탭·페이지 이동 시에도 유지
+        if (!sessionStorage.getItem(SESSION_KEY)) return false;
+        // sessionStorage 기반 세션 → 브라우저/탭 닫으면 자동 만료
         // 만료 여부만 체크
         if (_isExpired()) {
-          localStorage.removeItem(SESSION_KEY);
-          localStorage.removeItem(ACTIVE_KEY);
-          localStorage.removeItem(LOGIN_KEY);
+          sessionStorage.removeItem(SESSION_KEY);
+          sessionStorage.removeItem(ACTIVE_KEY);
+          sessionStorage.removeItem(LOGIN_KEY);
           sessionStorage.removeItem(ORIGIN_KEY);
           return true;  // 만료 → 로그인 필요
         }
@@ -157,8 +157,8 @@
       onLogin: function(logoutCb) {
         if (_registered) { _logoutCb = logoutCb; return; }
         _registered = true;
-        if (!localStorage.getItem(LOGIN_KEY)) {
-          localStorage.setItem(LOGIN_KEY, Date.now().toString());
+        if (!sessionStorage.getItem(LOGIN_KEY)) {
+          sessionStorage.setItem(LOGIN_KEY, Date.now().toString());
         }
         sessionStorage.setItem(ORIGIN_KEY, String(Math.round(performance.timeOrigin)));
         _startWatching(logoutCb);
@@ -167,8 +167,8 @@
 
       onLogout: function() {
         _stop();
-        localStorage.removeItem(ACTIVE_KEY);
-        localStorage.removeItem(LOGIN_KEY);
+        sessionStorage.removeItem(ACTIVE_KEY);
+        sessionStorage.removeItem(LOGIN_KEY);
         sessionStorage.removeItem(ORIGIN_KEY);
         var el = document.getElementById('kwanbo-timeout-toast');
         if (el) el.remove();
@@ -219,7 +219,7 @@
      */
     function getSession() {
       try {
-        var raw = localStorage.getItem(SESSION_KEY);
+        var raw = sessionStorage.getItem(SESSION_KEY);
         if (!raw) return null;
         var v = JSON.parse(raw);
         if (v && v.id && v.role) return v;
@@ -231,7 +231,7 @@
      * clearSession()
      */
     function clearSession() {
-      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem('kwanbo_uid');
     }
 
@@ -296,7 +296,7 @@
 
         // 로그인 성공
         clearFailures();
-        localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
         sessionStorage.removeItem('kwanbo_uid');
 
         return { ok: true, user: user };
