@@ -1108,8 +1108,8 @@ function WeeklyInlineForm({ projectId, userId, selWeek, existingReport, prevRepo
     if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
     await sb.from('change_logs').insert({
       project_id: projectId, field_name: '주간보고',
-      old_value: String(prevPct) + '%',
-      new_value: String(parseInt(pct) || 0) + '% | ' + weekDate,
+      old_value: String(prevPct) + '%' + (existingReport?.summary ? ' | ' + existingReport.summary : ''),
+      new_value: String(parseInt(pct) || 0) + '% | ' + weekDate + (summary ? ' | ' + summary : ''),
       changed_by: userId, created_at: new Date().toISOString()
     }).catch(() => {});
     onSaved();
@@ -1993,6 +1993,7 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
   const [pct, setPct] = useState(prevData?.progress_pct || 0);
   const [prevPct, setPrevPct] = useState(prevData?.progress_pct || 0);
   const [summary, setSummary] = useState('');
+  const [oldSummary, setOldSummary] = useState('');
   const [issues, setIssues] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
@@ -2012,6 +2013,7 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
           .single();
         if (data) {
           setSummary(data.summary || '');
+          setOldSummary(data.summary || '');
           setIssues(data.issues || '');
           setPrevPct(data.progress_pct || 0);
           setPct(data.progress_pct || 0);
@@ -2048,7 +2050,7 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
     const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: '', issues, reported_by: userId, updated_at: new Date().toISOString() };
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
     if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
-    sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%', new_value: String(parseInt(pct)) + '% | ' + weekDate, changed_by: userId, created_at: new Date().toISOString() }).catch(e => console.error('change_log error:', e));
+    sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%' + (oldSummary ? ' | ' + oldSummary : ''), new_value: String(parseInt(pct)) + '% | ' + weekDate + (summary ? ' | ' + summary : ''), changed_by: userId, created_at: new Date().toISOString() }).catch(e => console.error('change_log error:', e));
     onSaved();
   };
 
