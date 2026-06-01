@@ -2048,7 +2048,7 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
     const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: '', issues, reported_by: userId, updated_at: new Date().toISOString() };
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
     if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
-    { const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%', new_value: String(parseInt(pct)) + '% | ' + weekDate, changed_by: userId, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
+    sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%', new_value: String(parseInt(pct)) + '% | ' + weekDate, changed_by: userId, created_at: new Date().toISOString() }).catch(e => console.error('change_log error:', e));
     onSaved();
   };
 
