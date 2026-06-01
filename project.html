@@ -333,6 +333,7 @@ const fmt = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); retur
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const thisMonday = () => { const d = new Date(); d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1)); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const sixMonthsAgo = () => { const d = new Date(); d.setMonth(d.getMonth() - 6); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; };
+const thirtyDaysAgo = () => { const d = new Date(); d.setDate(d.getDate()-30); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const reportMonday = () => {
   // 1) 이번 주 월요일 계산 (화~일+월 묶음 기준)
   const d = new Date();
@@ -404,12 +405,12 @@ function App() {
   const [user, setUser] = useState(() => {
     try {
       // 통합 세션 읽기
-      const sessRaw = localStorage.getItem('kwanbo_session');
+      const sessRaw = sessionStorage.getItem('kwanbo_session');
       if (sessRaw) {
         const v = JSON.parse(sessRaw);
         // 신규 형태: user 객체 전체 (id 포함)
         if (v && v.id && v.role) {
-          if (v.password) { delete v.password; localStorage.setItem('kwanbo_session', JSON.stringify(v)); }
+          if (v.password) { delete v.password; sessionStorage.setItem('kwanbo_session', JSON.stringify(v)); }
           localStorage.removeItem('kwanbo_pm_user');
           return v;
         }
@@ -450,7 +451,7 @@ function App() {
     const [pj, rp, ev, us, mb] = await Promise.all([
       sb.from('projects').select('*, completed_at').order('name'),
       sb.from('weekly_reports').select('*').gte('week_date', sixMonthsAgo()).order('week_date', { ascending: false }),
-      sb.from('project_events').select('*').eq('done', false),
+      sb.from('project_events').select('*').or(`done.eq.false,event_date.gte.${thirtyDaysAgo()}`),
       sb.from('users').select('*').order('name'),
       sb.from('project_members').select('*'),
     ]);
@@ -485,7 +486,7 @@ function App() {
   // SSO 초기화 — 다른 시스템에서 로그인한 경우 자동 로그인
   useEffect(() => {
     if (user) { setSsoChecked(true); return; }
-    const raw = localStorage.getItem('kwanbo_session');
+    const raw = sessionStorage.getItem('kwanbo_session');
     if (!raw) { setSsoChecked(true); return; }
     try {
       const v = JSON.parse(raw);
@@ -496,7 +497,7 @@ function App() {
       sb.from('users').select('id,name,phone,email,position,team_id,role,join_date,total_days,used_days').eq('id', userId).single().then(({ data }) => {
         if (data) {
           const safeU = {...data};
-          localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+          sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
           localStorage.removeItem('kwanbo_pm_user');
           setUser(safeU);
         }
@@ -651,7 +652,7 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
     const [pj, rp, ev, us, mb] = await Promise.all([
       sb.from('projects').select('*').neq('status', '완료').order('name'),
       sb.from('weekly_reports').select('*').gte('week_date', sixMonthsAgo()).order('week_date', { ascending: false }),
-      sb.from('project_events').select('*').eq('done', false),
+      sb.from('project_events').select('*').or(`done.eq.false,event_date.gte.${thirtyDaysAgo()}`),
       sb.from('users').select('id, name, role'),
       sb.from('project_members').select('*'),
     ]);
@@ -728,6 +729,10 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
 
   const getNextEvent = (pid) => events.filter(e => e.project_id === pid && !e.done).sort((a,b) => a.event_date.localeCompare(b.event_date))[0];
 
+  // 선택 주 기준 7일 전: 완료된 주요공정은 이 날짜 이후까지만 표시
+  const selWeekCutoff = selWeek ? (() => { const d = new Date(selWeek+'T00:00:00'); d.setDate(d.getDate()-7); return d.toISOString().split('T')[0]; })() : '';
+  const getRecentDoneEvs = (pid) => events.filter(e => e.project_id === pid && e.done && selWeekCutoff && e.event_date >= selWeekCutoff).sort((a,b) => b.event_date.localeCompare(a.event_date));
+
   const activeProjects = sortedProjects.filter(p => p.status !== '완료');
   const thisWeekReports = reports.filter(r => r.week_date === selWeek);
   const avgPct = activeProjects.length > 0 ? Math.round(activeProjects.reduce((s,p) => { const r = getReport(p.id); return s + (r?.progress_pct || 0); }, 0) / activeProjects.length) : 0;
@@ -767,8 +772,9 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
       const d = r ? r.progress_pct - r.prev_pct : 0;
       const catColor = CAT_COLOR[p.category] || '#64748b';
       const nameStyle = stopped ? 'color:#9ca3af;font-weight:600' : 'font-weight:600';
-      // 향후 주요 공정 (완료 안 된 것 중 가장 가까운 순 3개)
-      const upEv = events.filter(e => e.project_id === p.id && !e.done)
+      // 향후 주요 공정: 미완료 + 완료 후 1주일 이내
+      const printCutoff = (() => { const d = new Date(selWeek+'T00:00:00'); d.setDate(d.getDate()-7); return d.toISOString().split('T')[0]; })();
+      const upEv = events.filter(e => e.project_id === p.id && (!e.done || e.event_date >= printCutoff))
         .sort((a,b) => a.event_date.localeCompare(b.event_date))
         .slice(0, 3);
       const evHtml = upEv.map(e => {
@@ -776,7 +782,9 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
         const d2 = new Date(e.event_date+'T00:00:00');
         const ds = `${d2.getMonth()+1}/${d2.getDate()}`;
         // XSS: e.title은 DB 입력값 → 이스케이프
-        return `<div style="margin-bottom:2px;font-size:6pt;"><span style="background:${c};color:#fff;padding:0 3px;border-radius:2px;font-weight:700;font-size:5.5pt">${esc(e.type)}</span> ${esc(e.title)} <span style="color:#888">(${ds})</span></div>`;
+        const doneStyle = e.done ? 'text-decoration:line-through;opacity:.6;' : '';
+        const donePrefix = e.done ? '✓ ' : '';
+        return `<div style="margin-bottom:2px;font-size:6pt;${doneStyle}"><span style="background:${e.done?'#94a3b8':c};color:#fff;padding:0 3px;border-radius:2px;font-weight:700;font-size:5.5pt">${esc(e.type)}</span> ${donePrefix}${esc(e.title)} <span style="color:#888">(${ds})</span></div>`;
       }).join('');
         const isOverdue = p.end_date && p.end_date < selWeek && p.status !== '완료';
         const issueText = [
@@ -927,6 +935,9 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                       {EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})
                     </div>
                   )}
+                  {getRecentDoneEvs(p.id).map(e => (
+                    <div key={e.id} style={{ marginTop: 3, padding: '3px 7px', background: '#f1f5f9', borderRadius: 4, fontSize: 11, color: '#94a3b8', display: 'inline-block', textDecoration: 'line-through' }}>✓ {EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>
+                  ))}
                 </div>
                 {/* 이슈 */}
                 {(isOverdue || r?.issues) && (
@@ -1034,6 +1045,9 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                           </span>
                     }
                     {ne && <div style={{ marginTop: 3, padding: '2px 5px', background: ec(ne.type).bg, borderRadius: 3, fontSize: 10, color: ec(ne.type).tx, display: 'inline-block' }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
+                    {getRecentDoneEvs(p.id).map(e => (
+                      <div key={e.id} style={{ marginTop: 2, padding: '2px 5px', background: '#f1f5f9', borderRadius: 3, fontSize: 10, color: '#94a3b8', display: 'inline-block', textDecoration: 'line-through' }}>✓ {EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>
+                    ))}
                   </td>
                   <td style={{ fontSize: 10 }}>
                     {p.end_date && p.end_date < selWeek && p.status !== '완료' && (
@@ -1108,12 +1122,13 @@ function WeeklyInlineForm({ projectId, userId, selWeek, existingReport, prevRepo
     };
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
     if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
-    await sb.from('change_logs').insert({
+    const { error: clErr } = await sb.from('change_logs').insert({
       project_id: projectId, field_name: '주간보고',
       old_value: String(prevPct) + '%' + (existingReport?.summary ? ' | ' + existingReport.summary : ''),
       new_value: String(parseInt(pct) || 0) + '% | ' + weekDate + (summary ? ' | ' + summary : ''),
       changed_by: userId, created_at: new Date().toISOString()
-    }).catch(() => {});
+    });
+    if (clErr) console.error('change_log insert error:', clErr.message);
     onSaved();
   };
 
@@ -2052,7 +2067,8 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
     const payload = { project_id: projectId, week_date: weekDate, progress_pct: parseInt(pct), prev_pct: parseInt(prevPct), summary, next_plan: '', issues, reported_by: userId, updated_at: new Date().toISOString() };
     const { error } = await sb.from('weekly_reports').upsert(payload, { onConflict: 'project_id,week_date' });
     if (error) { setErr('저장 오류: ' + error.message); setLoading(false); return; }
-    sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%' + (oldSummary ? ' | ' + oldSummary : ''), new_value: String(parseInt(pct)) + '% | ' + weekDate + (summary ? ' | ' + summary : ''), changed_by: userId, created_at: new Date().toISOString() }).catch(e => console.error('change_log error:', e));
+    const { error: clErr } = await sb.from('change_logs').insert({ project_id: projectId, field_name: '주간보고', old_value: String(prevPct) + '%' + (oldSummary ? ' | ' + oldSummary : ''), new_value: String(parseInt(pct)) + '% | ' + weekDate + (summary ? ' | ' + summary : ''), changed_by: userId, created_at: new Date().toISOString() });
+    if (clErr) console.error('change_log insert error:', clErr.message);
     onSaved();
   };
 

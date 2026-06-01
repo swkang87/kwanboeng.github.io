@@ -162,7 +162,7 @@ function _makeSb(userId, userRole) {
 let _ssoUser = null;
 try {
   // 신규: kwanbo_session에 user 객체 전체
-  const sessRaw = localStorage.getItem('kwanbo_session');
+  const sessRaw = sessionStorage.getItem('kwanbo_session');
   if (sessRaw) {
     const v = JSON.parse(sessRaw);
     if (v && v.id && v.role) _ssoUser = v;

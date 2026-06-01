@@ -1460,7 +1460,7 @@ function renderLoginSection(user) {
         'color:var(--gray);cursor:pointer;font-family:inherit;">로그아웃</button>' +
       '</div>';
     document.getElementById('modalLogoutBtn').addEventListener('click', function() {
-      localStorage.removeItem('kwanbo_session');
+      sessionStorage.removeItem('kwanbo_session');
       localStorage.removeItem('kwanbo_pm_user');
       sessionStorage.removeItem('kwanbo_uid');
       renderLoginSection(null);
@@ -1516,7 +1516,7 @@ function renderLoginSection(user) {
         }
 
         var u = profileRes.data;
-        localStorage.setItem('kwanbo_session', JSON.stringify(u));
+        sessionStorage.setItem('kwanbo_session', JSON.stringify(u));
         localStorage.removeItem('kwanbo_pm_user');
         sessionStorage.removeItem('kwanbo_uid');
         window.location.href = (u.role === 'contractor') ? 'project.html' : 'home.html';
@@ -1536,13 +1536,13 @@ function renderLoginSection(user) {
 
 // 모달 열릴 때 세션 체크 후 로그인 섹션 렌더
 function initModalLogin() {
-  var raw = localStorage.getItem('kwanbo_session');
+  var raw = sessionStorage.getItem('kwanbo_session');
   if (raw) {
     try {
       var v = JSON.parse(raw);
       // 신규 형태: user 객체 전체
       if (v && v.id && v.role) {
-        if (v.password) { delete v.password; localStorage.setItem('kwanbo_session', JSON.stringify(v)); }
+        if (v.password) { delete v.password; sessionStorage.setItem('kwanbo_session', JSON.stringify(v)); }
         renderLoginSection(v);
         return;
       }
@@ -1553,7 +1553,7 @@ function initModalLogin() {
           if (u) {
             var safeU = Object.assign({}, u); delete safeU.password;
             // 통합 세션으로 마이그레이션
-            localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+            sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
             localStorage.removeItem('kwanbo_pm_user');
             renderLoginSection(safeU);
           } else renderLoginSection(null);
