@@ -499,7 +499,12 @@ function WorklogView({ user }) {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,log_date' }).then(function(r) {
       setSaving(false);
-      if (!r.error) { setMsg('저장됐습니다'); setTimeout(function() { setMsg(''); }, 2500); }
+      if (r.error) {
+        setMsg('❌ 저장 실패: ' + (r.error.message || JSON.stringify(r.error)));
+      } else {
+        setMsg('저장됐습니다');
+        setTimeout(function() { setMsg(''); }, 2500);
+      }
     });
   }
 
@@ -1317,13 +1322,13 @@ function PerfView({ user }) {
               <table style={{tableLayout:'fixed',width:'100%'}}>
                 <colgroup>
                   <col style={{width:'auto'}} />
-                  <col style={{width:90}} />
-                  <col style={{width:62}} />
-                  <col style={{width:118}} />
-                  <col style={{width:118}} />
-                  <col style={{width:118}} />
-                  <col style={{width:72}} />
-                  <col style={{width:80}} />
+                  <col style={{width:82}} />
+                  <col style={{width:52}} />
+                  <col style={{width:108}} />
+                  <col style={{width:108}} />
+                  <col style={{width:108}} />
+                  <col style={{width:58}} />
+                  <col style={{width:70}} />
                 </colgroup>
                 <thead><tr>
                   <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
@@ -1360,7 +1365,8 @@ function PerfView({ user }) {
                               var sp = parseSupvMemo(c.memo);
                               return (
                                 <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
-                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:4,marginTop:2,
+                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 0',borderRadius:4,marginTop:2,
+                                    width:36,textAlign:'center',display:'inline-block',
                                     background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>감리</span>
                                   <span style={{display:'flex',flexDirection:'column',gap:1,minWidth:0}}>
                                     {sp.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{sp.client}</span>}
@@ -1372,7 +1378,8 @@ function PerfView({ user }) {
                             return (
                               <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
                                 {cat && (
-                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:4,marginTop:2,
+                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 0',borderRadius:4,marginTop:2,
+                                    width:36,textAlign:'center',display:'inline-block',
                                     background: CAT_BG[cat]||'#f1f5f9', color: CAT_TX[cat]||'#475569',
                                     border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0')}}>
                                     {cat}
@@ -2381,12 +2388,6 @@ function SalaryView({ user }) {
       <div className="ph" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
         <div><div className="pt">💼 급여 대장</div><div className="ps">관리자 전용</div></div>
         <input type="month" className="fi" value={month} onChange={function(e){setMonth(e.target.value);}} style={{width:'auto'}} />
-      </div>
-
-      <div className="g3">
-        <div className="stat blue"><div className="stat-l">총 지급액</div><div className="stat-v">{fmtN(totals.inc)}</div><div className="stat-s">원</div></div>
-        <div className="stat amber"><div className="stat-l">총 공제액</div><div className="stat-v">{fmtN(totals.ded)}</div><div className="stat-s">원</div></div>
-        <div className="stat purple"><div className="stat-l">총 실수령액</div><div className="stat-v">{fmtN(totals.net)}</div><div className="stat-s">원</div></div>
       </div>
 
       {emMsg && <div className="al al-s">{emMsg}</div>}
