@@ -792,7 +792,7 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
         <td class="tc">${r?.prev_pct||0}</td>
         <td class="tc" style="font-weight:700">${r?.progress_pct||0}</td>
         <td class="tc" style="font-weight:700;color:${d>0?'#059669':d<0?'#dc2626':'#999'}">${d>0?('+'+d):d<0?d:'—'}</td>
-        <td style="font-size:6.5pt">${r?.isThisWeek?(esc(r?.summary)||''):'—'}${evHtml?`<div style="margin-top:2px;border-top:0.5px solid #e2e8f0;padding-top:2px">${evHtml}</div>`:''}</td>
+        <td style="font-size:6.5pt">${r ? (r.isThisWeek ? (esc(r.summary)||'') : `<span style="color:#f59e0b;font-weight:700;font-size:5pt">[${r.week_date.slice(5).replace('-','/')} 기준]</span> ${esc(r.summary)||''}`) : ''}${evHtml?`<div style="margin-top:2px;border-top:0.5px solid #e2e8f0;padding-top:2px">${evHtml}</div>`:''}</td>
         <td style="font-size:6.5pt;color:${(isOverdue||r?.issues)?'#dc2626':'inherit'}">${esc(issueText)||''}</td>
       </tr>`;
     }).join('');
