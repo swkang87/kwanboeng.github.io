@@ -139,6 +139,7 @@ button{cursor:pointer}
 .ev-최종보고{background:#d1fae5;color:#065f46}
 .ev-위원회{background:#fce7f3;color:#9d174d}
 .ev-협의{background:#fef3c7;color:#92400e}
+.ev-측량{background:#ccfbf1;color:#134e4a}
 .ev-납품{background:#f3e8ff;color:#6b21a8}
 .ev-기타{background:#f1f5f9;color:#334155}
 
@@ -280,14 +281,15 @@ const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KE
 // ─── Constants ───
 const CAT_COLOR = { '관급': '#2563eb', '사급': '#059669', '기술지원': '#d97706' };
 const STATUS_COLOR = { '진행중': '#2563eb', '중지': '#94a3b8', '완료': '#6b7280' };
-const EV_TYPES = ['착수보고', '중간보고', '최종보고', '위원회', '협의', '납품', '기타'];
-const EV_ICON = { '착수보고': '🚀', '중간보고': '📋', '최종보고': '📦', '위원회': '🏛️', '협의': '🤝', '납품': '📬', '기타': '📌' };
+const EV_TYPES = ['착수보고', '중간보고', '최종보고', '위원회', '협의', '측량', '납품', '기타'];
+const EV_ICON = { '착수보고': '🚀', '중간보고': '📋', '최종보고': '📦', '위원회': '🏛️', '협의': '🤝', '측량': '📐', '납품': '📬', '기타': '📌' };
 const EV_COLOR = {
   '착수보고': { bg: '#dbeafe', bd: '#3b82f6', tx: '#1e40af' },
   '중간보고': { bg: '#e0e7ff', bd: '#6366f1', tx: '#4338ca' },
   '최종보고': { bg: '#d1fae5', bd: '#059669', tx: '#065f46' },
   '위원회':   { bg: '#fce7f3', bd: '#ec4899', tx: '#9d174d' },
   '협의':     { bg: '#fef3c7', bd: '#f59e0b', tx: '#92400e' },
+  '측량':     { bg: '#ccfbf1', bd: '#14b8a6', tx: '#134e4a' },
   '납품':     { bg: '#f3e8ff', bd: '#a855f7', tx: '#6b21a8' },
   '기타':     { bg: '#f1f5f9', bd: '#94a3b8', tx: '#334155' },
 };
@@ -744,9 +746,9 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
     // 이벤트 색상 매핑
     const evColors = {
       '착수보고':'#3b82f6','중간보고':'#6366f1','최종보고':'#059669',
-      '위원회':'#ec4899','협의':'#f59e0b','납품':'#a855f7','기타':'#94a3b8'
+      '위원회':'#ec4899','협의':'#f59e0b','측량':'#14b8a6','납품':'#a855f7','기타':'#94a3b8'
     };
-    const evIcons = {'착수보고':'🚀','중간보고':'📋','최종보고':'📦','위원회':'🏛️','협의':'🤝','납품':'📬','기타':'📌'};
+    const evIcons = {'착수보고':'🚀','중간보고':'📋','최종보고':'📦','위원회':'🏛️','협의':'🤝','측량':'📐','납품':'📬','기타':'📌'};
     const colgroup = `<colgroup>
       <col style="width:3%"/><col style="width:5%"/><col style="width:16%"/>
       <col style="width:10%"/><col style="width:5%"/><col style="width:6%"/>
