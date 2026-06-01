@@ -1314,7 +1314,17 @@ function PerfView({ user }) {
           ) : (
             <div className="tbl-wrap">
               <CatFilterBar />
-              <table>
+              <table style={{tableLayout:'fixed',width:'100%'}}>
+                <colgroup>
+                  <col style={{width:'auto'}} />
+                  <col style={{width:90}} />
+                  <col style={{width:62}} />
+                  <col style={{width:118}} />
+                  <col style={{width:118}} />
+                  <col style={{width:118}} />
+                  <col style={{width:72}} />
+                  <col style={{width:80}} />
+                </colgroup>
                 <thead><tr>
                   <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
                   <SortTh label="날짜"     col="date"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
@@ -1342,41 +1352,41 @@ function PerfView({ user }) {
                     var net   = (c.amount||0) - (c.outsource_cost||0);
                     return (
                       <tr key={c.id} style={{background: isOut ? '#fff5f5' : ''}}>
-                        <td>
+                        <td style={{verticalAlign:'top',paddingTop:10}}>
                           {(function(){
                             var proj = projects.find(function(p){ return p.id === c.project_id; });
                             var cat  = proj ? proj.category : '';
                             if (c.entry_type === 'supervision') {
                               var sp = parseSupvMemo(c.memo);
                               return (
-                                <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:4,marginTop:2,
                                     background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>감리</span>
-                                  <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                                  <span style={{display:'flex',flexDirection:'column',gap:1,minWidth:0}}>
                                     {sp.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{sp.client}</span>}
-                                    <span style={{fontWeight:600}}>{sp.name||c.memo||'-'}</span>
+                                    <span style={{fontWeight:600,fontSize:12,wordBreak:'keep-all',lineHeight:1.4}}>{sp.name||c.memo||'-'}</span>
                                   </span>
                                 </div>
                               );
                             }
                             return (
-                              <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                              <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
                                 {cat && (
-                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:4,
+                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:4,marginTop:2,
                                     background: CAT_BG[cat]||'#f1f5f9', color: CAT_TX[cat]||'#475569',
                                     border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0')}}>
                                     {cat}
                                   </span>
                                 )}
-                                <span style={{display:'flex',flexDirection:'column',gap:1}}>
+                                <span style={{display:'flex',flexDirection:'column',gap:1,minWidth:0}}>
                                   {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{proj.client}</span>}
-                                  <span style={{fontWeight:600}}>{pName(c.project_id)}</span>
+                                  <span style={{fontWeight:600,fontSize:12,wordBreak:'keep-all',lineHeight:1.4}}>{pName(c.project_id)}</span>
                                 </span>
                               </div>
                             );
                           })()}
                         </td>
-                        <td style={{whiteSpace:'nowrap'}}>{fmtD(c.collected_at)}</td>
+                        <td style={{whiteSpace:'nowrap',fontSize:12}}>{fmtD(c.collected_at)}</td>
                         <td>
                           {c.entry_type==='supervision'
                             ? <span className="badge" style={{fontSize:10,background:'#ecfdf5',color:'#065f46'}}>감리</span>
@@ -1385,13 +1395,14 @@ function PerfView({ user }) {
                               : <span className="badge bg" style={{fontSize:10}}>수금</span>
                           }
                         </td>
-                        <td className="tr" style={{fontWeight:700,color: isOut ? '#94a3b8' : '#1d4ed8'}}>
+                        <td className="tr" style={{fontWeight:700,fontSize:12,color: isOut ? '#94a3b8' : '#1d4ed8',whiteSpace:'nowrap'}}>
                           {isOut ? '—' : fmtN(c.amount)+'원'}
                         </td>
-                        <td className="tr" style={{color:'#dc2626'}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
-                        <td className="tr" style={{fontWeight:700,color: net < 0 ? '#dc2626' : '#7c3aed'}}>{fmtN(net)}원</td>
-                        <td style={{color:'#64748b',fontSize:12}}>{c.entry_type==='supervision' ? (parseSupvMemo(c.memo).note||'') : (c.memo||'-')}</td>
-                        <td style={{display:'flex',gap:4}}>
+                        <td className="tr" style={{color:'#dc2626',fontSize:12,whiteSpace:'nowrap'}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
+                        <td className="tr" style={{fontWeight:700,fontSize:12,whiteSpace:'nowrap',color: net < 0 ? '#dc2626' : '#7c3aed'}}>{fmtN(net)}원</td>
+                        <td style={{color:'#64748b',fontSize:11,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.entry_type==='supervision' ? (parseSupvMemo(c.memo).note||'') : (c.memo||'-')}</td>
+                        <td style={{whiteSpace:'nowrap'}}>
+                          <div style={{display:'flex',gap:3}}>
                           <button className="btn btn-s btn-sm" onClick={function(){
                             setEditItem(c);
                             var base = Object.assign({},c,{amount:c.amount?fmtN(c.amount):'',outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):'',entry_type:c.entry_type||'both'});
@@ -1405,6 +1416,7 @@ function PerfView({ user }) {
                             setModal('col');
                           }}>수정</button>
                           <button className="btn btn-d btn-sm" onClick={function(){deleteCol(c.id);}}>삭제</button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -2751,11 +2763,11 @@ const SysBar = Sysbar.createComponent(React);
 function App() {
   var initialUser = (function() {
     try {
-      var raw = sessionStorage.getItem('kwanbo_session');
+      var raw = localStorage.getItem('kwanbo_session');
       if (!raw) return null;
       var v = JSON.parse(raw);
       if (v && v.id && v.role) {
-        if (v.password) { delete v.password; sessionStorage.setItem('kwanbo_session', JSON.stringify(v)); }
+        if (v.password) { delete v.password; localStorage.setItem('kwanbo_session', JSON.stringify(v)); }
         return v;
       }
       return null;
@@ -2789,7 +2801,7 @@ function App() {
     // checkOnLoad: 렌더 후 실행 (Babel 컴파일 완료 이후 → NAV_WINDOW 오인 방지)
     var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
     if (wasInvalidated) { setUser(null); return; }
-    var raw = sessionStorage.getItem('kwanbo_session');
+    var raw = localStorage.getItem('kwanbo_session');
     if (!raw) { setSsoChecked(true); return; }
     try {
       var v = JSON.parse(raw);
@@ -2798,7 +2810,7 @@ function App() {
       sb.from('users').select('*').eq('id', userId).single().then(function(r) {
         if (r.data) {
           var safeU = Object.assign({}, r.data); delete safeU.password;
-          sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+          localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
           localStorage.removeItem('kwanbo_pm_user');
           setUser(safeU);
           Sysbar.SessionManager.onLogin(function() { logout(); });
