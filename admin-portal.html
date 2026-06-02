@@ -2302,6 +2302,11 @@ function SalaryView({ user }) {
   const [copyModal, setCopyModal] = useState(false);
   const [slipModal, setSlipModal] = useState(false);
   const [slipTarget, setSlipTarget] = useState(null);
+  const [salaryItems, setSalaryItems] = useState([]);
+  const [details, setDetails] = useState([]); // salary_details for current month
+  const [prevDetails, setPrevDetails] = useState([]);
+  const [itemModal, setItemModal] = useState(false); // 항목관리 모달
+  const [itemForm, setItemForm] = useState({label:'',type:'income'});
 
   var EXCEL_ORDER = ['강호갑','이수금','강승우','김병용','장용기','조원범','박호진','윤종수','유현수','이규민','이창환','이다빈','안소영','신재호','신병호','송성익','안구환','윤성원','박상철','황보경','한예은','임수혁','한동우','최상민','안명만','현나경','김동현','송영환'];
 
@@ -2313,18 +2318,28 @@ function SalaryView({ user }) {
       return d.toISOString().slice(0,7);
     })();
     Promise.all([
-      sb.from('users').select('id,name,email,position,team_id').neq('role','contractor').order('name'),
+      sb.from('users').select('id,name,email,position,team_id,birth_date').neq('role','contractor').order('name'),
       sb.from('salaries').select('*').eq('month', month).eq('sal_type', salTab),
       sb.from('teams').select('id,name'),
-      sb.from('salary_members').select('id,name,hire_date,leave_date').order('name'),
+      sb.from('salary_members').select('id,name,hire_date,leave_date,birth_date').order('name'),
       sb.from('salaries').select('*').eq('month', prevMonth).eq('sal_type', salTab),
+      sb.from('salary_items').select('*').eq('active', true).order('order_no'),
+      sb.from('salary_details').select('*'),
     ]).then(function(results) {
       var ud = results[0].data || [];
       var sd = results[1].data || [];
       var td = results[2].data || [];
       var sm = results[3].data || [];
       var pd = results[4].data || [];
+      var si = results[5].data || [];
+      var dets = results[6].data || [];
       setPrevSals(pd);
+      setSalaryItems(si);
+      // 현재 월 salary_ids
+      var curSalIds = sd.map(function(s){ return s.id; });
+      var prevSalIds = pd.map(function(s){ return s.id; });
+      setDetails(dets.filter(function(d){ return curSalIds.indexOf(d.salary_id) !== -1; }));
+      setPrevDetails(dets.filter(function(d){ return prevSalIds.indexOf(d.salary_id) !== -1; }));
       var tmap = {};
       td.forEach(function(t) { tmap[t.id] = t.name; });
       var systemUsers = ud.map(function(u) {
@@ -2367,24 +2382,26 @@ function SalaryView({ user }) {
 
   async function copyFromPrev(overwrite) {
     setCopying(true); setCopyModal(false);
-    var fields = ['base_salary','position_allowance','meal_allowance','transport_allowance',
-      'overtime_pay','performance_bonus','other_income','national_pension','health_insurance',
-      'employment_insurance','income_tax','local_income_tax','other_deduction',
-      'total_income','total_deduction','net_pay','memo'];
-    var inserts = [];
     for (var i=0; i<prevSals.length; i++) {
       var ps = prevSals[i];
       var existing = sals.find(function(s){ return s.user_id === ps.user_id; });
       if (existing && !overwrite) continue;
-      var payload = {user_id: ps.user_id, month: month, sal_type: salTab};
-      fields.forEach(function(k){ payload[k] = ps[k]||null; });
+      var pDets = getPrevDetails(ps.id);
+      var c = calcFromDetails(pDets);
+      var salId;
       if (existing) {
-        await sb.from('salaries').update(payload).eq('id', existing.id);
+        await sb.from('salaries').update({ memo: ps.memo||'', total_income: c.inc, total_deduction: c.ded, net_pay: c.net }).eq('id', existing.id);
+        salId = existing.id;
       } else {
-        inserts.push(payload);
+        var r = await sb.from('salaries').insert({ user_id: ps.user_id, month: month, sal_type: salTab, memo: ps.memo||'', total_income: c.inc, total_deduction: c.ded, net_pay: c.net }).select();
+        if (r.error || !r.data[0]) continue;
+        salId = r.data[0].id;
+      }
+      if (pDets.length > 0) {
+        var newDets = pDets.map(function(d){ return { salary_id: salId, item_id: d.item_id, amount: d.amount||0 }; });
+        await sb.from('salary_details').upsert(newDets, { onConflict: 'salary_id,item_id' });
       }
     }
-    if (inserts.length > 0) await sb.from('salaries').insert(inserts);
     setCopying(false);
     load();
   }
@@ -2392,53 +2409,87 @@ function SalaryView({ user }) {
   useEffect(function() { load(); }, [month, salTab]);
 
   function getSal(uid) { return sals.find(function(s) { return s.user_id === uid; }); }
+  function getDetails(salId) { return details.filter(function(d){ return d.salary_id === salId; }); }
+  function getPrevDetails(salId) { return prevDetails.filter(function(d){ return d.salary_id === salId; }); }
 
   function numV(v) { return Number(String(v||0).replace(/,/g,'')) || 0; }
 
-  function calc(f) {
-    var inc = numV(f.base_salary) + numV(f.position_allowance) + numV(f.meal_allowance) +
-              numV(f.transport_allowance) + numV(f.overtime_pay) + numV(f.performance_bonus) + numV(f.other_income);
-    var ded = numV(f.national_pension) + numV(f.health_insurance) + numV(f.employment_insurance) +
-              numV(f.income_tax) + numV(f.local_income_tax) + numV(f.other_deduction);
+  function calcFromDetails(dets) {
+    var inc = 0, ded = 0;
+    dets.forEach(function(d) {
+      var item = salaryItems.find(function(i){ return i.id === d.item_id; });
+      if (!item) return;
+      if (item.type === 'income') inc += d.amount||0;
+      else ded += d.amount||0;
+    });
+    return { inc: inc, ded: ded, net: inc - ded };
+  }
+
+  function calcFromForm(f) {
+    var inc = 0, ded = 0;
+    salaryItems.forEach(function(item) {
+      var v = numV(f[item.id]||0);
+      if (item.type === 'income') inc += v;
+      else ded += v;
+    });
     return { inc: inc, ded: ded, net: inc - ded };
   }
 
   function openEdit(u) {
-    var s = getSal(u.id) || {};
+    var s = getSal(u.id);
     setSelU(u);
-    setForm({
-      base_salary: s.base_salary||'', position_allowance: s.position_allowance||'',
-      meal_allowance: s.meal_allowance||'', transport_allowance: s.transport_allowance||'',
-      overtime_pay: s.overtime_pay||'', performance_bonus: s.performance_bonus||'',
-      other_income: s.other_income||'', national_pension: s.national_pension||'',
-      health_insurance: s.health_insurance||'', employment_insurance: s.employment_insurance||'',
-      income_tax: s.income_tax||'', local_income_tax: s.local_income_tax||'',
-      other_deduction: s.other_deduction||'', memo: s.memo||'',
-    });
+    var initForm = { memo: s ? (s.memo||'') : '' };
+    salaryItems.forEach(function(item) { initForm[item.id] = ''; });
+    if (s) {
+      var dets = getDetails(s.id);
+      dets.forEach(function(d) { initForm[d.item_id] = d.amount||''; });
+    }
+    setForm(initForm);
     setErr(''); setModal(true);
   }
 
-  function saveSal() {
+  async function saveSal() {
     if (!selU) return;
     setSaving(true); setErr('');
-    var c = calc(form);
-    var payload = Object.assign({}, {
-      user_id: selU.id, month: month, sal_type: salTab, memo: form.memo||'',
-      total_income: c.inc, total_deduction: c.ded, net_pay: c.net,
-    });
-    var fields = ['base_salary','position_allowance','meal_allowance','transport_allowance',
-      'overtime_pay','performance_bonus','other_income','national_pension','health_insurance',
-      'employment_insurance','income_tax','local_income_tax','other_deduction'];
-    fields.forEach(function(k) { payload[k] = numV(form[k]) || null; });
+    var c = calcFromForm(form);
     var existing = getSal(selU.id);
-    var p = existing
-      ? sb.from('salaries').update(payload).eq('id', existing.id)
-      : sb.from('salaries').insert(payload);
-    p.then(function(r) {
-      setSaving(false);
-      if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
-      setModal(false); load();
+    var salId;
+    if (existing) {
+      var r = await sb.from('salaries').update({
+        memo: form.memo||'', total_income: c.inc, total_deduction: c.ded, net_pay: c.net,
+      }).eq('id', existing.id);
+      if (r.error) { setErr('저장 오류: ' + r.error.message); setSaving(false); return; }
+      salId = existing.id;
+    } else {
+      var r2 = await sb.from('salaries').insert({
+        user_id: selU.id, month: month, sal_type: salTab,
+        memo: form.memo||'', total_income: c.inc, total_deduction: c.ded, net_pay: c.net,
+      }).select();
+      if (r2.error) { setErr('저장 오류: ' + r2.error.message); setSaving(false); return; }
+      salId = r2.data[0].id;
+    }
+    // salary_details upsert
+    var detailPayloads = salaryItems.map(function(item) {
+      return { salary_id: salId, item_id: item.id, amount: numV(form[item.id])||0 };
     });
+    await sb.from('salary_details').upsert(detailPayloads, { onConflict: 'salary_id,item_id' });
+    setSaving(false);
+    setModal(false);
+    load();
+  }
+
+  async function addSalaryItem() {
+    if (!itemForm.label) return;
+    var maxOrder = salaryItems.filter(function(i){ return i.type===itemForm.type; })
+      .reduce(function(m,i){ return Math.max(m, i.order_no); }, 0);
+    await sb.from('salary_items').insert({ label: itemForm.label, type: itemForm.type, order_no: maxOrder+1, active: true });
+    setItemForm({label:'',type:'income'});
+    load();
+  }
+
+  async function toggleItem(item) {
+    await sb.from('salary_items').update({ active: !item.active }).eq('id', item.id);
+    load();
   }
 
   function sendSlip(u) {
@@ -2458,29 +2509,28 @@ function SalaryView({ user }) {
     var s = getSal(u.id);
     setSlipModal(false);
     setEmMsg('발송 중...');
-    var c = calc(s);
+    var dets = getDetails(s.id);
+    var c = calcFromDetails(dets);
+    // 0원 제외 HTML rows 생성
+    function makeRows(type) {
+      return salaryItems.filter(function(item){ return item.type===type; }).map(function(item) {
+        var d = dets.find(function(x){ return x.item_id === item.id; });
+        var amt = d ? (d.amount||0) : 0;
+        if (amt === 0) return '';
+        return '<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:10px 14px;color:#64748b;font-size:13px;">'+item.label+'</td><td style="padding:10px 14px;text-align:right;font-weight:600;font-size:13px;">'+fmtN(amt)+'원</td></tr>';
+      }).filter(Boolean).join('');
+    }
     window.emailjs.send(APP_CONFIG.EMAILJS_SERVICE_ID, APP_CONFIG.EMAILJS_TEMPLATE_ID, {
       to_email: u.email,
       name: u.name,
       month: month,
       company_name: APP_CONFIG.COMPANY_KO,
       company_tel: APP_CONFIG.TEL,
-      base_salary:          fmtN(s.base_salary),
-      position_allowance:   fmtN(s.position_allowance),
-      meal_allowance:       fmtN(s.meal_allowance),
-      transport_allowance:  fmtN(s.transport_allowance),
-      overtime_pay:         fmtN(s.overtime_pay),
-      performance_bonus:    fmtN(s.performance_bonus),
-      other_income:         fmtN(s.other_income),
-      national_pension:     fmtN(s.national_pension),
-      health_insurance:     fmtN(s.health_insurance),
-      employment_insurance: fmtN(s.employment_insurance),
-      income_tax:           fmtN(s.income_tax),
-      local_income_tax:     fmtN(s.local_income_tax),
-      other_deduction:      fmtN(s.other_deduction),
-      total_income:         fmtN(c.inc),
-      total_deduction:      fmtN(c.ded),
-      net_pay:              fmtN(c.net),
+      pay_rows: makeRows('income'),
+      ded_rows: makeRows('deduction'),
+      total_income: fmtN(c.inc),
+      total_deduction: fmtN(c.ded),
+      net_pay: fmtN(c.net),
       memo: s.memo || '',
     }).then(function() {
       setEmMsg('📧 ' + u.name + ' 님께 발송 완료 ✓');
@@ -2514,10 +2564,12 @@ function SalaryView({ user }) {
           <button className={salTab==='tax'?'itab active':'itab'} onClick={function(){setSalTab('tax');}}>🏛 세금신고</button>
           <button className={salTab==='pay'?'itab active':'itab'} onClick={function(){setSalTab('pay');}}>💵 지급</button>
         </div>
-        <button className="btn btn-s btn-sm" onClick={function(){setCopyModal(true);}} disabled={copying||prevSals.length===0}
-          style={{fontSize:12}}>
-          {copying ? '복사 중...' : '📋 지난달 복사'}
-        </button>
+        <div style={{display:'flex',gap:6}}>
+          <button className="btn btn-s btn-sm" onClick={function(){setItemModal(true);}} style={{fontSize:12}}>⚙️ 항목관리</button>
+          <button className="btn btn-s btn-sm" onClick={function(){setCopyModal(true);}} disabled={copying||prevSals.length===0} style={{fontSize:12}}>
+            {copying ? '복사 중...' : '📋 지난달 복사'}
+          </button>
+        </div>
       </div>
 
       {emMsg && <div className="al al-s">{emMsg}</div>}
@@ -2574,7 +2626,8 @@ function SalaryView({ user }) {
                 return sorted;
               })().map(function(u) {
                 var s = getSal(u.id);
-                var c = s ? calc(s) : { inc:0, ded:0, net:0 };
+                var dets = s ? getDetails(s.id) : [];
+                var c = s ? calcFromDetails(dets) : { inc:0, ded:0, net:0 };
                 var ps = prevSals.find(function(x){ return x.user_id === u.id; });
                 var diff = (s && ps) ? (s.net_pay||0) - (ps.net_pay||0) : null;
                 return (
@@ -2635,6 +2688,48 @@ function SalaryView({ user }) {
         </div>
       )}
 
+      {itemModal && (
+        <div className="mbg" onClick={function(){setItemModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:480}}>
+            <div className="mh"><span className="mht">⚙️ 급여 항목 관리</span><button className="mc" onClick={function(){setItemModal(false);}}>×</button></div>
+            <div className="mb">
+              <div style={{marginBottom:16}}>
+                <div style={{fontWeight:700,fontSize:12,color:'#475569',marginBottom:8}}>새 항목 추가</div>
+                <div style={{display:'flex',gap:8}}>
+                  <select className="fi" style={{width:100,flexShrink:0}} value={itemForm.type} onChange={function(e){setItemForm(function(p){return Object.assign({},p,{type:e.target.value});});}}>
+                    <option value="income">지급</option>
+                    <option value="deduction">공제</option>
+                  </select>
+                  <input className="fi" placeholder="항목명" value={itemForm.label} onChange={function(e){setItemForm(function(p){return Object.assign({},p,{label:e.target.value});});}} />
+                  <button className="btn btn-p btn-sm" onClick={addSalaryItem} style={{flexShrink:0}}>추가</button>
+                </div>
+              </div>
+              <div style={{display:'flex',gap:16}}>
+                {['income','deduction'].map(function(type){
+                  var items = salaryItems.filter(function(i){ return i.type===type; });
+                  return (
+                    <div key={type} style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:12,color:'#475569',marginBottom:8}}>{type==='income'?'■ 지급 항목':'■ 공제 항목'}</div>
+                      {items.map(function(item){
+                        return (
+                          <div key={item.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:item.active?'#f8fafc':'#fef2f2',borderRadius:6,marginBottom:4}}>
+                            <span style={{fontSize:13,color:item.active?'#1e293b':'#94a3b8'}}>{item.label}</span>
+                            <button onClick={function(){toggleItem(item);}} style={{fontSize:10,padding:'2px 8px',borderRadius:4,border:'none',cursor:'pointer',background:item.active?'#fee2e2':'#dcfce7',color:item.active?'#dc2626':'#16a34a',fontWeight:700}}>
+                              {item.active?'비활성':'활성'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="mf"><button className="btn btn-s" onClick={function(){setItemModal(false);}}>닫기</button></div>
+          </div>
+        </div>
+      )}
+
       {copyModal && (
         <div className="mbg" onClick={function(){setCopyModal(false);}}>
           <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:380}}>
@@ -2665,33 +2760,35 @@ function SalaryView({ user }) {
             </div>
             <div className="mb">
               {err && <div className="al al-e">{err}</div>}
-              <div className="sal-row">
-                <div className="sal-sec">
-                  <div className="sal-st">지급 항목</div>
-                  <FI label="기본급" field="base_salary" form={form} set={setForm} />
-                  <FI label="직책수당" field="position_allowance" form={form} set={setForm} />
-                  <FI label="식대" field="meal_allowance" form={form} set={setForm} />
-                  <FI label="교통비" field="transport_allowance" form={form} set={setForm} />
-                  <FI label="초과근무수당" field="overtime_pay" form={form} set={setForm} />
-                  <FI label="성과급" field="performance_bonus" form={form} set={setForm} />
-                  <FI label="기타 지급" field="other_income" form={form} set={setForm} />
-                  <div className="sal-tot"><span className="sal-tl">총 지급액</span><span className="sal-tv">{fmtN(cv.inc)}원</span></div>
-                </div>
-                <div className="sal-sec">
-                  <div className="sal-st">공제 항목</div>
-                  <FI label="국민연금" field="national_pension" form={form} set={setForm} />
-                  <FI label="건강보험" field="health_insurance" form={form} set={setForm} />
-                  <FI label="고용보험" field="employment_insurance" form={form} set={setForm} />
-                  <FI label="소득세" field="income_tax" form={form} set={setForm} />
-                  <FI label="지방소득세" field="local_income_tax" form={form} set={setForm} />
-                  <FI label="기타 공제" field="other_deduction" form={form} set={setForm} />
-                  <div className="sal-tot"><span className="sal-tl">총 공제액</span><span className="sal-tv" style={{color:'#dc2626'}}>{fmtN(cv.ded)}원</span></div>
-                </div>
-              </div>
-              <div style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',borderRadius:10,padding:'16px 20px',color:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                <span style={{fontWeight:700}}>실수령액</span>
-                <span style={{fontSize:22,fontWeight:800}}>{fmtN(cv.net)}원</span>
-              </div>
+              {(function(){
+                var cv = calcFromForm(form);
+                var incItems = salaryItems.filter(function(i){ return i.type==='income'; });
+                var dedItems = salaryItems.filter(function(i){ return i.type==='deduction'; });
+                return (
+                  <div>
+                    <div className="sal-row">
+                      <div className="sal-sec">
+                        <div className="sal-st">지급 항목</div>
+                        {incItems.map(function(item){
+                          return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
+                        })}
+                        <div className="sal-tot"><span className="sal-tl">총 지급액</span><span className="sal-tv">{fmtN(cv.inc)}원</span></div>
+                      </div>
+                      <div className="sal-sec">
+                        <div className="sal-st">공제 항목</div>
+                        {dedItems.map(function(item){
+                          return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
+                        })}
+                        <div className="sal-tot"><span className="sal-tl">총 공제액</span><span className="sal-tv" style={{color:'#dc2626'}}>{fmtN(cv.ded)}원</span></div>
+                      </div>
+                    </div>
+                    <div style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',borderRadius:10,padding:'16px 20px',color:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                      <span style={{fontWeight:700}}>실수령액</span>
+                      <span style={{fontSize:22,fontWeight:800}}>{fmtN(cv.net)}원</span>
+                    </div>
+                  </div>
+                );
+              })()}
               <div>
                 <label className="fl">메모</label>
                 <input className="fi" value={form.memo||''} placeholder="메모" onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
