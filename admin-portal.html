@@ -2281,6 +2281,7 @@ function SalaryView({ user }) {
   const [month, setMonth] = useState(new Date().toISOString().slice(0,7));
   const [emMsg, setEmMsg] = useState('');
   const [salTab, setSalTab] = useState('tax');
+  const [salSort, setSalSort] = useState({col:'default', dir:'asc'});
 
   function load() {
     setLoading(true);
@@ -2309,6 +2310,12 @@ function SalaryView({ user }) {
       setSals(sd);
       setLoading(false);
     });
+  }
+
+  function moveMonth(d) {
+    var dt = new Date(month + '-01');
+    dt.setMonth(dt.getMonth() + d);
+    setMonth(dt.toISOString().slice(0,7));
   }
 
   useEffect(function() { load(); }, [month, salTab]);
@@ -2399,7 +2406,11 @@ function SalaryView({ user }) {
     <div className="page">
       <div className="ph" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
         <div><div className="pt">💼 급여 대장</div><div className="ps">관리자 전용</div></div>
-        <input type="month" className="fi" value={month} onChange={function(e){setMonth(e.target.value);}} style={{width:'auto'}} />
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <button className="btn btn-s btn-sm" onClick={function(){moveMonth(-1);}}>◀</button>
+          <input type="month" className="fi" value={month} onChange={function(e){setMonth(e.target.value);}} style={{width:'auto'}} />
+          <button className="btn btn-s btn-sm" onClick={function(){moveMonth(1);}}>▶</button>
+        </div>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:16}}>
         <button className={salTab==='tax'?'itab active':'itab'} onClick={function(){setSalTab('tax');}}>🏛 세금신고</button>
@@ -2411,9 +2422,53 @@ function SalaryView({ user }) {
       <div className="card">
         <div className="tbl-wrap">
           <table>
-            <thead><tr><th>직원</th><th>팀</th><th className="tr">기본급</th><th className="tr">총 지급</th><th className="tr">총 공제</th><th className="tr">실수령액</th><th className="tc">상태</th><th className="tc">관리</th></tr></thead>
+            <thead><tr>
+                {(function(){
+                  function Sh(col, label, cls) {
+                    var active = salSort.col === col;
+                    var next = active && salSort.dir==='asc' ? 'desc' : 'asc';
+                    return (
+                      <th className={cls||''} style={{cursor:'pointer',userSelect:'none',whiteSpace:'nowrap'}}
+                        onClick={function(){setSalSort({col:col,dir:next});}}>
+                        {label} {active ? (salSort.dir==='asc'?'↑':'↓') : '↕'}
+                      </th>
+                    );
+                  }
+                  return [
+                    Sh('name','직원',null),
+                    Sh('team','팀',null),
+                    Sh('base','기본급','tr'),
+                    Sh('inc','총 지급','tr'),
+                    Sh('ded','총 공제','tr'),
+                    Sh('net','실수령액','tr'),
+                    <th key="st" className="tc">상태</th>,
+                    <th key="mg" className="tc">관리</th>,
+                  ];
+                })()}
+              </tr></thead>
             <tbody>
-              {users.map(function(u) {
+              {(function(){
+                // 엑셀 기본 순서 저장 (load 시 순서 그대로)
+                var sorted = users.slice();
+                if (salSort.col !== 'default') {
+                  sorted.sort(function(a, b) {
+                    var sa = getSal(a.id); var sb2 = getSal(b.id);
+                    var ca = sa ? calc(sa) : {inc:0,ded:0,net:0};
+                    var cb = sb2 ? calc(sb2) : {inc:0,ded:0,net:0};
+                    var va, vb;
+                    if (salSort.col==='name')  { va=a.name; vb=b.name; }
+                    else if (salSort.col==='team')  { va=a.teamName; vb=b.teamName; }
+                    else if (salSort.col==='base')  { va=sa?sa.base_salary||0:0; vb=sb2?sb2.base_salary||0:0; }
+                    else if (salSort.col==='inc')   { va=ca.inc; vb=cb.inc; }
+                    else if (salSort.col==='ded')   { va=ca.ded; vb=cb.ded; }
+                    else if (salSort.col==='net')   { va=ca.net; vb=cb.net; }
+                    else { va=0; vb=0; }
+                    if (typeof va==='string') return salSort.dir==='asc' ? va.localeCompare(vb,'ko') : vb.localeCompare(va,'ko');
+                    return salSort.dir==='asc' ? va-vb : vb-va;
+                  });
+                }
+                return sorted;
+              })().map(function(u) {
                 var s = getSal(u.id);
                 var c = s ? calc(s) : { inc:0, ded:0, net:0 };
                 return (
