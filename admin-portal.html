@@ -1336,14 +1336,14 @@ function PerfView({ user }) {
               <CatFilterBar />
               <table style={{tableLayout:'fixed',width:'100%'}}>
                 <colgroup>
-                  <col style={{width:'auto'}} />
-                  <col style={{width:78}} />
+                  <col style={{width:'33%'}} />
+                  <col style={{width:75}} />
+                  <col style={{width:44}} />
+                  <col style={{width:90}} />
+                  <col style={{width:90}} />
+                  <col style={{width:90}} />
                   <col style={{width:46}} />
-                  <col style={{width:96}} />
-                  <col style={{width:96}} />
-                  <col style={{width:96}} />
-                  <col style={{width:50}} />
-                  <col style={{width:64}} />
+                  <col style={{width:60}} />
                 </colgroup>
                 <thead><tr>
                   <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
@@ -1384,7 +1384,7 @@ function PerfView({ user }) {
                                     width:36,textAlign:'center',display:'inline-block',
                                     background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>감리</span>
                                   <span style={{display:'flex',flexDirection:'column',gap:1,minWidth:0}}>
-                                    {sp.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{sp.client}</span>}
+                                    {sp.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block'}}>{sp.client}</span>}
                                     <span style={{fontWeight:600,fontSize:12,wordBreak:'keep-all',lineHeight:1.4}}>{sp.name||c.memo||'-'}</span>
                                   </span>
                                 </div>
@@ -1401,8 +1401,8 @@ function PerfView({ user }) {
                                   </span>
                                 )}
                                 <span style={{display:'flex',flexDirection:'column',gap:1,minWidth:0}}>
-                                  {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{proj.client}</span>}
-                                  <span style={{fontWeight:600,fontSize:12,wordBreak:'keep-all',lineHeight:1.4}}>{pName(c.project_id)}</span>
+                                  {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block'}}>{proj.client}</span>}
+                                  <span style={{fontWeight:600,fontSize:12,wordBreak:'keep-all',lineHeight:1.4,overflowWrap:'anywhere'}}>{pName(c.project_id)}</span>
                                 </span>
                               </div>
                             );
@@ -1587,7 +1587,7 @@ function PerfView({ user }) {
                               var proj = projects.find(function(p){ return p.id === pf.project_id; });
                               return (
                                 <span style={{display:'flex',flexDirection:'column',gap:1}}>
-                                  {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2}}>{proj.client}</span>}
+                                  {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block'}}>{proj.client}</span>}
                                   {pName(pf.project_id)}
                                 </span>
                               );
