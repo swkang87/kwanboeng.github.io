@@ -2288,13 +2288,24 @@ function SalaryView({ user }) {
       sb.from('users').select('id,name,email,position,team_id').neq('role','contractor').order('name'),
       sb.from('salaries').select('*').eq('month', month).eq('sal_type', salTab),
       sb.from('teams').select('id,name'),
+      sb.from('salary_members').select('id,name').order('name'),
     ]).then(function(results) {
       var ud = results[0].data || [];
       var sd = results[1].data || [];
       var td = results[2].data || [];
+      var sm = results[3].data || [];
       var tmap = {};
       td.forEach(function(t) { tmap[t.id] = t.name; });
-      setUsers(ud.map(function(u) { return Object.assign({}, u, {teamName: tmap[u.team_id]||'-'}); }));
+      var systemUsers = ud.map(function(u) {
+        return Object.assign({}, u, {teamName: tmap[u.team_id]||'-', isMemberOnly: false});
+      });
+      // salary_members는 시스템 users에 없는 사람만 추가
+      var systemNames = ud.map(function(u){ return u.name; });
+      var extraMembers = sm.filter(function(m){ return systemNames.indexOf(m.name) === -1; })
+        .map(function(m){ return {id: m.id, name: m.name, email: null, position: '', teamName: '-', isMemberOnly: true}; });
+      var allUsers = systemUsers.concat(extraMembers);
+      allUsers.sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
+      setUsers(allUsers);
       setSals(sd);
       setLoading(false);
     });
@@ -2409,8 +2420,14 @@ function SalaryView({ user }) {
                   <tr key={u.id}>
                     <td>
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <div style={{width:28,height:28,borderRadius:'50%',background:'#7c3aed',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name[0]}</div>
-                        <div><div style={{fontWeight:600}}>{u.name}</div><div style={{fontSize:11,color:'#94a3b8'}}>{u.position||''}</div></div>
+                        <div style={{width:28,height:28,borderRadius:'50%',background: u.isMemberOnly ? '#94a3b8' : '#7c3aed',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name[0]}</div>
+                        <div>
+                          <div style={{fontWeight:600}}>{u.name}</div>
+                          {u.isMemberOnly
+                            ? <div style={{fontSize:10,color:'#94a3b8'}}>급여전용</div>
+                            : <div style={{fontSize:11,color:'#94a3b8'}}>{u.position||''}</div>
+                          }
+                        </div>
                       </div>
                     </td>
                     <td style={{color:'#64748b'}}>{u.teamName}</td>
@@ -2422,7 +2439,7 @@ function SalaryView({ user }) {
                     <td className="tc">
                       <div style={{display:'flex',gap:4,justifyContent:'center'}}>
                         <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>입력</button>
-                        {s && <button className="btn btn-p btn-sm" onClick={function(){sendSlip(u);}}>📧</button>}
+                        {s && !u.isMemberOnly && <button className="btn btn-p btn-sm" onClick={function(){sendSlip(u);}}>📧</button>}
                       </div>
                     </td>
                   </tr>
