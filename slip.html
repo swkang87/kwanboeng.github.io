@@ -188,8 +188,11 @@
     </div>
     <div class="auth-body" id="authBody">
       <p>개인정보 보호를 위해<br>생년월일을 입력해 주세요.</p>
-      <label>생년월일</label>
-      <input type="date" id="birthInput" placeholder="YYYY-MM-DD" />
+      <label>생년월일 6자리</label>
+      <input type="text" id="birthInput" placeholder="예: 901225" maxlength="6"
+        inputmode="numeric" pattern="[0-9]*"
+        style="letter-spacing:4px;font-size:22px;text-align:center;"
+      />
       <button class="auth-btn" id="authBtn" onclick="doAuth()">확인</button>
       <div class="auth-err" id="authErr"></div>
       <div class="lock-msg" id="lockMsg">⛔ 5회 오류로 잠겼습니다. 잠시 후 다시 시도해 주세요.</div>
@@ -298,18 +301,20 @@ function showError(title, msg) {
 
 async function doAuth() {
   if (locked) return;
-  var birth = document.getElementById('birthInput').value;
-  if (!birth) { showAuthErr('생년월일을 입력해 주세요.'); return; }
+  var birth = document.getElementById('birthInput').value.trim();
+  if (!birth) { showAuthErr('생년월일 6자리를 입력해 주세요.'); return; }
+  if (!/^[0-9]{6}$/.test(birth)) { showAuthErr('숫자 6자리로 입력해 주세요. (예: 901225)'); return; }
 
-  // birth_date 비교
-  var userBirth = userData.birth_date; // YYYY-MM-DD
+  // birth_date(YYYY-MM-DD) → YYMMDD 변환 후 비교
+  var userBirth = userData.birth_date;
   if (!userBirth) {
-    // birth_date 미등록 시 담당자에게 문의 안내
     showAuthErr('생년월일이 등록되지 않았습니다.<br>담당자에게 문의해 주세요.');
     return;
   }
+  // YYYY-MM-DD → YYMMDD (뒤 6자리)
+  var userBirth6 = userBirth.replace(/-/g,'').slice(2);
 
-  if (birth !== userBirth) {
+  if (birth !== userBirth6) {
     failCount++;
     if (failCount >= 5) {
       locked = true;
