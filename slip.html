@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>급여명세서</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
+    background: #f0f4f8;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #1e293b;
+  }
+
+  /* ── 인증 화면 ── */
+  .auth-wrap {
+    width: 100%;
+    max-width: 400px;
+  }
+  .auth-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.10);
+    overflow: hidden;
+  }
+  .auth-header {
+    background: #0d2044;
+    padding: 28px 32px;
+    text-align: center;
+  }
+  .auth-header .company { color: #94a3b8; font-size: 12px; letter-spacing: 1px; margin-bottom: 6px; }
+  .auth-header .title { color: #fff; font-size: 20px; font-weight: 700; }
+  .auth-header .sub { color: #64748b; font-size: 13px; margin-top: 4px; }
+  .auth-body { padding: 32px; }
+  .auth-body p { font-size: 13px; color: #64748b; margin-bottom: 20px; line-height: 1.6; text-align: center; }
+  .auth-body label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; }
+  .auth-body input[type="date"] {
+    width: 100%; padding: 12px 14px; border: 1.5px solid #e2e8f0;
+    border-radius: 8px; font-size: 15px; color: #1e293b;
+    font-family: inherit; outline: none; transition: border .2s;
+  }
+  .auth-body input[type="date"]:focus { border-color: #0d2044; }
+  .auth-btn {
+    width: 100%; margin-top: 16px; padding: 13px;
+    background: #0d2044; color: #fff; border: none;
+    border-radius: 8px; font-size: 15px; font-weight: 700;
+    font-family: inherit; cursor: pointer; transition: background .2s;
+  }
+  .auth-btn:hover { background: #1b3a6b; }
+  .auth-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+  .auth-err {
+    margin-top: 12px; padding: 10px 14px;
+    background: #fef2f2; border: 1px solid #fecaca;
+    border-radius: 8px; color: #dc2626; font-size: 13px; text-align: center;
+    display: none;
+  }
+  .auth-err.show { display: block; }
+  .lock-msg {
+    text-align: center; padding: 20px; color: #dc2626; font-size: 13px; font-weight: 600;
+    display: none;
+  }
+  .lock-msg.show { display: block; }
+
+  /* ── 명세서 화면 ── */
+  .slip-wrap {
+    width: 100%;
+    max-width: 560px;
+    display: none;
+  }
+  .slip-wrap.show { display: block; }
+  .auth-wrap.hide { display: none; }
+
+  .slip-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.10);
+    overflow: hidden;
+  }
+  .slip-header {
+    background: #0d2044;
+    padding: 24px 28px 20px;
+  }
+  .slip-header .co-name { color: #fff; font-size: 18px; font-weight: 800; }
+  .slip-header .co-en { color: #475569; font-size: 11px; letter-spacing: 1px; margin-top: 2px; }
+  .slip-header .tag {
+    display: inline-block; margin-top: 14px;
+    background: rgba(255,255,255,.12); color: #cbd5e1;
+    padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  }
+
+  .slip-info {
+    padding: 20px 28px;
+    border-bottom: 1px solid #f1f5f9;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  }
+  .slip-info-item .label { font-size: 11px; color: #94a3b8; font-weight: 600; margin-bottom: 2px; }
+  .slip-info-item .value { font-size: 14px; font-weight: 700; color: #1e293b; }
+
+  .slip-section { padding: 20px 28px; }
+  .slip-section + .slip-section { border-top: 1px solid #f1f5f9; }
+  .section-title {
+    font-size: 11px; font-weight: 800; color: #64748b;
+    letter-spacing: 1px; text-transform: uppercase;
+    margin-bottom: 12px; padding-bottom: 8px;
+    border-bottom: 2px solid #0f172a;
+  }
+  .slip-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid #f8fafc;
+    font-size: 13px;
+  }
+  .slip-row:last-child { border-bottom: none; }
+  .slip-row .rname { color: #475569; }
+  .slip-row .rval { font-weight: 600; color: #1e293b; }
+
+  .slip-total {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 28px; background: #f8fafc;
+    border-top: 2px solid #e2e8f0;
+  }
+  .slip-total .tl { font-size: 13px; font-weight: 800; }
+  .slip-total .tv { font-size: 16px; font-weight: 800; }
+  .slip-total.inc .tv { color: #1d4ed8; }
+  .slip-total.ded .tv { color: #dc2626; }
+
+  .slip-net {
+    margin: 0 28px 28px; padding: 18px 20px;
+    background: #f8fafc; border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .slip-net .nl { font-size: 15px; font-weight: 800; color: #1e293b; }
+  .slip-net .nv { font-size: 22px; font-weight: 800; color: #0d2044; }
+
+  .slip-footer {
+    padding: 16px 28px;
+    border-top: 1px solid #f1f5f9;
+    font-size: 11px; color: #94a3b8; text-align: center; line-height: 1.8;
+  }
+
+  .slip-actions {
+    padding: 16px 28px 24px;
+    display: flex; gap: 8px; justify-content: center;
+  }
+  .slip-actions button {
+    padding: 9px 20px; border-radius: 8px; font-size: 13px;
+    font-weight: 600; font-family: inherit; cursor: pointer; border: none;
+  }
+  .btn-print { background: #0d2044; color: #fff; }
+  .btn-close { background: #f1f5f9; color: #475569; }
+
+  .loading {
+    text-align: center; padding: 40px 20px; color: #64748b; font-size: 14px;
+  }
+  .error-card {
+    background: #fff; border-radius: 16px; padding: 40px 32px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.10); text-align: center;
+    display: none;
+  }
+  .error-card.show { display: block; }
+  .error-card .icon { font-size: 40px; margin-bottom: 12px; }
+  .error-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #1e293b; }
+  .error-card p { font-size: 13px; color: #64748b; line-height: 1.6; }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .slip-actions { display: none; }
+    .slip-card { box-shadow: none; border-radius: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 인증 화면 -->
+<div class="auth-wrap" id="authWrap">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="company" id="authCompanyName">KWANBO ENGINEERING</div>
+      <div class="title">급여명세서 확인</div>
+      <div class="sub">본인 확인 후 열람 가능합니다</div>
+    </div>
+    <div class="auth-body" id="authBody">
+      <p>개인정보 보호를 위해<br>생년월일을 입력해 주세요.</p>
+      <label>생년월일</label>
+      <input type="date" id="birthInput" placeholder="YYYY-MM-DD" />
+      <button class="auth-btn" id="authBtn" onclick="doAuth()">확인</button>
+      <div class="auth-err" id="authErr"></div>
+      <div class="lock-msg" id="lockMsg">⛔ 5회 오류로 잠겼습니다. 잠시 후 다시 시도해 주세요.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 에러 화면 -->
+<div class="auth-wrap" id="errorWrap">
+  <div class="error-card show" id="errorCard">
+    <div class="icon">🔒</div>
+    <h3 id="errorTitle">링크를 확인해 주세요</h3>
+    <p id="errorMsg">유효하지 않은 링크입니다.<br>급여 담당자에게 문의해 주세요.</p>
+  </div>
+</div>
+
+<!-- 명세서 화면 -->
+<div class="slip-wrap" id="slipWrap">
+  <div class="slip-card" id="slipCard">
+    <!-- JS로 렌더링 -->
+  </div>
+  <div class="slip-actions">
+    <button class="btn-print" onclick="window.print()">🖨 인쇄</button>
+    <button class="btn-close" onclick="window.close()">닫기</button>
+  </div>
+</div>
+
+<script>
+var sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+
+var slipData = null;   // salary_slips row
+var salaryData = null; // salaries row
+var userData = null;   // users or salary_members row
+var itemsData = [];    // salary_items
+var detailsData = [];  // salary_details
+
+var failCount = 0;
+var locked = false;
+
+function fmtN(n) {
+  if (!n && n !== 0) return '0';
+  return Number(n).toLocaleString('ko-KR');
+}
+function fmtDate(d) {
+  if (!d) return '-';
+  return d.replace(/-/g, '.');
+}
+
+// URL에서 token 추출
+function getToken() {
+  var params = new URLSearchParams(window.location.search);
+  return params.get('token');
+}
+
+async function init() {
+  var token = getToken();
+  if (!token) { showError('잘못된 링크', '급여명세서 링크가 올바르지 않습니다.'); return; }
+
+  // salary_slips 조회
+  var r = await sb.from('salary_slips').select('*').eq('token', token).single();
+  if (r.error || !r.data) { showError('링크 오류', '유효하지 않은 링크입니다.<br>급여 담당자에게 문의해 주세요.'); return; }
+
+  slipData = r.data;
+
+  // 만료 확인
+  if (new Date(slipData.expires_at) < new Date()) {
+    showError('링크 만료', '링크가 만료되었습니다.<br>담당자에게 재발송을 요청해 주세요.');
+    return;
+  }
+
+  // salary 데이터 로드
+  var sr = await sb.from('salaries').select('*').eq('id', slipData.salary_id).single();
+  if (sr.error || !sr.data) { showError('데이터 오류', '급여 데이터를 불러올 수 없습니다.'); return; }
+  salaryData = sr.data;
+
+  // 직원 정보 (users 또는 salary_members)
+  var ur = await sb.from('users').select('id,name,birth_date,position,team_id').eq('id', slipData.user_id).single();
+  if (ur.data) {
+    userData = ur.data;
+  } else {
+    var smr = await sb.from('salary_members').select('id,name,birth_date').eq('id', slipData.user_id).single();
+    if (smr.data) userData = smr.data;
+  }
+  if (!userData) { showError('직원 정보 오류', '직원 정보를 불러올 수 없습니다.'); return; }
+
+  // salary_items, salary_details 로드
+  var ir = await sb.from('salary_items').select('*').eq('active', true).order('order_no');
+  itemsData = ir.data || [];
+  var dr = await sb.from('salary_details').select('*').eq('salary_id', salaryData.id);
+  detailsData = dr.data || [];
+
+  // 회사명 표시
+  document.getElementById('authCompanyName').textContent = APP_CONFIG.COMPANY_EN || '';
+
+  // 인증 화면 표시
+  document.getElementById('errorWrap').style.display = 'none';
+  document.getElementById('authWrap').style.display = 'block';
+}
+
+function showError(title, msg) {
+  document.getElementById('authWrap').style.display = 'none';
+  document.getElementById('errorWrap').style.display = 'block';
+  document.getElementById('errorTitle').textContent = title;
+  document.getElementById('errorMsg').innerHTML = msg;
+}
+
+async function doAuth() {
+  if (locked) return;
+  var birth = document.getElementById('birthInput').value;
+  if (!birth) { showAuthErr('생년월일을 입력해 주세요.'); return; }
+
+  // birth_date 비교
+  var userBirth = userData.birth_date; // YYYY-MM-DD
+  if (!userBirth) {
+    // birth_date 미등록 시 담당자에게 문의 안내
+    showAuthErr('생년월일이 등록되지 않았습니다.<br>담당자에게 문의해 주세요.');
+    return;
+  }
+
+  if (birth !== userBirth) {
+    failCount++;
+    if (failCount >= 5) {
+      locked = true;
+      document.getElementById('authBtn').disabled = true;
+      document.getElementById('authErr').classList.remove('show');
+      document.getElementById('lockMsg').classList.add('show');
+    } else {
+      showAuthErr('생년월일이 일치하지 않습니다. (' + failCount + '/5)');
+    }
+    return;
+  }
+
+  // 인증 성공 → 명세서 렌더링
+  renderSlip();
+}
+
+function showAuthErr(msg) {
+  var el = document.getElementById('authErr');
+  el.innerHTML = msg;
+  el.classList.add('show');
+}
+
+function renderSlip() {
+  document.getElementById('authWrap').classList.add('hide');
+  document.getElementById('slipWrap').classList.add('show');
+
+  var incItems = itemsData.filter(function(i){ return i.type === 'income'; });
+  var dedItems = itemsData.filter(function(i){ return i.type === 'deduction'; });
+
+  function getAmt(itemId) {
+    var d = detailsData.find(function(x){ return x.item_id === itemId; });
+    return d ? (d.amount || 0) : 0;
+  }
+
+  // 0원 제외 행 생성
+  function makeRows(items) {
+    return items.map(function(item) {
+      var amt = getAmt(item.id);
+      if (amt === 0) return '';
+      return '<div class="slip-row"><span class="rname">' + item.label + '</span><span class="rval">' + fmtN(amt) + '원</span></div>';
+    }).join('');
+  }
+
+  var incTotal = salaryData.total_income || 0;
+  var dedTotal = salaryData.total_deduction || 0;
+  var netPay   = salaryData.net_pay || 0;
+  var month    = salaryData.month || '';
+  var payDate  = month ? month + '-25' : '';   // 기본 25일, 추후 config화 가능
+  var salType  = salaryData.sal_type === 'tax' ? '급여신고' : '급여지급';
+
+  document.getElementById('slipCard').innerHTML = `
+    <div class="slip-header">
+      <div class="co-name">${APP_CONFIG.COMPANY_KO || ''}</div>
+      <div class="co-en">${APP_CONFIG.COMPANY_EN || ''}</div>
+      <span class="tag">📄 ${month.replace('-','년 ')}월 ${salType}</span>
+    </div>
+
+    <div class="slip-info">
+      <div class="slip-info-item">
+        <div class="label">성명</div>
+        <div class="value">${userData.name}</div>
+      </div>
+      <div class="slip-info-item">
+        <div class="label">생년월일</div>
+        <div class="value">${fmtDate(userData.birth_date)}</div>
+      </div>
+      <div class="slip-info-item">
+        <div class="label">임금 지급일</div>
+        <div class="value">${fmtDate(payDate)}</div>
+      </div>
+      <div class="slip-info-item">
+        <div class="label">직위</div>
+        <div class="value">${userData.position || '-'}</div>
+      </div>
+    </div>
+
+    <div class="slip-section">
+      <div class="section-title">지급 내역</div>
+      ${makeRows(incItems) || '<div class="slip-row"><span class="rname" style="color:#94a3b8">지급 내역 없음</span></div>'}
+    </div>
+    <div class="slip-total inc">
+      <span class="tl">총 지급액</span>
+      <span class="tv">${fmtN(incTotal)}원</span>
+    </div>
+
+    <div class="slip-section">
+      <div class="section-title">공제 내역</div>
+      ${makeRows(dedItems) || '<div class="slip-row"><span class="rname" style="color:#94a3b8">공제 내역 없음</span></div>'}
+    </div>
+    <div class="slip-total ded">
+      <span class="tl">총 공제액</span>
+      <span class="tv">${fmtN(dedTotal)}원</span>
+    </div>
+
+    <div class="slip-net">
+      <span class="nl">실수령액</span>
+      <span class="nv">${fmtN(netPay)}원</span>
+    </div>
+
+    <div class="slip-footer">
+      ${APP_CONFIG.COMPANY_KO || ''} · ${APP_CONFIG.TEL || ''}<br>
+      ${APP_CONFIG.ADDRESS || ''}
+    </div>
+  `;
+}
+
+// 엔터키 지원
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doAuth();
+});
+
+// 초기화
+document.getElementById('errorWrap').style.display = 'none';
+init();
+</script>
+</body>
+</html>
