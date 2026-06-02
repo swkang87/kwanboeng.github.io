@@ -2283,6 +2283,8 @@ function SalaryView({ user }) {
   const [salTab, setSalTab] = useState('tax');
   const [salSort, setSalSort] = useState({col:'default', dir:'asc'});
 
+  var EXCEL_ORDER = ['강호갑','이수금','강승우','김병용','장용기','조원범','박호진','윤종수','유현수','이규민','이창환','이다빈','안소영','신재호','신병호','송성익','안구환','윤성원','박상철','황보경','한예은','임수혁','한동우','최상민','안명만','현나경','김동현','송영환'];
+
   function load() {
     setLoading(true);
     Promise.all([
@@ -2300,12 +2302,19 @@ function SalaryView({ user }) {
       var systemUsers = ud.map(function(u) {
         return Object.assign({}, u, {teamName: tmap[u.team_id]||'-', isMemberOnly: false});
       });
-      // salary_members는 시스템 users에 없는 사람만 추가
       var systemNames = ud.map(function(u){ return u.name; });
       var extraMembers = sm.filter(function(m){ return systemNames.indexOf(m.name) === -1; })
         .map(function(m){ return {id: m.id, name: m.name, email: null, position: '', teamName: '-', isMemberOnly: true}; });
       var allUsers = systemUsers.concat(extraMembers);
-      allUsers.sort(function(a,b){ return a.name.localeCompare(b.name, 'ko'); });
+      // 엑셀 순서 정렬, 목록에 없는 사람은 뒤에 추가
+      allUsers.sort(function(a,b){
+        var ai = EXCEL_ORDER.indexOf(a.name);
+        var bi = EXCEL_ORDER.indexOf(b.name);
+        if (ai === -1 && bi === -1) return a.name.localeCompare(b.name, 'ko');
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      });
       setUsers(allUsers);
       setSals(sd);
       setLoading(false);
