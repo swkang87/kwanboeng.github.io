@@ -85,7 +85,7 @@ var APP_CONFIG = {
   // ── EmailJS (급여명세서 발송용) ───────────────────────────────
   // https://www.emailjs.com 에서 가입 후 설정값 입력
   EMAILJS_SERVICE_ID:  'service_1cwama6',
-  EMAILJS_TEMPLATE_ID: 'udmvn4s',
+  EMAILJS_TEMPLATE_ID: 'template_358o2dn',
   EMAILJS_PUBLIC_KEY:  'bjJqZiyA9due-lOAL',
 
 };
