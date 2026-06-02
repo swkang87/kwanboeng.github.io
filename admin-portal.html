@@ -2547,8 +2547,6 @@ function SalaryView({ user }) {
     return { inc: acc.inc + (s.total_income||0), ded: acc.ded + (s.total_deduction||0), net: acc.net + (s.net_pay||0) };
   }, { inc:0, ded:0, net:0 });
 
-  var cv = calc(form);
-
   return (
     <div className="page">
       <div className="ph" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
@@ -2609,8 +2607,8 @@ function SalaryView({ user }) {
                 if (salSort.col !== 'default') {
                   sorted.sort(function(a, b) {
                     var sa = getSal(a.id); var sb2 = getSal(b.id);
-                    var ca = sa ? calc(sa) : {inc:0,ded:0,net:0};
-                    var cb = sb2 ? calc(sb2) : {inc:0,ded:0,net:0};
+                    var ca = sa ? calcFromDetails(getDetails(sa.id)) : {inc:0,ded:0,net:0};
+                    var cb = sb2 ? calcFromDetails(getDetails(sb2.id)) : {inc:0,ded:0,net:0};
                     var va, vb;
                     if (salSort.col==='name')  { va=a.name; vb=b.name; }
                     else if (salSort.col==='team')  { va=a.teamName; vb=b.teamName; }
