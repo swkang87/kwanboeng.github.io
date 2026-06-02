@@ -380,15 +380,26 @@ const getMonthInfo = (dateStr) => {
 
 // ── 인풋 컴포넌트 ─────────────────────────────────────────────────────────
 function FI({ label, field, form, set, type }) {
+  function fmtInput(v) {
+    var n = String(v||'').replace(/,/g,'');
+    if (n==='' || n==='-') return n;
+    var num = Number(n);
+    if (isNaN(num)) return n;
+    return num.toLocaleString('ko-KR');
+  }
+  function handleChange(e) {
+    var raw = e.target.value.replace(/,/g,'');
+    set(function(p) { var o = Object.assign({}, p); o[field] = raw; return o; });
+  }
   return (
     <div className="sal-frow">
       <label className="fl">{label}</label>
       <input
         className="fi"
         type={type || 'text'}
-        value={form[field] || ''}
+        value={fmtInput(form[field])}
         placeholder="0"
-        onChange={function(e) { set(function(p) { var o = {}; Object.assign(o, p); o[field] = e.target.value; return o; }); }}
+        onChange={handleChange}
       />
     </div>
   );
@@ -2282,21 +2293,32 @@ function SalaryView({ user }) {
   const [emMsg, setEmMsg] = useState('');
   const [salTab, setSalTab] = useState('tax');
   const [salSort, setSalSort] = useState({col:'default', dir:'asc'});
+  const [prevSals, setPrevSals] = useState([]);
+  const [copying, setCopying] = useState(false);
+  const [copyModal, setCopyModal] = useState(false);
 
   var EXCEL_ORDER = ['강호갑','이수금','강승우','김병용','장용기','조원범','박호진','윤종수','유현수','이규민','이창환','이다빈','안소영','신재호','신병호','송성익','안구환','윤성원','박상철','황보경','한예은','임수혁','한동우','최상민','안명만','현나경','김동현','송영환'];
 
   function load() {
     setLoading(true);
+    var prevMonth = (function(){
+      var d = new Date(month + '-01');
+      d.setMonth(d.getMonth()-1);
+      return d.toISOString().slice(0,7);
+    })();
     Promise.all([
       sb.from('users').select('id,name,email,position,team_id').neq('role','contractor').order('name'),
       sb.from('salaries').select('*').eq('month', month).eq('sal_type', salTab),
       sb.from('teams').select('id,name'),
-      sb.from('salary_members').select('id,name').order('name'),
+      sb.from('salary_members').select('id,name,hire_date,leave_date').order('name'),
+      sb.from('salaries').select('*').eq('month', prevMonth).eq('sal_type', salTab),
     ]).then(function(results) {
       var ud = results[0].data || [];
       var sd = results[1].data || [];
       var td = results[2].data || [];
       var sm = results[3].data || [];
+      var pd = results[4].data || [];
+      setPrevSals(pd);
       var tmap = {};
       td.forEach(function(t) { tmap[t.id] = t.name; });
       var systemUsers = ud.map(function(u) {
@@ -2335,6 +2357,30 @@ function SalaryView({ user }) {
     var dt = new Date(month + '-01');
     dt.setMonth(dt.getMonth() + d);
     setMonth(dt.toISOString().slice(0,7));
+  }
+
+  async function copyFromPrev(overwrite) {
+    setCopying(true); setCopyModal(false);
+    var fields = ['base_salary','position_allowance','meal_allowance','transport_allowance',
+      'overtime_pay','performance_bonus','other_income','national_pension','health_insurance',
+      'employment_insurance','income_tax','local_income_tax','other_deduction',
+      'total_income','total_deduction','net_pay','memo'];
+    var inserts = [];
+    for (var i=0; i<prevSals.length; i++) {
+      var ps = prevSals[i];
+      var existing = sals.find(function(s){ return s.user_id === ps.user_id; });
+      if (existing && !overwrite) continue;
+      var payload = {user_id: ps.user_id, month: month, sal_type: salTab};
+      fields.forEach(function(k){ payload[k] = ps[k]||null; });
+      if (existing) {
+        await sb.from('salaries').update(payload).eq('id', existing.id);
+      } else {
+        inserts.push(payload);
+      }
+    }
+    if (inserts.length > 0) await sb.from('salaries').insert(inserts);
+    setCopying(false);
+    load();
   }
 
   useEffect(function() { load(); }, [month, salTab]);
@@ -2431,9 +2477,15 @@ function SalaryView({ user }) {
           <button className="btn btn-s btn-sm" onClick={function(){moveMonth(1);}}>▶</button>
         </div>
       </div>
-      <div style={{display:'flex',gap:8,marginBottom:16}}>
-        <button className={salTab==='tax'?'itab active':'itab'} onClick={function(){setSalTab('tax');}}>🏛 세금신고</button>
-        <button className={salTab==='pay'?'itab active':'itab'} onClick={function(){setSalTab('pay');}}>💵 지급</button>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <div style={{display:'flex',gap:8}}>
+          <button className={salTab==='tax'?'itab active':'itab'} onClick={function(){setSalTab('tax');}}>🏛 세금신고</button>
+          <button className={salTab==='pay'?'itab active':'itab'} onClick={function(){setSalTab('pay');}}>💵 지급</button>
+        </div>
+        <button className="btn btn-s btn-sm" onClick={function(){setCopyModal(true);}} disabled={copying||prevSals.length===0}
+          style={{fontSize:12}}>
+          {copying ? '복사 중...' : '📋 지난달 복사'}
+        </button>
       </div>
 
       {emMsg && <div className="al al-s">{emMsg}</div>}
@@ -2460,6 +2512,7 @@ function SalaryView({ user }) {
                     Sh('inc','총 지급','tr'),
                     Sh('ded','총 공제','tr'),
                     Sh('net','실수령액','tr'),
+                    <th key="diff" className="tr">전월대비</th>,
                     <th key="st" className="tc">상태</th>,
                     <th key="mg" className="tc">관리</th>,
                   ];
@@ -2490,6 +2543,8 @@ function SalaryView({ user }) {
               })().map(function(u) {
                 var s = getSal(u.id);
                 var c = s ? calc(s) : { inc:0, ded:0, net:0 };
+                var ps = prevSals.find(function(x){ return x.user_id === u.id; });
+                var diff = (s && ps) ? (s.net_pay||0) - (ps.net_pay||0) : null;
                 return (
                   <tr key={u.id}>
                     <td>
@@ -2509,6 +2564,9 @@ function SalaryView({ user }) {
                     <td className="tr" style={{color:'#1d4ed8',fontWeight:600}}>{s ? fmtN(c.inc)+'원' : '-'}</td>
                     <td className="tr" style={{color:'#dc2626'}}>{s ? fmtN(c.ded)+'원' : '-'}</td>
                     <td className="tr" style={{fontWeight:700,color:'#7c3aed',fontSize:14}}>{s ? fmtN(c.net)+'원' : '-'}</td>
+                    <td className="tr" style={{fontSize:12,fontWeight:600,color: diff===null?'#94a3b8': diff>0?'#059669': diff<0?'#dc2626':'#64748b'}}>
+                      {diff===null ? '-' : (diff>0?'+':'')+fmtN(diff)+'원'}
+                    </td>
                     <td className="tc">{s ? <span className="badge bg">입력완료</span> : <span className="badge bgr">미입력</span>}</td>
                     <td className="tc">
                       <div style={{display:'flex',gap:4,justifyContent:'center'}}>
@@ -2523,6 +2581,27 @@ function SalaryView({ user }) {
           </table>
         </div>
       </div>
+
+      {copyModal && (
+        <div className="mbg" onClick={function(){setCopyModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:380}}>
+            <div className="mh"><span className="mht">📋 지난달 급여 복사</span><button className="mc" onClick={function(){setCopyModal(false);}}>×</button></div>
+            <div className="mb">
+              <p style={{fontSize:13,color:'#475569',marginBottom:16}}>
+                이미 입력된 직원의 데이터를 어떻게 처리할까요?
+              </p>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                <button className="btn btn-p" style={{width:'100%',padding:'10px 0'}} onClick={function(){copyFromPrev(true);}}>
+                  덮어쓰기 — 기존 데이터 포함 전체 복사
+                </button>
+                <button className="btn btn-s" style={{width:'100%',padding:'10px 0'}} onClick={function(){copyFromPrev(false);}}>
+                  스킵 — 미입력 직원만 복사
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modal && selU && (
         <div className="mbg" onClick={function(){setModal(false);}}>
