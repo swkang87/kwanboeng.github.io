@@ -2519,40 +2519,50 @@ function SalaryView({ user }) {
     setSlipModal(true);
   }
 
-  function doSendSlip() {
+  async function doSendSlip() {
     var u = slipTarget;
     var s = getSal(u.id);
     setSlipModal(false);
     setEmMsg('발송 중...');
-    var dets = getDetails(s.id);
-    var c = calcFromDetails(dets);
-    // 0원 제외 HTML rows 생성
-    function makeRows(type) {
-      return salaryItems.filter(function(item){ return item.type===type; }).map(function(item) {
-        var d = dets.find(function(x){ return x.item_id === item.id; });
-        var amt = d ? (d.amount||0) : 0;
-        if (amt === 0) return '';
-        return '<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:10px 14px;color:#64748b;font-size:13px;">'+item.label+'</td><td style="padding:10px 14px;text-align:right;font-weight:600;font-size:13px;">'+fmtN(amt)+'원</td></tr>';
-      }).filter(Boolean).join('');
+
+    // 토큰 생성 (랜덤 32자)
+    var token = Array.from(crypto.getRandomValues(new Uint8Array(20)))
+      .map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+
+    // 만료일: 7일 후
+    var expires = new Date();
+    expires.setDate(expires.getDate() + 7);
+
+    // salary_slips INSERT
+    var r = await sb.from('salary_slips').insert({
+      token: token,
+      salary_id: s.id,
+      user_id: u.id,
+      expires_at: expires.toISOString(),
+    });
+    if (r.error) {
+      setEmMsg('❌ 발송 실패: ' + r.error.message);
+      setTimeout(function(){ setEmMsg(''); }, 5000);
+      return;
     }
+
+    // 명세서 링크
+    var slipUrl = window.location.origin + '/slip.html?token=' + token;
+
+    // 이메일 발송
     window.emailjs.send(APP_CONFIG.EMAILJS_SERVICE_ID, APP_CONFIG.EMAILJS_TEMPLATE_ID, {
       to_email: u.email,
       name: u.name,
       month: month,
       company_name: APP_CONFIG.COMPANY_KO,
       company_tel: APP_CONFIG.TEL,
-      pay_rows: makeRows('income'),
-      ded_rows: makeRows('deduction'),
-      total_income: fmtN(c.inc),
-      total_deduction: fmtN(c.ded),
-      net_pay: fmtN(c.net),
-      memo: s.memo || '',
+      slip_url: slipUrl,
     }).then(function() {
       setEmMsg('📧 ' + u.name + ' 님께 발송 완료 ✓');
-      setTimeout(function() { setEmMsg(''); }, 3000);
+      setTimeout(function(){ setEmMsg(''); }, 3000);
     }).catch(function(e) {
       setEmMsg('❌ 발송 실패: ' + (e.text || e.message || JSON.stringify(e)));
-      setTimeout(function() { setEmMsg(''); }, 5000);
+      setTimeout(function(){ setEmMsg(''); }, 5000);
     });
   }
 
