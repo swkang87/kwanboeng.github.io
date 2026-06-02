@@ -2307,6 +2307,8 @@ function SalaryView({ user }) {
   const [prevDetails, setPrevDetails] = useState([]);
   const [itemModal, setItemModal] = useState(false); // 항목관리 모달
   const [itemForm, setItemForm] = useState({label:'',type:'income'});
+  const [delMonthModal, setDelMonthModal] = useState(false);
+  const [delMonthIng, setDelMonthIng] = useState(false);
 
   var EXCEL_ORDER = ['강호갑','이수금','강승우','김병용','장용기','조원범','박호진','윤종수','유현수','이규민','이창환','이다빈','안소영','신재호','신병호','송성익','안구환','윤성원','박상철','황보경','한예은','임수혁','한동우','최상민','안명만','현나경','김동현','송영환'];
 
@@ -2478,6 +2480,19 @@ function SalaryView({ user }) {
     load();
   }
 
+  async function deleteMonthData() {
+    setDelMonthIng(true); setDelMonthModal(false);
+    // 이번 달 salaries id 목록
+    var salIds = sals.map(function(s){ return s.id; });
+    if (salIds.length > 0) {
+      // salary_details 먼저 삭제 (CASCADE가 있지만 명시적으로)
+      await sb.from('salary_details').delete().in('salary_id', salIds);
+      await sb.from('salaries').delete().in('id', salIds);
+    }
+    setDelMonthIng(false);
+    load();
+  }
+
   async function addSalaryItem() {
     if (!itemForm.label) return;
     var maxOrder = salaryItems.filter(function(i){ return i.type===itemForm.type; })
@@ -2550,7 +2565,7 @@ function SalaryView({ user }) {
   return (
     <div className="page">
       <div className="ph" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
-        <div><div className="pt">💼 급여 대장</div><div className="ps">관리자 전용</div></div>
+        <div><div className="pt">💼 급여 관리</div><div className="ps">관리자 전용</div></div>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
           <button className="btn btn-s btn-sm" onClick={function(){moveMonth(-1);}}>◀</button>
           <input type="month" className="fi" value={month} onChange={function(e){setMonth(e.target.value);}} style={{width:'auto'}} />
@@ -2559,11 +2574,12 @@ function SalaryView({ user }) {
       </div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
         <div style={{display:'flex',gap:8}}>
-          <button className={salTab==='tax'?'itab active':'itab'} onClick={function(){setSalTab('tax');}}>🏛 세금신고</button>
-          <button className={salTab==='pay'?'itab active':'itab'} onClick={function(){setSalTab('pay');}}>💵 지급</button>
+          <button className={salTab==='tax'?'itab active':'itab'} onClick={function(){setSalTab('tax');}}>🏛 급여신고</button>
+          <button className={salTab==='pay'?'itab active':'itab'} onClick={function(){setSalTab('pay');}}>💵 급여지급</button>
         </div>
         <div style={{display:'flex',gap:6}}>
           <button className="btn btn-s btn-sm" onClick={function(){setItemModal(true);}} style={{fontSize:12}}>⚙️ 항목관리</button>
+          <button className="btn btn-sm" onClick={function(){setDelMonthModal(true);}} style={{fontSize:12,background:'transparent',color:'#ef4444',border:'1px solid #ef4444',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>🗑 데이터 삭제</button>
           <button className="btn btn-s btn-sm" onClick={function(){setCopyModal(true);}} disabled={copying||prevSals.length===0} style={{fontSize:12}}>
             {copying ? '복사 중...' : '📋 지난달 복사'}
           </button>
@@ -2681,6 +2697,24 @@ function SalaryView({ user }) {
                 <button className="btn btn-s" onClick={function(){setSlipModal(false);}}>취소</button>
                 <button className="btn btn-p" onClick={doSendSlip}>발송</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {delMonthModal && (
+        <div className="mbg" onClick={function(){setDelMonthModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:360}}>
+            <div className="mh"><span className="mht" style={{color:'#ef4444'}}>🗑 데이터 삭제</span><button className="mc" onClick={function(){setDelMonthModal(false);}}>×</button></div>
+            <div className="mb">
+              <p style={{fontSize:13,color:'#475569',marginBottom:8}}>
+                <b>{month}</b> [{salTab==='tax'?'급여신고':'급여지급'}] 데이터를 전부 삭제합니다.
+              </p>
+              <div className="al al-e" style={{fontSize:12,marginBottom:0}}>이 작업은 되돌릴 수 없습니다.</div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setDelMonthModal(false);}}>취소</button>
+              <button className="btn btn-d" onClick={deleteMonthData} disabled={delMonthIng}>{delMonthIng?'삭제 중...':'삭제 확인'}</button>
             </div>
           </div>
         </div>
@@ -3022,7 +3056,7 @@ function StaffView({ user }) {
         <div className="sh">
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
             <span style={{fontWeight:700,fontSize:14}}>💰 급여전용 인원</span>
-            <span style={{fontSize:12,color:'#94a3b8'}}>시스템 계정 없이 급여대장에만 등록된 인원</span>
+            <span style={{fontSize:12,color:'#94a3b8'}}>시스템 계정 없이 급여관리에만 등록된 인원</span>
           </div>
           {user.role==='admin'&&<button className="btn btn-p btn-sm" onClick={openSmNew}>+ 급여전용 추가</button>}
         </div>
@@ -3318,7 +3352,7 @@ function App() {
       <div className="top-nav">
         <button className={view===VIEWS.WL?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.WL);}}>📝 업무일지</button>
         <button className={view===VIEWS.PF?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.PF);}}>📊 실적관리</button>
-        {canSal && <button className={view===VIEWS.SL?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.SL);}}>💼 급여대장</button>}
+        {canSal && <button className={view===VIEWS.SL?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.SL);}}>💼 급여관리</button>}
         <button className={view===VIEWS.ST?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.ST);}}>👥 직원관리</button>
       </div>
       {view === VIEWS.WL && <WorklogView user={user} />}
