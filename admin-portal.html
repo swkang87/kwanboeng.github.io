@@ -383,7 +383,7 @@ const getMonthInfo = (dateStr) => {
 };
 
 // ── 인풋 컴포넌트 ─────────────────────────────────────────────────────────
-function FI({ label, field, form, set, type }) {
+function FI({ label, field, form, set }) {
   function fmtInput(v) {
     var n = String(v||'').replace(/,/g,'');
     if (n==='' || n==='-') return n;
@@ -396,11 +396,11 @@ function FI({ label, field, form, set, type }) {
     set(function(p) { var o = Object.assign({}, p); o[field] = raw; return o; });
   }
   return (
-    <div className="sal-frow">
-      <label className="fl">{label}</label>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f1f5f9'}}>
+      <span style={{fontSize:13,color:'#64748b',flexShrink:0,minWidth:110}}>{label}</span>
       <input
         className="fi"
-        type={type || 'text'}
+        style={{width:140,textAlign:'right',padding:'4px 8px',fontSize:13,height:'auto'}}
         value={fmtInput(form[field])}
         placeholder="0"
         onChange={handleChange}
@@ -2736,6 +2736,9 @@ function SalaryView({ user }) {
                   <button className="btn btn-p btn-sm" onClick={addSalaryItem} style={{flexShrink:0}}>추가</button>
                 </div>
               </div>
+              <div style={{fontSize:11,color:'#94a3b8',marginBottom:10}}>
+                항목을 숨기면 급여 입력 모달에서 표시되지 않습니다. 기존 데이터는 유지됩니다.
+              </div>
               <div style={{display:'flex',gap:16}}>
                 {['income','deduction'].map(function(type){
                   var items = salaryItems.filter(function(i){ return i.type===type; });
@@ -2744,10 +2747,13 @@ function SalaryView({ user }) {
                       <div style={{fontWeight:700,fontSize:12,color:'#475569',marginBottom:8}}>{type==='income'?'■ 지급 항목':'■ 공제 항목'}</div>
                       {items.map(function(item){
                         return (
-                          <div key={item.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:item.active?'#f8fafc':'#fef2f2',borderRadius:6,marginBottom:4}}>
-                            <span style={{fontSize:13,color:item.active?'#1e293b':'#94a3b8'}}>{item.label}</span>
-                            <button onClick={function(){toggleItem(item);}} style={{fontSize:10,padding:'2px 8px',borderRadius:4,border:'none',cursor:'pointer',background:item.active?'#fee2e2':'#dcfce7',color:item.active?'#dc2626':'#16a34a',fontWeight:700}}>
-                              {item.active?'비활성':'활성'}
+                          <div key={item.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:item.active?'#f8fafc':'#fef2f2',borderRadius:6,marginBottom:4,border:'1px solid '+(item.active?'#e2e8f0':'#fecaca')}}>
+                            <span style={{fontSize:13,color:item.active?'#1e293b':'#94a3b8',textDecoration:item.active?'none':'line-through'}}>{item.label}</span>
+                            <button onClick={function(){toggleItem(item);}}
+                              style={{fontSize:11,padding:'3px 10px',borderRadius:4,border:'none',cursor:'pointer',
+                                background:item.active?'#e2e8f0':'#dcfce7',
+                                color:item.active?'#475569':'#16a34a',fontWeight:700,whiteSpace:'nowrap'}}>
+                              {item.active?'숨기기':'보이기'}
                             </button>
                           </div>
                         );
@@ -2785,7 +2791,7 @@ function SalaryView({ user }) {
 
       {modal && selU && (
         <div className="mbg" onClick={function(){setModal(false);}}>
-          <div className="mbox" style={{maxWidth:620}} onClick={function(e){e.stopPropagation();}}>
+          <div className="mbox" style={{maxWidth:680}} onClick={function(e){e.stopPropagation();}}>
             <div className="mh">
               <span className="mht">💼 {selU.name} 급여 입력 ({month})</span>
               <button className="mc" onClick={function(){setModal(false);}}>×</button>
@@ -2794,33 +2800,38 @@ function SalaryView({ user }) {
               {err && <div className="al al-e">{err}</div>}
               {(function(){
                 var cv = calcFromForm(form);
-                var incItems = salaryItems.filter(function(i){ return i.type==='income'; });
-                var dedItems = salaryItems.filter(function(i){ return i.type==='deduction'; });
+                var incItems = salaryItems.filter(function(i){ return i.type==='income' && i.active; });
+                var dedItems = salaryItems.filter(function(i){ return i.type==='deduction' && i.active; });
                 return (
-                  <div>
-                    <div className="sal-row">
-                      <div className="sal-sec">
-                        <div className="sal-st">지급 항목</div>
-                        {incItems.map(function(item){
-                          return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
-                        })}
-                        <div className="sal-tot"><span className="sal-tl">총 지급액</span><span className="sal-tv">{fmtN(cv.inc)}원</span></div>
-                      </div>
-                      <div className="sal-sec">
-                        <div className="sal-st">공제 항목</div>
-                        {dedItems.map(function(item){
-                          return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
-                        })}
-                        <div className="sal-tot"><span className="sal-tl">총 공제액</span><span className="sal-tv" style={{color:'#dc2626'}}>{fmtN(cv.ded)}원</span></div>
+                  <div style={{display:'flex',gap:20,marginBottom:12}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',letterSpacing:'.3px',marginBottom:6,paddingBottom:6,borderBottom:'2px solid #0f172a'}}>지급 항목</div>
+                      {incItems.map(function(item){
+                        return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
+                      })}
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:8,marginTop:4,borderTop:'2px solid #0f172a'}}>
+                        <span style={{fontSize:13,fontWeight:800}}>총 지급액</span>
+                        <span style={{fontSize:15,fontWeight:800,color:'#1d4ed8'}}>{fmtN(cv.inc)}원</span>
                       </div>
                     </div>
-                    <div style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',borderRadius:10,padding:'16px 20px',color:'#fff',display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                      <span style={{fontWeight:700}}>실수령액</span>
-                      <span style={{fontSize:22,fontWeight:800}}>{fmtN(cv.net)}원</span>
+                    <div style={{width:1,background:'#e2e8f0',flexShrink:0}} />
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',letterSpacing:'.3px',marginBottom:6,paddingBottom:6,borderBottom:'2px solid #0f172a'}}>공제 항목</div>
+                      {dedItems.map(function(item){
+                        return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
+                      })}
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:8,marginTop:4,borderTop:'2px solid #0f172a'}}>
+                        <span style={{fontSize:13,fontWeight:800}}>총 공제액</span>
+                        <span style={{fontSize:15,fontWeight:800,color:'#dc2626'}}>{fmtN(cv.ded)}원</span>
+                      </div>
                     </div>
                   </div>
                 );
               })()}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px',marginBottom:12}}>
+                <span style={{fontWeight:700,fontSize:14,color:'#1e293b'}}>실수령액</span>
+                <span style={{fontWeight:800,fontSize:18,color:'#7c3aed'}}>{fmtN((function(){var cv=calcFromForm(form);return cv.net;})())}원</span>
+              </div>
               <div>
                 <label className="fl">메모</label>
                 <input className="fi" value={form.memo||''} placeholder="메모" onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
