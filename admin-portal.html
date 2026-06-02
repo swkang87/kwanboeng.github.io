@@ -17,7 +17,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;}
+body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
 .sys-bar{position:sticky;top:0;z-index:300;} /* → sysbar.js가 주입 */
 @media(max-width:640px){
   .top-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
@@ -1322,13 +1322,13 @@ function PerfView({ user }) {
               <table style={{tableLayout:'fixed',width:'100%'}}>
                 <colgroup>
                   <col style={{width:'auto'}} />
-                  <col style={{width:82}} />
-                  <col style={{width:52}} />
-                  <col style={{width:108}} />
-                  <col style={{width:108}} />
-                  <col style={{width:108}} />
-                  <col style={{width:58}} />
-                  <col style={{width:70}} />
+                  <col style={{width:78}} />
+                  <col style={{width:46}} />
+                  <col style={{width:96}} />
+                  <col style={{width:96}} />
+                  <col style={{width:96}} />
+                  <col style={{width:50}} />
+                  <col style={{width:64}} />
                 </colgroup>
                 <thead><tr>
                   <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
@@ -2280,12 +2280,13 @@ function SalaryView({ user }) {
   const [err, setErr] = useState('');
   const [month, setMonth] = useState(new Date().toISOString().slice(0,7));
   const [emMsg, setEmMsg] = useState('');
+  const [salTab, setSalTab] = useState('tax');
 
   function load() {
     setLoading(true);
     Promise.all([
       sb.from('users').select('id,name,email,position,team_id').neq('role','contractor').order('name'),
-      sb.from('salaries').select('*').eq('month', month),
+      sb.from('salaries').select('*').eq('month', month).eq('sal_type', salTab),
       sb.from('teams').select('id,name'),
     ]).then(function(results) {
       var ud = results[0].data || [];
@@ -2299,7 +2300,7 @@ function SalaryView({ user }) {
     });
   }
 
-  useEffect(function() { load(); }, [month]);
+  useEffect(function() { load(); }, [month, salTab]);
 
   function getSal(uid) { return sals.find(function(s) { return s.user_id === uid; }); }
 
@@ -2333,7 +2334,7 @@ function SalaryView({ user }) {
     setSaving(true); setErr('');
     var c = calc(form);
     var payload = Object.assign({}, {
-      user_id: selU.id, month: month, memo: form.memo||'',
+      user_id: selU.id, month: month, sal_type: salTab, memo: form.memo||'',
       total_income: c.inc, total_deduction: c.ded, net_pay: c.net,
     });
     var fields = ['base_salary','position_allowance','meal_allowance','transport_allowance',
@@ -2388,6 +2389,10 @@ function SalaryView({ user }) {
       <div className="ph" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
         <div><div className="pt">💼 급여 대장</div><div className="ps">관리자 전용</div></div>
         <input type="month" className="fi" value={month} onChange={function(e){setMonth(e.target.value);}} style={{width:'auto'}} />
+      </div>
+      <div style={{display:'flex',gap:8,marginBottom:16}}>
+        <button className={salTab==='tax'?'itab active':'itab'} onClick={function(){setSalTab('tax');}}>🏛 세금신고</button>
+        <button className={salTab==='pay'?'itab active':'itab'} onClick={function(){setSalTab('pay');}}>💵 지급</button>
       </div>
 
       {emMsg && <div className="al al-s">{emMsg}</div>}
