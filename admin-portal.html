@@ -169,6 +169,14 @@ tr:hover td{background:#f8fafc;}
 .lsub{font-size:12px;color:#94a3b8;text-align:center;margin-bottom:24px;}
 @media(max-width:768px){.g2,.g3{grid-template-columns:1fr;}.sal-row{grid-template-columns:1fr;}}
 </style>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script>
+    (function() {
+      if (window.emailjs && typeof APP_CONFIG !== 'undefined' && APP_CONFIG.EMAILJS_PUBLIC_KEY) {
+        window.emailjs.init({ publicKey: APP_CONFIG.EMAILJS_PUBLIC_KEY });
+      }
+    })();
+  </script>
 </head>
 <body>
 <div id="root"></div>
@@ -2446,11 +2454,17 @@ function SalaryView({ user }) {
     setEmMsg('발송 중...');
     var c = calc(s);
     window.emailjs.send(APP_CONFIG.EMAILJS_SERVICE_ID, APP_CONFIG.EMAILJS_TEMPLATE_ID, {
-      to_email: u.email, to_name: u.name, month: month,
-      company: APP_CONFIG.COMPANY_KO,
+      to_email: u.email,
+      name: u.name,
+      month: month,
+      company_name: APP_CONFIG.COMPANY_KO,
+      company_tel: APP_CONFIG.TEL,
       base_salary: fmtN(s.base_salary),
-      total_income: fmtN(c.inc), total_deduction: fmtN(c.ded), net_pay: fmtN(c.net),
-    }).then(function() {
+      total_income: fmtN(c.inc),
+      total_deduction: fmtN(c.ded),
+      net_pay: fmtN(c.net),
+      memo: s.memo || '',
+    }, APP_CONFIG.EMAILJS_PUBLIC_KEY).then(function() {
       setEmMsg('발송 완료 ✓');
       setTimeout(function() { setEmMsg(''); }, 3000);
     }).catch(function(e) {
