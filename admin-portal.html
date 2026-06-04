@@ -180,7 +180,7 @@ if (window.emailjs && APP_CONFIG.EMAILJS_PUBLIC_KEY) {
   window.emailjs.init({ publicKey: APP_CONFIG.EMAILJS_PUBLIC_KEY });
 }
 
-const VIEWS = { WL:'wl', PF:'pf', SL:'sl', ST:'st' };
+const VIEWS = { WL:'wl', PF:'pf', SL:'sl', AB:'ab', ST:'st' };
 const TODAY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const fmtDateKo = (ds) => { const d = new Date(ds + 'T00:00:00'); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`; };
@@ -2932,6 +2932,253 @@ function SalaryView({ user }) {
 }
 
 // ── 직원 관리 ─────────────────────────────────────────────────────────────
+function AccountBookView({ user }) {
+  var CATEGORIES = ['메일','설계/민원','면허/인증','입찰','금융/세무'];
+  var isAdmin = user.role === 'admin';
+
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selCat, setSelCat] = useState('전체');
+  const [modal, setModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [showPw, setShowPw] = useState({});
+  const [catModal, setCatModal] = useState(false);
+  const [newCat, setNewCat] = useState('');
+  const [categories, setCategories] = useState(CATEGORIES);
+  const [inlineEdit, setInlineEdit] = useState(null); // 인라인 편집 id
+  const [inlineForm, setInlineForm] = useState({});
+
+  function load() {
+    setLoading(true);
+    sb.from('account_book').select('*').order('category').order('order_no').then(function(r) {
+      setAccounts(r.data || []);
+      // 실제 DB의 카테고리 목록 추출
+      var cats = [];
+      (r.data || []).forEach(function(a) {
+        if (cats.indexOf(a.category) === -1) cats.push(a.category);
+      });
+      // CATEGORIES 순서 유지 + 신규 카테고리 뒤에 추가
+      var ordered = CATEGORIES.filter(function(c){ return cats.indexOf(c) !== -1; });
+      cats.forEach(function(c){ if (ordered.indexOf(c) === -1) ordered.push(c); });
+      setCategories(ordered);
+      setLoading(false);
+    });
+  }
+
+  useEffect(function() { load(); }, []);
+
+  function openNew() {
+    setEditItem(null);
+    setForm({category: categories[0]||'', site_name:'', url:'', account_id:'', password:'', memo:''});
+    setModal(true);
+  }
+
+  function openEdit(a) {
+    setEditItem(a);
+    setForm({category:a.category, site_name:a.site_name, url:a.url||'', account_id:a.account_id||'', password:a.password||'', memo:a.memo||''});
+    setModal(true);
+  }
+
+  async function save() {
+    if (!form.site_name) return;
+    setSaving(true);
+    var payload = {category:form.category, site_name:form.site_name, url:form.url||null,
+      account_id:form.account_id||null, password:form.password||null, memo:form.memo||null};
+    if (editItem) {
+      await sb.from('account_book').update(payload).eq('id', editItem.id);
+    } else {
+      var maxOrder = accounts.filter(function(a){ return a.category===form.category; })
+        .reduce(function(m,a){ return Math.max(m, a.order_no||0); }, 0);
+      payload.order_no = maxOrder + 1;
+      await sb.from('account_book').insert(payload);
+    }
+    setSaving(false); setModal(false); load();
+  }
+
+  async function del(a) {
+    if (!window.confirm('['+a.site_name+'] 삭제할까요?')) return;
+    await sb.from('account_book').delete().eq('id', a.id);
+    load();
+  }
+
+  function startInline(a) {
+    setInlineEdit(a.id);
+    setInlineForm({category:a.category, site_name:a.site_name, url:a.url||'', account_id:a.account_id||'', password:a.password||'', memo:a.memo||''});
+  }
+
+  async function saveInline(a) {
+    await sb.from('account_book').update({
+      category:inlineForm.category, site_name:inlineForm.site_name,
+      url:inlineForm.url||null, account_id:inlineForm.account_id||null,
+      password:inlineForm.password||null, memo:inlineForm.memo||null,
+    }).eq('id', a.id);
+    setInlineEdit(null); load();
+  }
+
+  async function addCategory() {
+    if (!newCat.trim()) return;
+    setCategories(function(prev){ return prev.concat([newCat.trim()]); });
+    setNewCat(''); setCatModal(false);
+  }
+
+  var filtered = selCat === '전체' ? accounts : accounts.filter(function(a){ return a.category === selCat; });
+  var grouped = {};
+  filtered.forEach(function(a) {
+    if (!grouped[a.category]) grouped[a.category] = [];
+    grouped[a.category].push(a);
+  });
+
+  var iStyle = {padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:4,fontSize:12,fontFamily:"'Noto Sans KR',sans-serif",width:'100%'};
+
+  return (
+    <div className="card">
+      <div className="ph" style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+        <div><div className="pt">🔑 계정 관리</div><div className="ps">관리팀 전용 사이트 계정 목록</div></div>
+        {isAdmin && (
+          <div style={{display:'flex',gap:6}}>
+            <button className="btn btn-s btn-sm" onClick={function(){setCatModal(true);}}>+ 분류 추가</button>
+            <button className="btn btn-p btn-sm" onClick={openNew}>+ 계정 추가</button>
+          </div>
+        )}
+      </div>
+
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16}}>
+        {['전체'].concat(categories).map(function(cat){
+          return (
+            <button key={cat} onClick={function(){setSelCat(cat);}}
+              className={selCat===cat?'itab active':'itab'}>
+              {cat}
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? <div className="loading">로딩 중...</div> : (
+        Object.keys(grouped).map(function(cat) {
+          return (
+            <div key={cat} style={{marginBottom:24}}>
+              <div style={{fontSize:12,fontWeight:800,color:'#475569',letterSpacing:'.5px',
+                padding:'6px 0',borderBottom:'2px solid #0f172a',marginBottom:8}}>
+                {cat}
+              </div>
+              <table style={{width:'100%',tableLayout:'fixed',borderCollapse:'collapse'}}>
+                <colgroup>
+                  <col style={{width:'18%'}} />
+                  <col style={{width:'12%'}} />
+                  <col style={{width:'13%'}} />
+                  <col style={{width:'13%'}} />
+                  <col style={{width:'auto'}} />
+                  {isAdmin && <col style={{width:80}} />}
+                </colgroup>
+                <thead>
+                  <tr style={{background:'#f8fafc'}}>
+                    <th style={{padding:'7px 10px',fontSize:11,color:'#64748b',textAlign:'left',fontWeight:700}}>사이트</th>
+                    <th style={{padding:'7px 10px',fontSize:11,color:'#64748b',textAlign:'left',fontWeight:700}}>아이디</th>
+                    <th style={{padding:'7px 10px',fontSize:11,color:'#64748b',textAlign:'left',fontWeight:700}}>비밀번호</th>
+                    <th style={{padding:'7px 10px',fontSize:11,color:'#64748b',textAlign:'left',fontWeight:700}}>링크</th>
+                    <th style={{padding:'7px 10px',fontSize:11,color:'#64748b',textAlign:'left',fontWeight:700}}>메모</th>
+                    {isAdmin && <th></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {grouped[cat].map(function(a) {
+                    var isEditing = inlineEdit === a.id;
+                    return (
+                      <tr key={a.id} style={{borderBottom:'1px solid #f1f5f9',background:isEditing?'#fffbeb':''}}>
+                        {isEditing ? (
+                          [
+                            <td key="sn" style={{padding:'4px 6px'}}><input style={iStyle} value={inlineForm.site_name} onChange={function(e){setInlineForm(function(p){return Object.assign({},p,{site_name:e.target.value});});}} /></td>,
+                            <td key="id" style={{padding:'4px 6px'}}><input style={iStyle} value={inlineForm.account_id} onChange={function(e){setInlineForm(function(p){return Object.assign({},p,{account_id:e.target.value});});}} /></td>,
+                            <td key="pw" style={{padding:'4px 6px'}}><input style={iStyle} value={inlineForm.password} onChange={function(e){setInlineForm(function(p){return Object.assign({},p,{password:e.target.value});});}} /></td>,
+                            <td key="url" style={{padding:'4px 6px'}}><input style={iStyle} value={inlineForm.url} onChange={function(e){setInlineForm(function(p){return Object.assign({},p,{url:e.target.value});});}} /></td>,
+                            <td key="memo" style={{padding:'4px 6px'}}><input style={iStyle} value={inlineForm.memo} onChange={function(e){setInlineForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} /></td>,
+                            isAdmin && <td key="act" style={{padding:'4px 6px',whiteSpace:'nowrap'}}>
+                              <button className="btn btn-p btn-sm" style={{marginRight:3}} onClick={function(){saveInline(a);}}>저장</button>
+                              <button className="btn btn-s btn-sm" onClick={function(){setInlineEdit(null);}}>취소</button>
+                            </td>
+                          ]
+                        ) : (
+                          [
+                            <td key="sn" style={{padding:'8px 10px',fontSize:13,fontWeight:600}}>{a.site_name}</td>,
+                            <td key="id" style={{padding:'8px 10px',fontSize:12,fontFamily:'monospace',color:'#1d4ed8'}}>{a.account_id||'-'}</td>,
+                            <td key="pw" style={{padding:'8px 10px',fontSize:12,fontFamily:'monospace'}}>
+                              {a.password ? (
+                                <span style={{display:'flex',alignItems:'center',gap:4}}>
+                                  <span style={{color:'#7c3aed'}}>{showPw[a.id] ? a.password : '••••••••'}</span>
+                                  <button onClick={function(){setShowPw(function(p){var o=Object.assign({},p);o[a.id]=!o[a.id];return o;});}}
+                                    style={{fontSize:10,padding:'1px 5px',border:'1px solid #e2e8f0',borderRadius:3,cursor:'pointer',background:'#f8fafc',color:'#64748b'}}>
+                                    {showPw[a.id]?'숨김':'표시'}
+                                  </button>
+                                </span>
+                              ) : <span style={{color:'#94a3b8'}}>인증서</span>}
+                            </td>,
+                            <td key="url" style={{padding:'8px 10px',fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                              {a.url ? <a href={a.url} target="_blank" style={{color:'#0891b2',textDecoration:'none'}}>🔗 바로가기</a> : '-'}
+                            </td>,
+                            <td key="memo" style={{padding:'8px 10px',fontSize:11,color:'#64748b'}}>{a.memo||''}</td>,
+                            isAdmin && <td key="act" style={{padding:'8px 6px',whiteSpace:'nowrap'}}>
+                              <button className="btn btn-s btn-sm" style={{marginRight:3}} onClick={function(){startInline(a);}}>수정</button>
+                              <button className="btn btn-d btn-sm" onClick={function(){del(a);}}>삭제</button>
+                            </td>
+                          ]
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })
+      )}
+
+      {catModal && (
+        <div className="mbg" onClick={function(){setCatModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:360}}>
+            <div className="mh"><span className="mht">+ 분류 추가</span><button className="mc" onClick={function(){setCatModal(false);}}>×</button></div>
+            <div className="mb">
+              <label className="fl">분류명</label>
+              <input className="fi" value={newCat} onChange={function(e){setNewCat(e.target.value);}} placeholder="예: 보험, 협회 등" />
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setCatModal(false);}}>취소</button>
+              <button className="btn btn-p" onClick={addCategory}>추가</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal && (
+        <div className="mbg" onClick={function(){setModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:480}}>
+            <div className="mh"><span className="mht">{editItem?'계정 수정':'계정 추가'}</span><button className="mc" onClick={function(){setModal(false);}}>×</button></div>
+            <div className="mb">
+              <div style={{marginBottom:10}}><label className="fl">분류</label>
+                <select className="fi" value={form.category||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{category:e.target.value});});}}>
+                  {categories.map(function(c){ return <option key={c} value={c}>{c}</option>; })}
+                </select>
+              </div>
+              <div style={{marginBottom:10}}><label className="fl">사이트명 *</label><input className="fi" value={form.site_name||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{site_name:e.target.value});});}} /></div>
+              <div style={{marginBottom:10}}><label className="fl">URL</label><input className="fi" value={form.url||''} placeholder="https://" onChange={function(e){setForm(function(p){return Object.assign({},p,{url:e.target.value});});}} /></div>
+              <div className="g2" style={{marginBottom:10}}>
+                <div><label className="fl">아이디</label><input className="fi" value={form.account_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{account_id:e.target.value});});}} /></div>
+                <div><label className="fl">비밀번호</label><input className="fi" value={form.password||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{password:e.target.value});});}} /></div>
+              </div>
+              <div style={{marginBottom:10}}><label className="fl">메모</label><input className="fi" value={form.memo||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} /></div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setModal(false);}}>취소</button>
+              <button className="btn btn-p" onClick={save} disabled={saving}>{saving?'저장 중...':'저장'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StaffView({ user }) {
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -3429,6 +3676,7 @@ function App() {
   );
 
   var canSal = user.role === 'admin';
+  var canAb  = user.role === 'admin' || teamName === '관리팀';
 
   return (
     <div>
@@ -3447,11 +3695,13 @@ function App() {
         <button className={view===VIEWS.WL?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.WL);}}>📝 업무일지</button>
         <button className={view===VIEWS.PF?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.PF);}}>📊 실적관리</button>
         {canSal && <button className={view===VIEWS.SL?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.SL);}}>💼 급여관리</button>}
+        {canAb  && <button className={view===VIEWS.AB?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.AB);}}>🔑 계정관리</button>}
         <button className={view===VIEWS.ST?'nav-btn active':'nav-btn'} onClick={function(){nv(VIEWS.ST);}}>👥 직원관리</button>
       </div>
       {view === VIEWS.WL && <WorklogView user={user} />}
       {view === VIEWS.PF && <PerfView user={user} />}
       {view === VIEWS.SL && canSal && <SalaryView user={user} />}
+      {view === VIEWS.AB && canAb  && <AccountBookView user={user} />}
       {view === VIEWS.ST && <StaffView user={user} />}
     </div>
   );
