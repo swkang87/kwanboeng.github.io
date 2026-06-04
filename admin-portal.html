@@ -2520,6 +2520,20 @@ function SalaryView({ user }) {
     load();
   }
 
+  async function moveItem(item, dir) {
+    // 같은 type 내에서 order_no 기준 정렬
+    var sameType = salaryItems.filter(function(i){ return i.type === item.type; })
+      .slice().sort(function(a,b){ return a.order_no - b.order_no; });
+    var idx = sameType.findIndex(function(i){ return i.id === item.id; });
+    var swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= sameType.length) return;
+    var swapItem = sameType[swapIdx];
+    // order_no 교환
+    await sb.from('salary_items').update({ order_no: swapItem.order_no }).eq('id', item.id);
+    await sb.from('salary_items').update({ order_no: item.order_no }).eq('id', swapItem.id);
+    load();
+  }
+
   async function toggleItem(item) {
     await sb.from('salary_items').update({ active: !item.active }).eq('id', item.id);
     load();
@@ -2781,22 +2795,39 @@ function SalaryView({ user }) {
                       <div style={{fontWeight:700,fontSize:12,color:'#475569',marginBottom:8}}>{type==='income'?'■ 지급 항목':'■ 공제 항목'}</div>
                       {items.map(function(item){
                         return (
-                          <div key={item.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:item.active?'#f8fafc':'#fef2f2',borderRadius:6,marginBottom:4,border:'1px solid '+(item.active?'#e2e8f0':'#fecaca')}}>
-                            <span style={{fontSize:13,color:item.active?'#1e293b':'#94a3b8',textDecoration:item.active?'none':'line-through'}}>{item.label}</span>
-                            <div style={{display:'flex',gap:4}}>
-                              <button onClick={function(){toggleItem(item);}}
-                                style={{fontSize:11,padding:'3px 10px',borderRadius:4,border:'none',cursor:'pointer',
-                                  background:item.active?'#e2e8f0':'#dcfce7',
-                                  color:item.active?'#475569':'#16a34a',fontWeight:700,whiteSpace:'nowrap'}}>
-                                {item.active?'숨기기':'나타내기'}
-                              </button>
-                              <button onClick={function(){deleteSalaryItem(item);}}
-                                style={{fontSize:11,padding:'3px 8px',borderRadius:4,border:'none',cursor:'pointer',
-                                  background:'#fee2e2',color:'#dc2626',fontWeight:700}}>
-                                삭제
-                              </button>
-                            </div>
-                          </div>
+                          {(function(){
+                            var sameType = salaryItems.filter(function(i){ return i.type===item.type; })
+                              .slice().sort(function(a,b){ return a.order_no - b.order_no; });
+                            var idx = sameType.findIndex(function(i){ return i.id===item.id; });
+                            var isFirst = idx === 0;
+                            var isLast  = idx === sameType.length - 1;
+                            return (
+                              <div key={item.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:item.active?'#f8fafc':'#fef2f2',borderRadius:6,marginBottom:4,border:'1px solid '+(item.active?'#e2e8f0':'#fecaca')}}>
+                                <div style={{display:'flex',alignItems:'center',gap:4}}>
+                                  <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                                    <button onClick={function(){moveItem(item,-1);}} disabled={isFirst}
+                                      style={{fontSize:9,padding:'1px 5px',border:'1px solid #e2e8f0',borderRadius:3,cursor:isFirst?'default':'pointer',background:'#fff',color:isFirst?'#cbd5e1':'#475569',lineHeight:1}}>▲</button>
+                                    <button onClick={function(){moveItem(item,1);}} disabled={isLast}
+                                      style={{fontSize:9,padding:'1px 5px',border:'1px solid #e2e8f0',borderRadius:3,cursor:isLast?'default':'pointer',background:'#fff',color:isLast?'#cbd5e1':'#475569',lineHeight:1}}>▼</button>
+                                  </div>
+                                  <span style={{fontSize:13,color:item.active?'#1e293b':'#94a3b8',textDecoration:item.active?'none':'line-through'}}>{item.label}</span>
+                                </div>
+                                <div style={{display:'flex',gap:4}}>
+                                  <button onClick={function(){toggleItem(item);}}
+                                    style={{fontSize:11,padding:'3px 10px',borderRadius:4,border:'none',cursor:'pointer',
+                                      background:item.active?'#e2e8f0':'#dcfce7',
+                                      color:item.active?'#475569':'#16a34a',fontWeight:700,whiteSpace:'nowrap'}}>
+                                    {item.active?'숨기기':'나타내기'}
+                                  </button>
+                                  <button onClick={function(){deleteSalaryItem(item);}}
+                                    style={{fontSize:11,padding:'3px 8px',borderRadius:4,border:'none',cursor:'pointer',
+                                      background:'#fee2e2',color:'#dc2626',fontWeight:700}}>
+                                    삭제
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         );
                       })}
                     </div>
