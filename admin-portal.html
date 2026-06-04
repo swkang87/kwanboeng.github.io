@@ -2934,7 +2934,7 @@ function SalaryView({ user }) {
 // ── 직원 관리 ─────────────────────────────────────────────────────────────
 function AccountBookView({ user }) {
   var CATEGORIES = ['메일','설계/민원','면허/인증','입찰','금융/세무'];
-  var isAdmin = user.role === 'admin';
+  var isAdmin = true; // 계정관리는 관리팀 전체 동일 권한
 
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -3036,12 +3036,10 @@ function AccountBookView({ user }) {
     <div className="card">
       <div className="ph" style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
         <div><div className="pt">🔑 계정 관리</div><div className="ps">관리팀 전용 사이트 계정 목록</div></div>
-        {isAdmin && (
-          <div style={{display:'flex',gap:6}}>
-            <button className="btn btn-s btn-sm" onClick={function(){setCatModal(true);}}>+ 분류 추가</button>
-            <button className="btn btn-p btn-sm" onClick={openNew}>+ 계정 추가</button>
-          </div>
-        )}
+        <div style={{display:'flex',gap:6}}>
+          <button className="btn btn-s btn-sm" onClick={function(){setCatModal(true);}}>+ 분류 추가</button>
+          <button className="btn btn-p btn-sm" onClick={openNew}>+ 계정 추가</button>
+        </div>
       </div>
 
       <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16}}>
