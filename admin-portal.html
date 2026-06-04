@@ -2300,6 +2300,8 @@ function SalaryView({ user }) {
   const [prevSals, setPrevSals] = useState([]);
   const [copying, setCopying] = useState(false);
   const [copyModal, setCopyModal] = useState(false);
+  const [copySrcMonth, setCopySrcMonth] = useState('');
+  const [copySrcTab, setCopySrcTab] = useState('');
   const [slipModal, setSlipModal] = useState(false);
   const [slipTarget, setSlipTarget] = useState(null);
   const [salaryItems, setSalaryItems] = useState([]);
@@ -2382,13 +2384,22 @@ function SalaryView({ user }) {
     setMonth(dt.toISOString().slice(0,7));
   }
 
-  async function copyFromPrev(overwrite) {
+  async function copyFromSrc(overwrite) {
     setCopying(true); setCopyModal(false);
-    for (var i=0; i<prevSals.length; i++) {
-      var ps = prevSals[i];
+    // 소스 월/탭 데이터 조회
+    var srcR = await sb.from('salaries').select('*').eq('month', copySrcMonth).eq('sal_type', copySrcTab);
+    var srcSals = srcR.data || [];
+    var srcIds = srcSals.map(function(s){ return s.id; });
+    var srcDetsR = srcIds.length > 0
+      ? await sb.from('salary_details').select('*').in('salary_id', srcIds)
+      : { data: [] };
+    var srcDets = srcDetsR.data || [];
+
+    for (var i=0; i<srcSals.length; i++) {
+      var ps = srcSals[i];
       var existing = sals.find(function(s){ return s.user_id === ps.user_id; });
       if (existing && !overwrite) continue;
-      var pDets = getPrevDetails(ps.id);
+      var pDets = srcDets.filter(function(d){ return d.salary_id === ps.id; });
       var c = calcFromDetails(pDets);
       var salId;
       if (existing) {
@@ -2597,8 +2608,14 @@ function SalaryView({ user }) {
         <div style={{display:'flex',gap:6}}>
           <button className="btn btn-s btn-sm" onClick={function(){setItemModal(true);}} style={{fontSize:12}}>⚙️ 항목관리</button>
           <button className="btn btn-sm" onClick={function(){setDelMonthModal(true);}} style={{fontSize:12,background:'transparent',color:'#ef4444',border:'1px solid #ef4444',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>🗑 데이터 삭제</button>
-          <button className="btn btn-s btn-sm" onClick={function(){setCopyModal(true);}} disabled={copying||prevSals.length===0} style={{fontSize:12}}>
-            {copying ? '복사 중...' : '📋 지난달 복사'}
+          <button className="btn btn-s btn-sm" onClick={function(){
+            var d = new Date(month + '-01');
+            d.setMonth(d.getMonth()-1);
+            setCopySrcMonth(d.toISOString().slice(0,7));
+            setCopySrcTab(salTab);
+            setCopyModal(true);
+          }} disabled={copying} style={{fontSize:12}}>
+            {copying ? '복사 중...' : '📋 급여 복사'}
           </button>
         </div>
       </div>
@@ -2794,17 +2811,32 @@ function SalaryView({ user }) {
 
       {copyModal && (
         <div className="mbg" onClick={function(){setCopyModal(false);}}>
-          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:380}}>
-            <div className="mh"><span className="mht">📋 지난달 급여 복사</span><button className="mc" onClick={function(){setCopyModal(false);}}>×</button></div>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:400}}>
+            <div className="mh"><span className="mht">📋 급여 복사</span><button className="mc" onClick={function(){setCopyModal(false);}}>×</button></div>
             <div className="mb">
-              <p style={{fontSize:13,color:'#475569',marginBottom:16}}>
-                이미 입력된 직원의 데이터를 어떻게 처리할까요?
-              </p>
+              <div style={{marginBottom:16}}>
+                <label className="fl" style={{marginBottom:6,display:'block'}}>복사할 원본 선택</label>
+                <div style={{display:'flex',gap:8}}>
+                  <input type="month" className="fi" value={copySrcMonth}
+                    onChange={function(e){setCopySrcMonth(e.target.value);}}
+                    style={{flex:1}} />
+                  <select className="fi" value={copySrcTab}
+                    onChange={function(e){setCopySrcTab(e.target.value);}}
+                    style={{width:100,flexShrink:0}}>
+                    <option value="tax">급여신고</option>
+                    <option value="pay">급여지급</option>
+                  </select>
+                </div>
+                <div style={{fontSize:11,color:'#94a3b8',marginTop:6}}>
+                  → <b>{month}</b> [{salTab==='tax'?'급여신고':'급여지급'}] 으로 복사됩니다
+                </div>
+              </div>
+              <p style={{fontSize:13,color:'#475569',marginBottom:12}}>이미 입력된 직원 데이터는 어떻게 처리할까요?</p>
               <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                <button className="btn btn-p" style={{width:'100%',padding:'10px 0'}} onClick={function(){copyFromPrev(true);}}>
+                <button className="btn btn-p" style={{width:'100%',padding:'10px 0'}} onClick={function(){copyFromSrc(true);}}>
                   덮어쓰기 — 기존 데이터 포함 전체 복사
                 </button>
-                <button className="btn btn-s" style={{width:'100%',padding:'10px 0'}} onClick={function(){copyFromPrev(false);}}>
+                <button className="btn btn-s" style={{width:'100%',padding:'10px 0'}} onClick={function(){copyFromSrc(false);}}>
                   스킵 — 미입력 직원만 복사
                 </button>
               </div>
