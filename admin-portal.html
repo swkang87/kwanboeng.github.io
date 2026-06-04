@@ -2766,12 +2766,19 @@ function SalaryView({ user }) {
                         return (
                           <div key={item.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:item.active?'#f8fafc':'#fef2f2',borderRadius:6,marginBottom:4,border:'1px solid '+(item.active?'#e2e8f0':'#fecaca')}}>
                             <span style={{fontSize:13,color:item.active?'#1e293b':'#94a3b8',textDecoration:item.active?'none':'line-through'}}>{item.label}</span>
-                            <button onClick={function(){toggleItem(item);}}
-                              style={{fontSize:11,padding:'3px 10px',borderRadius:4,border:'none',cursor:'pointer',
-                                background:item.active?'#e2e8f0':'#dcfce7',
-                                color:item.active?'#475569':'#16a34a',fontWeight:700,whiteSpace:'nowrap'}}>
-                              {item.active?'숨기기':'보이기'}
-                            </button>
+                            <div style={{display:'flex',gap:4}}>
+                              <button onClick={function(){toggleItem(item);}}
+                                style={{fontSize:11,padding:'3px 10px',borderRadius:4,border:'none',cursor:'pointer',
+                                  background:item.active?'#e2e8f0':'#dcfce7',
+                                  color:item.active?'#475569':'#16a34a',fontWeight:700,whiteSpace:'nowrap'}}>
+                                {item.active?'숨기기':'나타내기'}
+                              </button>
+                              <button onClick={function(){deleteSalaryItem(item);}}
+                                style={{fontSize:11,padding:'3px 8px',borderRadius:4,border:'none',cursor:'pointer',
+                                  background:'#fee2e2',color:'#dc2626',fontWeight:700}}>
+                                삭제
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
