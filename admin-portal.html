@@ -2981,6 +2981,43 @@ function AccountBookView({ user }) {
     setModal(true);
   }
 
+  function openPhoneChange(u) {
+    setPhoneTarget(u);
+    setNewPhone(u.phone || '');
+    setPhoneErr('');
+    setPhoneModal(true);
+  }
+
+  async function savePhone() {
+    if (!newPhone.trim()) { setPhoneErr('전화번호를 입력해 주세요.'); return; }
+    if (newPhone.trim() === phoneTarget.phone) { setPhoneErr('현재 전화번호와 동일합니다.'); return; }
+    setPhoneSaving(true); setPhoneErr('');
+    try {
+      var sess = JSON.parse(localStorage.getItem('kwanbo_session') || '{}');
+      var res = await fetch(
+        APP_CONFIG.SUPABASE_URL + '/functions/v1/update-user-phone',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': APP_CONFIG.SUPABASE_KEY,
+            'Authorization': 'Bearer ' + APP_CONFIG.SUPABASE_KEY,
+            'x-user-id': sess.id || '',
+            'x-user-role': sess.role || '',
+          },
+          body: JSON.stringify({ user_id: phoneTarget.id, new_phone: newPhone.trim() }),
+        }
+      );
+      var data = await res.json();
+      if (!res.ok || data.error) { setPhoneErr(data.error || '변경 실패'); setPhoneSaving(false); return; }
+      setPhoneModal(false);
+      load();
+    } catch(e) {
+      setPhoneErr('네트워크 오류: ' + e.message);
+    }
+    setPhoneSaving(false);
+  }
+
   async function save() {
     if (!form.site_name) return;
     setSaving(true);
@@ -3379,6 +3416,11 @@ function StaffView({ user }) {
                     {user.role==='admin'&&<td className="tc" style={{whiteSpace:'nowrap'}}>
                       <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>수정</button>
                       {' '}
+                      <button className="btn btn-sm" onClick={function(){openPhoneChange(u);}}
+                        style={{background:'transparent',color:'#2563eb',border:'1px solid #2563eb',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
+                        아이디변경
+                      </button>
+                      {' '}
                       <button className="btn btn-sm" onClick={function(){deleteUser(u);}}
                         style={{background: delConfirm&&delConfirm.id===u.id ? '#ef4444':'transparent', color: delConfirm&&delConfirm.id===u.id ? '#fff':'#ef4444', border:'1px solid #ef4444', borderRadius:4, padding:'3px 8px', fontSize:11, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif", fontWeight:600}}>
                         {delConfirm&&delConfirm.id===u.id ? '확인(삭제)' : '삭제'}
@@ -3429,6 +3471,41 @@ function StaffView({ user }) {
           </table>
         </div>
       </div>
+
+      {phoneModal && (
+        <div className="mbg" onClick={function(){setPhoneModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:400}}>
+            <div className="mh">
+              <span className="mht">🔑 로그인 아이디 변경</span>
+              <button className="mc" onClick={function(){setPhoneModal(false);}}>×</button>
+            </div>
+            <div className="mb">
+              {phoneErr && <div className="al al-e">{phoneErr}</div>}
+              <div style={{marginBottom:12,padding:'10px 12px',background:'#f8fafc',borderRadius:8,fontSize:12,color:'#64748b',lineHeight:1.6}}>
+                <strong style={{color:'#1e293b'}}>{phoneTarget && phoneTarget.name}</strong> 님의 로그인 아이디(전화번호)를 변경합니다.<br/>
+                변경 후 새 전화번호로 로그인해야 합니다.
+              </div>
+              <div style={{marginBottom:8}}>
+                <label className="fl">현재 아이디</label>
+                <input className="fi" value={phoneTarget ? phoneTarget.phone : ''} disabled
+                  style={{background:'#f1f5f9',color:'#94a3b8',cursor:'not-allowed'}} />
+              </div>
+              <div>
+                <label className="fl">새 아이디 (전화번호) *</label>
+                <input className="fi" value={newPhone} placeholder="예: 01012345678"
+                  onChange={function(e){setNewPhone(e.target.value);}}
+                  onKeyDown={function(e){if(e.key==='Enter')savePhone();}} />
+              </div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setPhoneModal(false);}}>취소</button>
+              <button className="btn btn-p" onClick={savePhone} disabled={phoneSaving}>
+                {phoneSaving ? '변경 중...' : '변경'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {smModal && (
         <div className="mbg" onClick={function(){setSmModal(false);}}>
