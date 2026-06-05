@@ -627,7 +627,7 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
     } else if (!appData?.loaded && !loading) {
       // appData 갱신 시 반영
     }
-  }, [appData?.loaded, appData?.projects?.length]);
+  }, [appData?.loaded, appData?.projects?.length, appData?.reports?.length]);
 
   useEffect(() => {
     if (!appData?.loaded) loadAll();
