@@ -2951,18 +2951,11 @@ function ChangePasswordModal({ user, onClose }) {
     if (next.length < 6) { setErr('비밀번호는 6자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
     // Verify current password via Auth re-login
-    const { data: uData } = await sb.from('users').select('phone,username').eq('id', user.id).single();
-    // username 있으면 우선 사용, 없으면 phone digits로 fallback
-    let emailLocal2;
-    if (uData?.username) {
-      const digits2 = uData.username.replace(/\D/g,'');
-      emailLocal2 = digits2.length > 0 ? digits2 : uData.username;
-    } else {
-      const phoneDigits2 = uData?.phone ? uData.phone.replace(/\D/g,'') : uData?.phone;
-      emailLocal2 = phoneDigits2 && phoneDigits2.length > 0 ? phoneDigits2 : uData?.phone;
-    }
+    const { data: uData } = await sb.from('users').select('phone').eq('id', user.id).single();
+    const phoneDigits = uData?.phone ? uData.phone.replace(/\D/g,'') : uData?.phone;
+    const emailLocal = phoneDigits && phoneDigits.length > 0 ? phoneDigits : uData?.phone;
     const { error: signInErr } = await sb.auth.signInWithPassword({
-      email: (emailLocal2 || '') + '@kwanbo.internal', password: curr
+      email: (emailLocal || '') + '@kwanbo.internal', password: curr
     });
     if (signInErr) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
     const { error } = await sb.auth.updateUser({ password: next });
@@ -3098,19 +3091,23 @@ function ProfileView({ user, onLogout }) {
     if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
     if (next.length < 6) { setErr('비밀번호는 6자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
-    const { error: signInErr2 } = await sb.auth.signInWithPassword({
-      email: (() => {
-        if (user.username) {
-          const d = user.username.replace(/\D/g,'');
-          return (d.length > 0 ? d : user.username) + '@kwanbo.internal';
-        }
-        const d2 = user.phone ? user.phone.replace(/\D/g,'') : '';
-        return (d2.length > 0 ? d2 : user.phone || '') + '@kwanbo.internal';
-      })(), password: curr
+    // username 있으면 우선, 없으면 phone 사용
+    const loginId = user.username
+      ? (user.username.replace(/\D/g,'').length > 0 ? user.username.replace(/\D/g,'') : user.username)
+      : (user.phone ? user.phone.replace(/\D/g,'') : user.phone);
+    const { data: signInData, error: signInErr2 } = await sb.auth.signInWithPassword({
+      email: loginId + '@kwanbo.internal', password: curr
     });
     if (signInErr2) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
-    const { error } = await sb.auth.updateUser({ password: next });
+    // signInWithPassword로 얻은 세션으로 비밀번호 변경
+    const authClient = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+    await authClient.auth.setSession({
+      access_token: signInData.session.access_token,
+      refresh_token: signInData.session.refresh_token,
+    });
+    const { error } = await authClient.auth.updateUser({ password: next });
     if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
+    await authClient.auth.signOut();
     // 비밀번호 변경 기록 (change_logs)
     await sb.from('change_logs').insert({
       project_id: null, field_name: '비밀번호변경', old_value: '', new_value: '변경완료',
