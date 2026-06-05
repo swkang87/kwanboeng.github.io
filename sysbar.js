@@ -236,13 +236,14 @@
     }
 
     /**
-     * doLogin(sbClient, phone, pw, opts)
+     * doLogin(sbClient, loginId, pw, opts)
      * Supabase Auth signInWithPassword 기반 로그인
-     *  - email: 전화번호@kwanbo.internal
+     *  - email: username(또는 전화번호)@kwanbo.internal
+     *  - username이 있으면 username 우선, 없으면 phone으로 fallback
      *  - 성공 시 users 테이블에서 프로필 조회 후 sessionStorage 저장
      *  - opts.blockedRoles / allowedRoles 지원
      */
-    async function doLogin(sbClient, phone, pw, opts) {
+    async function doLogin(sbClient, loginId, pw, opts) {
       opts = opts || {};
       var blocked = opts.blockedRoles || ['contractor'];
 
@@ -254,9 +255,10 @@
       }
 
       try {
-        var phoneRaw    = String(phone).trim();
-        var phoneDigits = phoneRaw.replace(/\D/g, '');
-        var emailLocal  = phoneDigits.length > 0 ? phoneDigits : phoneRaw;
+        var loginIdRaw = String(loginId).trim();
+        // 숫자만이면 전화번호 digits로, 아니면 그대로
+        var digits = loginIdRaw.replace(/\D/g, '');
+        var emailLocal = digits.length > 0 ? digits : loginIdRaw;
         var email = emailLocal + '@kwanbo.internal';
 
         // Supabase Auth 로그인
@@ -275,7 +277,7 @@
         // Auth 성공 → users 테이블에서 프로필 조회
         var profileRes = await sbClient
           .from('users')
-          .select('id,name,phone,email,position,team_id,role,join_date,total_days,used_days')
+          .select('id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days')
           .eq('auth_id', authRes.data.user.id)
           .single();
 
@@ -389,7 +391,7 @@
 
       var login = function() {
         if (locked) return;
-        if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
+        if (!phone.trim() || !pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
         setLoading(true); setErr('');
         Auth.doLogin(sb, phone, pw, {
           blockedRoles: options.blockedRoles,
@@ -412,8 +414,8 @@
           e('div', { className: 'sb-lsub' }, subtitle),
           err ? e('div', { className: 'sb-lerr' }, err) : null,
           e('div', { style: { marginBottom: 12 } },
-            e('label', { className: 'sb-lfl' }, '전화번호'),
-            e('input', { className:'sb-lfi', type:'text', placeholder:'전화번호', value:phone,
+            e('label', { className: 'sb-lfl' }, '로그인 아이디'),
+            e('input', { className:'sb-lfi', type:'text', placeholder:'아이디 (전화번호)', value:phone,
               onChange: function(ev){ setPhone(ev.target.value); }, onKeyDown: onKey, disabled: locked })
           ),
           e('div', { style: { marginBottom: 18 } },
