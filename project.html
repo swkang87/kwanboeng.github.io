@@ -419,7 +419,7 @@ function App() {
       // 더 구버전: kwanbo_pm_user 키
       localStorage.removeItem('kwanbo_pm_user');
       return null;
-    } catch { return null; }
+    } catch(e) { return null; }
   });
   const [ssoChecked, setSsoChecked] = useState(false);
   const [view, setView] = useState('mine');

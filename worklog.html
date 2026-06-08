@@ -54,6 +54,8 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 .top-nav-logout:hover { color: #94a3b8; }
 
 /* ─── WHITE-LABEL VARIABLES ─────────────────────────────── */
+/* --theme은 sysbar.js의 injectThemeVars()가 config.COLOR_PRIMARY로 덮어씀 */
+/* 아래 값은 sysbar 주입 실패 시 폴백용 */
 :root {
   --theme:        #0f172a;
   --accent:       #2563eb;
