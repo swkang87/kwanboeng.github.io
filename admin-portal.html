@@ -3201,6 +3201,10 @@ function StaffView({ user }) {
   const [newPhone, setNewPhone] = useState('');
   const [phoneErr, setPhoneErr] = useState('');
   const [phoneSaving, setPhoneSaving] = useState(false);
+  const [pwResetModal, setPwResetModal] = useState(false);
+  const [pwResetTarget, setPwResetTarget] = useState(null);
+  const [pwResetSaving, setPwResetSaving] = useState(false);
+  const [pwResetErr, setPwResetErr] = useState('');
 
   var ROLE_ORDER = {admin:0, manager:1, employee:2, staff:2, contractor:3};
 
@@ -3270,6 +3274,39 @@ function StaffView({ user }) {
       setDelConfirm(m);
       setTimeout(function() { setDelConfirm(null); }, 3000);
     }
+  }
+
+  function openPwReset(u) {
+    setPwResetTarget(u);
+    setPwResetErr('');
+    setPwResetModal(true);
+  }
+
+  async function savePwReset() {
+    setPwResetSaving(true); setPwResetErr('');
+    try {
+      var sess = JSON.parse(localStorage.getItem('kwanbo_session') || '{}');
+      var res = await fetch(
+        APP_CONFIG.SUPABASE_URL + '/functions/v1/reset-user-password',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': APP_CONFIG.SUPABASE_KEY,
+            'Authorization': 'Bearer ' + APP_CONFIG.SUPABASE_KEY,
+            'x-user-id': sess.id || '',
+            'x-user-role': sess.role || '',
+          },
+          body: JSON.stringify({ user_id: pwResetTarget.id }),
+        }
+      );
+      var data = await res.json();
+      if (!res.ok || data.error) { setPwResetErr(data.error || '초기화 실패'); setPwResetSaving(false); return; }
+      setPwResetModal(false);
+    } catch(e) {
+      setPwResetErr('네트워크 오류: ' + e.message);
+    }
+    setPwResetSaving(false);
   }
 
   function openPhoneChange(u) {
@@ -3433,6 +3470,11 @@ function StaffView({ user }) {
                         아이디변경
                       </button>
                       {' '}
+                      <button className="btn btn-sm" onClick={function(){openPwReset(u);}}
+                        style={{background:'transparent',color:'#7c3aed',border:'1px solid #7c3aed',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
+                        비밀번호초기화
+                      </button>
+                      {' '}
                       <button className="btn btn-sm" onClick={function(){deleteUser(u);}}
                         style={{background: delConfirm&&delConfirm.id===u.id ? '#ef4444':'transparent', color: delConfirm&&delConfirm.id===u.id ? '#fff':'#ef4444', border:'1px solid #ef4444', borderRadius:4, padding:'3px 8px', fontSize:11, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif", fontWeight:600}}>
                         {delConfirm&&delConfirm.id===u.id ? '확인(삭제)' : '삭제'}
@@ -3483,6 +3525,34 @@ function StaffView({ user }) {
           </table>
         </div>
       </div>
+
+      {pwResetModal && (
+        <div className="mbg" onClick={function(){setPwResetModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:400}}>
+            <div className="mh">
+              <span className="mht">🔐 비밀번호 초기화</span>
+              <button className="mc" onClick={function(){setPwResetModal(false);}}>×</button>
+            </div>
+            <div className="mb">
+              {pwResetErr && <div className="al al-e">{pwResetErr}</div>}
+              <div style={{marginBottom:14,padding:'12px 14px',background:'#faf5ff',border:'1px solid #e9d5ff',borderRadius:8,fontSize:13,color:'#4c1d95',lineHeight:1.7}}>
+                <strong>{pwResetTarget && pwResetTarget.name}</strong> 님의 비밀번호를 초기화합니다.<br/>
+                초기화 후 비밀번호는 <strong>전화번호(숫자)</strong>로 설정됩니다.
+              </div>
+              <div style={{padding:'8px 10px',background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:6,fontSize:11,color:'#92400e'}}>
+                ⚠️ 초기화 후 직원에게 반드시 비밀번호 변경을 안내해 주세요.
+              </div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setPwResetModal(false);}}>취소</button>
+              <button className="btn btn-p" onClick={savePwReset} disabled={pwResetSaving}
+                style={{background:'#7c3aed',borderColor:'#7c3aed'}}>
+                {pwResetSaving ? '초기화 중...' : '초기화'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {phoneModal && (
         <div className="mbg" onClick={function(){setPhoneModal(false);}}>
