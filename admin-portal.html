@@ -3285,7 +3285,7 @@ function StaffView({ user }) {
   async function savePwReset() {
     setPwResetSaving(true); setPwResetErr('');
     try {
-      var sess = JSON.parse(localStorage.getItem('kwanbo_session') || '{}');
+      var sess = Sysbar.Auth.getSession() || {};
       var res = await fetch(
         APP_CONFIG.SUPABASE_URL + '/functions/v1/reset-user-password',
         {
@@ -3322,7 +3322,7 @@ function StaffView({ user }) {
     if (trimmed === currentId) { setPhoneErr('현재 아이디와 동일합니다.'); return; }
     setPhoneSaving(true); setPhoneErr('');
     try {
-      var sess = JSON.parse(localStorage.getItem('kwanbo_session') || '{}');
+      var sess = Sysbar.Auth.getSession() || {};
       var res = await fetch(
         APP_CONFIG.SUPABASE_URL + '/functions/v1/update-user-phone',
         {
@@ -3726,16 +3726,9 @@ function LoginScreen({ onLogin }) {
 const SysBar = Sysbar.createComponent(React);
 function App() {
   var initialUser = (function() {
-    try {
-      var raw = localStorage.getItem('kwanbo_session');
-      if (!raw) return null;
-      var v = JSON.parse(raw);
-      if (v && v.id && v.role) {
-        if (v.password) { delete v.password; localStorage.setItem('kwanbo_session', JSON.stringify(v)); }
-        return v;
-      }
-      return null;
-    } catch(e) { return null; }
+    var v = Sysbar.Auth.getSession();
+    if (v && v.id && v.role) return v;
+    return null;
   })();
   const [user, setUser] = useState(initialUser);
   const [view, setView] = useState(VIEWS.WL);
@@ -3765,17 +3758,16 @@ function App() {
     // checkOnLoad: 렌더 후 실행 (Babel 컴파일 완료 이후 → NAV_WINDOW 오인 방지)
     var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
     if (wasInvalidated) { setUser(null); return; }
-    var raw = localStorage.getItem('kwanbo_session');
+    var raw = sessionStorage.getItem('kwanbo_session');
     if (!raw) { setSsoChecked(true); return; }
     try {
       var v = JSON.parse(raw);
-      var userId = v && v.userId;
+      var userId = v && v.userId;  // 구버전 {userId} 형태만 DB 복원 대상
       if (!userId) { setSsoChecked(true); return; }
       sb.from('users').select('*').eq('id', userId).single().then(function(r) {
         if (r.data) {
           var safeU = Object.assign({}, r.data); delete safeU.password;
-          localStorage.setItem('kwanbo_session', JSON.stringify(safeU));
-          localStorage.removeItem('kwanbo_pm_user');
+          sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
           setUser(safeU);
           Sysbar.SessionManager.onLogin(function() { logout(); });
         }
@@ -3784,7 +3776,7 @@ function App() {
     } catch(e) { setSsoChecked(true); }
   }, []);
 
-  // localStorage에서 바로 복원된 경우 checkOnLoad + SessionManager 시작
+  // 세션 즉시 복원된 경우 checkOnLoad + SessionManager 시작
   useEffect(function() {
     if (!initialUser) return;
     var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
@@ -3810,9 +3802,7 @@ function App() {
   }
 
   function logout() {
-    Sysbar.SessionManager.onLogout();
-    Sysbar.Auth.clearSession();
-    sb.auth.signOut();
+    Sysbar.Auth.logout(sb);
     setUser(null); setTeamName(''); setHasAccess(false);
   }
 

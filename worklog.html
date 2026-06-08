@@ -638,65 +638,11 @@ function MiniCalendar({ value, onChange, maxDate }) {
 
 const roleLabel = (r) => r === 'admin' ? '관리자' : r === 'manager' ? '팀장' : '팀원';
 
-// ─── LOGIN SCREEN ──────────────────────────────────────────────────────────
-function LoginScreen({ onLogin }) {
-  const [phone, setPhone] = useState('');
-  const [pw, setPw] = useState('');
-  const [err, setErr] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [locked, setLocked] = useState(false);
-  const [remain, setRemain] = useState(0);
-
-  // 잠금 상태 카운트다운
-  useEffect(() => {
-    const bf = Sysbar.Auth.checkBruteForce();
-    if (bf.locked) { setLocked(true); setRemain(bf.remainSec); }
-    const timer = setInterval(() => {
-      const bf2 = Sysbar.Auth.checkBruteForce();
-      if (bf2.locked) { setLocked(true); setRemain(bf2.remainSec); }
-      else { setLocked(false); setRemain(0); }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const doLogin = async () => {
-    if (locked) return;
-    if (!phone.trim() || !pw) { setErr('전화번호와 비밀번호를 입력하세요.'); return; }
-    setLoading(true); setErr('');
-    const result = await Sysbar.Auth.doLogin(sb, phone, pw, { blockedRoles: ['contractor'] });
-    setLoading(false);
-    if (result.ok) {
-      onLogin(result.user);
-    } else {
-      if (result.locked) { setLocked(true); setRemain(result.remainSec); }
-      setErr(result.reason);
-    }
-  };
-
-  const onKey = (e) => { if (e.key === 'Enter') doLogin(); };
-
-  return (
-    <div className="login-wrap">
-      <div className="login-box">
-        <div className="login-company">{CONFIG.COMPANY_NAME}</div>
-        <div className="login-title">{CONFIG.SYSTEM_NAME}</div>
-        <div className="login-field">
-          <input className="login-input" type="text" placeholder="아이디"
-            value={phone} onChange={e => setPhone(e.target.value)} onKeyDown={onKey} disabled={locked} />
-        </div>
-        <div className="login-field">
-          <input className="login-input" type="password" placeholder="비밀번호"
-            value={pw} onChange={e => setPw(e.target.value)} onKeyDown={onKey} disabled={locked} />
-        </div>
-        {err && <div className="login-error">{err}</div>}
-        <button className="login-btn" onClick={doLogin} disabled={loading || locked}>
-          {locked ? `잠금 ${remain}초` : (loading ? '로그인 중...' : '로그인')}
-        </button>
-        <div className="login-back"><a href={CONFIG.HOME_URL}>← 홈으로 돌아가기</a></div>
-      </div>
-    </div>
-  );
-}
+// ─── LOGIN SCREEN → sysbar.js 공통 컴포넌트로 일원화 ──────────────────────────
+const LoginScreen = Sysbar.createLoginComponent(React, {
+  subtitle: '업무일지',
+  blockedRoles: ['contractor'],
+});
 
 // ─── TASK ITEM COMPONENT ───────────────────────────────────────────────────
 function TaskItem({ task, onChange, onDelete, showStatus }) {
@@ -1769,9 +1715,7 @@ function App() {
   };
 
   const logout = () => {
-    Sysbar.SessionManager.onLogout();
-    Sysbar.Auth.clearSession();
-    sb.auth.signOut();
+    Sysbar.Auth.logout(sb);
     setUser(null);
     setView(VIEWS.MY_LOG);
   };
@@ -1787,7 +1731,7 @@ function App() {
     </div>
   );
 
-  if (!user) return <LoginScreen onLogin={handleLogin} />;
+  if (!user) return <LoginScreen supabaseClient={sb} onLogin={handleLogin} />;
 
   // ── 기술지원(contractor) 접근 차단 ────────────────────────
   if (user.role === 'contractor') {

@@ -838,9 +838,7 @@ function App(){
   };
 
   const logout=()=>{
-    Sysbar.Auth.clearSession();
-    sb.auth.signOut();
-    Sysbar.SessionManager.onLogout();
+    Sysbar.Auth.logout(sb);
     setUser(null);
   };
 

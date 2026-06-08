@@ -233,6 +233,24 @@
     function clearSession() {
       sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem('kwanbo_uid');
+      // 레거시 잔재 정리 (구버전 키 / localStorage 흔적)
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem('kwanbo_uid');
+      localStorage.removeItem('kwanbo_pm_user');
+    }
+
+    /**
+     * logout(sbClient)
+     * 로그아웃 통합 함수 — 세션 워처 정지 + 세션 삭제 + Supabase Auth signOut
+     * 각 페이지에서 onLogout()/clearSession()/signOut() 3줄 반복 대신 이 한 줄 사용
+     */
+    function logout(sbClient) {
+      SessionManager.onLogout();
+      clearSession();
+      if (sbClient && sbClient.auth && sbClient.auth.signOut) {
+        return sbClient.auth.signOut();
+      }
+      return Promise.resolve();
     }
 
     /**
@@ -312,6 +330,7 @@
       doLogin:           doLogin,
       getSession:        getSession,
       clearSession:      clearSession,
+      logout:            logout,
       checkBruteForce:   checkBruteForce,
       recordFailure:     recordFailure,
       clearFailures:     clearFailures,

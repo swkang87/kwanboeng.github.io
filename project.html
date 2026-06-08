@@ -435,9 +435,7 @@ function App() {
     Sysbar.SessionManager.onLogin(() => handleLogout());
   };
   const handleLogout = () => {
-    Sysbar.SessionManager.onLogout();
-    Sysbar.Auth.clearSession();
-    sb.auth.signOut();
+    Sysbar.Auth.logout(sb);
     setUser(null);
   };
   const isAdmin = user?.role === 'admin';

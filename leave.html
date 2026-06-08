@@ -1069,7 +1069,7 @@ function App(){
   // checkOnLoad: 렌더 후 실행 (Babel 컴파일 완료 이후 → NAV_WINDOW 오인 방지)
   useEffect(()=>{
     const wasInvalidated = Sysbar.SessionManager.checkOnLoad();
-    if(wasInvalidated){ setCu(null); Sysbar.Auth.clearSession(); sb.auth.signOut(); }
+    if(wasInvalidated){ setCu(null); Sysbar.Auth.logout(sb); }
   },[]);
 
   useEffect(()=>{loadNagerHolidays();},[]);
@@ -1098,11 +1098,9 @@ function App(){
     Sysbar.SessionManager.onLogin(()=>logout());
   };
   const logout=()=>{
-    Sysbar.SessionManager.onLogout();
+    Sysbar.Auth.logout(sb);
     setCu(null);
     setView('dashboard');
-    Sysbar.Auth.clearSession();
-    sb.auth.signOut();
     setUsers([]);setTeams([]);setLeaves([]);setAuditLogs([]);
   };
   const refresh=()=>load();
