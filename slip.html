@@ -239,8 +239,37 @@ var userData = null;   // users or salary_members row
 var itemsData = [];    // salary_items
 var detailsData = [];  // salary_details
 
-var failCount = 0;
-var locked = false;
+// ── 실패 잠금 (localStorage 기반, 토큰별 / 새로고침에도 유지) ──
+var MAX_FAIL = 5;
+var LOCK_MINUTES = 30;
+function failKey() { return 'slip_fail_' + (getToken() || 'none'); }
+function getFailState() {
+  try {
+    var raw = localStorage.getItem(failKey());
+    if (!raw) return { count: 0, lockUntil: 0 };
+    var v = JSON.parse(raw);
+    return { count: v.count || 0, lockUntil: v.lockUntil || 0 };
+  } catch(e) { return { count: 0, lockUntil: 0 }; }
+}
+function setFailState(count, lockUntil) {
+  try { localStorage.setItem(failKey(), JSON.stringify({ count: count, lockUntil: lockUntil })); } catch(e) {}
+}
+function clearFailState() {
+  try { localStorage.removeItem(failKey()); } catch(e) {}
+}
+function isLockedNow() {
+  var st = getFailState();
+  return !!(st.lockUntil && Date.now() < st.lockUntil);
+}
+function showLock() {
+  var st = getFailState();
+  var remainMin = Math.max(1, Math.ceil((st.lockUntil - Date.now()) / 60000));
+  document.getElementById('authBtn').disabled = true;
+  document.getElementById('authErr').classList.remove('show');
+  var lm = document.getElementById('lockMsg');
+  lm.textContent = '⛔ ' + MAX_FAIL + '회 오류로 잠겼습니다. 약 ' + remainMin + '분 후 다시 시도해 주세요.';
+  lm.classList.add('show');
+}
 
 function fmtN(n) {
   if (!n && n !== 0) return '0';
@@ -300,6 +329,9 @@ async function init() {
   // 인증 화면 표시
   document.getElementById('errorWrap').style.display = 'none';
   document.getElementById('authWrap').style.display = 'block';
+
+  // 새로고침 전 잠금 상태였다면 복원
+  if (isLockedNow()) showLock();
 }
 
 function showError(title, msg) {
@@ -310,7 +342,7 @@ function showError(title, msg) {
 }
 
 async function doAuth() {
-  if (locked) return;
+  if (isLockedNow()) { showLock(); return; }
   var birth = document.getElementById('birthInput').value.trim();
   if (!birth) { showAuthErr('생년월일 6자리를 입력해 주세요.'); return; }
   if (!/^[0-9]{6}$/.test(birth)) { showAuthErr('숫자 6자리로 입력해 주세요. (예: 901225)'); return; }
@@ -325,19 +357,20 @@ async function doAuth() {
   var userBirth6 = userBirth.replace(/-/g,'').slice(2);
 
   if (birth !== userBirth6) {
-    failCount++;
-    if (failCount >= 5) {
-      locked = true;
-      document.getElementById('authBtn').disabled = true;
-      document.getElementById('authErr').classList.remove('show');
-      document.getElementById('lockMsg').classList.add('show');
+    var st = getFailState();
+    var count = st.count + 1;
+    if (count >= MAX_FAIL) {
+      setFailState(count, Date.now() + LOCK_MINUTES * 60 * 1000);
+      showLock();
     } else {
-      showAuthErr('생년월일이 일치하지 않습니다. (' + failCount + '/5)');
+      setFailState(count, 0);
+      showAuthErr('생년월일이 일치하지 않습니다. (' + count + '/' + MAX_FAIL + ')');
     }
     return;
   }
 
-  // 인증 성공 → 명세서 렌더링
+  // 인증 성공 → 실패 기록 삭제 후 명세서 렌더링
+  clearFailState();
   renderSlip();
 }
 

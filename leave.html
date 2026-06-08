@@ -732,7 +732,7 @@ function AdminApprove({user,users,teams,leaves,onRefresh}){
     await audit(user.id,'관리자직접승인',l.id,'팀장 결재 없이 승인');
     onRefresh();
   };
-  const adminDirectReject=async l=>{const reason=prompt('반려 사유 (선택):');if(reason===null)return;await sb.from('leave_requests').update({status:'rejected',reject_reason:reason||null});await audit(user.id,'관리자직접반려',l.id,reason||'');onRefresh();};
+  const adminDirectReject=async l=>{const reason=prompt('반려 사유 (선택):');if(reason===null)return;await sb.from('leave_requests').update({status:'rejected',reject_reason:reason||null}).eq('id',l.id);await audit(user.id,'관리자직접반려',l.id,reason||'');onRefresh();};
   const reject=async()=>{await sb.from('leave_requests').update({status:'rejected',reject_reason:rr||null}).eq('id',rid);await audit(user.id,'반려',rid,rr||'');setRid(null);setRr('');onRefresh();};
   const delLeave=async l=>{if(!confirm('이 내역을 목록에서 삭제하시겠습니까?'))return;await sb.from('leave_requests').delete().eq('id',l.id);onRefresh();};
 
