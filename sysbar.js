@@ -76,7 +76,41 @@
         '.sys-co{display:none;}' +
         '.sys-link{flex:1;padding:4px 1px;font-size:10px;gap:1px;}' +
       '}' +
-      '@media print{.no-print{display:none!important;}}';
+      '@media print{.no-print{display:none!important;}}' +
+
+      /* ─── 공통 컴포넌트 클래스 (화이트라벨: 색상은 config 변수 연결) ─── */
+      /* 버튼: <button class="btn btn-primary"> 형태로 사용 */
+      '.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 28px;border-radius:8px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;border:1px solid transparent;transition:opacity .15s,background .15s;text-decoration:none;line-height:1;}' +
+      '.btn:disabled{opacity:.5;cursor:default;}' +
+      '.btn-sm{padding:6px 14px;font-size:12px;}' +
+      '.btn-block{width:100%;}' +
+      '.btn-primary{background:var(--theme,#0f172a);color:#fff;}' +
+      '.btn-primary:hover:not(:disabled){background:var(--theme2,#1b3a6b);}' +
+      '.btn-secondary{background:#f1f5f9;color:#475569;border-color:#e2e8f0;}' +
+      '.btn-secondary:hover:not(:disabled){background:#e2e8f0;}' +
+      '.btn-danger{background:#fee2e2;color:#dc2626;border-color:#fecaca;}' +
+      '.btn-danger:hover:not(:disabled){background:#fecaca;}' +
+      '.btn-success{background:#dcfce7;color:#15803d;border-color:#bbf7d0;}' +
+      '.btn-success:hover:not(:disabled){background:#bbf7d0;}' +
+      /* 배지: <span class="badge badge-success"> */
+      '.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:600;line-height:1.4;}' +
+      '.badge-pill{border-radius:20px;}' +
+      '.badge-success{background:#ecfdf5;color:#065f46;}' +
+      '.badge-warn{background:#fef3c7;color:#92400e;}' +
+      '.badge-danger{background:#fee2e2;color:#dc2626;}' +
+      '.badge-info{background:#eff6ff;color:#1d4ed8;}' +
+      '.badge-neutral{background:#f1f5f9;color:#475569;}' +
+      /* 카드 */
+      '.card{background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:20px 24px;}' +
+      '.card-shadow{box-shadow:0 4px 24px rgba(0,0,0,.06);border-color:transparent;}' +
+      /* 섹션 타이틀 / 페이지 헤더 */
+      '.section-title{font-size:16px;font-weight:800;color:#1e293b;margin-bottom:12px;}' +
+      '.page-header{background:var(--theme,#0f172a);color:#fff;padding:20px 24px;border-radius:0;}' +
+      '.page-header h1,.page-header .ph-title{font-size:18px;font-weight:800;margin:0;}' +
+      '.page-header .ph-sub{font-size:13px;color:#cbd5e1;margin-top:4px;}' +
+      /* 빈 상태 */
+      '.empty-state{text-align:center;padding:48px 20px;color:#94a3b8;font-size:14px;}' +
+      '.empty-state .es-icon{font-size:36px;margin-bottom:12px;opacity:.6;}';
     var target = document.head || document.documentElement;
     target.appendChild(s);
     CSS_INJECTED = true;
