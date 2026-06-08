@@ -29,7 +29,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
   background: #1e293b; height: 36px;
   display: flex; align-items: center;
   padding: 0 14px; gap: 1px;
-  border-bottom: 1px solid #0f172a;
+  border-bottom: 1px solid var(--theme,#0f172a);
 }
 .top-nav-btn {
   display: flex; align-items: center; gap: 4px;
@@ -623,8 +623,8 @@ function MiniCalendar({ value, onChange, maxDate }) {
                 <div key={day} onClick={() => !isFuture && select(ds)}
                   style={{textAlign:'center',fontSize:12,padding:'5px 2px',borderRadius:6,cursor:isFuture?'default':'pointer',
                     fontWeight:500,opacity:isFuture?0.3:1,
-                    background: isSel?'#0f172a':isToday?'#7c3aed':'transparent',
-                    color: isSel||isToday?'#fff':(wd===0||isHol)?'#dc2626':wd===6?'#2563eb':'#0f172a'}}>
+                    background: isSel?'var(--theme,#0f172a)':isToday?'#7c3aed':'transparent',
+                    color: isSel||isToday?'#fff':(wd===0||isHol)?'#dc2626':wd===6?'#2563eb':'var(--theme,#0f172a)'}}>
                   {day}
                 </div>
               );
@@ -1682,24 +1682,10 @@ function App() {
     if (wasInvalidated) { setUser(null); }
   }, []);
 
-  // SSO 초기화 — 구버전 세션({userId})에서 자동 로그인
+  // 비로그인 상태 확정 (신규 세션은 initialUser에서 이미 복원됨)
   useEffect(() => {
     if (initialUser) return;
-    const raw = sessionStorage.getItem('kwanbo_session');
-    if (!raw) { setSsoChecked(true); return; }
-    try {
-      const v = JSON.parse(raw);
-      const userId = v && v.userId;
-      if (!userId) { setSsoChecked(true); return; }
-      sb.from('users').select('*').eq('id', userId).single().then(({ data }) => {
-        if (data) {
-          const safeU = {...data}; delete safeU.password;
-          sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
-          setUser(safeU);
-        }
-        setSsoChecked(true);
-      }).catch(() => setSsoChecked(true));
-    } catch(e) { setSsoChecked(true); }
+    setSsoChecked(true);
   }, []);
 
   // 팀명 조회 — canWrite 판단용
@@ -1726,7 +1712,7 @@ function App() {
   }, []);
 
   if (!ssoChecked) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#0f172a', color:'#94a3b8', fontSize:14 }}>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'var(--theme,#0f172a)', color:'#94a3b8', fontSize:14 }}>
       로딩 중...
     </div>
   );
@@ -1736,12 +1722,12 @@ function App() {
   // ── 기술지원(contractor) 접근 차단 ────────────────────────
   if (user.role === 'contractor') {
     return (
-      <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1d4ed8 100%)', display:'flex', alignItems:'center', justifyContent:'center', padding:20, fontFamily:"'Noto Sans KR',sans-serif" }}>
+      <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e3a5f 50%,#1d4ed8 100%)', display:'flex', alignItems:'center', justifyContent:'center', padding:20, fontFamily:"'Noto Sans KR',sans-serif" }}>
         <div style={{ background:'#fff', borderRadius:18, padding:'40px 32px', width:'100%', maxWidth:360, boxShadow:'0 25px 70px rgba(0,0,0,.45)', textAlign:'center' }}>
           <div style={{ fontSize:48, marginBottom:16 }}>🚫</div>
           <p style={{ margin:'0 0 8px', fontSize:17, fontWeight:800, color:'#0f172a' }}>접근 권한 없음</p>
           <p style={{ margin:'0 0 24px', fontSize:13, color:'#64748b', lineHeight:1.6 }}>기술지원 계정은 업무일지 시스템을<br/>이용할 수 없습니다.</p>
-          <a href="project.html" style={{ display:'inline-block', padding:'11px 28px', background:'#0f172a', color:'#fff', borderRadius:8, fontSize:13, fontWeight:700, textDecoration:'none' }}>공정관리로 돌아가기</a>
+          <a href="project.html" style={{ display:'inline-block', padding:'11px 28px', background:'var(--theme,#0f172a)', color:'#fff', borderRadius:8, fontSize:13, fontWeight:700, textDecoration:'none' }}>공정관리로 돌아가기</a>
         </div>
       </div>
     );
@@ -1759,7 +1745,7 @@ function App() {
         onLogout={logout}
       />
       {/* 시스템 제목 바 */}
-      <div style={{ background:'#0f172a', padding:'6px 18px 8px', flexShrink:0, borderBottom:'2px solid #1d4ed8', position:'sticky', top:38, zIndex:250 }}>
+      <div style={{ background:'var(--theme,#0f172a)', padding:'6px 18px 8px', flexShrink:0, borderBottom:'2px solid #1d4ed8', position:'sticky', top:38, zIndex:250 }}>
         <p style={{ margin:0, fontSize:9, lineHeight:'1.2', color:'#475569', letterSpacing:1, textTransform:'uppercase', fontWeight:600 }}>{APP_CONFIG.COMPANY_EN}</p>
         <p style={{ margin:0, fontSize:14, lineHeight:'1.3', fontWeight:800, color:'white', letterSpacing:-0.3 }}>업무일지 시스템</p>
       </div>

@@ -30,18 +30,42 @@
 
   var CSS_INJECTED = false;
 
+  /**
+   * injectThemeVars()
+   * APP_CONFIG의 브랜드 색상을 :root CSS 변수로 주입한다.
+   * documentElement.style(인라인)에 주입하므로 각 파일 <style>의 :root보다 우선한다.
+   * → config.js만 바꾸면 전 페이지 브랜드 색이 통일된다 (화이트라벨 핵심).
+   * 주입 실패 시에도 각 색상 사용처는 var(--theme, #폴백) 형태라 기존 색이 유지된다.
+   */
+  var THEME_INJECTED = false;
+  function injectThemeVars() {
+    try {
+      var cfg = global.APP_CONFIG || {};
+      var root = document.documentElement;
+      if (!root) return;
+      if (cfg.COLOR_PRIMARY)  root.style.setProperty('--theme',        cfg.COLOR_PRIMARY);
+      if (cfg.COLOR_PRIMARY2) root.style.setProperty('--theme2',       cfg.COLOR_PRIMARY2);
+      if (cfg.COLOR_ACCENT)   root.style.setProperty('--brand-accent', cfg.COLOR_ACCENT);
+      if (cfg.COLOR_GOLD)     root.style.setProperty('--brand-gold',   cfg.COLOR_GOLD);
+      THEME_INJECTED = true;
+    } catch(e) {}
+  }
+  // config.js가 먼저 로드된 경우 즉시 주입 (표준 로드 순서)
+  injectThemeVars();
+
   function injectCss() {
+    if (!THEME_INJECTED) injectThemeVars();  // APP_CONFIG가 늦게 로드된 경우 보장
     if (CSS_INJECTED || document.getElementById('sysbar-css')) { CSS_INJECTED = true; return; }
     var s = document.createElement('style');
     s.id = 'sysbar-css';
     s.textContent =
       '@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css");' +
       'body,button,input,select,textarea{font-family:\'Pretendard\',\'Noto Sans KR\',sans-serif!important;}' +
-      '.sys-bar{position:sticky;top:0;z-index:300;background:#0f172a;height:38px;display:flex;align-items:center;padding:0 10px;gap:3px;border-bottom:1px solid #1e293b;flex-shrink:0;}' +
+      '.sys-bar{position:sticky;top:0;z-index:300;background:var(--theme,#0f172a);height:38px;display:flex;align-items:center;padding:0 10px;gap:3px;border-bottom:1px solid #1e293b;flex-shrink:0;}' +
       '.sys-co{font-size:11px;font-weight:800;color:#94a3b8;margin-right:6px;letter-spacing:-.3px;white-space:nowrap;text-decoration:none;flex-shrink:0;}' +
       '.sys-link{display:flex;align-items:center;justify-content:center;gap:3px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;color:#94a3b8;background:#1e293b;white-space:nowrap;flex-shrink:0;border:none;cursor:pointer;font-family:inherit;}' +
       '.sys-link.active{background:#1d4ed8;color:#fff;font-weight:700;cursor:default;}' +
-      '.sys-link.active-home{background:#0f172a;color:#e2e8f0;font-weight:700;cursor:default;border:1px solid #334155;}' +
+      '.sys-link.active-home{background:var(--theme,#0f172a);color:#e2e8f0;font-weight:700;cursor:default;border:1px solid #334155;}' +
       '.sys-link.active-admin{background:#7c3aed;color:#fff;font-weight:700;cursor:default;}' +
       '.sys-link.disabled{color:#475569;cursor:pointer;}' +
       '.sys-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;}' +
@@ -344,7 +368,7 @@
     var s = document.createElement('style');
     s.id = 'sysbar-login-css';
     s.textContent =
-      '.sb-lwrap{min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%);display:flex;align-items:center;justify-content:center;padding:16px;font-family:\'Pretendard\',\'Noto Sans KR\',sans-serif;}' +
+      '.sb-lwrap{min-height:100vh;background:linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e3a5f 50%,#1e40af 100%);display:flex;align-items:center;justify-content:center;padding:16px;font-family:\'Pretendard\',\'Noto Sans KR\',sans-serif;}' +
       '.sb-lbox{background:#fff;border-radius:16px;padding:32px 28px;width:100%;max-width:340px;box-shadow:0 24px 70px rgba(0,0,0,.45);}' +
       '.sb-lco{font-size:15px;font-weight:800;color:#0f172a;text-align:center;margin-bottom:2px;}' +
       '.sb-lsub{font-size:11px;color:#94a3b8;text-align:center;margin-bottom:22px;}' +

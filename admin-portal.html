@@ -24,7 +24,7 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font
   .top-nav::-webkit-scrollbar{display:none;}
   .nav-right{display:none;}
 }
-.top-nav{position:sticky;top:83px;z-index:200;background:#1e293b;height:36px;display:flex;align-items:center;padding:0 14px;gap:1px;border-bottom:1px solid #0f172a;}
+.top-nav{position:sticky;top:83px;z-index:200;background:#1e293b;height:36px;display:flex;align-items:center;padding:0 14px;gap:1px;border-bottom:1px solid var(--theme,#0f172a);}
 .nav-btn{display:flex;align-items:center;gap:4px;padding:5px 11px;height:26px;border:none;background:transparent;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-size:11px;font-weight:400;color:#94a3b8;cursor:pointer;white-space:nowrap;}
 .nav-btn.active{background:#7c3aed;color:#fff;font-weight:700;}
 .nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
@@ -149,7 +149,7 @@ tr:hover td{background:#f8fafc;}
 .mcal-day:hover{background:#f5f3ff;}
 .mcal-day.empty{cursor:default;pointer-events:none;}
 .mcal-day.today{background:#7c3aed;color:#fff;font-weight:700;}
-.mcal-day.selected{background:#0f172a;color:#fff;font-weight:700;}
+.mcal-day.selected{background:var(--theme,#0f172a);color:#fff;font-weight:700;}
 .mcal-day.sat{color:#2563eb;}.mcal-day.sun,.mcal-day.holiday{color:#dc2626;}
 .mcal-day.today.sat,.mcal-day.today.sun,.mcal-day.today.holiday{color:#fff;}
 .mcal-day.future{opacity:.3;cursor:default;}
@@ -158,11 +158,11 @@ tr:hover td{background:#f8fafc;}
 .sal-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
 .sal-sec{background:#f8fafc;border-radius:8px;padding:14px;}
 .sal-st{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px;}
-.sal-tot{display:flex;justify-content:space-between;align-items:center;padding:12px 0 0;margin-top:4px;border-top:2px solid #0f172a;}
+.sal-tot{display:flex;justify-content:space-between;align-items:center;padding:12px 0 0;margin-top:4px;border-top:2px solid var(--theme,#0f172a);}
 .sal-tl{font-size:13px;font-weight:800;}
 .sal-tv{font-size:18px;font-weight:800;color:#7c3aed;}
 .sal-frow{margin-bottom:10px;}
-.lwrap{min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 50%,#4c1d95 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
+.lwrap{min-height:100vh;background:linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e1b4b 50%,#4c1d95 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
 .lbox{background:#fff;border-radius:20px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 32px 80px rgba(0,0,0,.5);}
 .llogo{width:56px;height:56px;background:linear-gradient(135deg,#7c3aed,#4c1d95);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;}
 .ltit{font-size:18px;font-weight:800;color:#0f172a;text-align:center;margin-bottom:4px;}
@@ -2090,7 +2090,7 @@ function PerfView({ user }) {
                               </div>
                             </td>
                             <td>
-                              <div style={{fontWeight:600,color: isOverdue?'#dc2626':'#0f172a'}}>{fmtD(e.expected_date)}</div>
+                              <div style={{fontWeight:600,color: isOverdue?'#dc2626':'var(--theme,#0f172a)'}}>{fmtD(e.expected_date)}</div>
                               <div style={{fontSize:11,color: isOverdue?'#dc2626':'#94a3b8'}}>
                                 {isOverdue ? '⚠ '+Math.abs(daysLeft)+'일 초과' : 'D-'+daysLeft}
                               </div>
@@ -2888,22 +2888,22 @@ function SalaryView({ user }) {
                 return (
                   <div style={{display:'flex',gap:20,marginBottom:12}}>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',letterSpacing:'.3px',marginBottom:6,paddingBottom:6,borderBottom:'2px solid #0f172a'}}>지급 항목</div>
+                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',letterSpacing:'.3px',marginBottom:6,paddingBottom:6,borderBottom:'2px solid var(--theme,#0f172a)'}}>지급 항목</div>
                       {incItems.map(function(item){
                         return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
                       })}
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:8,marginTop:4,borderTop:'2px solid #0f172a'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:8,marginTop:4,borderTop:'2px solid var(--theme,#0f172a)'}}>
                         <span style={{fontSize:13,fontWeight:800}}>총 지급액</span>
                         <span style={{fontSize:15,fontWeight:800,color:'#1d4ed8'}}>{fmtN(cv.inc)}원</span>
                       </div>
                     </div>
                     <div style={{width:1,background:'#e2e8f0',flexShrink:0}} />
                     <div style={{flex:1}}>
-                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',letterSpacing:'.3px',marginBottom:6,paddingBottom:6,borderBottom:'2px solid #0f172a'}}>공제 항목</div>
+                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',letterSpacing:'.3px',marginBottom:6,paddingBottom:6,borderBottom:'2px solid var(--theme,#0f172a)'}}>공제 항목</div>
                       {dedItems.map(function(item){
                         return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
                       })}
-                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:8,marginTop:4,borderTop:'2px solid #0f172a'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:8,marginTop:4,borderTop:'2px solid var(--theme,#0f172a)'}}>
                         <span style={{fontSize:13,fontWeight:800}}>총 공제액</span>
                         <span style={{fontSize:15,fontWeight:800,color:'#dc2626'}}>{fmtN(cv.ded)}원</span>
                       </div>
@@ -3058,7 +3058,7 @@ function AccountBookView({ user }) {
           return (
             <div key={cat} style={{marginBottom:24}}>
               <div style={{fontSize:12,fontWeight:800,color:'#475569',letterSpacing:'.5px',
-                padding:'6px 0',borderBottom:'2px solid #0f172a',marginBottom:8}}>
+                padding:'6px 0',borderBottom:'2px solid var(--theme,#0f172a)',marginBottom:8}}>
                 {cat}
               </div>
               <table style={{width:'100%',tableLayout:'fixed',borderCollapse:'collapse'}}>
@@ -3758,22 +3758,8 @@ function App() {
     // checkOnLoad: 렌더 후 실행 (Babel 컴파일 완료 이후 → NAV_WINDOW 오인 방지)
     var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
     if (wasInvalidated) { setUser(null); return; }
-    var raw = sessionStorage.getItem('kwanbo_session');
-    if (!raw) { setSsoChecked(true); return; }
-    try {
-      var v = JSON.parse(raw);
-      var userId = v && v.userId;  // 구버전 {userId} 형태만 DB 복원 대상
-      if (!userId) { setSsoChecked(true); return; }
-      sb.from('users').select('*').eq('id', userId).single().then(function(r) {
-        if (r.data) {
-          var safeU = Object.assign({}, r.data); delete safeU.password;
-          sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
-          setUser(safeU);
-          Sysbar.SessionManager.onLogin(function() { logout(); });
-        }
-        setSsoChecked(true);
-      }).catch(function() { setSsoChecked(true); });
-    } catch(e) { setSsoChecked(true); }
+    // 신규 세션은 initialUser에서 이미 복원됨 → ssoChecked 확정만
+    setSsoChecked(true);
   }, []);
 
   // 세션 즉시 복원된 경우 checkOnLoad + SessionManager 시작
@@ -3807,7 +3793,7 @@ function App() {
   }
 
   if (!ssoChecked || (user && !accessChecked)) return (
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#0f172a',color:'#94a3b8',fontSize:14}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'var(--theme,#0f172a)',color:'#94a3b8',fontSize:14}}>
       로딩 중...
     </div>
   );
@@ -3837,7 +3823,7 @@ function App() {
         onLogout={logout}
       />
       {/* 시스템 제목 바 */}
-      <div style={{background:'#0f172a',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #7c3aed',position:'sticky',top:38,zIndex:250}}>
+      <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #7c3aed',position:'sticky',top:38,zIndex:250}}>
         <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
         <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>관리 포털</p>
       </div>

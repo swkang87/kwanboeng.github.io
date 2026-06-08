@@ -42,7 +42,7 @@ button{cursor:pointer}
 .form-input:focus{border-color:#2563eb}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .btn{padding:9px 18px;border-radius:7px;border:none;font-size:13px;font-weight:700;transition:all .2s}
-.btn-primary{background:#0f172a;color:#fff}
+.btn-primary{background:var(--theme,#0f172a);color:#fff}
 .btn-primary:hover{background:#1e3a5f}
 .btn-secondary{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
 .btn-secondary:hover{background:#e2e8f0}
@@ -59,7 +59,7 @@ button{cursor:pointer}
 .alert-success{background:#f0fdf4;color:#059669;border:1px solid #bbf7d0}
 
 /* ── NAV ── */
-.navbar{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);color:#fff;padding:8px 14px;display:flex;flex-direction:column;gap:6px;position:sticky;top:0;z-index:100}
+.navbar{background:linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e3a5f 100%);color:#fff;padding:8px 14px;display:flex;flex-direction:column;gap:6px;position:sticky;top:0;z-index:100}
 .nav-top{display:flex;align-items:center;justify-content:space-between;width:100%}
 .nav-brand{display:flex;align-items:center;gap:8px}
 .nav-accent{width:5px;height:22px;background:#ef4444;border-radius:2px;flex-shrink:0}
@@ -94,7 +94,7 @@ button{cursor:pointer}
 .tag-진행중{background:#2563eb}
 .tag-중지{background:#94a3b8}
 .tag-완료{background:#6b7280}
-.tag-pm{background:#0f172a}
+.tag-pm{background:var(--theme,#0f172a)}
 .tag-support{background:#64748b}
 .tag-contractor{background:#d97706}
 
@@ -170,7 +170,7 @@ button{cursor:pointer}
 }
 
 /* ── LOGIN ── */
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);padding:16px}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e3a5f 100%);padding:16px}
 .login-box{background:#fff;border-radius:16px;padding:28px;width:100%;max-width:360px;box-shadow:0 24px 80px rgba(0,0,0,.4)}
 .login-logo{text-align:center;margin-bottom:22px}
 .login-logo-accent{width:6px;height:28px;background:#ef4444;border-radius:2px;display:inline-block;margin-right:8px;vertical-align:middle}
@@ -305,7 +305,7 @@ const PM_COLOR_MAP = {
   '장용기': { bg: '#2563eb', tx: '#fff' }, // 관급과 동일 (파랑)
 };
 const PM_PALETTE_DEFAULT = [
-  { bg: '#0f172a', tx: '#fff' },
+  { bg: 'var(--theme,#0f172a)', tx: '#fff' },
   { bg: '#7c3aed', tx: '#fff' },
   { bg: '#dc2626', tx: '#fff' },
   { bg: '#0891b2', tx: '#fff' },
@@ -483,25 +483,8 @@ function App() {
 
   // SSO 초기화 — 다른 시스템에서 로그인한 경우 자동 로그인
   useEffect(() => {
-    if (user) { setSsoChecked(true); return; }
-    const raw = sessionStorage.getItem('kwanbo_session');
-    if (!raw) { setSsoChecked(true); return; }
-    try {
-      const v = JSON.parse(raw);
-      // 신규: user 객체는 useState 초기값에서 이미 처리됨 → 여기로 안 옴
-      // 여기 도달 = 구버전 {userId} 형태이므로 DB 조회로 복원
-      const userId = v && v.userId;
-      if (!userId) { setSsoChecked(true); return; }
-      sb.from('users').select('id,name,phone,email,position,team_id,role,join_date,total_days,used_days').eq('id', userId).single().then(({ data }) => {
-        if (data) {
-          const safeU = {...data};
-          sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
-          localStorage.removeItem('kwanbo_pm_user');
-          setUser(safeU);
-        }
-        setSsoChecked(true);
-      }).catch(() => setSsoChecked(true));
-    } catch { setSsoChecked(true); }
+    // 신규 세션은 useState 초기값에서 이미 복원됨 → ssoChecked 확정만
+    setSsoChecked(true);
   }, []);
 
   useEffect(() => {
@@ -510,7 +493,7 @@ function App() {
       .then(function(r) { if (r.data) setUserTeamName(r.data.name); });
   }, [user ? user.team_id : null]);
 
-  if (!ssoChecked) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'#0f172a', color:'#94a3b8', fontSize:14 }}>로딩 중...</div>;
+  if (!ssoChecked) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'var(--theme,#0f172a)', color:'#94a3b8', fontSize:14 }}>로딩 중...</div>;
   if (!user) return <Login supabaseClient={sb} onLogin={handleLogin} subtitle="공정관리 시스템" />;
 
   const menuItems = [
@@ -535,7 +518,7 @@ function App() {
             <div style={{ fontSize:13, color:'#64748b', lineHeight:1.6, marginBottom:20 }}>
               기술지원 계정은 공정관리 시스템만<br/>이용할 수 있습니다.
             </div>
-            <button onClick={() => setNoPermModal(false)} style={{ padding:'10px 28px', background:'#0f172a', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif" }}>확인</button>
+            <button onClick={() => setNoPermModal(false)} style={{ padding:'10px 28px', background:'var(--theme,#0f172a)', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif" }}>확인</button>
           </div>
         </div>
       )}
@@ -551,13 +534,13 @@ function App() {
       />
 
       {/* 2줄: 시스템 제목 */}
-      <div className="no-print" style={{ background: '#0f172a', padding: '6px 18px 8px', flexShrink: 0, borderBottom: '2px solid #1d4ed8', position: 'sticky', top: 38, zIndex: 101 }}>
+      <div className="no-print" style={{ background: 'var(--theme,#0f172a)', padding: '6px 18px 8px', flexShrink: 0, borderBottom: '2px solid #1d4ed8', position: 'sticky', top: 38, zIndex: 101 }}>
         <p style={{ margin: 0, fontSize: 9, lineHeight: '1.2', color: '#475569', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600 }}>{APP_CONFIG.COMPANY_EN}</p>
         <p style={{ margin: 0, fontSize: 14, lineHeight: '1.3', fontWeight: 800, color: 'white', letterSpacing: -0.3 }}>공정 관리 시스템</p>
       </div>
 
       {/* 3줄: 가로 네비 탭 */}
-      <div className="no-print" style={{ background: '#1e293b', padding: '0 14px', display: 'flex', alignItems: 'center', flexShrink: 0, height: 36, gap: 1, borderBottom: '1px solid #0f172a', position: 'sticky', top: 83, zIndex: 100, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div className="no-print" style={{ background: '#1e293b', padding: '0 14px', display: 'flex', alignItems: 'center', flexShrink: 0, height: 36, gap: 1, borderBottom: '1px solid var(--theme,#0f172a)', position: 'sticky', top: 83, zIndex: 100, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {menuItems.map(t => (
           <button key={t.k} onClick={() => nv(t.k)}
             style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 11px', background: (view === t.k || (view === 'project' && t.k === 'projects')) ? '#1d4ed8' : 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', color: (view === t.k || (view === 'project' && t.k === 'projects')) ? 'white' : '#94a3b8', fontFamily: "'Noto Sans KR',sans-serif", fontSize: 11, fontWeight: (view === t.k || (view === 'project' && t.k === 'projects')) ? 700 : 400, whiteSpace: 'nowrap', height: 26, flexShrink: 0 }}>
@@ -1560,12 +1543,12 @@ function ProjectList({ gp, user, listFilter, setListFilter, appData }) {
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 2 }}>
             {['all','진행중','중지','완료'].map(s => (
-              <button key={s} className="btn btn-sm" style={{ background: sf===s?'#0f172a':'#fff', color: sf===s?'#fff':'#64748b', border: '1px solid #e2e8f0' }} onClick={() => setSf(s)}>{s==='all'?'전체':s}</button>
+              <button key={s} className="btn btn-sm" style={{ background: sf===s?'var(--theme,#0f172a)':'#fff', color: sf===s?'#fff':'#64748b', border: '1px solid #e2e8f0' }} onClick={() => setSf(s)}>{s==='all'?'전체':s}</button>
             ))}
           </div>
           <div style={{ display: 'flex', gap: 2 }}>
             {['all','관급','사급','기술지원'].map(c => (
-              <button key={c} className="btn btn-sm" style={{ background: cf===c?'#0f172a':'#fff', color: cf===c?'#fff':'#64748b', border: '1px solid #e2e8f0' }} onClick={() => setCf(c)}>{c==='all'?'전체':c}</button>
+              <button key={c} className="btn btn-sm" style={{ background: cf===c?'var(--theme,#0f172a)':'#fff', color: cf===c?'#fff':'#64748b', border: '1px solid #e2e8f0' }} onClick={() => setCf(c)}>{c==='all'?'전체':c}</button>
             ))}
           </div>
         </div>
@@ -1610,7 +1593,7 @@ function ProjectList({ gp, user, listFilter, setListFilter, appData }) {
                   <Bd bg={CAT_COLOR[p.category]}>{p.category}</Bd>
                   <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
                 </div>
-                <div className="proj-name" style={{ color: stopped?'#9ca3af':'#0f172a' }}>{p.name}</div>
+                <div className="proj-name" style={{ color: stopped?'#9ca3af':'var(--theme,#0f172a)' }}>{p.name}</div>
                 <div style={{ fontSize: 10, color: '#64748b' }}>{p.client} · PM: {uName(p.pm_id)} · {fs(p.start_date)}~{fs(p.end_date)}</div>
                 {ne && <div style={{ fontSize: 10, color: ec(ne.type).tx, marginTop: 2 }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
               </div>
@@ -1715,7 +1698,7 @@ function ProjectDetail({ id, user, gb }) {
           <Bd bg={stopped?'#d1d5db':CAT_COLOR[p.category]}>{p.category}</Bd>
           <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
         </div>
-        <h2 style={{ fontSize: 16, fontWeight: 900, color: stopped?'#9ca3af':'#0f172a', marginBottom: 8 }}>{p.name}</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 900, color: stopped?'#9ca3af':'var(--theme,#0f172a)', marginBottom: 8 }}>{p.name}</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 8, fontSize: 12 }}>
           <div><span style={{ fontSize: 9, color: '#94a3b8' }}>발주처</span><br/><strong>{p.client}</strong></div>
           {p.client_dept && <div><span style={{ fontSize: 9, color: '#94a3b8' }}>발주부서/담당자</span><br/><strong>{p.client_dept} / {p.client_contact}</strong></div>}
@@ -1950,7 +1933,7 @@ function MyProjects({ user, gp, appData }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
                   <Bd bg={CAT_COLOR[p.category]}>{p.category}</Bd>
                   <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
-                  {amPM && <Bd bg="#0f172a">PM</Bd>}
+                  {amPM && <Bd bg="var(--theme,#0f172a)">PM</Bd>}
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 2, cursor: 'pointer' }} onClick={() => gp(p.id)}>{p.name}</div>
                 <div style={{ fontSize: 11, color: '#64748b' }}>{p.client} · {fs(p.start_date)} ~ {fs(p.end_date)}</div>
@@ -2279,7 +2262,7 @@ function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers 
           : members.map(m => (
             <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: '#f8fafc', borderRadius: 6, marginBottom: 4 }}>
               <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{uName(m.user_id)}</span>
-              <Bd bg={m.role==='pm'?'#0f172a':m.role==='contractor'?'#d97706':'#64748b'}>{m.role==='pm'?'PM':m.role==='contractor'?'기술지원':'서포트'}</Bd>
+              <Bd bg={m.role==='pm'?'var(--theme,#0f172a)':m.role==='contractor'?'#d97706':'#64748b'}>{m.role==='pm'?'PM':m.role==='contractor'?'기술지원':'서포트'}</Bd>
               <button className="btn btn-danger btn-sm" onClick={() => removeMember(m.id)} disabled={mLoading}>제거</button>
             </div>
           ))
@@ -2523,7 +2506,7 @@ function AdminPanel({ user }) {
       {msg && <div className="alert alert-success">{msg}</div>}
       <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: '#fff', borderRadius: 8, padding: 4, boxShadow: '0 1px 2px rgba(0,0,0,.06)', width: 'fit-content', flexWrap: 'wrap' }}>
         {[{k:'editProj',l:'프로젝트 수정'},{k:'create',l:'새 프로젝트 등록'},{k:'userList',l:'직원 목록'},{k:'logs',l:'📋 수정 로그'}].map(t => (
-          <button key={t.k} onClick={() => setTab(t.k)} className="btn btn-sm" style={{ background: tab===t.k?'#0f172a':'transparent', color: tab===t.k?'#fff':'#64748b', border: 'none' }}>{t.l}</button>
+          <button key={t.k} onClick={() => setTab(t.k)} className="btn btn-sm" style={{ background: tab===t.k?'var(--theme,#0f172a)':'transparent', color: tab===t.k?'#fff':'#64748b', border: 'none' }}>{t.l}</button>
         ))}
       </div>
 
@@ -2673,7 +2656,7 @@ function MemberAssign({ projects, users, onSaved }) {
               members.map(m => (
                 <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px', background: '#f8fafc', borderRadius: 6, marginBottom: 4 }}>
                   <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{uName(m.user_id)}</span>
-                  <Bd bg={m.role==='pm'?'#0f172a':m.role==='contractor'?'#d97706':'#64748b'}>{m.role==='pm'?'PM':m.role==='support'?'서포트':'기술지원'}</Bd>
+                  <Bd bg={m.role==='pm'?'var(--theme,#0f172a)':m.role==='contractor'?'#d97706':'#64748b'}>{m.role==='pm'?'PM':m.role==='support'?'서포트':'기술지원'}</Bd>
                   <button className="btn btn-danger btn-sm" onClick={() => removeMember(m.id)} disabled={loading}>제거</button>
                 </div>
               ))
@@ -2884,7 +2867,7 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
             {members.map(m => (
               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: '#f8fafc', borderRadius: 5, marginBottom: 4 }}>
                 <span style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>{uName(m.user_id)}</span>
-                <Bd bg={m.role==='pm'?'#0f172a':m.role==='contractor'?'#d97706':'#64748b'}>{ROLE_DISPLAY[m.role]||m.role}</Bd>
+                <Bd bg={m.role==='pm'?'var(--theme,#0f172a)':m.role==='contractor'?'#d97706':'#64748b'}>{ROLE_DISPLAY[m.role]||m.role}</Bd>
                 <button className="btn btn-danger btn-sm" onClick={() => removeMember(m.id)} disabled={mLoading}>제거</button>
               </div>
             ))}
@@ -3017,7 +3000,7 @@ function UserList({ users, onSaved }) {
 
   const ROLE_ORDER = { 'admin': 0, 'manager': 1, 'employee': 2, 'contractor': 3 };
   const ROLE_LABEL = { 'admin': '관리자', 'manager': '팀장', 'employee': '팀원', 'contractor': '기술지원' };
-  const ROLE_COLOR = { 'admin': '#0f172a', 'manager': '#6366f1', 'employee': '#2563eb', 'contractor': '#d97706' };
+  const ROLE_COLOR = { 'admin': 'var(--theme,#0f172a)', 'manager': '#6366f1', 'employee': '#2563eb', 'contractor': '#d97706' };
   const sortedUsers = [...users].sort((a,b) =>
     (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9) ||
     a.name.localeCompare(b.name, 'ko')
@@ -3122,7 +3105,7 @@ function ProfileView({ user, onLogout }) {
       {/* 프로필 카드 */}
       <div className="card card-p" style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
-          <div style={{ width: 52, height: 52, borderRadius: '50%', background: user.role === 'admin' ? '#0f172a' : user.role === 'contractor' ? '#d97706' : '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, fontSize: 22, flexShrink: 0 }}>{user.name[0]}</div>
+          <div style={{ width: 52, height: 52, borderRadius: '50%', background: user.role === 'admin' ? 'var(--theme,#0f172a)' : user.role === 'contractor' ? '#d97706' : '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, fontSize: 22, flexShrink: 0 }}>{user.name[0]}</div>
           <div>
             <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>{user.name}</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{ROLE_LABEL[user.role] || user.role} · {user.phone}</div>

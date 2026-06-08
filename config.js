@@ -34,7 +34,7 @@ var APP_CONFIG = {
   COPYRIGHT_YEAR:   '2025',
 
   // ── 색상 테마 (Theme Colors) ─────────────────────────────────
-  COLOR_PRIMARY:  '#0d2044',   // 메인 네이비
+  COLOR_PRIMARY:  '#0f172a',   // 메인 네이비 (시스템 UI 기준색)
   COLOR_PRIMARY2: '#1b3a6b',   // 서브 네이비
   COLOR_ACCENT:   '#c41e1e',   // 레드 포인트
   COLOR_GOLD:     '#b8902a',   // 골드 포인트

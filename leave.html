@@ -274,7 +274,7 @@ function MiniCal({yr,mo,onPrev,onNext,start,end,hoverDate,onHover,onDayClick,sin
   const getDayColor=(d,dow)=>{
     if(HOLIDAYS[d]||SUBSTITUTE[d]||dow===0)return'#dc2626';
     if(dow===6)return'#2563eb';
-    return'#0f172a';
+    return'var(--theme,#0f172a)';
   };
   const inRange=(d)=>start&&end&&d>start&&d<end;
   const inHover=(d)=>start&&!end&&hoverDate&&d>start&&d<=hoverDate;
@@ -1111,12 +1111,12 @@ function App(){
   // ── 기술지원(contractor) 접근 차단 ────────────────────────
   if(cu.role==='contractor'){
     return(
-      <div style={{minHeight:'100vh',background:'linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:"'Noto Sans KR',sans-serif"}}>
+      <div style={{minHeight:'100vh',background:'linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e3a5f 50%,#1e40af 100%)',display:'flex',alignItems:'center',justifyContent:'center',padding:20,fontFamily:"'Noto Sans KR',sans-serif"}}>
         <div style={{background:'white',borderRadius:18,padding:'40px 32px',width:'100%',maxWidth:360,boxShadow:'0 25px 70px rgba(0,0,0,.45)',textAlign:'center'}}>
           <div style={{fontSize:48,marginBottom:16}}>🚫</div>
           <p style={{margin:'0 0 8px',fontSize:17,fontWeight:800,color:'#0f172a'}}>접근 권한 없음</p>
           <p style={{margin:'0 0 24px',fontSize:13,color:'#64748b',lineHeight:1.6}}>기술지원 계정은 연차관리 시스템을<br/>이용할 수 없습니다.</p>
-          <a href="project.html" style={{display:'inline-block',padding:'11px 28px',background:'#0f172a',color:'white',borderRadius:8,fontSize:13,fontWeight:700,textDecoration:'none'}}>공정관리로 돌아가기</a>
+          <a href="project.html" style={{display:'inline-block',padding:'11px 28px',background:'var(--theme,#0f172a)',color:'white',borderRadius:8,fontSize:13,fontWeight:700,textDecoration:'none'}}>공정관리로 돌아가기</a>
         </div>
       </div>
     );
@@ -1163,7 +1163,7 @@ function App(){
           onLogout={logout}
         />
         {/* 제목 바 */}
-        <div style={{background:'#0f172a',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8'}}>
+        <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8'}}>
           <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
           <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>연차 관리 시스템</p>
         </div>
@@ -1198,13 +1198,13 @@ function App(){
       />
 
       {/* 2줄: 시스템 제목 바 */}
-      <div style={{background:'#0f172a',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8',position:'sticky',top:38,zIndex:250}}>
+      <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8',position:'sticky',top:38,zIndex:250}}>
         <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
         <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>연차 관리 시스템</p>
       </div>
 
       {/* 3줄: 가로 네비 탭 */}
-      <div style={{background:'#1e293b',padding:'0 14px',display:'flex',alignItems:'center',flexShrink:0,height:36,gap:1,borderBottom:'1px solid #0f172a',position:'sticky',top:83,zIndex:240,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none'}}>
+      <div style={{background:'#1e293b',padding:'0 14px',display:'flex',alignItems:'center',flexShrink:0,height:36,gap:1,borderBottom:'1px solid var(--theme,#0f172a)',position:'sticky',top:83,zIndex:240,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none'}}>
         {navItems.map(item=>(
           <button key={item.k} onClick={()=>setView(item.k)}
             style={{display:'flex',alignItems:'center',gap:4,padding:'5px 11px',

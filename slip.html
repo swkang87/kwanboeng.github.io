@@ -6,6 +6,16 @@
 <title>급여명세서</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script>
+(function(){
+  try {
+    var c = window.APP_CONFIG || {};
+    var r = document.documentElement;
+    if (c.COLOR_PRIMARY)  r.style.setProperty('--theme',  c.COLOR_PRIMARY);
+    if (c.COLOR_PRIMARY2) r.style.setProperty('--theme2', c.COLOR_PRIMARY2);
+  } catch(e){}
+})();
+</script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -31,7 +41,7 @@
     overflow: hidden;
   }
   .auth-header {
-    background: #0d2044;
+    background: var(--theme,#0d2044);
     padding: 28px 32px;
     text-align: center;
   }
@@ -46,14 +56,14 @@
     border-radius: 8px; font-size: 15px; color: #1e293b;
     font-family: inherit; outline: none; transition: border .2s;
   }
-  .auth-body input[type="date"]:focus { border-color: #0d2044; }
+  .auth-body input[type="date"]:focus { border-color: var(--theme,#0d2044); }
   .auth-btn {
     width: 100%; margin-top: 16px; padding: 13px;
-    background: #0d2044; color: #fff; border: none;
+    background: var(--theme,#0d2044); color: #fff; border: none;
     border-radius: 8px; font-size: 15px; font-weight: 700;
     font-family: inherit; cursor: pointer; transition: background .2s;
   }
-  .auth-btn:hover { background: #1b3a6b; }
+  .auth-btn:hover { background: var(--theme2,#1b3a6b); }
   .auth-btn:disabled { background: #94a3b8; cursor: not-allowed; }
   .auth-err {
     margin-top: 12px; padding: 10px 14px;
@@ -84,7 +94,7 @@
     overflow: hidden;
   }
   .slip-header {
-    background: #0d2044;
+    background: var(--theme,#0d2044);
     padding: 24px 28px 20px;
   }
   .slip-header .co-name { color: #fff; font-size: 18px; font-weight: 800; }
@@ -153,7 +163,7 @@
     padding: 9px 20px; border-radius: 8px; font-size: 13px;
     font-weight: 600; font-family: inherit; cursor: pointer; border: none;
   }
-  .btn-print { background: #0d2044; color: #fff; }
+  .btn-print { background: var(--theme,#0d2044); color: #fff; }
   .btn-close { background: #f1f5f9; color: #475569; }
 
   .loading {
