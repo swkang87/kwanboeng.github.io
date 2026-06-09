@@ -134,9 +134,7 @@ button{cursor:pointer}
 .cal-ev{font-size:8px;margin-top:1px;padding:1px 3px;border-radius:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
 
 /* ── EVENT STYLES ── */
-.ev-착수보고{background:#dbeafe;color:#1e40af}
-.ev-중간보고{background:#e0e7ff;color:#4338ca}
-.ev-최종보고{background:#d1fae5;color:#065f46}
+.ev-보고회{background:#dbeafe;color:#1e40af}
 .ev-위원회{background:#fce7f3;color:#9d174d}
 .ev-협의{background:#fef3c7;color:#92400e}
 .ev-측량{background:#ccfbf1;color:#134e4a}
@@ -281,12 +279,10 @@ const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KE
 // ─── Constants ───
 const CAT_COLOR = { '관급': '#2563eb', '사급': '#059669', '기술지원': '#d97706' };
 const STATUS_COLOR = { '진행중': '#2563eb', '중지': '#94a3b8', '완료': '#6b7280' };
-const EV_TYPES = ['착수보고', '중간보고', '최종보고', '위원회', '협의', '측량', '납품', '기타'];
-const EV_ICON = { '착수보고': '🚀', '중간보고': '📋', '최종보고': '📦', '위원회': '🏛️', '협의': '🤝', '측량': '📐', '납품': '📬', '기타': '📌' };
+const EV_TYPES = ['보고회', '위원회', '협의', '측량', '납품', '기타'];
+const EV_ICON = { '보고회': '🚀', '위원회': '🏛️', '협의': '🤝', '측량': '📐', '납품': '📬', '기타': '📌' };
 const EV_COLOR = {
-  '착수보고': { bg: '#dbeafe', bd: '#3b82f6', tx: '#1e40af' },
-  '중간보고': { bg: '#e0e7ff', bd: '#6366f1', tx: '#4338ca' },
-  '최종보고': { bg: '#d1fae5', bd: '#059669', tx: '#065f46' },
+  '보고회': { bg: '#dbeafe', bd: '#3b82f6', tx: '#1e40af' },
   '위원회':   { bg: '#fce7f3', bd: '#ec4899', tx: '#9d174d' },
   '협의':     { bg: '#fef3c7', bd: '#f59e0b', tx: '#92400e' },
   '측량':     { bg: '#ccfbf1', bd: '#14b8a6', tx: '#134e4a' },
@@ -449,7 +445,7 @@ function App() {
     const [pj, rp, ev, us, mb] = await Promise.all([
       sb.from('projects').select('*, completed_at').order('name'),
       sb.from('weekly_reports').select('*').gte('week_date', sixMonthsAgo()).order('week_date', { ascending: false }),
-      sb.from('project_events').select('*').or(`done.eq.false,event_date.gte.${thirtyDaysAgo()}`),
+      sb.from('project_events').select('*').gte('event_date', thirtyDaysAgo()),
       sb.from('users').select('*').order('name'),
       sb.from('project_members').select('*'),
     ]);
@@ -633,7 +629,7 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
     const [pj, rp, ev, us, mb] = await Promise.all([
       sb.from('projects').select('*').neq('status', '완료').order('name'),
       sb.from('weekly_reports').select('*').gte('week_date', sixMonthsAgo()).order('week_date', { ascending: false }),
-      sb.from('project_events').select('*').or(`done.eq.false,event_date.gte.${thirtyDaysAgo()}`),
+      sb.from('project_events').select('*').gte('event_date', thirtyDaysAgo()),
       sb.from('users').select('id, name, role'),
       sb.from('project_members').select('*'),
     ]);
@@ -674,26 +670,17 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
   }, [reports]);
 
   // project_id → 미완료 이벤트(event_date asc)
-  const openEventsByProject = useMemo(() => {
+  // 날짜 기준: 오늘 포함 미래 or 오늘 기준 14일 이내 과거
+  const eventsByProject = useMemo(() => {
+    const todayStr = today();
+    const cutoff = (() => { const d = new Date(todayStr+'T00:00:00'); d.setDate(d.getDate()-14); const y=d.getFullYear(),mo=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return y+'-'+mo+'-'+dd; })();
     const m = new Map();
     for (const e of events) {
-      if (e.done) continue;
+      if (e.event_date < cutoff) continue; // 14일 초과 과거 제외
       const arr = m.get(e.project_id);
       if (arr) arr.push(e); else m.set(e.project_id, [e]);
     }
     for (const arr of m.values()) arr.sort((a,b) => a.event_date.localeCompare(b.event_date));
-    return m;
-  }, [events]);
-
-  // project_id → 완료 이벤트(event_date desc)
-  const doneEventsByProject = useMemo(() => {
-    const m = new Map();
-    for (const e of events) {
-      if (!e.done) continue;
-      const arr = m.get(e.project_id);
-      if (arr) arr.push(e); else m.set(e.project_id, [e]);
-    }
-    for (const arr of m.values()) arr.sort((a,b) => b.event_date.localeCompare(a.event_date));
     return m;
   }, [events]);
 
@@ -775,27 +762,12 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
   };
 
   const getNextEvent = (pid) => {
-    const arr = openEventsByProject.get(pid);
+    const arr = eventsByProject.get(pid);
     return arr ? arr[0] : undefined;
   };
 
-  // 선택 주 기준 7일 전: 완료된 주요공정은 이 날짜 이후까지만 표시
-  const selWeekCutoff = useMemo(() => {
-    if (!selWeek) return '';
-    const d = new Date(selWeek+'T00:00:00'); d.setDate(d.getDate()-7);
-    return d.toISOString().split('T')[0];
-  }, [selWeek]);
-  const getRecentDoneEvs = (pid) => {
-    if (!selWeekCutoff) return [];
-    const arr = doneEventsByProject.get(pid);
-    if (!arr) return [];
-    // arr는 event_date desc 정렬됨
-    const out = [];
-    for (const e of arr) {
-      if (e.event_date >= selWeekCutoff) out.push(e);
-    }
-    return out;
-  };
+  // 오늘 기준 14일 이내 과거 공정 (취소선 표시용)
+  const todayStr = today();
 
   const activeProjects = sortedProjects.filter(p => p.status !== '완료');
   const thisWeekReports = reports.filter(r => r.week_date === selWeek);
@@ -804,7 +776,7 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
 
   const twoWeeksLater = selWeek ? (() => { const d = new Date(selWeek+'T00:00:00'); d.setDate(d.getDate()+14); return d.toISOString().split('T')[0]; })() : '';
   const upcomingEvs = events.filter(e =>
-    !e.done && selWeek &&
+    selWeek &&
     e.event_date >= selWeek &&
     e.event_date <= twoWeeksLater &&
     (memberPids === null || memberPids.has(e.project_id))
@@ -814,10 +786,10 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
     const el = document.getElementById('print-area');
     // 이벤트 색상 매핑
     const evColors = {
-      '착수보고':'#3b82f6','중간보고':'#6366f1','최종보고':'#059669',
+      '보고회':'#3b82f6',
       '위원회':'#ec4899','협의':'#f59e0b','측량':'#14b8a6','납품':'#a855f7','기타':'#94a3b8'
     };
-    const evIcons = {'착수보고':'🚀','중간보고':'📋','최종보고':'📦','위원회':'🏛️','협의':'🤝','측량':'📐','납품':'📬','기타':'📌'};
+    const evIcons = {'보고회':'🚀','위원회':'🏛️','협의':'🤝','측량':'📐','납품':'📬','기타':'📌'};
     const colgroup = `<colgroup>
       <col style="width:3%"/><col style="width:5%"/><col style="width:16%"/>
       <col style="width:10%"/><col style="width:5%"/><col style="width:6%"/>
@@ -838,17 +810,19 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
       const nameStyle = stopped ? 'color:#9ca3af;font-weight:600' : 'font-weight:600';
       // 향후 주요 공정: 미완료 + 완료 후 1주일 이내
       const printCutoff = (() => { const d = new Date(selWeek+'T00:00:00'); d.setDate(d.getDate()-7); return d.toISOString().split('T')[0]; })();
-      const upEv = events.filter(e => e.project_id === p.id && (!e.done || e.event_date >= printCutoff))
+      const todayForPrint = today();
+      const printCutoff = (() => { const d = new Date(todayForPrint+'T00:00:00'); d.setDate(d.getDate()-14); const y=d.getFullYear(),mo=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return y+'-'+mo+'-'+dd; })();
+      const upEv = events.filter(e => e.project_id === p.id && e.event_date >= printCutoff)
         .sort((a,b) => a.event_date.localeCompare(b.event_date))
         .slice(0, 3);
       const evHtml = upEv.map(e => {
         const c = evColors[e.type] || '#94a3b8';
         const d2 = new Date(e.event_date+'T00:00:00');
         const ds = `${d2.getMonth()+1}/${d2.getDate()}`;
-        // XSS: e.title은 DB 입력값 → 이스케이프
-        const doneStyle = e.done ? 'text-decoration:line-through;opacity:.6;' : '';
-        const donePrefix = e.done ? '✓ ' : '';
-        return `<div style="margin-bottom:2px;font-size:6pt;${doneStyle}"><span style="background:${e.done?'#94a3b8':c};color:#fff;padding:0 3px;border-radius:2px;font-weight:700;font-size:5.5pt">${esc(e.type)}</span> ${donePrefix}${esc(e.title)} <span style="color:#888">(${ds})</span></div>`;
+        const isPastEv = e.event_date < todayForPrint;
+        const doneStyle = isPastEv ? 'text-decoration:line-through;opacity:.6;' : '';
+        const donePrefix = isPastEv ? '✓ ' : '';
+        return `<div style="margin-bottom:2px;font-size:6pt;${doneStyle}"><span style="background:${isPastEv?'#94a3b8':c};color:#fff;padding:0 3px;border-radius:2px;font-weight:700;font-size:5.5pt">${esc(e.type)}</span> ${donePrefix}${esc(e.title)} <span style="color:#888">(${ds})</span></div>`;
       }).join('');
         const isOverdue = p.end_date && p.end_date < selWeek && p.status !== '완료';
         const issueText = [
@@ -994,14 +968,13 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                           )}
                         </span>
                   }
-                  {ne && (
-                    <div style={{ marginTop: 4, padding: '3px 7px', background: ec(ne.type).bg, borderRadius: 4, fontSize: 11, color: ec(ne.type).tx, display: 'inline-block' }}>
-                      {EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})
-                    </div>
-                  )}
-                  {getRecentDoneEvs(p.id).map(e => (
-                    <div key={e.id} style={{ marginTop: 3, padding: '3px 7px', background: '#f1f5f9', borderRadius: 4, fontSize: 11, color: '#94a3b8', display: 'inline-block', textDecoration: 'line-through' }}>✓ {EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>
-                  ))}
+                  {(eventsByProject.get(p.id) || []).map(e => {
+                    const isPast = e.event_date < todayStr;
+                    const s = ec(e.type);
+                    return isPast
+                      ? <div key={e.id} style={{ marginTop: 3, padding: '3px 7px', background: '#f1f5f9', borderRadius: 4, fontSize: 11, color: '#94a3b8', display: 'inline-block', textDecoration: 'line-through' }}>✓ {EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>
+                      : <div key={e.id} style={{ marginTop: 4, padding: '3px 7px', background: s.bg, borderRadius: 4, fontSize: 11, color: s.tx, display: 'inline-block' }}>{EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>;
+                  })}
                 </div>
                 {/* 이슈 */}
                 {(isOverdue || r?.issues) && (
@@ -1108,10 +1081,13 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                             {r?.summary && <span style={{ color: '#94a3b8', fontSize: 10, marginLeft: 4 }}>({ff(r.week_date)} 기준: {r.summary.length > 60 ? r.summary.slice(0, 60) + '…' : r.summary})</span>}
                           </span>
                     }
-                    {ne && <div style={{ marginTop: 3, padding: '2px 5px', background: ec(ne.type).bg, borderRadius: 3, fontSize: 10, color: ec(ne.type).tx, display: 'inline-block' }}>{EV_ICON[ne.type]} {ne.title} ({fs(ne.event_date)})</div>}
-                    {getRecentDoneEvs(p.id).map(e => (
-                      <div key={e.id} style={{ marginTop: 2, padding: '2px 5px', background: '#f1f5f9', borderRadius: 3, fontSize: 10, color: '#94a3b8', display: 'inline-block', textDecoration: 'line-through' }}>✓ {EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>
-                    ))}
+                    {(eventsByProject.get(p.id) || []).map(e => {
+                      const isPast = e.event_date < todayStr;
+                      const s = ec(e.type);
+                      return isPast
+                        ? <div key={e.id} style={{ marginTop: 2, padding: '2px 5px', background: '#f1f5f9', borderRadius: 3, fontSize: 10, color: '#94a3b8', display: 'inline-block', textDecoration: 'line-through' }}>✓ {EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>
+                        : <div key={e.id} style={{ marginTop: 3, padding: '2px 5px', background: s.bg, borderRadius: 3, fontSize: 10, color: s.tx, display: 'inline-block' }}>{EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>;
+                    })}
                   </td>
                   <td style={{ fontSize: 10 }}>
                     {p.end_date && p.end_date < selWeek && p.status !== '완료' && (
@@ -1275,7 +1251,7 @@ function MonthlyCalendar({ gp, calDate, setCalDate, user, appData }) {
 
   const loadAll = async () => {
     const [ev, pj, mb] = await Promise.all([
-      sb.from('project_events').select('*').eq('done', false),
+      sb.from('project_events').select('*').gte('event_date', thirtyDaysAgo()),
       sb.from('projects').select('id, name, category, status, start_date, end_date'),
       sb.from('project_members').select('*'),
     ]);
@@ -1524,7 +1500,7 @@ function ProjectList({ gp, user, listFilter, setListFilter, appData }) {
     const [pj, rp, ev, us, mb] = await Promise.all([
       sb.from('projects').select('*, completed_at').order('name'),
       sb.from('weekly_reports').select('project_id, week_date, progress_pct').gte('week_date', sixMonthsAgo()).order('week_date', { ascending: false }),
-      sb.from('project_events').select('*').eq('done', false),
+      sb.from('project_events').select('*').gte('event_date', thirtyDaysAgo()),
       sb.from('users').select('id, name'),
       sb.from('project_members').select('*'),
     ]);
@@ -1561,9 +1537,10 @@ function ProjectList({ gp, user, listFilter, setListFilter, appData }) {
 
   // project_id → 다음 이벤트
   const nextEventById = useMemo(() => {
+    const todayStr2 = today();
     const m = new Map();
     for (const e of events) {
-      if (e.done) continue;
+      if (e.event_date < todayStr2) continue; // 오늘 기준 미래 공정만
       const cur = m.get(e.project_id);
       if (!cur || e.event_date < cur.event_date) m.set(e.project_id, e);
     }
@@ -1776,7 +1753,9 @@ function ProjectDetail({ id, user, gb }) {
 
   const p = project;
   const lp = reports.length > 0 ? reports[reports.length-1].progress_pct : 0;
-  const de = events.filter(e => e.done), ue = events.filter(e => !e.done);
+  const todayForDetail = today();
+  const ue = events.filter(e => e.event_date >= todayForDetail);
+  const de = events.filter(e => e.event_date < todayForDetail);
   const stopped = p.status === '중지';
 
   // Line chart
@@ -1888,7 +1867,7 @@ function ProjectDetail({ id, user, gb }) {
 
       {/* Done events timeline */}
       <div className="card card-p" style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 10 }}>✅ 완료 주요 공정</div>
+        <div style={{ fontSize: 12, fontWeight: 800, color: '#0f172a', marginBottom: 10 }}>📅 지난 주요 공정</div>
         {de.length === 0 ? <div style={{ fontSize: 12, color: '#94a3b8' }}>없음</div> : (
           <div className="timeline">
             <div className="timeline-line" />
@@ -2007,7 +1986,7 @@ function MyProjects({ user, gp, appData }) {
       sb.from('project_members').select('project_id, role').eq('user_id', user.id),
       sb.from('users').select('id, name'),
       sb.from('weekly_reports').select('*').gte('week_date', sixMonthsAgo()).order('week_date', { ascending: false }),
-      sb.from('project_events').select('*').eq('done', false),
+      sb.from('project_events').select('*').gte('event_date', thirtyDaysAgo()),
     ]);
     const usData = us.data || [];
     const rpData = rp.data || [];
@@ -2063,9 +2042,10 @@ function MyProjects({ user, gp, appData }) {
   const getLatestReport = (pid) => latestReportByProject.get(pid);
 
   const nextEventByProject = useMemo(() => {
+    const todayStr3 = today();
     const m = new Map();
     for (const e of events) {
-      if (e.done) continue;
+      if (e.event_date < todayStr3) continue; // 오늘 기준 미래 공정만
       const cur = m.get(e.project_id);
       if (!cur || e.event_date < cur.event_date) m.set(e.project_id, e);
     }
@@ -2252,10 +2232,9 @@ function WeeklyReportModal({ projectId, userId, prevData, onClose, onSaved }) {
 // ─── Event Modal (등록 + 수정 공용) ───
 function EventModal({ projectId, userId, onClose, onSaved, eventData }) {
   const isEdit = !!eventData;
-  const [type, setType] = useState(isEdit ? eventData.type : '착수보고');
+  const [type, setType] = useState(isEdit ? eventData.type : '보고회');
   const [title, setTitle] = useState(isEdit ? eventData.title : '');
   const [eventDate, setEventDate] = useState(isEdit ? eventData.event_date : today());
-  const [done, setDone] = useState(isEdit ? !!eventData.done : false);
   const [memo, setMemo] = useState(isEdit ? (eventData.memo || '') : '');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
@@ -2265,8 +2244,8 @@ function EventModal({ projectId, userId, onClose, onSaved, eventData }) {
   const save = async () => {
     if (!eventDate) { setErr('일정일을 입력해주세요.'); return; }
     setLoading(true); setErr('');
-    const finalTitle = title.trim() || type; // 제목 없으면 type(착수보고 등)으로 대체
-    const payload = { type: type, title: finalTitle, event_date: eventDate, done: done, memo: memo };
+    const finalTitle = title.trim() || type; // 제목 없으면 type으로 대체
+    const payload = { type: type, title: finalTitle, event_date: eventDate, memo: memo };
     var result;
     if (isEdit) {
       result = await sb.from('project_events').update(payload).eq('id', eventData.id);
@@ -2296,18 +2275,13 @@ function EventModal({ projectId, userId, onClose, onSaved, eventData }) {
       </div>
       <div className="form-group">
         <label className="form-label">제목 <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400 }}>(선택 — 비워두면 유형명으로 저장)</span></label>
-        <input className="form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="예: 1차 중간보고회 (선택)" />
+        <input className="form-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="예: 착수보고회 (선택)" />
       </div>
       <div className="form-group">
         <label className="form-label">메모</label>
         <input className="form-input" value={memo} onChange={e => setMemo(e.target.value)} placeholder="추가 설명 (선택)" />
       </div>
-      <div className="form-group">
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
-          <input type="checkbox" checked={done} onChange={e => setDone(e.target.checked)} />
-          완료된 공정으로 등록
-        </label>
-      </div>
+
       <div className="modal-footer">
         <button className="btn btn-secondary" onClick={onClose}>취소</button>
         <button className="btn btn-primary" onClick={save} disabled={loading}>{loading ? '저장 중...' : (isEdit ? '수정' : '등록')}</button>
