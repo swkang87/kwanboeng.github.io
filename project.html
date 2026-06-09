@@ -966,12 +966,9 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                           )}
                         </span>
                   }
-                  {(eventsByProject.get(p.id) || []).map(e => {
-                    const isPast = e.event_date < todayStr;
+                  {(eventsByProject.get(p.id) || []).filter(e => e.event_date >= todayStr).map(e => {
                     const s = ec(e.type);
-                    return isPast
-                      ? <div key={e.id} style={{ marginTop: 3, padding: '3px 7px', background: '#f1f5f9', borderRadius: 4, fontSize: 11, color: '#94a3b8', display: 'inline-block', textDecoration: 'line-through' }}>✓ {EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>
-                      : <div key={e.id} style={{ marginTop: 4, padding: '3px 7px', background: s.bg, borderRadius: 4, fontSize: 11, color: s.tx, display: 'inline-block' }}>{EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>;
+                    return <div key={e.id} style={{ marginTop: 4, padding: '3px 7px', background: s.bg, borderRadius: 4, fontSize: 11, color: s.tx, display: 'inline-block' }}>{EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>;
                   })}
                 </div>
                 {/* 이슈 */}
@@ -1079,12 +1076,9 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
                             {r?.summary && <span style={{ color: '#94a3b8', fontSize: 10, marginLeft: 4 }}>({ff(r.week_date)} 기준: {r.summary.length > 60 ? r.summary.slice(0, 60) + '…' : r.summary})</span>}
                           </span>
                     }
-                    {(eventsByProject.get(p.id) || []).map(e => {
-                      const isPast = e.event_date < todayStr;
+                    {(eventsByProject.get(p.id) || []).filter(e => e.event_date >= todayStr).map(e => {
                       const s = ec(e.type);
-                      return isPast
-                        ? <div key={e.id} style={{ marginTop: 2, padding: '2px 5px', background: '#f1f5f9', borderRadius: 3, fontSize: 10, color: '#94a3b8', display: 'inline-block', textDecoration: 'line-through' }}>✓ {EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>
-                        : <div key={e.id} style={{ marginTop: 3, padding: '2px 5px', background: s.bg, borderRadius: 3, fontSize: 10, color: s.tx, display: 'inline-block' }}>{EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>;
+                      return <div key={e.id} style={{ marginTop: 3, padding: '2px 5px', background: s.bg, borderRadius: 3, fontSize: 10, color: s.tx, display: 'inline-block' }}>{EV_ICON[e.type]} {e.title} ({fs(e.event_date)})</div>;
                     })}
                   </td>
                   <td style={{ fontSize: 10 }}>
