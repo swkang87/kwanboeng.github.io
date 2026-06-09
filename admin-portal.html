@@ -1117,11 +1117,29 @@ function PerfView({ user }) {
 
   useEffect(function() { load(); }, []);
 
-  function uName(id) { var u = users.find(function(x) { return x.id === id; }); return u ? u.name : '-'; }
-  function pName(id) { var p = projects.find(function(x) { return x.id === id; }); return p ? p.name : '-'; }
+  // ── 인덱싱 ──
+  var userById = (function(){ var m=new Map(); for(var i=0;i<users.length;i++) m.set(users[i].id, users[i]); return m; })();
+  var projectById = (function(){ var m=new Map(); for(var i=0;i<projects.length;i++) m.set(projects[i].id, projects[i]); return m; })();
+  function uName(id) { var u = userById.get(id); return u ? u.name : '-'; }
+  function pName(id) { var p = projectById.get(id); return p ? p.name : '-'; }
 
   var yCols = cols.filter(function(c) { return c.collected_at && c.collected_at.startsWith(year); });
-  var totCol = yCols.filter(function(c){ return c.entry_type !== 'outsource_only'; }).reduce(function(s,c) { return s + (c.amount||0); }, 0);
+
+  // project_id → yCols 그룹 합계 인덱싱
+  var yColsByProject = (function(){
+    var m = new Map();
+    for (var i=0; i<yCols.length; i++) {
+      var c = yCols[i];
+      var entry = m.get(c.project_id);
+      if (!entry) { entry = { tc:0, to:0, items:[] }; m.set(c.project_id, entry); }
+      entry.tc += (c.amount||0);
+      entry.to += (c.outsource_cost||0);
+      entry.items.push(c);
+    }
+    return m;
+  })();
+
+  var totCol = yCols.reduce(function(s,c){ return s + (c.entry_type !== 'outsource_only' ? (c.amount||0) : 0); }, 0);
   var totOut = yCols.reduce(function(s,c) { return s + (c.outsource_cost||0); }, 0);
   var totNet = yCols.reduce(function(s,c) { return s + (c.amount||0) - (c.outsource_cost||0); }, 0);
 
@@ -1130,19 +1148,19 @@ function PerfView({ user }) {
     if (catFilter === '전체') return yCols;
     if (catFilter === '감리') return yCols.filter(function(c){ return c.entry_type === 'supervision'; });
     return yCols.filter(function(c){
-      var proj = projects.find(function(p){ return p.id === c.project_id; });
+      var proj = projectById.get(c.project_id);
       return proj && proj.category === catFilter;
     });
   })();
-  var filtTotCol = filteredYCols.filter(function(c){ return c.entry_type !== 'outsource_only'; }).reduce(function(s,c){ return s+(c.amount||0); }, 0);
+  var filtTotCol = filteredYCols.reduce(function(s,c){ return s + (c.entry_type !== 'outsource_only' ? (c.amount||0) : 0); }, 0);
   var filtTotOut = filteredYCols.reduce(function(s,c){ return s+(c.outsource_cost||0); }, 0);
   var filtTotNet = filteredYCols.reduce(function(s,c){ return s+(c.amount||0)-(c.outsource_cost||0); }, 0);
 
-  // 일반 프로젝트 실적
+  // 일반 프로젝트 실적 (인덱싱된 합계 재사용)
   var projSummary = projects.map(function(p) {
-    var pc = yCols.filter(function(c) { return c.project_id === p.id; });
-    var tc = pc.reduce(function(s,c) { return s + (c.amount||0); }, 0);
-    var to = pc.reduce(function(s,c) { return s + (c.outsource_cost||0); }, 0);
+    var agg = yColsByProject.get(p.id);
+    var tc = agg ? agg.tc : 0;
+    var to = agg ? agg.to : 0;
     return { id:p.id, name:p.name, client:p.client, pm_id:p.pm_id, category:p.category, tc:tc, to:to, net:tc-to };
   }).filter(function(p) { return p.tc > 0; }).sort(function(a,b) { return b.net - a.net; });
 
@@ -1162,29 +1180,49 @@ function PerfView({ user }) {
   // 프로젝트별 + 감리 합산
   var allProjSummary = projSummary.concat(supvSummary);
 
-  // PM 자동 100% 포함한 유효 기여율 목록 생성
+  // PM 자동 100% 포함한 유효 기여율 목록 생성 (인덱싱으로 some/find 제거)
   var effectivePerfs = (function() {
+    var yearNum = Number(year);
+    // 키: project_id|user_id|year 존재 여부
+    var perfKey = new Set();
+    for (var i=0; i<perfs.length; i++) {
+      var pf = perfs[i];
+      if (pf.year === yearNum) perfKey.add(pf.project_id + '|' + pf.user_id);
+    }
     var result = perfs.slice();
-    projects.forEach(function(proj) {
-      if (!proj.pm_id) return;
-      var hasEntry = perfs.some(function(pf) {
-        return pf.project_id === proj.id && pf.user_id === proj.pm_id && pf.year === Number(year);
-      });
-      var hasCols = yCols.some(function(c) { return c.project_id === proj.id; });
-      if (!hasEntry && hasCols) {
-        result.push({ project_id: proj.id, user_id: proj.pm_id, contribution_rate: 100, year: Number(year), _auto: true });
-      }
-    });
+    for (var j=0; j<projects.length; j++) {
+      var proj = projects[j];
+      if (!proj.pm_id) continue;
+      if (perfKey.has(proj.id + '|' + proj.pm_id)) continue;
+      if (!yColsByProject.has(proj.id)) continue;
+      result.push({ project_id: proj.id, user_id: proj.pm_id, contribution_rate: 100, year: yearNum, _auto: true });
+    }
     return result;
   })();
 
+  // user_id → [{project_id, rate}, ...]
+  var perfsByUser = (function(){
+    var yearNum = Number(year);
+    var m = new Map();
+    for (var i=0; i<effectivePerfs.length; i++) {
+      var pf = effectivePerfs[i];
+      if (pf.year !== yearNum) continue;
+      var arr = m.get(pf.user_id);
+      if (!arr) { arr = []; m.set(pf.user_id, arr); }
+      arr.push(pf);
+    }
+    return m;
+  })();
+
   var userSummary = users.map(function(u) {
-    var myP = effectivePerfs.filter(function(p) { return p.user_id === u.id && p.year === Number(year); });
-    var total = myP.reduce(function(s, pf) {
-      var net = yCols.filter(function(c) { return c.project_id === pf.project_id; })
-        .reduce(function(a,c) { return a + (c.amount||0) - (c.outsource_cost||0); }, 0);
-      return s + net * (pf.contribution_rate||0) / 100;
-    }, 0);
+    var myP = perfsByUser.get(u.id) || [];
+    var total = 0;
+    for (var i=0; i<myP.length; i++) {
+      var pf = myP[i];
+      var agg = yColsByProject.get(pf.project_id);
+      var net = agg ? (agg.tc - agg.to) : 0;
+      total += net * (pf.contribution_rate||0) / 100;
+    }
     return { id:u.id, name:u.name, total:total, cnt:myP.length };
   }).filter(function(u) { return u.total > 0; }).sort(function(a,b) { return b.total - a.total; });
 
@@ -1571,20 +1609,20 @@ function PerfView({ user }) {
                       if (col==='user') return uName(pf.user_id);
                       if (col==='rate') return pf.contribution_rate||0;
                       if (col==='my') {
-                        var net = yCols.filter(function(c){ return c.project_id===pf.project_id; })
-                          .reduce(function(s,c){ return s+(c.amount||0)-(c.outsource_cost||0); },0);
+                        var agg = yColsByProject.get(pf.project_id);
+                        var net = agg ? (agg.tc - agg.to) : 0;
                         return Math.round(net*(pf.contribution_rate||0)/100);
                       }
                       return '';
                     }).map(function(pf) {
-                      var net = yCols.filter(function(c) { return c.project_id === pf.project_id; })
-                        .reduce(function(s,c) { return s + (c.amount||0) - (c.outsource_cost||0); }, 0);
+                      var agg = yColsByProject.get(pf.project_id);
+                      var net = agg ? (agg.tc - agg.to) : 0;
                       var my = Math.round(net * (pf.contribution_rate||0) / 100);
                       return (
                         <tr key={pf.project_id + '-' + pf.user_id}>
                           <td style={{fontWeight:600}}>
                             {(function(){
-                              var proj = projects.find(function(p){ return p.id === pf.project_id; });
+                              var proj = projectById.get(pf.project_id);
                               return (
                                 <span style={{display:'flex',flexDirection:'column',gap:1}}>
                                   {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block'}}>{proj.client}</span>}

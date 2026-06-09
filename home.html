@@ -83,7 +83,7 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
 <body>
 <div id="app"></div>
 <script type="text/babel" data-presets="react">
-const {useState,useEffect,useCallback} = React;
+const {useState,useEffect,useCallback,useMemo} = React;
 
 // ── Supabase 클라이언트 ────────────────────────────────────
 const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
@@ -294,10 +294,19 @@ function CalendarView({user,teamName}){
 
   useEffect(()=>{fetchHolidays();load();},[]);
 
-  const tColor=uid=>{const u=users.find(x=>x.id===uid);const t=teams.find(t=>t.id===u?.team_id);return TCOL[t?.name]||'#94a3b8';};
+  // ── 인덱싱 (find 반복 제거) ──
+  const userById = useMemo(()=>{const m=new Map();for(const u of users)m.set(u.id,u);return m;},[users]);
+  const teamById = useMemo(()=>{const m=new Map();for(const t of teams)m.set(t.id,t);return m;},[teams]);
+  const userColorById = useMemo(()=>{
+    const m=new Map();
+    for(const u of users){const t=teamById.get(u.team_id);m.set(u.id,TCOL[t?.name]||'#94a3b8');}
+    return m;
+  },[users,teamById]);
+
+  const tColor=uid=>userColorById.get(uid)||'#94a3b8';
 
   const lvLabel=l=>{
-    const d=Number(l.days);const u=users.find(x=>x.id===l.user_id);const nm=u?.name||'';
+    const d=Number(l.days);const u=userById.get(l.user_id);const nm=u?.name||'';
     if(d>=1)return nm;
     const tag=d<=0.25?'2H':'4H';
     return l.type==='공가'?nm+'(공가·'+tag+')':nm+'('+tag+')';
@@ -310,13 +319,15 @@ function CalendarView({user,teamName}){
       let cur=new Date((l.start_date||l.end_date)+'T00:00:00');
       const end=new Date((l.end_date||l.start_date)+'T00:00:00');
       let n=0;
+      const u2=userById.get(l.user_id);
+      const d2=Number(l.days);
+      const timeTag=d2>=1?'DAY':d2<=0.25?'2H':'4H';
+      const shortLabel=(u2?u2.name.charAt(0):'?')+'('+timeTag+')';
+      const label=lvLabel(l);
+      const bg=tColor(l.user_id);
       while(cur<=end&&n<31){
         const ds=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
-        const u2=users.find(x=>x.id===l.user_id);
-        const d2=Number(l.days);
-        const timeTag=d2>=1?'DAY':d2<=0.25?'2H':'4H';
-        const shortLabel=(u2?u2.name.charAt(0):'?')+'('+timeTag+')';
-        add(ds,{k:'leave',label:lvLabel(l),shortLabel:shortLabel,fullName:u2?u2.name:'',timeTag:timeTag,type:l.type,bg:tColor(l.user_id),tx:'#fff',raw:l});
+        add(ds,{k:'leave',label:label,shortLabel:shortLabel,fullName:u2?u2.name:'',timeTag:timeTag,type:l.type,bg:bg,tx:'#fff',raw:l});
         cur.setDate(cur.getDate()+1);n++;
       }
     });
@@ -343,7 +354,7 @@ function CalendarView({user,teamName}){
     });
     return m;
   };
-  const evMap=buildMap();
+  const evMap = useMemo(buildMap, [leaves, pevs, cevs, projs, userById, userColorById]);
 
   // ── 날짜 유틸 ──────────────────────────────────────────
   const mkDs=(y,m,d)=>y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');

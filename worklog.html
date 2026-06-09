@@ -415,7 +415,7 @@ const CONFIG = {
 const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
 
 // ─── REACT HOOKS ──────────────────────────────────────────────────────────
-const { useState, useEffect, useCallback, useRef } = React;
+const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────
 const VIEWS = { MY_LOG: 'my_log', ALL_LOGS: 'all_logs', HISTORY: 'history', LOGS: 'logs' };
@@ -1204,7 +1204,13 @@ function AllLogsView({ user }) {
     fetchLogs();
   }, [selDate, mode, usersLoaded]);
 
-  const logFor = (uid, d) => logs.find(l => l.user_id === uid && l.log_date === d);
+  // 인덱싱: (user_id|log_date) → log
+  const logIndex = useMemo(() => {
+    const m = new Map();
+    for (const l of logs) m.set(l.user_id + '|' + l.log_date, l);
+    return m;
+  }, [logs]);
+  const logFor = (uid, d) => logIndex.get(uid + '|' + d);
 
   const shift = (dir) => {
     const d = new Date(selDate + 'T00:00:00');
@@ -1443,10 +1449,13 @@ function LogsView({ user }) {
     return true;
   });
 
-  const userName = (uid) => users.find(u => u.id === uid)?.name || uid;
+  // 인덱싱
+  const userById = useMemo(() => { const m = new Map(); for (const u of users) m.set(u.id, u); return m; }, [users]);
+  const teamById = useMemo(() => { const m = new Map(); for (const t of teams) m.set(t.id, t); return m; }, [teams]);
+  const userName = (uid) => userById.get(uid)?.name || uid;
   const teamName = (uid) => {
-    const u = users.find(u => u.id === uid);
-    return teams.find(t => t.id === u?.team_id)?.name || '-';
+    const u = userById.get(uid);
+    return teamById.get(u?.team_id)?.name || '-';
   };
   const fmtSavedAt = (ts) => {
     if (!ts) return '-';

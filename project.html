@@ -273,7 +273,7 @@ async function loadNagerHolidays(){
 }
 loadNagerHolidays();
 
-const { useState, useEffect, useCallback, useRef } = React;
+const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
 // ─── Supabase ───
 const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
@@ -651,27 +651,90 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
 
   const refresh = () => { if (appData?.reload) appData.reload(); else loadAll(); };
 
-  const uName = (id) => users.find(u => u.id === id)?.name || '';
-  const pmColor = (id) => buildPmColorMap(users)[id] || { bg: '#64748b', tx: '#fff' };
+  // ── 인덱싱 (렌더 중 find/filter/sort 반복 제거) ──
+  const userNameById = useMemo(() => {
+    const m = new Map();
+    for (const u of users) m.set(u.id, u.name || '');
+    return m;
+  }, [users]);
+  const uName = (id) => userNameById.get(id) || '';
+
+  const pmColorById = useMemo(() => buildPmColorMap(users), [users]);
+  const pmColor = (id) => pmColorById[id] || { bg: '#64748b', tx: '#fff' };
+
+  // project_id → 보고 배열(week_date desc)
+  const reportsByProject = useMemo(() => {
+    const m = new Map();
+    for (const r of reports) {
+      const arr = m.get(r.project_id);
+      if (arr) arr.push(r); else m.set(r.project_id, [r]);
+    }
+    for (const arr of m.values()) arr.sort((a,b) => b.week_date.localeCompare(a.week_date));
+    return m;
+  }, [reports]);
+
+  // project_id → 미완료 이벤트(event_date asc)
+  const openEventsByProject = useMemo(() => {
+    const m = new Map();
+    for (const e of events) {
+      if (e.done) continue;
+      const arr = m.get(e.project_id);
+      if (arr) arr.push(e); else m.set(e.project_id, [e]);
+    }
+    for (const arr of m.values()) arr.sort((a,b) => a.event_date.localeCompare(b.event_date));
+    return m;
+  }, [events]);
+
+  // project_id → 완료 이벤트(event_date desc)
+  const doneEventsByProject = useMemo(() => {
+    const m = new Map();
+    for (const e of events) {
+      if (!e.done) continue;
+      const arr = m.get(e.project_id);
+      if (arr) arr.push(e); else m.set(e.project_id, [e]);
+    }
+    for (const arr of m.values()) arr.sort((a,b) => b.event_date.localeCompare(a.event_date));
+    return m;
+  }, [events]);
+
+  // 사용자별 멤버십 project_id Set
+  const memberPidsByUser = useMemo(() => {
+    const m = new Map();
+    for (const mb of allMembers) {
+      let s = m.get(mb.user_id);
+      if (!s) { s = new Set(); m.set(mb.user_id, s); }
+      s.add(mb.project_id);
+    }
+    return m;
+  }, [allMembers]);
 
   // 기술지원은 배정된 프로젝트만 (컴포넌트 레벨에서 정의)
   const memberPids = user?.role === 'contractor'
-    ? new Set(allMembers.filter(m => m.user_id === user.id).map(m => m.project_id))
+    ? (memberPidsByUser.get(user.id) || new Set())
     : null;
 
   // 주간보고 입력 권한 체크
   const canInput = (p) => {
     if (user?.role === 'admin') return true;
     if (p.pm_id === user?.id) return true;
-    if (allMembers.some(m => m.user_id === user?.id && m.project_id === p.id)) return true;
+    const s = memberPidsByUser.get(user?.id);
+    if (s && s.has(p.id)) return true;
     return false;
   };
 
-  const sortedProjects = (() => {
+  const sortedProjects = useMemo(() => {
     const catOrder = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
     const PM_ORDER = ['김병용','장용기','박호진','윤종수','이규민'];
-    const pmOrder = (pmId) => { const n = users.find(u => u.id === pmId)?.name || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
-    const getPct = (p) => reports.filter(r => r.project_id === p.id && r.week_date <= selWeek).sort((x,y) => y.week_date.localeCompare(x.week_date))[0]?.progress_pct || 0;
+    const pmOrder = (pmId) => { const n = userNameById.get(pmId) || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
+    // 선택 주 기준 progress_pct (week_date <= selWeek 중 최신)
+    const getPctById = (pid) => {
+      const arr = reportsByProject.get(pid);
+      if (!arr) return 0;
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i].week_date <= selWeek) return arr[i].progress_pct || 0;
+      }
+      return 0;
+    };
     const statusOrder = (s) => s === '진행중' ? 0 : s === '중지' ? 1 : 2;
 
     return projects
@@ -686,9 +749,10 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
         // 중지 프로젝트는 무조건 표시
         if (p.status === '중지') return true;
         // 이전 최신 보고가 100%면 제외
-        const thisWeekReport = reports.find(r => r.project_id === p.id && r.week_date === selWeek);
-        if (!thisWeekReport) {
-          const latestReport = reports.filter(r => r.project_id === p.id && r.week_date < selWeek).sort((a,b) => b.week_date.localeCompare(a.week_date))[0];
+        const arr = reportsByProject.get(p.id);
+        const thisWeekReport = arr ? arr.find(r => r.week_date === selWeek) : null;
+        if (!thisWeekReport && arr) {
+          const latestReport = arr.find(r => r.week_date < selWeek);
           if (latestReport?.progress_pct === 100) return false;
         }
         return true;
@@ -697,22 +761,41 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
         catOrder(a.category) - catOrder(b.category) ||
         pmOrder(a.pm_id) - pmOrder(b.pm_id) ||
         statusOrder(a.status) - statusOrder(b.status) ||
-        getPct(b) - getPct(a)
+        getPctById(b.id) - getPctById(a.id)
       );
-  })();
+  }, [projects, reportsByProject, userNameById, selWeek, memberPids]);
 
   const getReport = (pid) => {
-    const r = reports.filter(x => x.project_id === pid && x.week_date === selWeek)[0];
+    const arr = reportsByProject.get(pid);
+    if (!arr) return null;
+    const r = arr.find(x => x.week_date === selWeek);
     if (r) return { ...r, isThisWeek: true };
-    const prev = reports.filter(x => x.project_id === pid && x.week_date < selWeek).sort((a,b) => b.week_date.localeCompare(a.week_date))[0];
+    const prev = arr.find(x => x.week_date < selWeek);
     return prev ? { ...prev, isThisWeek: false } : null;
   };
 
-  const getNextEvent = (pid) => events.filter(e => e.project_id === pid && !e.done).sort((a,b) => a.event_date.localeCompare(b.event_date))[0];
+  const getNextEvent = (pid) => {
+    const arr = openEventsByProject.get(pid);
+    return arr ? arr[0] : undefined;
+  };
 
   // 선택 주 기준 7일 전: 완료된 주요공정은 이 날짜 이후까지만 표시
-  const selWeekCutoff = selWeek ? (() => { const d = new Date(selWeek+'T00:00:00'); d.setDate(d.getDate()-7); return d.toISOString().split('T')[0]; })() : '';
-  const getRecentDoneEvs = (pid) => events.filter(e => e.project_id === pid && e.done && selWeekCutoff && e.event_date >= selWeekCutoff).sort((a,b) => b.event_date.localeCompare(a.event_date));
+  const selWeekCutoff = useMemo(() => {
+    if (!selWeek) return '';
+    const d = new Date(selWeek+'T00:00:00'); d.setDate(d.getDate()-7);
+    return d.toISOString().split('T')[0];
+  }, [selWeek]);
+  const getRecentDoneEvs = (pid) => {
+    if (!selWeekCutoff) return [];
+    const arr = doneEventsByProject.get(pid);
+    if (!arr) return [];
+    // arr는 event_date desc 정렬됨
+    const out = [];
+    for (const e of arr) {
+      if (e.event_date >= selWeekCutoff) out.push(e);
+    }
+    return out;
+  };
 
   const activeProjects = sortedProjects.filter(p => p.status !== '완료');
   const thisWeekReports = reports.filter(r => r.week_date === selWeek);
@@ -1453,16 +1536,52 @@ function ProjectList({ gp, user, listFilter, setListFilter, appData }) {
     setLoading(false);
   };
 
-  const uName = (id) => users.find(u => u.id === id)?.name || '';
-  const getPct = (pid) => reports.filter(r => r.project_id === pid).sort((a,b) => b.week_date.localeCompare(a.week_date))[0]?.progress_pct || 0;
-  const getNext = (pid) => events.filter(e => e.project_id === pid && !e.done).sort((a,b) => a.event_date.localeCompare(b.event_date))[0];
-  const hasReportThisWeek = (pid) => {
+  // ── 인덱싱 (렌더 중 find/filter/sort 반복 제거) ──
+  const userNameById = useMemo(() => {
+    const m = new Map();
+    for (const u of users) m.set(u.id, u.name || '');
+    return m;
+  }, [users]);
+  const uName = (id) => userNameById.get(id) || '';
+
+  // project_id → 최신 progress_pct
+  const latestPctById = useMemo(() => {
+    const best = new Map(); // pid -> {date, pct}
+    for (const r of reports) {
+      const cur = best.get(r.project_id);
+      if (!cur || r.week_date > cur.date) {
+        best.set(r.project_id, { date: r.week_date, pct: r.progress_pct || 0 });
+      }
+    }
+    const m = new Map();
+    for (const [k, v] of best) m.set(k, v.pct);
+    return m;
+  }, [reports]);
+  const getPct = (pid) => latestPctById.get(pid) || 0;
+
+  // project_id → 다음 이벤트
+  const nextEventById = useMemo(() => {
+    const m = new Map();
+    for (const e of events) {
+      if (e.done) continue;
+      const cur = m.get(e.project_id);
+      if (!cur || e.event_date < cur.event_date) m.set(e.project_id, e);
+    }
+    return m;
+  }, [events]);
+  const getNext = (pid) => nextEventById.get(pid);
+
+  // project_id → 이번 주 보고 존재 여부
+  const reportPidsThisWeek = useMemo(() => {
     const mn = thisMonday();
-    return reports.some(r => r.project_id === pid && r.week_date >= mn);
-  };
+    const s = new Set();
+    for (const r of reports) if (r.week_date >= mn) s.add(r.project_id);
+    return s;
+  }, [reports]);
+  const hasReportThisWeek = (pid) => reportPidsThisWeek.has(pid);
 
   const PM_ORDER = ['김병용','장용기','박호진','윤종수','이규민'];
-  const pmOrder = (pmId) => { const n = users.find(u => u.id === pmId)?.name || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
+  const pmOrder = (pmId) => { const n = userNameById.get(pmId) || ''; const i = PM_ORDER.indexOf(n); return i >= 0 ? i : 99; };
   const catOrder = (c) => c === '사급' ? 0 : c === '관급' ? 1 : 2;
 
   const handleSort = (key) => {
@@ -1509,9 +1628,12 @@ function ProjectList({ gp, user, listFilter, setListFilter, appData }) {
   };
 
   // 기술지원(contractor)은 배정된 프로젝트만 표시
-  const memberProjectIds = user?.role === 'contractor'
-    ? new Set((members || []).filter(m => m.user_id === user.id).map(m => m.project_id))
-    : null;
+  const memberProjectIds = useMemo(() => {
+    if (user?.role !== 'contractor') return null;
+    const s = new Set();
+    for (const m of (members || [])) if (m.user_id === user.id) s.add(m.project_id);
+    return s;
+  }, [members, user?.id, user?.role]);
   const baseFiltered = projects.filter(p =>
     (cf === 'all' || p.category === cf) &&
     (memberProjectIds === null || memberProjectIds.has(p.id))
@@ -1848,9 +1970,17 @@ function MyProjects({ user, gp, appData }) {
 
   const buildSorted = (allProjects, allReports, allUsers, allMembers) => {
     const PM_ORDER_MINE = ['김병용','박호진','장용기','조원범','이규민'];
+    // 인덱싱: 이름과 최신 progress_pct
+    const userNameMap = new Map();
+    for (const u of allUsers) userNameMap.set(u.id, u.name || '');
+    const latestPctMap = new Map();
+    for (const r of allReports) {
+      const cur = latestPctMap.get(r.project_id);
+      if (!cur || r.week_date > cur.date) latestPctMap.set(r.project_id, { date: r.week_date, pct: r.progress_pct || 0 });
+    }
     const catOrd    = (c)   => c === '사급' ? 0 : c === '관급' ? 1 : 2;
-    const pmOrd     = (pid) => { const n = allUsers.find(u => u.id === pid)?.name || ''; const i = PM_ORDER_MINE.indexOf(n); return i >= 0 ? i : 99; };
-    const latestPct = (pid) => allReports.filter(r => r.project_id === pid).sort((a,b) => b.week_date.localeCompare(a.week_date))[0]?.progress_pct || 0;
+    const pmOrd     = (pid) => { const n = userNameMap.get(pid) || ''; const i = PM_ORDER_MINE.indexOf(n); return i >= 0 ? i : 99; };
+    const latestPct = (pid) => latestPctMap.get(pid)?.pct || 0;
     const sortList  = (list) => {
       const active = list.filter(p => p.status !== '완료').sort((a, b) =>
         catOrd(a.category) - catOrd(b.category) ||
@@ -1907,10 +2037,41 @@ function MyProjects({ user, gp, appData }) {
 
   const refresh = () => { if (appData?.reload) appData.reload(); else loadAll(); };
 
-  const isPM = (pid) => myProjects.find(p => p.id === pid)?.pm_id === user.id || user.role === 'admin';
-  const uName = (id) => users.find(u => u.id === id)?.name || '';
-  const getLatestReport = (pid) => reports.filter(r => r.project_id === pid).sort((a,b) => b.week_date.localeCompare(a.week_date))[0];
-  const getNextEvent = (pid) => events.filter(e => e.project_id === pid && !e.done).sort((a,b) => a.event_date.localeCompare(b.event_date))[0];
+  // ── 인덱싱 (렌더 중 find/filter/sort 반복 제거) ──
+  const projectPmById = useMemo(() => {
+    const m = new Map();
+    for (const p of myProjects) m.set(p.id, p.pm_id);
+    return m;
+  }, [myProjects]);
+  const isPM = (pid) => projectPmById.get(pid) === user.id || user.role === 'admin';
+
+  const userNameById = useMemo(() => {
+    const m = new Map();
+    for (const u of users) m.set(u.id, u.name || '');
+    return m;
+  }, [users]);
+  const uName = (id) => userNameById.get(id) || '';
+
+  const latestReportByProject = useMemo(() => {
+    const m = new Map(); // pid -> latest report
+    for (const r of reports) {
+      const cur = m.get(r.project_id);
+      if (!cur || r.week_date > cur.week_date) m.set(r.project_id, r);
+    }
+    return m;
+  }, [reports]);
+  const getLatestReport = (pid) => latestReportByProject.get(pid);
+
+  const nextEventByProject = useMemo(() => {
+    const m = new Map();
+    for (const e of events) {
+      if (e.done) continue;
+      const cur = m.get(e.project_id);
+      if (!cur || e.event_date < cur.event_date) m.set(e.project_id, e);
+    }
+    return m;
+  }, [events]);
+  const getNextEvent = (pid) => nextEventByProject.get(pid);
 
   const showMsg = (m) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 

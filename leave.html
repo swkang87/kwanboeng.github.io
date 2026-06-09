@@ -23,7 +23,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script type="text/babel" data-presets="react">
-const {useState,useEffect,useCallback,useRef}=React;
+const {useState,useEffect,useCallback,useRef,useMemo}=React;
 
 const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
 
@@ -510,9 +510,23 @@ function CalView({users,teams,leaves}){
   const [tab,setTab]=useState('month');
   const WD=['일','월','화','수','목','금','토'];
   const TEAM_COLORS={'설계1팀':'#2563eb','설계2팀':'#059669','지반팀':'#d97706','관리팀':'#7c3aed'};
-  const getTeamColor=uid=>{const u=users.find(x=>x.id===uid);const t=teams.find(t=>t.id===u?.team_id);return TEAM_COLORS[t?.name]||'#94a3b8';};
-  const approved=leaves.filter(l=>l.status==='approved');
-  const getDayPeople=ds=>approved.filter(l=>{const u=users.find(x=>x.id===l.user_id);return u?.team_id&&l.start_date<=ds&&(l.end_date||l.start_date)>=ds;}).map(l=>{const u=users.find(x=>x.id===l.user_id);return{name:u?.name||'',color:getTeamColor(l.user_id),type:l.type,days:l.days,time:l.start_time?`${l.start_time.slice(0,5)}~${l.end_time.slice(0,5)}`:null};});
+  // ── 인덱싱 (셀별 find 반복 제거) ──
+  const userById=useMemo(()=>{const m=new Map();for(const u of users)m.set(u.id,u);return m;},[users]);
+  const teamById=useMemo(()=>{const m=new Map();for(const t of teams)m.set(t.id,t);return m;},[teams]);
+  const userColorById=useMemo(()=>{const m=new Map();for(const u of users){const t=teamById.get(u.team_id);m.set(u.id,TEAM_COLORS[t?.name]||'#94a3b8');}return m;},[users,teamById]);
+  const getTeamColor=uid=>userColorById.get(uid)||'#94a3b8';
+  const approved=useMemo(()=>leaves.filter(l=>l.status==='approved'),[leaves]);
+  const getDayPeople=ds=>{
+    const out=[];
+    for(const l of approved){
+      const u=userById.get(l.user_id);
+      if(!u?.team_id) continue;
+      if(l.start_date<=ds && (l.end_date||l.start_date)>=ds){
+        out.push({name:u.name||'',color:userColorById.get(l.user_id)||'#94a3b8',type:l.type,days:l.days,time:l.start_time?`${l.start_time.slice(0,5)}~${l.end_time.slice(0,5)}`:null});
+      }
+    }
+    return out;
+  };
   const dim=new Date(yr,mo+1,0).getDate(),fd=new Date(yr,mo,1).getDay(),cells=Math.ceil((fd+dim)/7)*7;
 
   // 주간 뷰 - 오늘이 속한 주 기준으로 시작
