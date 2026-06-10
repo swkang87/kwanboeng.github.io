@@ -24,6 +24,9 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font
   .top-nav::-webkit-scrollbar{display:none;}
   .nav-right{display:none;}
 }
+@media(max-width:900px){
+  .wl-2col{grid-template-columns:1fr !important;}
+}
 .top-nav{position:sticky;top:83px;z-index:200;background:#1e293b;height:36px;display:flex;align-items:center;padding:0 14px;gap:1px;border-bottom:1px solid var(--theme,#0f172a);}
 .nav-btn{display:flex;align-items:center;gap:4px;padding:5px 11px;height:26px;border:none;background:transparent;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-size:11px;font-weight:400;color:#94a3b8;cursor:pointer;white-space:nowrap;}
 .nav-btn.active{background:#7c3aed;color:#fff;font-weight:700;}
@@ -421,6 +424,12 @@ function WorklogView({ user }) {
   const [saving, setSaving]   = useState(false);
   const [msg, setMsg]         = useState('');
   const [loading, setLoading] = useState(false);
+  // 공유 할일
+  const [todos, setTodos]           = useState([]);
+  const [todoLoading, setTodoLoading] = useState(false);
+  const [todoInput, setTodoInput]   = useState('');
+  const [todoAdding, setTodoAdding] = useState(false);
+  const [showTodoPicker, setShowTodoPicker] = useState(false);
   // 전체 조회
   const [selDate, setSelDate]     = useState(TODAY());
   const [allUsers, setAllUsers]   = useState([]);
@@ -453,6 +462,50 @@ function WorklogView({ user }) {
     window.addEventListener('popstate', onPop);
     return function() { window.removeEventListener('popstate', onPop); };
   }, []);
+
+  // ── 공유 할일 로드/추가/완료 ─────────────────────────────────────────────
+  function loadTodos() {
+    setTodoLoading(true);
+    sb.from('shared_todos').select('*,creator:created_by(name),completer:completed_by(name)')
+      .neq('status', '완료')
+      .order('created_at', { ascending: true })
+      .then(function(r) {
+        setTodos(r.data || []);
+        setTodoLoading(false);
+      });
+  }
+
+  function addTodo() {
+    var title = todoInput.trim();
+    if (!title) return;
+    setTodoAdding(true);
+    sb.from('shared_todos').insert({ title: title, created_by: user.id, status: '대기' })
+      .then(function(r) {
+        setTodoAdding(false);
+        if (!r.error) { setTodoInput(''); loadTodos(); }
+      });
+  }
+
+  function completeTodo(id) {
+    sb.from('shared_todos').update({
+      status: '완료',
+      completed_by: user.id,
+      completed_at: new Date().toISOString()
+    }).eq('id', id).then(function() { loadTodos(); });
+  }
+
+  function deleteTodo(id) {
+    sb.from('shared_todos').delete().eq('id', id).then(function() { loadTodos(); });
+  }
+
+  // 업무일지 작성폼에서 할일 선택 → 항목 추가 + 완료처리
+  function pickTodo(todo) {
+    setTasks(function(p) { return p.concat([{ id: genId(), content: todo.title, status: '진행중', fromTodoId: todo.id }]); });
+    completeTodo(todo.id);
+    setShowTodoPicker(false);
+  }
+
+  useEffect(function() { loadTodos(); }, []);
 
   // ── 내 업무일지 로드 ──────────────────────────────────────────────────────
   const loadMyLog = useCallback(async function(d) {
@@ -557,6 +610,7 @@ function WorklogView({ user }) {
 
       {/* ── 내 업무일지 ── */}
       {tab === 'my' && (
+        <div className="wl-2col" style={{display:'grid',gridTemplateColumns:'1fr 320px',gap:16,alignItems:'start'}}>
         <div className="card">
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:8}}>
             <span style={{fontSize:15,fontWeight:800}}>✏️ {user.name}님 · {fmtDateKo(date)} ({dayNameOf(date)})</span>
@@ -579,9 +633,17 @@ function WorklogView({ user }) {
               {/* 오늘 한 일 */}
               <div className="sh">
                 <span className="st">오늘 한 일</span>
-                <button className="btn btn-s btn-sm" onClick={function() {
-                  setTasks(function(p) { return p.concat([{id:genId(),content:'',status:'진행중'}]); });
-                }}>+ 추가</button>
+                <div style={{display:'flex',gap:6}}>
+                  {todos.length > 0 && (
+                    <button className="btn btn-sm" onClick={function(){ setShowTodoPicker(true); }}
+                      style={{background:'#ede9fe',color:'#6d28d9',border:'none',fontWeight:700}}>
+                      📋 할일에서 가져오기 ({todos.length})
+                    </button>
+                  )}
+                  <button className="btn btn-s btn-sm" onClick={function() {
+                    setTasks(function(p) { return p.concat([{id:genId(),content:'',status:'진행중'}]); });
+                  }}>+ 추가</button>
+                </div>
               </div>
               {tasks.length === 0 && <div style={{color:'#94a3b8',fontSize:13,marginBottom:12}}>업무를 추가하세요.</div>}
               {tasks.map(function(t) {
@@ -620,6 +682,56 @@ function WorklogView({ user }) {
               </div>
             </div>
           )}
+        </div>
+
+        {/* ── 공유 할일 패널 ── */}
+        <div className="card" style={{position:'sticky',top:128}}>
+          <div className="sh" style={{marginBottom:12}}>
+            <span className="st">📋 공유 할일</span>
+            <span style={{fontSize:11,color:'#94a3b8'}}>{todos.length}건 남음</span>
+          </div>
+
+          {/* 입력창 */}
+          <div style={{display:'flex',gap:6,marginBottom:12}}>
+            <input className="fi" value={todoInput} placeholder="할일 입력 후 Enter"
+              style={{flex:1,fontSize:12,padding:'7px 10px'}}
+              onChange={function(e){ setTodoInput(e.target.value); }}
+              onKeyDown={function(e){ if(e.key==='Enter') addTodo(); }} />
+            <button className="btn btn-p btn-sm" onClick={addTodo} disabled={todoAdding || !todoInput.trim()}>
+              {todoAdding ? '...' : '+'}
+            </button>
+          </div>
+
+          {/* 목록 */}
+          {todoLoading ? (
+            <div style={{fontSize:12,color:'#94a3b8',padding:'8px 0'}}>불러오는 중...</div>
+          ) : todos.length === 0 ? (
+            <div style={{fontSize:12,color:'#94a3b8',padding:'8px 0',textAlign:'center'}}>할일이 없습니다 ✓</div>
+          ) : (
+            <div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:400,overflowY:'auto'}}>
+              {todos.map(function(todo) {
+                return (
+                  <div key={todo.id} style={{display:'flex',alignItems:'flex-start',gap:8,
+                    padding:'8px 10px',background:'#f8fafc',borderRadius:8,border:'1px solid #e2e8f0'}}>
+                    <button onClick={function(){ completeTodo(todo.id); }}
+                      style={{flexShrink:0,width:18,height:18,borderRadius:4,border:'2px solid #cbd5e1',
+                        background:'#fff',cursor:'pointer',marginTop:1}} title="완료 처리" />
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,fontWeight:600,color:'#1e293b',
+                        wordBreak:'break-all',lineHeight:1.4}}>{todo.title}</div>
+                      {todo.creator && (
+                        <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>{todo.creator.name}</div>
+                      )}
+                    </div>
+                    <button onClick={function(){ deleteTodo(todo.id); }}
+                      style={{flexShrink:0,background:'transparent',border:'none',
+                        color:'#cbd5e1',cursor:'pointer',fontSize:14,lineHeight:1}} title="삭제">✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
         </div>
       )}
 
@@ -813,6 +925,47 @@ function WorklogView({ user }) {
 
             </div>
           )}
+        </div>
+      )}
+      {/* ── 할일 선택 팝업 ── */}
+      {showTodoPicker && (
+        <div className="mbg" onClick={function(){ setShowTodoPicker(false); }}>
+          <div className="mbox" style={{maxWidth:420}} onClick={function(e){ e.stopPropagation(); }}>
+            <div className="mh">
+              <span style={{fontWeight:800,fontSize:15}}>📋 공유 할일에서 가져오기</span>
+              <button style={{background:'transparent',border:'none',fontSize:18,cursor:'pointer',color:'#64748b'}}
+                onClick={function(){ setShowTodoPicker(false); }}>✕</button>
+            </div>
+            <div style={{padding:16}}>
+              {todos.length === 0 ? (
+                <div style={{color:'#94a3b8',fontSize:13,textAlign:'center',padding:'20px 0'}}>남은 할일이 없습니다</div>
+              ) : (
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  <div style={{fontSize:12,color:'#64748b',marginBottom:4}}>
+                    선택하면 업무일지에 추가되고 해당 할일은 완료 처리됩니다.
+                  </div>
+                  {todos.map(function(todo) {
+                    return (
+                      <button key={todo.id} onClick={function(){ pickTodo(todo); }}
+                        style={{display:'flex',alignItems:'flex-start',gap:10,padding:'12px 14px',
+                          background:'#f8fafc',border:'1.5px solid #e2e8f0',borderRadius:10,
+                          cursor:'pointer',textAlign:'left',width:'100%',transition:'all .15s'}}
+                        onMouseEnter={function(e){ e.currentTarget.style.borderColor='#7c3aed'; e.currentTarget.style.background='#faf5ff'; }}
+                        onMouseLeave={function(e){ e.currentTarget.style.borderColor='#e2e8f0'; e.currentTarget.style.background='#f8fafc'; }}>
+                        <span style={{fontSize:16,flexShrink:0,marginTop:1}}>☐</span>
+                        <div>
+                          <div style={{fontSize:13,fontWeight:700,color:'#1e293b'}}>{todo.title}</div>
+                          {todo.creator && (
+                            <div style={{fontSize:11,color:'#94a3b8',marginTop:2}}>등록: {todo.creator.name}</div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
