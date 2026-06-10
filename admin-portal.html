@@ -1333,13 +1333,29 @@ function PerfView({ user }) {
     return m;
   })();
 
+  // contracts 인덱싱 (project_id → contract)
+  var contractByProject = (function(){
+    var m = new Map();
+    for (var i=0; i<contracts.length; i++) m.set(contracts[i].project_id, contracts[i]);
+    return m;
+  })();
+
+  // net 실적에 계약금액 초과분 제거 헬퍼
+  function cappedNet(project_id, rawNet) {
+    var ct = contractByProject.get(project_id);
+    if (!ct || !ct.amount || ct.amount <= 0) return rawNet;
+    var cap = ct.amount - (ct.prior_collected || 0);
+    return Math.min(rawNet, Math.max(0, cap));
+  }
+
   var userSummary = users.map(function(u) {
     var myP = perfsByUser.get(u.id) || [];
     var total = 0;
     for (var i=0; i<myP.length; i++) {
       var pf = myP[i];
       var agg = yColsByProject.get(pf.project_id);
-      var net = agg ? (agg.tc - agg.to) : 0;
+      var rawNet = agg ? (agg.tc - agg.to) : 0;
+      var net = cappedNet(pf.project_id, rawNet);
       total += net * (pf.contribution_rate||0) / 100;
     }
     return { id:u.id, name:u.name, total:total, cnt:myP.length };
@@ -1493,14 +1509,14 @@ function PerfView({ user }) {
               <CatFilterBar />
               <table style={{tableLayout:'fixed',width:'100%'}}>
                 <colgroup>
-                  <col style={{width:'33%'}} />
-                  <col style={{width:75}} />
-                  <col style={{width:44}} />
-                  <col style={{width:90}} />
-                  <col style={{width:90}} />
-                  <col style={{width:90}} />
-                  <col style={{width:46}} />
-                  <col style={{width:60}} />
+                  <col style={{width:'30%'}} />
+                  <col style={{width:'8%'}} />
+                  <col style={{width:'7%'}} />
+                  <col style={{width:'12%'}} />
+                  <col style={{width:'12%'}} />
+                  <col style={{width:'12%'}} />
+                  <col style={{width:'7%'}} />
+                  <col style={{width:'12%'}} />
                 </colgroup>
                 <thead><tr>
                   <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
@@ -1729,13 +1745,15 @@ function PerfView({ user }) {
                       if (col==='rate') return pf.contribution_rate||0;
                       if (col==='my') {
                         var agg = yColsByProject.get(pf.project_id);
-                        var net = agg ? (agg.tc - agg.to) : 0;
+                        var rawNet = agg ? (agg.tc - agg.to) : 0;
+                        var net = cappedNet(pf.project_id, rawNet);
                         return Math.round(net*(pf.contribution_rate||0)/100);
                       }
                       return '';
                     }).map(function(pf) {
                       var agg = yColsByProject.get(pf.project_id);
-                      var net = agg ? (agg.tc - agg.to) : 0;
+                      var rawNet = agg ? (agg.tc - agg.to) : 0;
+                      var net = cappedNet(pf.project_id, rawNet);
                       var my = Math.round(net * (pf.contribution_rate||0) / 100);
                       return (
                         <tr key={pf.project_id + '-' + pf.user_id}>
@@ -1960,8 +1978,8 @@ function PerfView({ user }) {
             var expectedOut    = ct ? (ct.expected_outsource||0) : 0;
             var totalCol = getTotalCol(p.id);
             var totalOut = getTotalOut(p.id);
-            var netContractAmt = contractAmt - expectedOut;
-            var netCol         = totalCol - totalOut;
+            var netContractAmt = contractAmt;
+            var netCol         = totalCol;
             var remain   = netContractAmt - priorCollected - netCol;
             var pct      = contractAmt > 0 ? Math.min(100, Math.round(totalCol / contractAmt * 100)) : 0;
             return { p:p, ct:ct, contractAmt:contractAmt, expectedOut:expectedOut, netContractAmt:netContractAmt, priorCollected:priorCollected, totalCol:totalCol, remain:remain, pct:pct, startDate:(ct&&ct.start_date)?ct.start_date:(p.start_date||null) };
@@ -2039,9 +2057,9 @@ function PerfView({ user }) {
                           </div>
                         </td>
                         <td style={{fontSize:12,color:'#475569',whiteSpace:'nowrap'}}>{r.startDate ? fmtD(r.startDate) : <span style={{color:'#cbd5e1'}}>—</span>}</td>
-                        <td>
+                        <td style={{whiteSpace:'nowrap'}}>
                           <span className={p.status==='완료'?'badge bg':p.status==='중지'?'badge ba':'badge bb'}
-                            style={{fontSize:10}}>{p.status}</span>
+                            style={{fontSize:10,whiteSpace:'nowrap'}}>{p.status}</span>
                         </td>
                         <td className="tr">
                           <span style={{fontWeight:700,color:'#1d4ed8',cursor:'pointer',textDecoration:'underline',textUnderlineOffset:2}}
@@ -2104,8 +2122,8 @@ function PerfView({ user }) {
               .reduce(function(s,c){ return s+(c.amount||0); }, 0);
             var totalOut = cols.filter(function(c){ return c.project_id === p.id; })
               .reduce(function(s,c){ return s+(c.outsource_cost||0); }, 0);
-            var netContractAmt = ct.amount - (ct.expected_outsource||0);
-            var netCol = totalCol - totalOut;
+            var netContractAmt = ct.amount;
+            var netCol = totalCol;
             var remain = netContractAmt - (ct.prior_collected||0) - netCol;
             if (remain <= 0) return null;
             return { p:p, remain:remain, endDate:p.end_date, isPast: p.end_date < today };
