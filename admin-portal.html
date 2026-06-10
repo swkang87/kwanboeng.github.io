@@ -1341,10 +1341,11 @@ function PerfView({ user }) {
   })();
 
   // net 실적에 계약금액 초과분 제거 헬퍼
+  // cap = 계약금 - 기수금 - 예상외주비 (우리 몫의 최대한도)
   function cappedNet(project_id, rawNet) {
     var ct = contractByProject.get(project_id);
     if (!ct || !ct.amount || ct.amount <= 0) return rawNet;
-    var cap = ct.amount - (ct.prior_collected || 0);
+    var cap = ct.amount - (ct.prior_collected || 0) - (ct.expected_outsource || 0);
     return Math.min(rawNet, Math.max(0, cap));
   }
 
