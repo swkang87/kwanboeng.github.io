@@ -497,6 +497,14 @@ function WorklogView({ user }) {
     sb.from('shared_todos').delete().eq('id', id).then(function() { loadTodos(); });
   }
 
+  function restoreTodo(id) {
+    sb.from('shared_todos').update({
+      status: '대기',
+      completed_by: null,
+      completed_at: null
+    }).eq('id', id).then(function() { loadTodos(); });
+  }
+
   // 업무일지 작성폼에서 할일 선택 → 항목 추가 + 완료처리
   function pickTodo(todo) {
     setTasks(function(p) { return p.concat([{ id: genId(), content: todo.title, status: '완료', fromTodoId: todo.id }]); });
@@ -705,6 +713,7 @@ function WorklogView({ user }) {
                         setTasks(function(p) { return p.map(function(x) { return x.id === t.id ? Object.assign({},x,{content:e.target.value}) : x; }); });
                       }} />
                     <button className="btn btn-d btn-sm" onClick={function() {
+                      if (t.fromTodoId) restoreTodo(t.fromTodoId);
                       setTasks(function(p) { return p.filter(function(x) { return x.id !== t.id; }); });
                     }}>✕</button>
                   </div>
