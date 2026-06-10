@@ -25,7 +25,7 @@
     { key:'project', icon:'📊', label:'공정관리', url:'project.html' },
     { key:'leave',   icon:'📅', label:'연차관리', url:'leave.html'   },
     { key:'worklog', icon:'📝', label:'업무일지', url:'worklog.html' },
-    { key:'admin',   icon:'🏢', label:'관리포털', url:'admin-portal.html', adminOnly:true },
+    { key:'admin',   icon:'🏢', label:'관리포털', url:'admin-worklog.html', adminOnly:true },
   ];
 
   var CSS_INJECTED = false;

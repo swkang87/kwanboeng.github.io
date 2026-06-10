@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>관리팀 계정관리</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
+<script src="config.js"></script>
+<script src="sysbar.js?v=20260530"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
+.sys-bar{position:sticky;top:0;z-index:300;} /* → sysbar.js가 주입 */
+@media(max-width:640px){
+  .top-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .top-nav::-webkit-scrollbar{display:none;}
+  .nav-right{display:none;}
+}
+@media(max-width:900px){
+  .wl-2col{grid-template-columns:1fr !important;}
+}
+.top-nav{position:sticky;top:83px;z-index:200;background:#1e293b;height:36px;display:flex;align-items:center;padding:0 14px;gap:1px;border-bottom:1px solid var(--theme,#0f172a);}
+.nav-btn{display:flex;align-items:center;gap:4px;padding:5px 11px;height:26px;border:none;background:transparent;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-size:11px;font-weight:400;color:#94a3b8;cursor:pointer;white-space:nowrap;}
+.nav-btn.active{background:#7c3aed;color:#fff;font-weight:700;}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.nav-user{font-size:11px;color:#94a3b8;}
+.nav-logout{background:transparent;color:#64748b;border:1px solid #334155;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+.page{padding:24px;max-width:1200px;margin:0 auto;}
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:20px;margin-bottom:16px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;}
+.stat{border-radius:12px;padding:20px;color:#fff;}
+.stat.purple{background:linear-gradient(135deg,#7c3aed,#6d28d9);}
+.stat.blue{background:linear-gradient(135deg,#1d4ed8,#1e40af);}
+.stat.green{background:linear-gradient(135deg,#059669,#047857);}
+.stat.amber{background:linear-gradient(135deg,#d97706,#b45309);}
+.stat-l{font-size:11px;font-weight:600;opacity:.8;margin-bottom:6px;}
+.stat-v{font-size:26px;font-weight:800;}
+.stat-s{font-size:11px;opacity:.7;margin-top:4px;}
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0;}
+table{width:100%;border-collapse:collapse;}
+thead{background:#f8fafc;}
+th{padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:1px solid #e2e8f0;}
+td{padding:9px 8px;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#f8fafc;}
+.tr{text-align:right;white-space:nowrap;}
+.tc{text-align:center;white-space:nowrap;}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;}
+.bg{background:#dcfce7;color:#166534;}
+.bb{background:#dbeafe;color:#1e40af;}
+.ba{background:#fef3c7;color:#92400e;}
+.br{background:#fee2e2;color:#991b1b;}
+.bgr{background:#f1f5f9;color:#64748b;}
+.bp{background:#f3e8ff;color:#6b21a8;}
+.fl{display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
+.fi{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#0f172a;outline:none;}
+.fi:focus{border-color:#7c3aed;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;}
+.btn-p{background:#7c3aed;color:#fff;}
+.btn-s{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;}
+.btn-d{background:#fee2e2;color:#991b1b;}
+.btn-sm{padding:5px 10px;font-size:11px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.ph{margin-bottom:24px;}
+.pt{font-size:22px;font-weight:800;color:#0f172a;margin-bottom:4px;}
+.ps{font-size:13px;color:#64748b;}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.st{font-size:14px;font-weight:700;color:#0f172a;}
+.itabs{display:flex;gap:4px;margin-bottom:16px;background:#f1f5f9;padding:4px;border-radius:10px;width:fit-content;}
+.itab{padding:6px 14px;border:none;background:transparent;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:600;color:#64748b;cursor:pointer;}
+.itab.active{background:#fff;color:#7c3aed;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;}
+.mbox{background:#fff;border-radius:16px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.3);}
+.mh{padding:20px 24px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;}
+.mht{font-size:15px;font-weight:800;color:#0f172a;}
+.mc{background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;}
+.mb{padding:20px 24px;}
+.mf{padding:16px 24px;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;gap:8px;}
+.empty{text-align:center;padding:48px 24px;color:#94a3b8;}
+.ei{font-size:36px;margin-bottom:12px;}
+.et{font-size:14px;font-weight:600;color:#64748b;margin-bottom:4px;}
+.es{font-size:12px;}
+.al{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;}
+.al-e{background:#fee2e2;color:#991b1b;}
+.al-s{background:#dcfce7;color:#166534;}
+.al-i{background:#dbeafe;color:#1e40af;}
+.loading{text-align:center;padding:32px;color:#94a3b8;font-size:13px;}
+.lc{padding:12px 16px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;}
+.lu{display:flex;align-items:center;gap:10px;}
+.lav{width:32px;height:32px;border-radius:50%;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ln{font-size:13px;font-weight:700;}
+.lm{font-size:11px;color:#94a3b8;}
+.lb{padding:14px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;}
+.tr-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid #e2e8f0;}
+.tr-row:last-child{border-bottom:none;}
+.ti{flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:13px;outline:none;}
+.ss{padding:4px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:11px;font-family:'Noto Sans KR',sans-serif;outline:none;background:#fff;}
+.sr{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px;}
+/* ── 날짜 네비 ── */
+.wl-mode-tabs{display:flex;gap:4px;margin-bottom:12px;}
+.wl-mode-tab{padding:5px 14px;border-radius:6px;border:1px solid var(--border,#e2e8f0);background:#f8fafc;font-size:12px;font-weight:600;cursor:pointer;color:#64748b;}
+.wl-mode-tab.active{background:#7c3aed;color:#fff;border-color:#7c3aed;}
+.wl-week-table{width:100%;border-collapse:collapse;font-size:12px;}
+.wl-week-table th,.wl-week-table td{padding:8px 6px;border:1px solid #e2e8f0;text-align:center;vertical-align:middle;}
+.wl-week-table th{background:#f8fafc;font-weight:700;color:#475569;}
+.wl-week-name{text-align:left !important;min-width:60px;font-weight:600;}
+.wl-week-cell{min-width:80px;cursor:pointer;}
+.wl-week-cell:hover{background:#f5f3ff;}
+.wl-week-none{color:#cbd5e1;}
+.wl-week-today{background:#ede9fe !important;}
+.wl-week-cnt{font-weight:700;color:#7c3aed;}
+.wl-week-done{font-size:11px;color:#64748b;}
+.wl-month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:8px;}
+.wl-month-hdr{text-align:center;font-size:11px;font-weight:700;padding:4px 0;color:#64748b;}
+.wl-month-hdr.sat{color:#2563eb;}.wl-month-hdr.sun{color:#dc2626;}
+.wl-month-day{min-height:52px;border-radius:6px;padding:4px;cursor:pointer;border:1px solid transparent;}
+.wl-month-day:hover{background:#f5f3ff;border-color:#ede9fe;}
+.wl-month-day.today{background:#ede9fe;border-color:#c4b5fd;}
+.wl-month-day.empty{cursor:default;}
+.wl-month-day.empty:hover{background:transparent;border-color:transparent;}
+.wl-month-num{font-size:11px;font-weight:700;color:#475569;margin-bottom:2px;}
+.wl-month-num.sat{color:#2563eb;}.wl-month-num.sun,.wl-month-num.hol{color:#dc2626;}
+.wl-month-num.today{color:#7c3aed;}
+.wl-month-cnt{font-size:10px;font-weight:600;color:#7c3aed;background:#ede9fe;border-radius:3px;padding:1px 4px;display:inline-block;}
+.wl-date-btn{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;color:#475569;}
+.wl-date-btn:hover{background:#e2e8f0;}
+.wl-date-btn:disabled{opacity:.4;cursor:default;}
+.wl-today-btn{background:transparent;border:1px solid #7c3aed;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;color:#7c3aed;cursor:pointer;}
+.wl-today-btn:hover{background:#f5f3ff;}
+/* ── MiniCalendar ── */
+.mcal-wrap{position:relative;display:inline-block;}
+.mcal-btn{background:transparent;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:14px;cursor:pointer;color:#94a3b8;}
+.mcal-btn:hover{background:#f1f5f9;}
+.mcal-popup{position:absolute;top:calc(100% + 4px);right:0;z-index:500;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);padding:12px;min-width:260px;}
+.mcal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.mcal-nav-btn{background:transparent;border:1px solid #e2e8f0;border-radius:6px;padding:3px 10px;font-size:13px;cursor:pointer;}
+.mcal-nav-btn:hover{background:#f1f5f9;}
+.mcal-title{font-size:14px;font-weight:800;color:#0f172a;}
+.mcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.mcal-dh{text-align:center;font-size:11px;font-weight:700;padding:4px 0;color:#64748b;}
+.mcal-dh.sat{color:#2563eb;}.mcal-dh.sun{color:#dc2626;}
+.mcal-day{text-align:center;font-size:12px;padding:5px 2px;border-radius:6px;cursor:pointer;font-weight:500;}
+.mcal-day:hover{background:#f5f3ff;}
+.mcal-day.empty{cursor:default;pointer-events:none;}
+.mcal-day.today{background:#7c3aed;color:#fff;font-weight:700;}
+.mcal-day.selected{background:var(--theme,#0f172a);color:#fff;font-weight:700;}
+.mcal-day.sat{color:#2563eb;}.mcal-day.sun,.mcal-day.holiday{color:#dc2626;}
+.mcal-day.today.sat,.mcal-day.today.sun,.mcal-day.today.holiday{color:#fff;}
+.mcal-day.future{opacity:.3;cursor:default;}
+.pb{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-top:4px;}
+.pbf{height:100%;background:linear-gradient(90deg,#7c3aed,#a855f7);border-radius:3px;}
+.sal-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.sal-sec{background:#f8fafc;border-radius:8px;padding:14px;}
+.sal-st{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px;}
+.sal-tot{display:flex;justify-content:space-between;align-items:center;padding:12px 0 0;margin-top:4px;border-top:2px solid var(--theme,#0f172a);}
+.sal-tl{font-size:13px;font-weight:800;}
+.sal-tv{font-size:18px;font-weight:800;color:#7c3aed;}
+.sal-frow{margin-bottom:10px;}
+.lwrap{min-height:100vh;background:linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e1b4b 50%,#4c1d95 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
+.lbox{background:#fff;border-radius:20px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 32px 80px rgba(0,0,0,.5);}
+.llogo{width:56px;height:56px;background:linear-gradient(135deg,#7c3aed,#4c1d95);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;}
+.ltit{font-size:18px;font-weight:800;color:#0f172a;text-align:center;margin-bottom:4px;}
+.lsub{font-size:12px;color:#94a3b8;text-align:center;margin-bottom:24px;}
+@media(max-width:768px){.g2,.g3{grid-template-columns:1fr;}.sal-row{grid-template-columns:1fr;}}
+</style>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+if (window.emailjs && APP_CONFIG.EMAILJS_PUBLIC_KEY) {
+  window.emailjs.init({ publicKey: APP_CONFIG.EMAILJS_PUBLIC_KEY });
+}
+
+const VIEWS = { WL:'wl', PF:'pf', SL:'sl', AB:'ab', ST:'st' };
+const TODAY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const fmtDateKo = (ds) => { const d = new Date(ds + 'T00:00:00'); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`; };
+const DAY_KO = ['일','월','화','수','목','금','토'];
+
+// ── 공휴일 (하드코딩 + Nager.Date API 조합) ──────────────────────────────
+const HOLIDAYS = {
+  '2025-01-01':'신정',
+  '2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴',
+  '2025-03-01':'삼일절',
+  '2025-05-05':'어린이날',
+  '2025-06-03':'임시공휴일','2025-06-06':'현충일',
+  '2025-08-15':'광복절',
+  '2025-10-03':'개천절',
+  '2025-10-05':'추석','2025-10-06':'추석연휴','2025-10-07':'추석연휴',
+  '2025-10-09':'한글날',
+  '2025-12-25':'크리스마스',
+  '2026-01-01':'신정',
+  '2026-02-16':'설날연휴','2026-02-17':'설날','2026-02-18':'설날연휴',
+  '2026-03-01':'삼일절',
+  '2026-05-05':'어린이날','2026-05-24':'부처님오신날',
+  '2026-06-03':'임시공휴일(지방선거)','2026-06-06':'현충일','2026-07-17':'제헌절',
+  '2026-08-15':'광복절',
+  '2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴',
+  '2026-10-03':'개천절','2026-10-09':'한글날',
+  '2026-12-25':'크리스마스',
+};
+const SUBSTITUTE = {
+  '2025-05-06':'대체공휴일',
+  '2025-10-08':'대체공휴일',
+  '2026-03-02':'대체공휴일',
+  '2026-05-25':'대체공휴일',
+  
+  '2026-08-17':'대체공휴일',
+  
+  '2026-10-05':'대체공휴일',
+};
+const NAGER_KO = {
+  "New Year's Day":'신정',"Seollal":'설날',"Seollal Holiday":'설날연휴',
+  "Independence Movement Day":'삼일절',"Labor Day":'근로자의날',
+  "Children's Day":'어린이날',"Buddha's Birthday":'부처님오신날',
+  "Memorial Day":'현충일',"Liberation Day":'광복절',
+  "Chuseok":'추석',"Chuseok Holiday":'추석연휴',
+  "National Foundation Day":'개천절',"Hangul Day":'한글날',
+  "Christmas Day":'크리스마스',"Substitute Holiday":'대체공휴일',
+};
+function isHolidayDate(ds) { return !!(HOLIDAYS[ds] || SUBSTITUTE[ds]); }
+function getHolidayName(ds) { return HOLIDAYS[ds] || SUBSTITUTE[ds] || null; }
+
+const _holCache = {};
+async function fetchHolidays(year) {
+  if (_holCache[year]) return _holCache[year];
+  const set = new Set([...Object.keys(HOLIDAYS), ...Object.keys(SUBSTITUTE)]
+    .filter(d => d.startsWith(String(year))));
+  try {
+    const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`);
+    const data = await r.json();
+    data.forEach(h => {
+      if (!h.date) return;
+      const name = NAGER_KO[h.localName] || NAGER_KO[h.name] || h.localName || h.name;
+      set.add(h.date);
+      if (name === '대체공휴일') SUBSTITUTE[h.date] = '대체공휴일';
+      else if (!HOLIDAYS[h.date]) HOLIDAYS[h.date] = name;
+    });
+  } catch(e) {}
+  _holCache[year] = set;
+  return set;
+}
+
+// 직전 근무일 계산 (주말·공휴일 건너뜀)
+function prevWorkday(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  do {
+    d.setDate(d.getDate() - 1);
+    const s = localDateStr(d);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !isHolidayDate(s)) return s;
+  } while (true);
+}
+// 다음 근무일 계산
+function nextWorkday(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  do {
+    d.setDate(d.getDate() + 1);
+    const s = localDateStr(d);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !isHolidayDate(s)) return s;
+  } while (true);
+}
+
+// ── MiniCalendar ──────────────────────────────────────────────────────────────
+function MiniCalendar({ value, onChange, maxDate }) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => new Date((value || TODAY()) + 'T00:00:00'));
+  const [holidays, setHolidays] = useState(new Set());
+  const wrapRef = useRef(null);
+
+  useEffect(function() {
+    if (!open) return;
+    fetchHolidays(viewDate.getFullYear()).then(function(h) { setHolidays(h); });
+  }, [open, viewDate.getFullYear()]);
+
+  useEffect(function() {
+    if (!open) return;
+    function handler(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return function() { document.removeEventListener('mousedown', handler); };
+  }, [open]);
+
+  const year = viewDate.getFullYear(), month = viewDate.getMonth();
+  const startWd = new Date(year, month, 1).getDay();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const today = TODAY();
+
+  function prevM() { const d = new Date(viewDate); d.setMonth(d.getMonth() - 1); setViewDate(d); }
+  function nextM() { const d = new Date(viewDate); d.setMonth(d.getMonth() + 1); setViewDate(d); }
+
+  function select(ds) {
+    if (maxDate && ds > maxDate) return;
+    onChange(ds);
+    setOpen(false);
+  }
+
+  return (
+    <div className="mcal-wrap" ref={wrapRef}>
+      <button className="mcal-btn" title="달력 선택"
+        onClick={function() { setViewDate(new Date((value || TODAY()) + 'T00:00:00')); setOpen(function(v) { return !v; }); }}>📅</button>
+      {open && (
+        <div className="mcal-popup">
+          <div className="mcal-nav">
+            <button className="mcal-nav-btn" onClick={prevM}>◀</button>
+            <span className="mcal-title">{year}년 {month + 1}월</span>
+            <button className="mcal-nav-btn" onClick={nextM}>▶</button>
+          </div>
+          <div className="mcal-grid">
+            {DAY_KO.map(function(d, i) {
+              return <div key={d} className={'mcal-dh' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '')}>{d}</div>;
+            })}
+            {Array.from({ length: startWd }, function(_, i) { return <div key={'e' + i} className="mcal-day empty" />; })}
+            {Array.from({ length: lastDay }, function(_, i) {
+              const day = i + 1;
+              const ds = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+              const wd = new Date(ds + 'T00:00:00').getDay();
+              const isHol = holidays.has(ds);
+              const isFuture = maxDate && ds > maxDate;
+              const cls = ['mcal-day',
+                (wd === 0 || isHol) ? 'sun' : wd === 6 ? 'sat' : '',
+                ds === today && ds !== value ? 'today' : '',
+                ds === value ? 'selected' : '',
+                isFuture ? 'future' : '',
+              ].filter(Boolean).join(' ');
+              return <div key={day} className={cls} onClick={function() { if (!isFuture) select(ds); }}>{day}</div>;
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+const fmtN = (n) => n ? Number(n).toLocaleString('ko-KR') : '0';
+const fmtD = (d) => {
+  if (!d) return '-';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.getFullYear() + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + String(dt.getDate()).padStart(2,'0');
+};
+const genId = () => Math.random().toString(36).slice(2, 10);
+const WSTATUS = ['완료','진행중','보류'];
+const SCLS = { '완료':'bg','진행중':'bb','보류':'ba' };
+const CAT_COLOR = { '관급': '#2563eb', '사급': '#059669', '기술지원': '#d97706' };
+const CAT_BG    = { '관급': '#dbeafe', '사급': '#dcfce7', '기술지원': '#fef3c7' };
+const CAT_TX    = { '관급': '#1e40af', '사급': '#15803d', '기술지원': '#92400e' };
+
+const fmtShort = (ds) => { const d = new Date(ds + 'T00:00:00'); return (d.getMonth()+1) + '/' + d.getDate(); };
+
+const getWeekDates = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diff);
+  return Array.from({ length: 5 }, function(_, i) {
+    const dd = new Date(mon);
+    dd.setDate(mon.getDate() + i);
+    return localDateStr(dd);
+  });
+};
+
+const getMonthInfo = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  const year = d.getFullYear(), month = d.getMonth();
+  const first = new Date(year, month, 1);
+  const last  = new Date(year, month + 1, 0);
+  return {
+    year, month,
+    days: last.getDate(),
+    startWeekday: first.getDay(),
+    firstDate: localDateStr(first),
+    lastDate:  localDateStr(last),
+  };
+};
+
+// ── 인풋 컴포넌트 ─────────────────────────────────────────────────────────
+function FI({ label, field, form, set }) {
+  function fmtInput(v) {
+    var n = String(v||'').replace(/,/g,'');
+    if (n==='' || n==='-') return n;
+    var num = Number(n);
+    if (isNaN(num)) return n;
+    return num.toLocaleString('ko-KR');
+  }
+  function handleChange(e) {
+    var raw = e.target.value.replace(/,/g,'');
+    set(function(p) { var o = Object.assign({}, p); o[field] = raw; return o; });
+  }
+  return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f1f5f9'}}>
+      <span style={{fontSize:13,color:'#64748b',flexShrink:0,minWidth:110}}>{label}</span>
+      <input
+        className="fi"
+        style={{width:140,textAlign:'right',padding:'4px 8px',fontSize:13,height:'auto'}}
+        value={fmtInput(form[field])}
+        placeholder="0"
+        onChange={handleChange}
+      />
+    </div>
+  );
+}
+
+function AccountBookView({ user }) {
+  var CATEGORIES = ['메일','설계/민원','면허/인증','입찰','금융/세무'];
+  var isAdmin = true; // 계정관리는 관리팀 전체 동일 권한
+
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selCat, setSelCat] = useState('전체');
+  const [modal, setModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [showPw, setShowPw] = useState({});
+  const [catModal, setCatModal] = useState(false);
+  const [newCat, setNewCat] = useState('');
+  const [categories, setCategories] = useState(CATEGORIES);
+  const [inlineEdit, setInlineEdit] = useState(null); // 인라인 편집 id
+  const [inlineForm, setInlineForm] = useState({});
+
+  function load() {
+    setLoading(true);
+    sb.from('account_book').select('*').order('category').order('order_no').then(function(r) {
+      setAccounts(r.data || []);
+      // 실제 DB의 카테고리 목록 추출
+      var cats = [];
+      (r.data || []).forEach(function(a) {
+        if (cats.indexOf(a.category) === -1) cats.push(a.category);
+      });
+      // CATEGORIES 순서 유지 + 신규 카테고리 뒤에 추가
+      var ordered = CATEGORIES.filter(function(c){ return cats.indexOf(c) !== -1; });
+      cats.forEach(function(c){ if (ordered.indexOf(c) === -1) ordered.push(c); });
+      setCategories(ordered);
+      setLoading(false);
+    });
+  }
+
+  useEffect(function() { load(); }, []);
+
+  function openNew() {
+    setEditItem(null);
+    setForm({category: categories[0]||'', site_name:'', url:'', account_id:'', password:'', memo:''});
+    setModal(true);
+  }
+
+  function openEdit(a) {
+    setEditItem(a);
+    setForm({category:a.category, site_name:a.site_name, url:a.url||'', account_id:a.account_id||'', password:a.password||'', memo:a.memo||''});
+    setModal(true);
+  }
+
+  async function save() {
+    if (!form.site_name) return;
+    setSaving(true);
+    var payload = {category:form.category, site_name:form.site_name, url:form.url||null,
+      account_id:form.account_id||null, password:form.password||null, memo:form.memo||null};
+    if (editItem) {
+      await sb.from('account_book').update(payload).eq('id', editItem.id);
+    } else {
+      var maxOrder = accounts.filter(function(a){ return a.category===form.category; })
+        .reduce(function(m,a){ return Math.max(m, a.order_no||0); }, 0);
+      payload.order_no = maxOrder + 1;
+      await sb.from('account_book').insert(payload);
+    }
+    setSaving(false); setModal(false); load();
+  }
+
+  async function del(a) {
+    if (!window.confirm('['+a.site_name+'] 삭제할까요?')) return;
+    await sb.from('account_book').delete().eq('id', a.id);
+    load();
+  }
+
+  function startInline(a) {
+    setInlineEdit(a.id);
+    setInlineForm({category:a.category, site_name:a.site_name, url:a.url||'', account_id:a.account_id||'', password:a.password||'', memo:a.memo||''});
+  }
+
+  async function saveInline(a) {
+    await sb.from('account_book').update({
+      category:inlineForm.category, site_name:inlineForm.site_name,
+      url:inlineForm.url||null, account_id:inlineForm.account_id||null,
+      password:inlineForm.password||null, memo:inlineForm.memo||null,
+    }).eq('id', a.id);
+    setInlineEdit(null); load();
+  }
+
+  async function addCategory() {
+    if (!newCat.trim()) return;
+    setCategories(function(prev){ return prev.concat([newCat.trim()]); });
+    setNewCat(''); setCatModal(false);
+  }
+
+  var filtered = selCat === '전체' ? accounts : accounts.filter(function(a){ return a.category === selCat; });
+  var grouped = {};
+  filtered.forEach(function(a) {
+    if (!grouped[a.category]) grouped[a.category] = [];
+    grouped[a.category].push(a);
+  });
+
+  var iStyle = {padding:'3px 6px',border:'1px solid #e2e8f0',borderRadius:4,fontSize:12,fontFamily:"'Noto Sans KR',sans-serif",width:'100%'};
+
+  return (
+    <div className="card">
+      <div className="ph" style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+        <div><div className="pt">🔑 계정 관리</div><div className="ps">관리팀 전용 사이트 계정 목록</div></div>
+        <div style={{display:'flex',gap:6}}>
+          <button className="btn btn-s btn-sm" onClick={function(){setCatModal(true);}}>+ 분류 추가</button>
+          <button className="btn btn-p btn-sm" onClick={openNew}>+ 계정 추가</button>
+        </div>
+      </div>
+
+      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16}}>
+        {['전체'].concat(categories).map(function(cat){
+          return (
+            <button key={cat} onClick={function(){setSelCat(cat);}}
+              className={selCat===cat?'itab active':'itab'}>
+              {cat}
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? <div className="loading">로딩 중...</div> : (
+        Object.keys(grouped).map(function(cat) {
+          return (
+            <div key={cat} style={{marginBottom:24}}>
+              <div style={{fontSize:12,fontWeight:800,color:'#475569',letterSpacing:'.5px',
+                padding:'6px 0',borderBottom:'2px solid var(--theme,#0f172a)',marginBottom:8}}>
+                {cat}
+              </div>
+              <table style={{width:'100%',tableLayout:'fixed',borderCollapse:'collapse'}}>
+                <colgroup>
+                  <col style={{width:'18%'}} />
+                  <col style={{width:'12%'}} />
+                  <col style={{width:'13%'}} />
+                  <col style={{width:'13%'}} />
+                  <col style={{width:'auto'}} />
+                  {isAdmin && <col style={{width:80}} />}
+                </colgroup>
+                <thead>
+                  <tr style={{background:'#f8fafc'}}>
+                    <th style={{padding:'7px 10px',fontSize:11,color:'#64748b',textAlign:'left',fontWeight:700}}>사이트</th>
+                    <th style={{padding:'7px 10px',fontSize:11,color:'#64748b',textAlign:'left',fontWeight:700}}>아이디</th>
+                    <th style={{padding:'7px 10px',fontSize:11,color:'#64748b',textAlign:'left',fontWeight:700}}>비밀번호</th>
+                    <th style={{padding:'7px 10px',fontSize:11,color:'#64748b',textAlign:'left',fontWeight:700}}>링크</th>
+                    <th style={{padding:'7px 10px',fontSize:11,color:'#64748b',textAlign:'left',fontWeight:700}}>메모</th>
+                    {isAdmin && <th></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {grouped[cat].map(function(a) {
+                    var isEditing = inlineEdit === a.id;
+                    return (
+                      <tr key={a.id} style={{borderBottom:'1px solid #f1f5f9',background:isEditing?'#fffbeb':''}}>
+                        {isEditing ? (
+                          [
+                            <td key="sn" style={{padding:'4px 6px'}}><input style={iStyle} value={inlineForm.site_name} onChange={function(e){setInlineForm(function(p){return Object.assign({},p,{site_name:e.target.value});});}} /></td>,
+                            <td key="id" style={{padding:'4px 6px'}}><input style={iStyle} value={inlineForm.account_id} onChange={function(e){setInlineForm(function(p){return Object.assign({},p,{account_id:e.target.value});});}} /></td>,
+                            <td key="pw" style={{padding:'4px 6px'}}><input style={iStyle} value={inlineForm.password} onChange={function(e){setInlineForm(function(p){return Object.assign({},p,{password:e.target.value});});}} /></td>,
+                            <td key="url" style={{padding:'4px 6px'}}><input style={iStyle} value={inlineForm.url} onChange={function(e){setInlineForm(function(p){return Object.assign({},p,{url:e.target.value});});}} /></td>,
+                            <td key="memo" style={{padding:'4px 6px'}}><input style={iStyle} value={inlineForm.memo} onChange={function(e){setInlineForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} /></td>,
+                            isAdmin && <td key="act" style={{padding:'4px 6px',whiteSpace:'nowrap'}}>
+                              <button className="btn btn-p btn-sm" style={{marginRight:3}} onClick={function(){saveInline(a);}}>저장</button>
+                              <button className="btn btn-s btn-sm" onClick={function(){setInlineEdit(null);}}>취소</button>
+                            </td>
+                          ]
+                        ) : (
+                          [
+                            <td key="sn" style={{padding:'8px 10px',fontSize:13,fontWeight:600}}>{a.site_name}</td>,
+                            <td key="id" style={{padding:'8px 10px',fontSize:12,fontFamily:'monospace',color:'#1d4ed8'}}>{a.account_id||'-'}</td>,
+                            <td key="pw" style={{padding:'8px 10px',fontSize:12,fontFamily:'monospace'}}>
+                              {a.password ? (
+                                <span style={{display:'flex',alignItems:'center',gap:4}}>
+                                  <span style={{color:'#7c3aed'}}>{showPw[a.id] ? a.password : '••••••••'}</span>
+                                  <button onClick={function(){setShowPw(function(p){var o=Object.assign({},p);o[a.id]=!o[a.id];return o;});}}
+                                    style={{fontSize:10,padding:'1px 5px',border:'1px solid #e2e8f0',borderRadius:3,cursor:'pointer',background:'#f8fafc',color:'#64748b'}}>
+                                    {showPw[a.id]?'숨김':'표시'}
+                                  </button>
+                                </span>
+                              ) : <span style={{color:'#94a3b8'}}>인증서</span>}
+                            </td>,
+                            <td key="url" style={{padding:'8px 10px',fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                              {a.url ? <a href={a.url} target="_blank" style={{color:'#0891b2',textDecoration:'none'}}>🔗 바로가기</a> : '-'}
+                            </td>,
+                            <td key="memo" style={{padding:'8px 10px',fontSize:11,color:'#64748b'}}>{a.memo||''}</td>,
+                            isAdmin && <td key="act" style={{padding:'8px 6px',whiteSpace:'nowrap'}}>
+                              <button className="btn btn-s btn-sm" style={{marginRight:3}} onClick={function(){startInline(a);}}>수정</button>
+                              <button className="btn btn-d btn-sm" onClick={function(){del(a);}}>삭제</button>
+                            </td>
+                          ]
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })
+      )}
+
+      {catModal && (
+        <div className="mbg" onClick={function(){setCatModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:360}}>
+            <div className="mh"><span className="mht">+ 분류 추가</span><button className="mc" onClick={function(){setCatModal(false);}}>×</button></div>
+            <div className="mb">
+              <label className="fl">분류명</label>
+              <input className="fi" value={newCat} onChange={function(e){setNewCat(e.target.value);}} placeholder="예: 보험, 협회 등" />
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setCatModal(false);}}>취소</button>
+              <button className="btn btn-p" onClick={addCategory}>추가</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal && (
+        <div className="mbg" onClick={function(){setModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:480}}>
+            <div className="mh"><span className="mht">{editItem?'계정 수정':'계정 추가'}</span><button className="mc" onClick={function(){setModal(false);}}>×</button></div>
+            <div className="mb">
+              <div style={{marginBottom:10}}><label className="fl">분류</label>
+                <select className="fi" value={form.category||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{category:e.target.value});});}}>
+                  {categories.map(function(c){ return <option key={c} value={c}>{c}</option>; })}
+                </select>
+              </div>
+              <div style={{marginBottom:10}}><label className="fl">사이트명 *</label><input className="fi" value={form.site_name||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{site_name:e.target.value});});}} /></div>
+              <div style={{marginBottom:10}}><label className="fl">URL</label><input className="fi" value={form.url||''} placeholder="https://" onChange={function(e){setForm(function(p){return Object.assign({},p,{url:e.target.value});});}} /></div>
+              <div className="g2" style={{marginBottom:10}}>
+                <div><label className="fl">아이디</label><input className="fi" value={form.account_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{account_id:e.target.value});});}} /></div>
+                <div><label className="fl">비밀번호</label><input className="fi" value={form.password||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{password:e.target.value});});}} /></div>
+              </div>
+              <div style={{marginBottom:10}}><label className="fl">메모</label><input className="fi" value={form.memo||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} /></div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setModal(false);}}>취소</button>
+              <button className="btn btn-p" onClick={save} disabled={saving}>{saving?'저장 중...':'저장'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function LoginScreen({ onLogin }) {
+  const [phone, setPhone] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [remain, setRemain] = useState(0);
+
+  // 잠금 상태 카운트다운
+  useEffect(function() {
+    const bf = Sysbar.Auth.checkBruteForce();
+    if (bf.locked) { setLocked(true); setRemain(bf.remainSec); }
+    const timer = setInterval(function() {
+      const bf2 = Sysbar.Auth.checkBruteForce();
+      if (bf2.locked) { setLocked(true); setRemain(bf2.remainSec); }
+      else { setLocked(false); setRemain(0); }
+    }, 1000);
+    return function() { clearInterval(timer); };
+  }, []);
+
+  async function doLogin() {
+    if (locked) return;
+    if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
+    setLoading(true); setErr('');
+    // allowedRoles: contractor만 차단 (팀 권한은 hasAccess로 판단)
+    const result = await Sysbar.Auth.doLogin(sb, phone, pw, {
+        allowedRoles: ['admin', 'manager', 'staff', 'employee'],
+      });
+    setLoading(false);
+    if (result.ok) {
+      onLogin(result.user);
+    } else {
+      if (result.locked) { setLocked(true); setRemain(result.remainSec); }
+      setErr(result.reason);
+    }
+  }
+
+  return (
+    <div className="lwrap">
+      <div className="lbox">
+        <div className="llogo">🏢</div>
+        <div className="ltit">{APP_CONFIG.COMPANY_SHORT}</div>
+        <div className="lsub">관리포털 · 관리팀/관리자 전용</div>
+        {err && <div className="al al-e">{err}</div>}
+        <div style={{marginBottom:12}}>
+          <label className="fl">아이디 (전화번호)</label>
+          <input className="fi" value={phone} placeholder="전화번호 입력" disabled={locked}
+            onChange={function(e){setPhone(e.target.value);}}
+            onKeyDown={function(e){if(e.key==='Enter')document.getElementById('ap-pw').focus();}} />
+        </div>
+        <div style={{marginBottom:20}}>
+          <label className="fl">비밀번호</label>
+          <input id="ap-pw" type="password" className="fi" value={pw} placeholder="비밀번호 입력" disabled={locked}
+            onChange={function(e){setPw(e.target.value);}}
+            onKeyDown={function(e){if(e.key==='Enter')doLogin();}} />
+        </div>
+        <button className="btn btn-p" onClick={doLogin} disabled={loading || locked} style={{width:'100%',justifyContent:'center',padding:'12px'}}>
+          {locked ? `잠금 ${remain}초` : (loading ? '로그인 중...' : '로그인')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────
+const SysBar = Sysbar.createComponent(React);
+
+
+const CURRENT_PAGE = 'ab';
+const PageView = AccountBookView;
+
+// ── 관리포털 페이지 정의 (네비게이션) ──────────────────────────────────────
+// 각 페이지 파일은 상단에서 CURRENT_PAGE 를 지정한다.
+//   admin-worklog.html  → 'wl'
+//   admin-perf.html     → 'pf'
+//   admin-salary.html   → 'sl'
+//   admin-account.html  → 'ab'
+//   admin-staff.html    → 'st'
+const PORTAL_PAGES = [
+  { key:'wl', label:'📝 업무일지', href:'admin-worklog.html', need:'access' },
+  { key:'pf', label:'📊 실적관리', href:'admin-perf.html',    need:'access' },
+  { key:'sl', label:'💼 급여관리', href:'admin-salary.html',  need:'sal'    },
+  { key:'ab', label:'🔑 계정관리', href:'admin-account.html', need:'ab'     },
+  { key:'st', label:'👥 직원관리', href:'admin-staff.html',   need:'access' },
+];
+
+function App() {
+  var initialUser = (function() {
+    var v = Sysbar.Auth.getSession();
+    if (v && v.id && v.role) return v;
+    return null;
+  })();
+  const [user, setUser] = useState(initialUser);
+  const [ssoChecked, setSsoChecked] = useState(!!initialUser);
+  const [teamName, setTeamName] = useState('');
+  const [hasAccess, setHasAccess] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+
+  useEffect(function() {
+    if (initialUser) return;
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { setUser(null); return; }
+    setSsoChecked(true);
+  }, []);
+
+  useEffect(function() {
+    if (!initialUser) return;
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { logout(); return; }
+    if (ssoChecked) { Sysbar.SessionManager.onLogin(function() { logout(); }); }
+  }, []);
+
+  useEffect(function() {
+    if (!user) return;
+    if (user.role === 'admin') { setTeamName('관리자'); setHasAccess(true); setAccessChecked(true); return; }
+    if (!user.team_id) { setHasAccess(false); setAccessChecked(true); return; }
+    sb.from('teams').select('name').eq('id', user.team_id).single().then(function(r) {
+      var name = r.data ? r.data.name : '';
+      setTeamName(name);
+      setHasAccess(name === '관리팀');
+      setAccessChecked(true);
+    });
+  }, [user ? user.id : null]);
+
+  function handleLogin(u) {
+    setUser(u);
+    Sysbar.SessionManager.onLogin(function() { logout(); });
+  }
+
+  function logout() {
+    Sysbar.Auth.logout(sb);
+    setUser(null); setTeamName(''); setHasAccess(false);
+  }
+
+  if (!ssoChecked || (user && !accessChecked)) return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'var(--theme,#0f172a)',color:'#94a3b8',fontSize:14}}>
+      로딩 중...
+    </div>
+  );
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
+
+  if (user.role !== 'admin' && !hasAccess) return (
+    <div className="lwrap">
+      <div className="lbox" style={{textAlign:'center'}}>
+        <div style={{fontSize:48,marginBottom:16}}>🚫</div>
+        <div className="ltit" style={{marginBottom:8}}>접근 권한 없음</div>
+        <p style={{fontSize:13,color:'#64748b',lineHeight:1.6,marginBottom:24}}>관리포털은 관리팀 및 관리자만<br/>이용할 수 있습니다.</p>
+        <a href="project.html" className="btn btn-s" style={{justifyContent:'center'}}>공정관리로 돌아가기</a>
+      </div>
+    </div>
+  );
+
+  var canSal = user.role === 'admin';
+  var canAb  = user.role === 'admin' || teamName === '관리팀';
+
+  // 현재 페이지가 권한이 없는 페이지면 업무일지로 리다이렉트
+  if (CURRENT_PAGE === 'sl' && !canSal) { location.replace('admin-worklog.html'); return null; }
+  if (CURRENT_PAGE === 'ab' && !canAb)  { location.replace('admin-worklog.html'); return null; }
+
+  function canShow(need) {
+    if (need === 'sal') return canSal;
+    if (need === 'ab')  return canAb;
+    return true;
+  }
+
+  return (
+    <div>
+      <SysBar
+        activeKey="admin"
+        user={user}
+        teamName={teamName}
+        onLogout={logout}
+      />
+      {/* 시스템 제목 바 */}
+      <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #7c3aed',position:'sticky',top:38,zIndex:250}}>
+        <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
+        <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>관리 포털</p>
+      </div>
+      <div className="top-nav">
+        {PORTAL_PAGES.filter(function(pg){ return canShow(pg.need); }).map(function(pg) {
+          return (
+            <button key={pg.key}
+              className={CURRENT_PAGE===pg.key?'nav-btn active':'nav-btn'}
+              onClick={function(){ if (CURRENT_PAGE!==pg.key) location.href = pg.href; }}>
+              {pg.label}
+            </button>
+          );
+        })}
+      </div>
+      <PageView user={user} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

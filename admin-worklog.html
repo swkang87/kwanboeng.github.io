@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>관리팀 업무일지</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
+<script src="config.js"></script>
+<script src="sysbar.js?v=20260530"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
+.sys-bar{position:sticky;top:0;z-index:300;} /* → sysbar.js가 주입 */
+@media(max-width:640px){
+  .top-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .top-nav::-webkit-scrollbar{display:none;}
+  .nav-right{display:none;}
+}
+@media(max-width:900px){
+  .wl-2col{grid-template-columns:1fr !important;}
+}
+.top-nav{position:sticky;top:83px;z-index:200;background:#1e293b;height:36px;display:flex;align-items:center;padding:0 14px;gap:1px;border-bottom:1px solid var(--theme,#0f172a);}
+.nav-btn{display:flex;align-items:center;gap:4px;padding:5px 11px;height:26px;border:none;background:transparent;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-size:11px;font-weight:400;color:#94a3b8;cursor:pointer;white-space:nowrap;}
+.nav-btn.active{background:#7c3aed;color:#fff;font-weight:700;}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.nav-user{font-size:11px;color:#94a3b8;}
+.nav-logout{background:transparent;color:#64748b;border:1px solid #334155;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+.page{padding:24px;max-width:1200px;margin:0 auto;}
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:20px;margin-bottom:16px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;}
+.stat{border-radius:12px;padding:20px;color:#fff;}
+.stat.purple{background:linear-gradient(135deg,#7c3aed,#6d28d9);}
+.stat.blue{background:linear-gradient(135deg,#1d4ed8,#1e40af);}
+.stat.green{background:linear-gradient(135deg,#059669,#047857);}
+.stat.amber{background:linear-gradient(135deg,#d97706,#b45309);}
+.stat-l{font-size:11px;font-weight:600;opacity:.8;margin-bottom:6px;}
+.stat-v{font-size:26px;font-weight:800;}
+.stat-s{font-size:11px;opacity:.7;margin-top:4px;}
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0;}
+table{width:100%;border-collapse:collapse;}
+thead{background:#f8fafc;}
+th{padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:1px solid #e2e8f0;}
+td{padding:9px 8px;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#f8fafc;}
+.tr{text-align:right;white-space:nowrap;}
+.tc{text-align:center;white-space:nowrap;}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;}
+.bg{background:#dcfce7;color:#166534;}
+.bb{background:#dbeafe;color:#1e40af;}
+.ba{background:#fef3c7;color:#92400e;}
+.br{background:#fee2e2;color:#991b1b;}
+.bgr{background:#f1f5f9;color:#64748b;}
+.bp{background:#f3e8ff;color:#6b21a8;}
+.fl{display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
+.fi{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#0f172a;outline:none;}
+.fi:focus{border-color:#7c3aed;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;}
+.btn-p{background:#7c3aed;color:#fff;}
+.btn-s{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;}
+.btn-d{background:#fee2e2;color:#991b1b;}
+.btn-sm{padding:5px 10px;font-size:11px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.ph{margin-bottom:24px;}
+.pt{font-size:22px;font-weight:800;color:#0f172a;margin-bottom:4px;}
+.ps{font-size:13px;color:#64748b;}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.st{font-size:14px;font-weight:700;color:#0f172a;}
+.itabs{display:flex;gap:4px;margin-bottom:16px;background:#f1f5f9;padding:4px;border-radius:10px;width:fit-content;}
+.itab{padding:6px 14px;border:none;background:transparent;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:600;color:#64748b;cursor:pointer;}
+.itab.active{background:#fff;color:#7c3aed;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;}
+.mbox{background:#fff;border-radius:16px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.3);}
+.mh{padding:20px 24px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;}
+.mht{font-size:15px;font-weight:800;color:#0f172a;}
+.mc{background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;}
+.mb{padding:20px 24px;}
+.mf{padding:16px 24px;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;gap:8px;}
+.empty{text-align:center;padding:48px 24px;color:#94a3b8;}
+.ei{font-size:36px;margin-bottom:12px;}
+.et{font-size:14px;font-weight:600;color:#64748b;margin-bottom:4px;}
+.es{font-size:12px;}
+.al{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;}
+.al-e{background:#fee2e2;color:#991b1b;}
+.al-s{background:#dcfce7;color:#166534;}
+.al-i{background:#dbeafe;color:#1e40af;}
+.loading{text-align:center;padding:32px;color:#94a3b8;font-size:13px;}
+.lc{padding:12px 16px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;}
+.lu{display:flex;align-items:center;gap:10px;}
+.lav{width:32px;height:32px;border-radius:50%;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ln{font-size:13px;font-weight:700;}
+.lm{font-size:11px;color:#94a3b8;}
+.lb{padding:14px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;}
+.tr-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid #e2e8f0;}
+.tr-row:last-child{border-bottom:none;}
+.ti{flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:13px;outline:none;}
+.ss{padding:4px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:11px;font-family:'Noto Sans KR',sans-serif;outline:none;background:#fff;}
+.sr{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px;}
+/* ── 날짜 네비 ── */
+.wl-mode-tabs{display:flex;gap:4px;margin-bottom:12px;}
+.wl-mode-tab{padding:5px 14px;border-radius:6px;border:1px solid var(--border,#e2e8f0);background:#f8fafc;font-size:12px;font-weight:600;cursor:pointer;color:#64748b;}
+.wl-mode-tab.active{background:#7c3aed;color:#fff;border-color:#7c3aed;}
+.wl-week-table{width:100%;border-collapse:collapse;font-size:12px;}
+.wl-week-table th,.wl-week-table td{padding:8px 6px;border:1px solid #e2e8f0;text-align:center;vertical-align:middle;}
+.wl-week-table th{background:#f8fafc;font-weight:700;color:#475569;}
+.wl-week-name{text-align:left !important;min-width:60px;font-weight:600;}
+.wl-week-cell{min-width:80px;cursor:pointer;}
+.wl-week-cell:hover{background:#f5f3ff;}
+.wl-week-none{color:#cbd5e1;}
+.wl-week-today{background:#ede9fe !important;}
+.wl-week-cnt{font-weight:700;color:#7c3aed;}
+.wl-week-done{font-size:11px;color:#64748b;}
+.wl-month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:8px;}
+.wl-month-hdr{text-align:center;font-size:11px;font-weight:700;padding:4px 0;color:#64748b;}
+.wl-month-hdr.sat{color:#2563eb;}.wl-month-hdr.sun{color:#dc2626;}
+.wl-month-day{min-height:52px;border-radius:6px;padding:4px;cursor:pointer;border:1px solid transparent;}
+.wl-month-day:hover{background:#f5f3ff;border-color:#ede9fe;}
+.wl-month-day.today{background:#ede9fe;border-color:#c4b5fd;}
+.wl-month-day.empty{cursor:default;}
+.wl-month-day.empty:hover{background:transparent;border-color:transparent;}
+.wl-month-num{font-size:11px;font-weight:700;color:#475569;margin-bottom:2px;}
+.wl-month-num.sat{color:#2563eb;}.wl-month-num.sun,.wl-month-num.hol{color:#dc2626;}
+.wl-month-num.today{color:#7c3aed;}
+.wl-month-cnt{font-size:10px;font-weight:600;color:#7c3aed;background:#ede9fe;border-radius:3px;padding:1px 4px;display:inline-block;}
+.wl-date-btn{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;color:#475569;}
+.wl-date-btn:hover{background:#e2e8f0;}
+.wl-date-btn:disabled{opacity:.4;cursor:default;}
+.wl-today-btn{background:transparent;border:1px solid #7c3aed;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;color:#7c3aed;cursor:pointer;}
+.wl-today-btn:hover{background:#f5f3ff;}
+/* ── MiniCalendar ── */
+.mcal-wrap{position:relative;display:inline-block;}
+.mcal-btn{background:transparent;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:14px;cursor:pointer;color:#94a3b8;}
+.mcal-btn:hover{background:#f1f5f9;}
+.mcal-popup{position:absolute;top:calc(100% + 4px);right:0;z-index:500;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);padding:12px;min-width:260px;}
+.mcal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.mcal-nav-btn{background:transparent;border:1px solid #e2e8f0;border-radius:6px;padding:3px 10px;font-size:13px;cursor:pointer;}
+.mcal-nav-btn:hover{background:#f1f5f9;}
+.mcal-title{font-size:14px;font-weight:800;color:#0f172a;}
+.mcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.mcal-dh{text-align:center;font-size:11px;font-weight:700;padding:4px 0;color:#64748b;}
+.mcal-dh.sat{color:#2563eb;}.mcal-dh.sun{color:#dc2626;}
+.mcal-day{text-align:center;font-size:12px;padding:5px 2px;border-radius:6px;cursor:pointer;font-weight:500;}
+.mcal-day:hover{background:#f5f3ff;}
+.mcal-day.empty{cursor:default;pointer-events:none;}
+.mcal-day.today{background:#7c3aed;color:#fff;font-weight:700;}
+.mcal-day.selected{background:var(--theme,#0f172a);color:#fff;font-weight:700;}
+.mcal-day.sat{color:#2563eb;}.mcal-day.sun,.mcal-day.holiday{color:#dc2626;}
+.mcal-day.today.sat,.mcal-day.today.sun,.mcal-day.today.holiday{color:#fff;}
+.mcal-day.future{opacity:.3;cursor:default;}
+.pb{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-top:4px;}
+.pbf{height:100%;background:linear-gradient(90deg,#7c3aed,#a855f7);border-radius:3px;}
+.sal-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.sal-sec{background:#f8fafc;border-radius:8px;padding:14px;}
+.sal-st{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px;}
+.sal-tot{display:flex;justify-content:space-between;align-items:center;padding:12px 0 0;margin-top:4px;border-top:2px solid var(--theme,#0f172a);}
+.sal-tl{font-size:13px;font-weight:800;}
+.sal-tv{font-size:18px;font-weight:800;color:#7c3aed;}
+.sal-frow{margin-bottom:10px;}
+.lwrap{min-height:100vh;background:linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e1b4b 50%,#4c1d95 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
+.lbox{background:#fff;border-radius:20px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 32px 80px rgba(0,0,0,.5);}
+.llogo{width:56px;height:56px;background:linear-gradient(135deg,#7c3aed,#4c1d95);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;}
+.ltit{font-size:18px;font-weight:800;color:#0f172a;text-align:center;margin-bottom:4px;}
+.lsub{font-size:12px;color:#94a3b8;text-align:center;margin-bottom:24px;}
+@media(max-width:768px){.g2,.g3{grid-template-columns:1fr;}.sal-row{grid-template-columns:1fr;}}
+</style>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+if (window.emailjs && APP_CONFIG.EMAILJS_PUBLIC_KEY) {
+  window.emailjs.init({ publicKey: APP_CONFIG.EMAILJS_PUBLIC_KEY });
+}
+
+const VIEWS = { WL:'wl', PF:'pf', SL:'sl', AB:'ab', ST:'st' };
+const TODAY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const fmtDateKo = (ds) => { const d = new Date(ds + 'T00:00:00'); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`; };
+const DAY_KO = ['일','월','화','수','목','금','토'];
+
+// ── 공휴일 (하드코딩 + Nager.Date API 조합) ──────────────────────────────
+const HOLIDAYS = {
+  '2025-01-01':'신정',
+  '2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴',
+  '2025-03-01':'삼일절',
+  '2025-05-05':'어린이날',
+  '2025-06-03':'임시공휴일','2025-06-06':'현충일',
+  '2025-08-15':'광복절',
+  '2025-10-03':'개천절',
+  '2025-10-05':'추석','2025-10-06':'추석연휴','2025-10-07':'추석연휴',
+  '2025-10-09':'한글날',
+  '2025-12-25':'크리스마스',
+  '2026-01-01':'신정',
+  '2026-02-16':'설날연휴','2026-02-17':'설날','2026-02-18':'설날연휴',
+  '2026-03-01':'삼일절',
+  '2026-05-05':'어린이날','2026-05-24':'부처님오신날',
+  '2026-06-03':'임시공휴일(지방선거)','2026-06-06':'현충일','2026-07-17':'제헌절',
+  '2026-08-15':'광복절',
+  '2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴',
+  '2026-10-03':'개천절','2026-10-09':'한글날',
+  '2026-12-25':'크리스마스',
+};
+const SUBSTITUTE = {
+  '2025-05-06':'대체공휴일',
+  '2025-10-08':'대체공휴일',
+  '2026-03-02':'대체공휴일',
+  '2026-05-25':'대체공휴일',
+  
+  '2026-08-17':'대체공휴일',
+  
+  '2026-10-05':'대체공휴일',
+};
+const NAGER_KO = {
+  "New Year's Day":'신정',"Seollal":'설날',"Seollal Holiday":'설날연휴',
+  "Independence Movement Day":'삼일절',"Labor Day":'근로자의날',
+  "Children's Day":'어린이날',"Buddha's Birthday":'부처님오신날',
+  "Memorial Day":'현충일',"Liberation Day":'광복절',
+  "Chuseok":'추석',"Chuseok Holiday":'추석연휴',
+  "National Foundation Day":'개천절',"Hangul Day":'한글날',
+  "Christmas Day":'크리스마스',"Substitute Holiday":'대체공휴일',
+};
+function isHolidayDate(ds) { return !!(HOLIDAYS[ds] || SUBSTITUTE[ds]); }
+function getHolidayName(ds) { return HOLIDAYS[ds] || SUBSTITUTE[ds] || null; }
+
+const _holCache = {};
+async function fetchHolidays(year) {
+  if (_holCache[year]) return _holCache[year];
+  const set = new Set([...Object.keys(HOLIDAYS), ...Object.keys(SUBSTITUTE)]
+    .filter(d => d.startsWith(String(year))));
+  try {
+    const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`);
+    const data = await r.json();
+    data.forEach(h => {
+      if (!h.date) return;
+      const name = NAGER_KO[h.localName] || NAGER_KO[h.name] || h.localName || h.name;
+      set.add(h.date);
+      if (name === '대체공휴일') SUBSTITUTE[h.date] = '대체공휴일';
+      else if (!HOLIDAYS[h.date]) HOLIDAYS[h.date] = name;
+    });
+  } catch(e) {}
+  _holCache[year] = set;
+  return set;
+}
+
+// 직전 근무일 계산 (주말·공휴일 건너뜀)
+function prevWorkday(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  do {
+    d.setDate(d.getDate() - 1);
+    const s = localDateStr(d);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !isHolidayDate(s)) return s;
+  } while (true);
+}
+// 다음 근무일 계산
+function nextWorkday(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  do {
+    d.setDate(d.getDate() + 1);
+    const s = localDateStr(d);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !isHolidayDate(s)) return s;
+  } while (true);
+}
+
+// ── MiniCalendar ──────────────────────────────────────────────────────────────
+function MiniCalendar({ value, onChange, maxDate }) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => new Date((value || TODAY()) + 'T00:00:00'));
+  const [holidays, setHolidays] = useState(new Set());
+  const wrapRef = useRef(null);
+
+  useEffect(function() {
+    if (!open) return;
+    fetchHolidays(viewDate.getFullYear()).then(function(h) { setHolidays(h); });
+  }, [open, viewDate.getFullYear()]);
+
+  useEffect(function() {
+    if (!open) return;
+    function handler(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return function() { document.removeEventListener('mousedown', handler); };
+  }, [open]);
+
+  const year = viewDate.getFullYear(), month = viewDate.getMonth();
+  const startWd = new Date(year, month, 1).getDay();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const today = TODAY();
+
+  function prevM() { const d = new Date(viewDate); d.setMonth(d.getMonth() - 1); setViewDate(d); }
+  function nextM() { const d = new Date(viewDate); d.setMonth(d.getMonth() + 1); setViewDate(d); }
+
+  function select(ds) {
+    if (maxDate && ds > maxDate) return;
+    onChange(ds);
+    setOpen(false);
+  }
+
+  return (
+    <div className="mcal-wrap" ref={wrapRef}>
+      <button className="mcal-btn" title="달력 선택"
+        onClick={function() { setViewDate(new Date((value || TODAY()) + 'T00:00:00')); setOpen(function(v) { return !v; }); }}>📅</button>
+      {open && (
+        <div className="mcal-popup">
+          <div className="mcal-nav">
+            <button className="mcal-nav-btn" onClick={prevM}>◀</button>
+            <span className="mcal-title">{year}년 {month + 1}월</span>
+            <button className="mcal-nav-btn" onClick={nextM}>▶</button>
+          </div>
+          <div className="mcal-grid">
+            {DAY_KO.map(function(d, i) {
+              return <div key={d} className={'mcal-dh' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '')}>{d}</div>;
+            })}
+            {Array.from({ length: startWd }, function(_, i) { return <div key={'e' + i} className="mcal-day empty" />; })}
+            {Array.from({ length: lastDay }, function(_, i) {
+              const day = i + 1;
+              const ds = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+              const wd = new Date(ds + 'T00:00:00').getDay();
+              const isHol = holidays.has(ds);
+              const isFuture = maxDate && ds > maxDate;
+              const cls = ['mcal-day',
+                (wd === 0 || isHol) ? 'sun' : wd === 6 ? 'sat' : '',
+                ds === today && ds !== value ? 'today' : '',
+                ds === value ? 'selected' : '',
+                isFuture ? 'future' : '',
+              ].filter(Boolean).join(' ');
+              return <div key={day} className={cls} onClick={function() { if (!isFuture) select(ds); }}>{day}</div>;
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+const fmtN = (n) => n ? Number(n).toLocaleString('ko-KR') : '0';
+const fmtD = (d) => {
+  if (!d) return '-';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.getFullYear() + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + String(dt.getDate()).padStart(2,'0');
+};
+const genId = () => Math.random().toString(36).slice(2, 10);
+const WSTATUS = ['완료','진행중','보류'];
+const SCLS = { '완료':'bg','진행중':'bb','보류':'ba' };
+const CAT_COLOR = { '관급': '#2563eb', '사급': '#059669', '기술지원': '#d97706' };
+const CAT_BG    = { '관급': '#dbeafe', '사급': '#dcfce7', '기술지원': '#fef3c7' };
+const CAT_TX    = { '관급': '#1e40af', '사급': '#15803d', '기술지원': '#92400e' };
+
+const fmtShort = (ds) => { const d = new Date(ds + 'T00:00:00'); return (d.getMonth()+1) + '/' + d.getDate(); };
+
+const getWeekDates = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diff);
+  return Array.from({ length: 5 }, function(_, i) {
+    const dd = new Date(mon);
+    dd.setDate(mon.getDate() + i);
+    return localDateStr(dd);
+  });
+};
+
+const getMonthInfo = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  const year = d.getFullYear(), month = d.getMonth();
+  const first = new Date(year, month, 1);
+  const last  = new Date(year, month + 1, 0);
+  return {
+    year, month,
+    days: last.getDate(),
+    startWeekday: first.getDay(),
+    firstDate: localDateStr(first),
+    lastDate:  localDateStr(last),
+  };
+};
+
+// ── 인풋 컴포넌트 ─────────────────────────────────────────────────────────
+function FI({ label, field, form, set }) {
+  function fmtInput(v) {
+    var n = String(v||'').replace(/,/g,'');
+    if (n==='' || n==='-') return n;
+    var num = Number(n);
+    if (isNaN(num)) return n;
+    return num.toLocaleString('ko-KR');
+  }
+  function handleChange(e) {
+    var raw = e.target.value.replace(/,/g,'');
+    set(function(p) { var o = Object.assign({}, p); o[field] = raw; return o; });
+  }
+  return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f1f5f9'}}>
+      <span style={{fontSize:13,color:'#64748b',flexShrink:0,minWidth:110}}>{label}</span>
+      <input
+        className="fi"
+        style={{width:140,textAlign:'right',padding:'4px 8px',fontSize:13,height:'auto'}}
+        value={fmtInput(form[field])}
+        placeholder="0"
+        onChange={handleChange}
+      />
+    </div>
+  );
+}
+
+function WorklogView({ user }) {
+  const { useCallback } = React;
+  const [tab, setTab]         = useState('my');
+  const [allMode, setAllMode] = useState('day');
+  // 내 업무일지
+  const [date, setDate]       = useState(TODAY());
+  const [tasks, setTasks]     = useState([]);
+  const [issues, setIssues]   = useState('');
+  const [saving, setSaving]   = useState(false);
+  const [msg, setMsg]         = useState('');
+  const [loading, setLoading] = useState(false);
+  // 공유 할일
+  const [todos, setTodos]           = useState([]);
+  const [todoLoading, setTodoLoading] = useState(false);
+  const [todoInput, setTodoInput]   = useState('');
+  const [todoAdding, setTodoAdding] = useState(false);
+  // 전체 조회
+  const [selDate, setSelDate]     = useState(TODAY());
+  const [allUsers, setAllUsers]   = useState([]);
+  const [allLogs, setAllLogs]     = useState([]);
+  const [allLoading, setAllLoading] = useState(false);
+
+  // 하위탭 전환 — pushState
+  function changeTab(newTab) {
+    history.pushState({ wlTab: newTab, allMode: allMode, selDate: selDate }, '', '');
+    setTab(newTab);
+  }
+
+  // 전체조회 모드 전환 — pushState
+  function changeAllMode(newMode, date) {
+    history.pushState({ wlTab: 'all', allMode: newMode, selDate: date || selDate }, '', '');
+    if (date) setSelDate(date);
+    setAllMode(newMode);
+  }
+
+  // 뒤로가기 감지
+  useEffect(function() {
+    history.replaceState({ wlTab: tab, allMode: allMode, selDate: selDate }, '', '');
+    function onPop(e) {
+      if (e.state && e.state.wlTab !== undefined) {
+        setTab(e.state.wlTab);
+        if (e.state.allMode) setAllMode(e.state.allMode);
+        if (e.state.selDate) setSelDate(e.state.selDate);
+      }
+    }
+    window.addEventListener('popstate', onPop);
+    return function() { window.removeEventListener('popstate', onPop); };
+  }, []);
+
+  // ── 공유 할일 로드/추가/완료 ─────────────────────────────────────────────
+  function loadTodos() {
+    setTodoLoading(true);
+    sb.from('shared_todos').select('*,creator:created_by(name),completer:completed_by(name)')
+      .neq('status', '완료')
+      .order('created_at', { ascending: true })
+      .then(function(r) {
+        setTodos(r.data || []);
+        setTodoLoading(false);
+      });
+  }
+
+  function addTodo() {
+    var title = todoInput.trim();
+    if (!title) return;
+    setTodoAdding(true);
+    sb.from('shared_todos').insert({ title: title, created_by: user.id, status: '대기' })
+      .then(function(r) {
+        setTodoAdding(false);
+        if (!r.error) { setTodoInput(''); loadTodos(); }
+      });
+  }
+
+  function completeTodo(id) {
+    sb.from('shared_todos').update({
+      status: '완료',
+      completed_by: user.id,
+      completed_at: new Date().toISOString()
+    }).eq('id', id).then(function() { loadTodos(); });
+  }
+
+  function deleteTodo(id) {
+    sb.from('shared_todos').delete().eq('id', id).then(function() { loadTodos(); });
+  }
+
+  function restoreTodo(id) {
+    sb.from('shared_todos').update({
+      status: '대기',
+      completed_by: null,
+      completed_at: null
+    }).eq('id', id).then(function() { loadTodos(); });
+  }
+
+  // 업무일지 작성폼에서 할일 선택 → 항목 추가 + 완료처리
+  function pickTodo(todo) {
+    setTasks(function(p) { return p.concat([{ id: genId(), content: todo.title, status: '완료', fromTodoId: todo.id }]); });
+    completeTodo(todo.id);
+  }
+
+  useEffect(function() { loadTodos(); }, []);
+
+  // ── 내 업무일지 로드 ──────────────────────────────────────────────────────
+  const loadMyLog = useCallback(async function(d) {
+    setLoading(true);
+    const { data } = await sb.from('admin_work_logs')
+      .select('*').eq('user_id', user.id).eq('log_date', d).maybeSingle();
+    if (data) {
+      setTasks(data.tasks || []);
+      setIssues(data.issues || '');
+    } else {
+      // 빈 날짜 → 직전 근무일 진행중 업무 자동 불러오기
+      const prevDs = prevWorkday(d);
+      const { data: pd } = await sb.from('admin_work_logs')
+        .select('tasks').eq('user_id', user.id).eq('log_date', prevDs).maybeSingle();
+      const pending = pd
+        ? (pd.tasks || []).filter(function(t) { return t.status === '진행중'; })
+            .map(function(t) { return Object.assign({}, t, { id: genId() }); })
+        : [];
+      setTasks(pending);
+      setIssues('');
+    }
+    setLoading(false);
+  }, [user.id]);
+
+  useEffect(function() {
+    if (tab === 'my') loadMyLog(date);
+  }, [date, tab]);
+
+  // ── 전체 조회 로드 ────────────────────────────────────────────────────────
+  useEffect(function() {
+    if (tab !== 'all') return;
+    setAllLoading(true);
+    sb.from('teams').select('id,name').then(function(tr) {
+      const teams = tr.data || [];
+      const mgmt = teams.find(function(t) { return t.name === '관리팀'; });
+      sb.from('users').select('id,name,team_id').then(function(ur) {
+        const filtered = (ur.data || []).filter(function(u) {
+          return mgmt && u.team_id === mgmt.id;
+        });
+        setAllUsers(filtered);
+        var start, end;
+        if (allMode === 'day') { start = end = selDate; }
+        else if (allMode === 'week') { const w = getWeekDates(selDate); start = w[0]; end = w[4]; }
+        else { const m = getMonthInfo(selDate); start = m.firstDate; end = m.lastDate; }
+        sb.from('admin_work_logs').select('*').gte('log_date', start).lte('log_date', end).then(function(lr) {
+          setAllLogs(lr.data || []);
+          setAllLoading(false);
+        });
+      });
+    });
+  }, [tab, selDate, allMode]);
+
+  // ── 저장 ──────────────────────────────────────────────────────────────────
+  function save() {
+    setSaving(true);
+    sb.from('admin_work_logs').upsert({
+      user_id: user.id, log_date: date,
+      tasks: tasks, tomorrow_tasks: [], issues: issues,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,log_date' }).then(function(r) {
+      setSaving(false);
+      if (r.error) {
+        setMsg('❌ 저장 실패: ' + (r.error.message || JSON.stringify(r.error)));
+      } else {
+        setMsg('저장됐습니다');
+        setTimeout(function() { setMsg(''); }, 2500);
+      }
+    });
+  }
+
+  // ── 날짜 이동 헬퍼 ────────────────────────────────────────────────────────
+  function shiftDate(ds, dir, setter, max) {
+    const next = dir < 0 ? prevWorkday(ds) : nextWorkday(ds);
+    if (max && next > max) return;
+    setter(next);
+  }
+  function shiftAllDate(dir) {
+    const d = new Date(selDate + 'T00:00:00');
+    if (allMode === 'day')        d.setDate(d.getDate() + dir);
+    else if (allMode === 'week')  d.setDate(d.getDate() + dir * 7);
+    else                          d.setMonth(d.getMonth() + dir);
+    setSelDate(localDateStr(d));
+  }
+  function allRangeLabel() {
+    if (allMode === 'day')  return fmtDateKo(selDate) + ' (' + DAY_KO[new Date(selDate+'T00:00:00').getDay()] + ')';
+    if (allMode === 'week') { const w = getWeekDates(selDate); return fmtShort(w[0]) + ' ~ ' + fmtShort(w[4]); }
+    const m = getMonthInfo(selDate); return m.year + '년 ' + (m.month+1) + '월';
+  }
+
+  const dayNameOf = (ds) => DAY_KO[new Date(ds + 'T00:00:00').getDay()];
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <div className="pt">📝 관리팀 업무일지</div>
+        <div className="ps">관리팀 전용 업무 기록</div>
+      </div>
+      <div className="itabs">
+        <button className={tab === 'my' ? 'itab active' : 'itab'} onClick={function() { changeTab('my'); }}>내 업무일지</button>
+        <button className={tab === 'all' ? 'itab active' : 'itab'} onClick={function() { changeTab('all'); }}>전체 조회</button>
+      </div>
+
+      {/* ── 내 업무일지 (공유 할일 통합) ── */}
+      {tab === 'my' && (
+        <div className="card">
+
+          {/* 날짜 헤더 */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20,flexWrap:'wrap',gap:8}}>
+            <span style={{fontSize:15,fontWeight:800}}>✏️ {user.name}님 · {fmtDateKo(date)} ({dayNameOf(date)})</span>
+            <div className="wl-date-nav">
+              <button className="wl-date-btn" onClick={function() { shiftDate(date, -1, setDate, null); }}>◀</button>
+              <input type="date" className="fi" value={date} max={TODAY()}
+                onChange={function(e) { setDate(e.target.value); }}
+                style={{width:'auto',maxWidth:140}} />
+              <MiniCalendar value={date} maxDate={TODAY()} onChange={setDate} />
+              <button className="wl-date-btn" onClick={function() { shiftDate(date, 1, setDate, TODAY()); }}
+                disabled={date >= TODAY()}>▶</button>
+              {date !== TODAY() && (
+                <button className="wl-today-btn" onClick={function() { setDate(TODAY()); }}>오늘</button>
+              )}
+            </div>
+          </div>
+
+          {/* ── 공유 할일 영역 ── */}
+          <div style={{marginBottom:20,paddingBottom:20,borderBottom:'1.5px solid #f1f5f9'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+              <span style={{fontSize:13,fontWeight:700,color:'#475569'}}>📋 공유 할일</span>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                {todos.length > 0 && <span style={{fontSize:11,color:'#94a3b8',fontWeight:500}}>{todos.length}건 남음</span>}
+                <div style={{display:'flex',gap:6}}>
+                  <input className="fi" value={todoInput} placeholder="할일 추가"
+                    style={{width:180,fontSize:12,padding:'5px 10px',height:30}}
+                    onChange={function(e){ setTodoInput(e.target.value); }}
+                    onKeyDown={function(e){ if(e.key==='Enter') addTodo(); }} />
+                  <button className="btn btn-p btn-sm" onClick={addTodo}
+                    disabled={todoAdding || !todoInput.trim()}
+                    style={{height:30,padding:'0 12px',fontSize:12}}>
+                    {todoAdding ? '...' : '+ 추가'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {todoLoading ? (
+              <div style={{fontSize:12,color:'#94a3b8',padding:'6px 0'}}>불러오는 중...</div>
+            ) : todos.length === 0 ? (
+              <div style={{fontSize:12,color:'#cbd5e1',padding:'6px 0'}}>등록된 할일이 없습니다</div>
+            ) : (
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                {todos.map(function(todo) {
+                  return (
+                    <div key={todo.id} style={{display:'flex',alignItems:'center',gap:8,
+                      padding:'7px 10px',background:'#f8fafc',borderRadius:8,
+                      border:'1px solid #e2e8f0',minWidth:0}}>
+                      <span style={{fontSize:12,color:'#94a3b8',flexShrink:0}}>☐</span>
+                      <span style={{flex:1,fontSize:12,color:'#1e293b',fontWeight:500,
+                        overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
+                        title={todo.title}>{todo.title}</span>
+                      {todo.creator && (
+                        <span style={{fontSize:10,color:'#94a3b8',flexShrink:0}}>{todo.creator.name}</span>
+                      )}
+                      <button onClick={function(){ pickTodo(todo); }}
+                        style={{flexShrink:0,padding:'2px 8px',background:'#ede9fe',
+                          color:'#6d28d9',border:'none',borderRadius:6,
+                          fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+                        가져오기
+                      </button>
+                      <button onClick={function(){ deleteTodo(todo.id); }}
+                        style={{flexShrink:0,background:'transparent',border:'none',
+                          color:'#cbd5e1',cursor:'pointer',fontSize:13,lineHeight:1,padding:'0 2px'}}
+                        title="삭제">✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* ── 오늘 한 일 ── */}
+          {loading ? <div className="loading">불러오는 중...</div> : (
+            <div>
+              <div className="sh">
+                <span className="st">오늘 한 일</span>
+                <button className="btn btn-s btn-sm" onClick={function() {
+                    setTasks(function(p) { return p.concat([{id:genId(),content:'',status:'진행중'}]); });
+                  }}>+ 추가</button>
+              </div>
+              {tasks.length === 0 && <div style={{color:'#94a3b8',fontSize:13,marginBottom:12}}>업무를 추가하세요.</div>}
+              {tasks.map(function(t) {
+                return (
+                  <div key={t.id} className="tr-row">
+                    <select className="ss" value={t.status} onChange={function(e) {
+                      setTasks(function(p) { return p.map(function(x) { return x.id === t.id ? Object.assign({},x,{status:e.target.value}) : x; }); });
+                    }}>
+                      {WSTATUS.map(function(s) { return <option key={s}>{s}</option>; })}
+                    </select>
+                    <input className="ti" value={t.content} placeholder="업무 내용"
+                      onChange={function(e) {
+                        setTasks(function(p) { return p.map(function(x) { return x.id === t.id ? Object.assign({},x,{content:e.target.value}) : x; }); });
+                      }} />
+                    <button className="btn btn-d btn-sm" onClick={function() {
+                      if (t.fromTodoId) restoreTodo(t.fromTodoId);
+                      setTasks(function(p) { return p.filter(function(x) { return x.id !== t.id; }); });
+                    }}>✕</button>
+                  </div>
+                );
+              })}
+
+              {/* 이슈 / 공유사항 */}
+              <div style={{marginTop:16}}>
+                <div className="st" style={{marginBottom:8}}>💬 공유 사항 / 이슈</div>
+                <textarea className="fi" rows={3} value={issues}
+                  placeholder="공유할 사항이나 이슈를 입력하세요"
+                  onChange={function(e) { setIssues(e.target.value); }}
+                  style={{resize:'vertical'}} />
+              </div>
+
+              <div className="sr">
+                {msg && <span style={{fontSize:12,color:'#059669',fontWeight:600}}>✓ {msg}</span>}
+                <button className="btn btn-p" onClick={save} disabled={saving}>
+                  {saving ? '저장 중...' : '💾 저장'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+      )}
+
+            {/* ── 전체 조회 ── */}
+      {tab === 'all' && (
+        <div className="card">
+          {/* 모드 탭 */}
+          <div className="wl-mode-tabs">
+            {[['day','일별'],['week','주별'],['month','월별']].map(function(m) {
+              return (
+                <button key={m[0]} className={'wl-mode-tab' + (allMode===m[0]?' active':'')}
+                  onClick={function(){changeAllMode(m[0]);}}>
+                  {m[1]}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 날짜 네비 */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:8}}>
+            <span style={{fontSize:14,fontWeight:800,color:'#1e293b'}}>👥 관리팀 전체 · {allRangeLabel()}</span>
+            <div className="wl-date-nav">
+              <button className="wl-date-btn" onClick={function(){shiftAllDate(-1);}}>◀</button>
+              {allMode === 'week' ? (function(){
+                var d = new Date(selDate+'T00:00:00');
+                var y = d.getFullYear();
+                var m = d.getMonth();
+                // 해당 월의 몇 번째 주인지 계산 (월요일 기준)
+                var firstDay = new Date(y, m, 1);
+                var weekNum = Math.ceil((d.getDate() + ((firstDay.getDay()+6)%7)) / 7);
+                return (
+                  <span style={{fontSize:13,fontWeight:700,color:'#1e293b',padding:'4px 10px',
+                    background:'#f1f5f9',borderRadius:6,whiteSpace:'nowrap'}}>
+                    {y}년 {m+1}월 {weekNum}주
+                  </span>
+                );
+              })() : allMode === 'day' ? (
+                <input type="date" className="fi" value={selDate} max={TODAY()}
+                  onChange={function(e){setSelDate(e.target.value);}}
+                  style={{width:'auto',maxWidth:140}} />
+              ) : null}
+              {allMode !== 'month' && <MiniCalendar value={selDate} maxDate={TODAY()} onChange={setSelDate} />}
+              <button className="wl-date-btn" onClick={function(){shiftAllDate(1);}}>▶</button>
+              <button className="wl-today-btn" onClick={function(){setSelDate(TODAY());}}>오늘</button>
+            </div>
+          </div>
+
+          {allLoading ? <div className="loading">불러오는 중...</div> : (
+            <div>
+
+              {/* ── 일별 ── */}
+              {allMode === 'day' && allUsers.map(function(u) {
+                const log = allLogs.find(function(l) { return l.user_id === u.id; });
+                return (
+                  <div key={u.id} className="lc">
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                      <div className="lu">
+                        <div className="lav">{u.name[0]}</div>
+                        <div>
+                          <div className="ln">{u.name}</div>
+                          <div className="lm">{log ? '업무 ' + (log.tasks||[]).length + '건' : '미작성'}</div>
+                        </div>
+                      </div>
+                      <span className={log ? 'badge bg' : 'badge bgr'}>{log ? '작성완료' : '미작성'}</span>
+                    </div>
+                    {log && (
+                      <div className="lb">
+                        {(log.tasks||[]).map(function(t, i) {
+                          return (
+                            <div key={i} className="tr-row">
+                              <span className={'badge ' + (SCLS[t.status] || 'bgr')}>{t.status}</span>
+                              <span style={{flex:1,fontSize:13}}>{t.content}</span>
+                            </div>
+                          );
+                        })}
+                        {log.issues && (
+                          <div style={{marginTop:8,padding:'6px 10px',background:'#fef3c7',borderRadius:6,fontSize:12,color:'#92400e'}}>
+                            💬 {log.issues}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {allMode === 'day' && !allLoading && allUsers.length === 0 && (
+                <div style={{color:'#94a3b8',fontSize:13,textAlign:'center',padding:'20px 0'}}>관리팀 직원 정보를 불러오는 중...</div>
+              )}
+
+              {/* ── 주별 ── */}
+              {allMode === 'week' && (function() {
+                const weekDates = getWeekDates(selDate);
+                return (
+                  <div>
+                    {allUsers.map(function(u) {
+                      const weekLogs = weekDates.map(function(d) {
+                        return { date: d, log: allLogs.find(function(l) { return l.user_id === u.id && l.log_date === d; }) };
+                      }).filter(function(x) { return x.log; });
+                      if (weekLogs.length === 0) return (
+                        <div key={u.id} className="lc" style={{marginBottom:8}}>
+                          <div className="lu">
+                            <div className="lav" style={{opacity:.5}}>{u.name[0]}</div>
+                            <div>
+                              <div className="ln">{u.name}</div>
+                              <div className="lm">이번 주 미작성</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                      return (
+                        <div key={u.id} className="lc" style={{marginBottom:12}}>
+                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                            <div className="lu">
+                              <div className="lav">{u.name[0]}</div>
+                              <div>
+                                <div className="ln">{u.name}</div>
+                                <div className="lm">{weekLogs.length}일 작성</div>
+                              </div>
+                            </div>
+                          </div>
+                          {weekLogs.map(function(item) {
+                            const dt = new Date(item.date + 'T00:00:00');
+                            const dayLabel = (dt.getMonth()+1) + '/' + dt.getDate() + '(' + DAY_KO[dt.getDay()] + ')';
+                            return (
+                              <div key={item.date} style={{marginBottom:10}}>
+                                {/* 날짜 헤더 - 클릭 시 일별로 이동 */}
+                                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5,
+                                  padding:'4px 8px',background:'#f8fafc',borderRadius:6,cursor:'pointer'}}
+                                  onClick={function(){changeAllMode('day', item.date);}}>
+                                  <span style={{fontSize:12,fontWeight:700,color:'#475569'}}>{dayLabel}</span>
+                                  <span style={{fontSize:11,color:'#94a3b8'}}>업무 {(item.log.tasks||[]).length}건</span>
+                                  <span style={{fontSize:11,color:'#7c3aed',marginLeft:'auto'}}>상세보기 →</span>
+                                </div>
+                                {/* 업무 목록 전체 */}
+                                {(item.log.tasks||[]).map(function(t, i) {
+                                  var sColor = t.status==='완료'?'#059669':t.status==='진행중'?'#2563eb':'#d97706';
+                                  return (
+                                    <div key={i} style={{display:'flex',alignItems:'flex-start',gap:8,
+                                      padding:'4px 0',borderBottom:'1px solid #f1f5f9',fontSize:13}}>
+                                      <span style={{flexShrink:0,fontSize:11,fontWeight:700,
+                                        color:sColor,background:sColor+'18',
+                                        padding:'1px 6px',borderRadius:4}}>{t.status}</span>
+                                      <span style={{color:'#334155',lineHeight:1.5}}>{t.content}</span>
+                                    </div>
+                                  );
+                                })}
+                                {item.log.issues && (
+                                  <div style={{marginTop:4,padding:'4px 8px',background:'#fef3c7',
+                                    borderRadius:5,fontSize:12,color:'#92400e'}}>
+                                    💬 {item.log.issues}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {/* ── 월별 ── */}
+              {allMode === 'month' && (function() {
+                const mInfo = getMonthInfo(selDate);
+                return (
+                  <div className="wl-month-grid">
+                    {DAY_KO.map(function(d, i) {
+                      return <div key={d} className={'wl-month-hdr' + (i===0?' sun':i===6?' sat':'')}>{d}</div>;
+                    })}
+                    {Array.from({length:mInfo.startWeekday}, function(_,i) {
+                      return <div key={'e'+i} className="wl-month-day empty" />;
+                    })}
+                    {Array.from({length:mInfo.days}, function(_,i) {
+                      const day = i + 1;
+                      const ds  = mInfo.year + '-' + String(mInfo.month+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+                      const wd  = new Date(ds + 'T00:00:00').getDay();
+                      const cnt = allLogs.filter(function(l){ return l.log_date === ds; }).length;
+                      const isToday = ds === TODAY();
+                      return (
+                        <div key={day} className={'wl-month-day' + (isToday?' today':'')}
+                          onClick={function(){changeAllMode('day', ds);}}>
+                          <div className={'wl-month-num' + (wd===0?' sun':wd===6?' sat':'') + (isToday?' today':'')}>{day}</div>
+                          {cnt > 0 && <div className="wl-month-cnt">{cnt}명</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+            </div>
+          )}
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+// ── 기여율 모달 (프로젝트 선택 시 PM+참여직원 자동 등록) ─────────────────
+
+function LoginScreen({ onLogin }) {
+  const [phone, setPhone] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [remain, setRemain] = useState(0);
+
+  // 잠금 상태 카운트다운
+  useEffect(function() {
+    const bf = Sysbar.Auth.checkBruteForce();
+    if (bf.locked) { setLocked(true); setRemain(bf.remainSec); }
+    const timer = setInterval(function() {
+      const bf2 = Sysbar.Auth.checkBruteForce();
+      if (bf2.locked) { setLocked(true); setRemain(bf2.remainSec); }
+      else { setLocked(false); setRemain(0); }
+    }, 1000);
+    return function() { clearInterval(timer); };
+  }, []);
+
+  async function doLogin() {
+    if (locked) return;
+    if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
+    setLoading(true); setErr('');
+    // allowedRoles: contractor만 차단 (팀 권한은 hasAccess로 판단)
+    const result = await Sysbar.Auth.doLogin(sb, phone, pw, {
+        allowedRoles: ['admin', 'manager', 'staff', 'employee'],
+      });
+    setLoading(false);
+    if (result.ok) {
+      onLogin(result.user);
+    } else {
+      if (result.locked) { setLocked(true); setRemain(result.remainSec); }
+      setErr(result.reason);
+    }
+  }
+
+  return (
+    <div className="lwrap">
+      <div className="lbox">
+        <div className="llogo">🏢</div>
+        <div className="ltit">{APP_CONFIG.COMPANY_SHORT}</div>
+        <div className="lsub">관리포털 · 관리팀/관리자 전용</div>
+        {err && <div className="al al-e">{err}</div>}
+        <div style={{marginBottom:12}}>
+          <label className="fl">아이디 (전화번호)</label>
+          <input className="fi" value={phone} placeholder="전화번호 입력" disabled={locked}
+            onChange={function(e){setPhone(e.target.value);}}
+            onKeyDown={function(e){if(e.key==='Enter')document.getElementById('ap-pw').focus();}} />
+        </div>
+        <div style={{marginBottom:20}}>
+          <label className="fl">비밀번호</label>
+          <input id="ap-pw" type="password" className="fi" value={pw} placeholder="비밀번호 입력" disabled={locked}
+            onChange={function(e){setPw(e.target.value);}}
+            onKeyDown={function(e){if(e.key==='Enter')doLogin();}} />
+        </div>
+        <button className="btn btn-p" onClick={doLogin} disabled={loading || locked} style={{width:'100%',justifyContent:'center',padding:'12px'}}>
+          {locked ? `잠금 ${remain}초` : (loading ? '로그인 중...' : '로그인')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────
+const SysBar = Sysbar.createComponent(React);
+
+
+const CURRENT_PAGE = 'wl';
+const PageView = WorklogView;
+
+// ── 관리포털 페이지 정의 (네비게이션) ──────────────────────────────────────
+// 각 페이지 파일은 상단에서 CURRENT_PAGE 를 지정한다.
+//   admin-worklog.html  → 'wl'
+//   admin-perf.html     → 'pf'
+//   admin-salary.html   → 'sl'
+//   admin-account.html  → 'ab'
+//   admin-staff.html    → 'st'
+const PORTAL_PAGES = [
+  { key:'wl', label:'📝 업무일지', href:'admin-worklog.html', need:'access' },
+  { key:'pf', label:'📊 실적관리', href:'admin-perf.html',    need:'access' },
+  { key:'sl', label:'💼 급여관리', href:'admin-salary.html',  need:'sal'    },
+  { key:'ab', label:'🔑 계정관리', href:'admin-account.html', need:'ab'     },
+  { key:'st', label:'👥 직원관리', href:'admin-staff.html',   need:'access' },
+];
+
+function App() {
+  var initialUser = (function() {
+    var v = Sysbar.Auth.getSession();
+    if (v && v.id && v.role) return v;
+    return null;
+  })();
+  const [user, setUser] = useState(initialUser);
+  const [ssoChecked, setSsoChecked] = useState(!!initialUser);
+  const [teamName, setTeamName] = useState('');
+  const [hasAccess, setHasAccess] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+
+  useEffect(function() {
+    if (initialUser) return;
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { setUser(null); return; }
+    setSsoChecked(true);
+  }, []);
+
+  useEffect(function() {
+    if (!initialUser) return;
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { logout(); return; }
+    if (ssoChecked) { Sysbar.SessionManager.onLogin(function() { logout(); }); }
+  }, []);
+
+  useEffect(function() {
+    if (!user) return;
+    if (user.role === 'admin') { setTeamName('관리자'); setHasAccess(true); setAccessChecked(true); return; }
+    if (!user.team_id) { setHasAccess(false); setAccessChecked(true); return; }
+    sb.from('teams').select('name').eq('id', user.team_id).single().then(function(r) {
+      var name = r.data ? r.data.name : '';
+      setTeamName(name);
+      setHasAccess(name === '관리팀');
+      setAccessChecked(true);
+    });
+  }, [user ? user.id : null]);
+
+  function handleLogin(u) {
+    setUser(u);
+    Sysbar.SessionManager.onLogin(function() { logout(); });
+  }
+
+  function logout() {
+    Sysbar.Auth.logout(sb);
+    setUser(null); setTeamName(''); setHasAccess(false);
+  }
+
+  if (!ssoChecked || (user && !accessChecked)) return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'var(--theme,#0f172a)',color:'#94a3b8',fontSize:14}}>
+      로딩 중...
+    </div>
+  );
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
+
+  if (user.role !== 'admin' && !hasAccess) return (
+    <div className="lwrap">
+      <div className="lbox" style={{textAlign:'center'}}>
+        <div style={{fontSize:48,marginBottom:16}}>🚫</div>
+        <div className="ltit" style={{marginBottom:8}}>접근 권한 없음</div>
+        <p style={{fontSize:13,color:'#64748b',lineHeight:1.6,marginBottom:24}}>관리포털은 관리팀 및 관리자만<br/>이용할 수 있습니다.</p>
+        <a href="project.html" className="btn btn-s" style={{justifyContent:'center'}}>공정관리로 돌아가기</a>
+      </div>
+    </div>
+  );
+
+  var canSal = user.role === 'admin';
+  var canAb  = user.role === 'admin' || teamName === '관리팀';
+
+  // 현재 페이지가 권한이 없는 페이지면 업무일지로 리다이렉트
+  if (CURRENT_PAGE === 'sl' && !canSal) { location.replace('admin-worklog.html'); return null; }
+  if (CURRENT_PAGE === 'ab' && !canAb)  { location.replace('admin-worklog.html'); return null; }
+
+  function canShow(need) {
+    if (need === 'sal') return canSal;
+    if (need === 'ab')  return canAb;
+    return true;
+  }
+
+  return (
+    <div>
+      <SysBar
+        activeKey="admin"
+        user={user}
+        teamName={teamName}
+        onLogout={logout}
+      />
+      {/* 시스템 제목 바 */}
+      <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #7c3aed',position:'sticky',top:38,zIndex:250}}>
+        <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
+        <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>관리 포털</p>
+      </div>
+      <div className="top-nav">
+        {PORTAL_PAGES.filter(function(pg){ return canShow(pg.need); }).map(function(pg) {
+          return (
+            <button key={pg.key}
+              className={CURRENT_PAGE===pg.key?'nav-btn active':'nav-btn'}
+              onClick={function(){ if (CURRENT_PAGE!==pg.key) location.href = pg.href; }}>
+              {pg.label}
+            </button>
+          );
+        })}
+      </div>
+      <PageView user={user} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

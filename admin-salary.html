@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>관리팀 급여관리</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
+<script src="config.js"></script>
+<script src="sysbar.js?v=20260530"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
+.sys-bar{position:sticky;top:0;z-index:300;} /* → sysbar.js가 주입 */
+@media(max-width:640px){
+  .top-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .top-nav::-webkit-scrollbar{display:none;}
+  .nav-right{display:none;}
+}
+@media(max-width:900px){
+  .wl-2col{grid-template-columns:1fr !important;}
+}
+.top-nav{position:sticky;top:83px;z-index:200;background:#1e293b;height:36px;display:flex;align-items:center;padding:0 14px;gap:1px;border-bottom:1px solid var(--theme,#0f172a);}
+.nav-btn{display:flex;align-items:center;gap:4px;padding:5px 11px;height:26px;border:none;background:transparent;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-size:11px;font-weight:400;color:#94a3b8;cursor:pointer;white-space:nowrap;}
+.nav-btn.active{background:#7c3aed;color:#fff;font-weight:700;}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.nav-user{font-size:11px;color:#94a3b8;}
+.nav-logout{background:transparent;color:#64748b;border:1px solid #334155;border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+.page{padding:24px;max-width:1200px;margin:0 auto;}
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:20px;margin-bottom:16px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;}
+.stat{border-radius:12px;padding:20px;color:#fff;}
+.stat.purple{background:linear-gradient(135deg,#7c3aed,#6d28d9);}
+.stat.blue{background:linear-gradient(135deg,#1d4ed8,#1e40af);}
+.stat.green{background:linear-gradient(135deg,#059669,#047857);}
+.stat.amber{background:linear-gradient(135deg,#d97706,#b45309);}
+.stat-l{font-size:11px;font-weight:600;opacity:.8;margin-bottom:6px;}
+.stat-v{font-size:26px;font-weight:800;}
+.stat-s{font-size:11px;opacity:.7;margin-top:4px;}
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0;}
+table{width:100%;border-collapse:collapse;}
+thead{background:#f8fafc;}
+th{padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:1px solid #e2e8f0;}
+td{padding:9px 8px;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#f8fafc;}
+.tr{text-align:right;white-space:nowrap;}
+.tc{text-align:center;white-space:nowrap;}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;}
+.bg{background:#dcfce7;color:#166534;}
+.bb{background:#dbeafe;color:#1e40af;}
+.ba{background:#fef3c7;color:#92400e;}
+.br{background:#fee2e2;color:#991b1b;}
+.bgr{background:#f1f5f9;color:#64748b;}
+.bp{background:#f3e8ff;color:#6b21a8;}
+.fl{display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
+.fi{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#0f172a;outline:none;}
+.fi:focus{border-color:#7c3aed;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;}
+.btn-p{background:#7c3aed;color:#fff;}
+.btn-s{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;}
+.btn-d{background:#fee2e2;color:#991b1b;}
+.btn-sm{padding:5px 10px;font-size:11px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.ph{margin-bottom:24px;}
+.pt{font-size:22px;font-weight:800;color:#0f172a;margin-bottom:4px;}
+.ps{font-size:13px;color:#64748b;}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.st{font-size:14px;font-weight:700;color:#0f172a;}
+.itabs{display:flex;gap:4px;margin-bottom:16px;background:#f1f5f9;padding:4px;border-radius:10px;width:fit-content;}
+.itab{padding:6px 14px;border:none;background:transparent;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:600;color:#64748b;cursor:pointer;}
+.itab.active{background:#fff;color:#7c3aed;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;}
+.mbox{background:#fff;border-radius:16px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.3);}
+.mh{padding:20px 24px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;}
+.mht{font-size:15px;font-weight:800;color:#0f172a;}
+.mc{background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;}
+.mb{padding:20px 24px;}
+.mf{padding:16px 24px;border-top:1px solid #f1f5f9;display:flex;justify-content:flex-end;gap:8px;}
+.empty{text-align:center;padding:48px 24px;color:#94a3b8;}
+.ei{font-size:36px;margin-bottom:12px;}
+.et{font-size:14px;font-weight:600;color:#64748b;margin-bottom:4px;}
+.es{font-size:12px;}
+.al{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;}
+.al-e{background:#fee2e2;color:#991b1b;}
+.al-s{background:#dcfce7;color:#166534;}
+.al-i{background:#dbeafe;color:#1e40af;}
+.loading{text-align:center;padding:32px;color:#94a3b8;font-size:13px;}
+.lc{padding:12px 16px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;}
+.lu{display:flex;align-items:center;gap:10px;}
+.lav{width:32px;height:32px;border-radius:50%;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.ln{font-size:13px;font-weight:700;}
+.lm{font-size:11px;color:#94a3b8;}
+.lb{padding:14px 16px;background:#f8fafc;border-top:1px solid #e2e8f0;}
+.tr-row{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid #e2e8f0;}
+.tr-row:last-child{border-bottom:none;}
+.ti{flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:13px;outline:none;}
+.ss{padding:4px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:11px;font-family:'Noto Sans KR',sans-serif;outline:none;background:#fff;}
+.sr{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:12px;}
+/* ── 날짜 네비 ── */
+.wl-mode-tabs{display:flex;gap:4px;margin-bottom:12px;}
+.wl-mode-tab{padding:5px 14px;border-radius:6px;border:1px solid var(--border,#e2e8f0);background:#f8fafc;font-size:12px;font-weight:600;cursor:pointer;color:#64748b;}
+.wl-mode-tab.active{background:#7c3aed;color:#fff;border-color:#7c3aed;}
+.wl-week-table{width:100%;border-collapse:collapse;font-size:12px;}
+.wl-week-table th,.wl-week-table td{padding:8px 6px;border:1px solid #e2e8f0;text-align:center;vertical-align:middle;}
+.wl-week-table th{background:#f8fafc;font-weight:700;color:#475569;}
+.wl-week-name{text-align:left !important;min-width:60px;font-weight:600;}
+.wl-week-cell{min-width:80px;cursor:pointer;}
+.wl-week-cell:hover{background:#f5f3ff;}
+.wl-week-none{color:#cbd5e1;}
+.wl-week-today{background:#ede9fe !important;}
+.wl-week-cnt{font-weight:700;color:#7c3aed;}
+.wl-week-done{font-size:11px;color:#64748b;}
+.wl-month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:8px;}
+.wl-month-hdr{text-align:center;font-size:11px;font-weight:700;padding:4px 0;color:#64748b;}
+.wl-month-hdr.sat{color:#2563eb;}.wl-month-hdr.sun{color:#dc2626;}
+.wl-month-day{min-height:52px;border-radius:6px;padding:4px;cursor:pointer;border:1px solid transparent;}
+.wl-month-day:hover{background:#f5f3ff;border-color:#ede9fe;}
+.wl-month-day.today{background:#ede9fe;border-color:#c4b5fd;}
+.wl-month-day.empty{cursor:default;}
+.wl-month-day.empty:hover{background:transparent;border-color:transparent;}
+.wl-month-num{font-size:11px;font-weight:700;color:#475569;margin-bottom:2px;}
+.wl-month-num.sat{color:#2563eb;}.wl-month-num.sun,.wl-month-num.hol{color:#dc2626;}
+.wl-month-num.today{color:#7c3aed;}
+.wl-month-cnt{font-size:10px;font-weight:600;color:#7c3aed;background:#ede9fe;border-radius:3px;padding:1px 4px;display:inline-block;}
+.wl-date-btn{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer;color:#475569;}
+.wl-date-btn:hover{background:#e2e8f0;}
+.wl-date-btn:disabled{opacity:.4;cursor:default;}
+.wl-today-btn{background:transparent;border:1px solid #7c3aed;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;color:#7c3aed;cursor:pointer;}
+.wl-today-btn:hover{background:#f5f3ff;}
+/* ── MiniCalendar ── */
+.mcal-wrap{position:relative;display:inline-block;}
+.mcal-btn{background:transparent;border:1px solid #e2e8f0;border-radius:6px;padding:4px 8px;font-size:14px;cursor:pointer;color:#94a3b8;}
+.mcal-btn:hover{background:#f1f5f9;}
+.mcal-popup{position:absolute;top:calc(100% + 4px);right:0;z-index:500;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);padding:12px;min-width:260px;}
+.mcal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.mcal-nav-btn{background:transparent;border:1px solid #e2e8f0;border-radius:6px;padding:3px 10px;font-size:13px;cursor:pointer;}
+.mcal-nav-btn:hover{background:#f1f5f9;}
+.mcal-title{font-size:14px;font-weight:800;color:#0f172a;}
+.mcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.mcal-dh{text-align:center;font-size:11px;font-weight:700;padding:4px 0;color:#64748b;}
+.mcal-dh.sat{color:#2563eb;}.mcal-dh.sun{color:#dc2626;}
+.mcal-day{text-align:center;font-size:12px;padding:5px 2px;border-radius:6px;cursor:pointer;font-weight:500;}
+.mcal-day:hover{background:#f5f3ff;}
+.mcal-day.empty{cursor:default;pointer-events:none;}
+.mcal-day.today{background:#7c3aed;color:#fff;font-weight:700;}
+.mcal-day.selected{background:var(--theme,#0f172a);color:#fff;font-weight:700;}
+.mcal-day.sat{color:#2563eb;}.mcal-day.sun,.mcal-day.holiday{color:#dc2626;}
+.mcal-day.today.sat,.mcal-day.today.sun,.mcal-day.today.holiday{color:#fff;}
+.mcal-day.future{opacity:.3;cursor:default;}
+.pb{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-top:4px;}
+.pbf{height:100%;background:linear-gradient(90deg,#7c3aed,#a855f7);border-radius:3px;}
+.sal-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.sal-sec{background:#f8fafc;border-radius:8px;padding:14px;}
+.sal-st{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px;}
+.sal-tot{display:flex;justify-content:space-between;align-items:center;padding:12px 0 0;margin-top:4px;border-top:2px solid var(--theme,#0f172a);}
+.sal-tl{font-size:13px;font-weight:800;}
+.sal-tv{font-size:18px;font-weight:800;color:#7c3aed;}
+.sal-frow{margin-bottom:10px;}
+.lwrap{min-height:100vh;background:linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e1b4b 50%,#4c1d95 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
+.lbox{background:#fff;border-radius:20px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 32px 80px rgba(0,0,0,.5);}
+.llogo{width:56px;height:56px;background:linear-gradient(135deg,#7c3aed,#4c1d95);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;}
+.ltit{font-size:18px;font-weight:800;color:#0f172a;text-align:center;margin-bottom:4px;}
+.lsub{font-size:12px;color:#94a3b8;text-align:center;margin-bottom:24px;}
+@media(max-width:768px){.g2,.g3{grid-template-columns:1fr;}.sal-row{grid-template-columns:1fr;}}
+</style>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+if (window.emailjs && APP_CONFIG.EMAILJS_PUBLIC_KEY) {
+  window.emailjs.init({ publicKey: APP_CONFIG.EMAILJS_PUBLIC_KEY });
+}
+
+const VIEWS = { WL:'wl', PF:'pf', SL:'sl', AB:'ab', ST:'st' };
+const TODAY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const fmtDateKo = (ds) => { const d = new Date(ds + 'T00:00:00'); return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`; };
+const DAY_KO = ['일','월','화','수','목','금','토'];
+
+// ── 공휴일 (하드코딩 + Nager.Date API 조합) ──────────────────────────────
+const HOLIDAYS = {
+  '2025-01-01':'신정',
+  '2025-01-28':'설날연휴','2025-01-29':'설날','2025-01-30':'설날연휴',
+  '2025-03-01':'삼일절',
+  '2025-05-05':'어린이날',
+  '2025-06-03':'임시공휴일','2025-06-06':'현충일',
+  '2025-08-15':'광복절',
+  '2025-10-03':'개천절',
+  '2025-10-05':'추석','2025-10-06':'추석연휴','2025-10-07':'추석연휴',
+  '2025-10-09':'한글날',
+  '2025-12-25':'크리스마스',
+  '2026-01-01':'신정',
+  '2026-02-16':'설날연휴','2026-02-17':'설날','2026-02-18':'설날연휴',
+  '2026-03-01':'삼일절',
+  '2026-05-05':'어린이날','2026-05-24':'부처님오신날',
+  '2026-06-03':'임시공휴일(지방선거)','2026-06-06':'현충일','2026-07-17':'제헌절',
+  '2026-08-15':'광복절',
+  '2026-09-24':'추석연휴','2026-09-25':'추석','2026-09-26':'추석연휴',
+  '2026-10-03':'개천절','2026-10-09':'한글날',
+  '2026-12-25':'크리스마스',
+};
+const SUBSTITUTE = {
+  '2025-05-06':'대체공휴일',
+  '2025-10-08':'대체공휴일',
+  '2026-03-02':'대체공휴일',
+  '2026-05-25':'대체공휴일',
+  
+  '2026-08-17':'대체공휴일',
+  
+  '2026-10-05':'대체공휴일',
+};
+const NAGER_KO = {
+  "New Year's Day":'신정',"Seollal":'설날',"Seollal Holiday":'설날연휴',
+  "Independence Movement Day":'삼일절',"Labor Day":'근로자의날',
+  "Children's Day":'어린이날',"Buddha's Birthday":'부처님오신날',
+  "Memorial Day":'현충일',"Liberation Day":'광복절',
+  "Chuseok":'추석',"Chuseok Holiday":'추석연휴',
+  "National Foundation Day":'개천절',"Hangul Day":'한글날',
+  "Christmas Day":'크리스마스',"Substitute Holiday":'대체공휴일',
+};
+function isHolidayDate(ds) { return !!(HOLIDAYS[ds] || SUBSTITUTE[ds]); }
+function getHolidayName(ds) { return HOLIDAYS[ds] || SUBSTITUTE[ds] || null; }
+
+const _holCache = {};
+async function fetchHolidays(year) {
+  if (_holCache[year]) return _holCache[year];
+  const set = new Set([...Object.keys(HOLIDAYS), ...Object.keys(SUBSTITUTE)]
+    .filter(d => d.startsWith(String(year))));
+  try {
+    const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`);
+    const data = await r.json();
+    data.forEach(h => {
+      if (!h.date) return;
+      const name = NAGER_KO[h.localName] || NAGER_KO[h.name] || h.localName || h.name;
+      set.add(h.date);
+      if (name === '대체공휴일') SUBSTITUTE[h.date] = '대체공휴일';
+      else if (!HOLIDAYS[h.date]) HOLIDAYS[h.date] = name;
+    });
+  } catch(e) {}
+  _holCache[year] = set;
+  return set;
+}
+
+// 직전 근무일 계산 (주말·공휴일 건너뜀)
+function prevWorkday(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  do {
+    d.setDate(d.getDate() - 1);
+    const s = localDateStr(d);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !isHolidayDate(s)) return s;
+  } while (true);
+}
+// 다음 근무일 계산
+function nextWorkday(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  do {
+    d.setDate(d.getDate() + 1);
+    const s = localDateStr(d);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !isHolidayDate(s)) return s;
+  } while (true);
+}
+
+// ── MiniCalendar ──────────────────────────────────────────────────────────────
+function MiniCalendar({ value, onChange, maxDate }) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => new Date((value || TODAY()) + 'T00:00:00'));
+  const [holidays, setHolidays] = useState(new Set());
+  const wrapRef = useRef(null);
+
+  useEffect(function() {
+    if (!open) return;
+    fetchHolidays(viewDate.getFullYear()).then(function(h) { setHolidays(h); });
+  }, [open, viewDate.getFullYear()]);
+
+  useEffect(function() {
+    if (!open) return;
+    function handler(e) { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return function() { document.removeEventListener('mousedown', handler); };
+  }, [open]);
+
+  const year = viewDate.getFullYear(), month = viewDate.getMonth();
+  const startWd = new Date(year, month, 1).getDay();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const today = TODAY();
+
+  function prevM() { const d = new Date(viewDate); d.setMonth(d.getMonth() - 1); setViewDate(d); }
+  function nextM() { const d = new Date(viewDate); d.setMonth(d.getMonth() + 1); setViewDate(d); }
+
+  function select(ds) {
+    if (maxDate && ds > maxDate) return;
+    onChange(ds);
+    setOpen(false);
+  }
+
+  return (
+    <div className="mcal-wrap" ref={wrapRef}>
+      <button className="mcal-btn" title="달력 선택"
+        onClick={function() { setViewDate(new Date((value || TODAY()) + 'T00:00:00')); setOpen(function(v) { return !v; }); }}>📅</button>
+      {open && (
+        <div className="mcal-popup">
+          <div className="mcal-nav">
+            <button className="mcal-nav-btn" onClick={prevM}>◀</button>
+            <span className="mcal-title">{year}년 {month + 1}월</span>
+            <button className="mcal-nav-btn" onClick={nextM}>▶</button>
+          </div>
+          <div className="mcal-grid">
+            {DAY_KO.map(function(d, i) {
+              return <div key={d} className={'mcal-dh' + (i === 0 ? ' sun' : i === 6 ? ' sat' : '')}>{d}</div>;
+            })}
+            {Array.from({ length: startWd }, function(_, i) { return <div key={'e' + i} className="mcal-day empty" />; })}
+            {Array.from({ length: lastDay }, function(_, i) {
+              const day = i + 1;
+              const ds = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+              const wd = new Date(ds + 'T00:00:00').getDay();
+              const isHol = holidays.has(ds);
+              const isFuture = maxDate && ds > maxDate;
+              const cls = ['mcal-day',
+                (wd === 0 || isHol) ? 'sun' : wd === 6 ? 'sat' : '',
+                ds === today && ds !== value ? 'today' : '',
+                ds === value ? 'selected' : '',
+                isFuture ? 'future' : '',
+              ].filter(Boolean).join(' ');
+              return <div key={day} className={cls} onClick={function() { if (!isFuture) select(ds); }}>{day}</div>;
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+const fmtN = (n) => n ? Number(n).toLocaleString('ko-KR') : '0';
+const fmtD = (d) => {
+  if (!d) return '-';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.getFullYear() + '.' + String(dt.getMonth()+1).padStart(2,'0') + '.' + String(dt.getDate()).padStart(2,'0');
+};
+const genId = () => Math.random().toString(36).slice(2, 10);
+const WSTATUS = ['완료','진행중','보류'];
+const SCLS = { '완료':'bg','진행중':'bb','보류':'ba' };
+const CAT_COLOR = { '관급': '#2563eb', '사급': '#059669', '기술지원': '#d97706' };
+const CAT_BG    = { '관급': '#dbeafe', '사급': '#dcfce7', '기술지원': '#fef3c7' };
+const CAT_TX    = { '관급': '#1e40af', '사급': '#15803d', '기술지원': '#92400e' };
+
+const fmtShort = (ds) => { const d = new Date(ds + 'T00:00:00'); return (d.getMonth()+1) + '/' + d.getDate(); };
+
+const getWeekDates = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diff);
+  return Array.from({ length: 5 }, function(_, i) {
+    const dd = new Date(mon);
+    dd.setDate(mon.getDate() + i);
+    return localDateStr(dd);
+  });
+};
+
+const getMonthInfo = (dateStr) => {
+  const d = new Date(dateStr + 'T00:00:00');
+  const year = d.getFullYear(), month = d.getMonth();
+  const first = new Date(year, month, 1);
+  const last  = new Date(year, month + 1, 0);
+  return {
+    year, month,
+    days: last.getDate(),
+    startWeekday: first.getDay(),
+    firstDate: localDateStr(first),
+    lastDate:  localDateStr(last),
+  };
+};
+
+// ── 인풋 컴포넌트 ─────────────────────────────────────────────────────────
+function FI({ label, field, form, set }) {
+  function fmtInput(v) {
+    var n = String(v||'').replace(/,/g,'');
+    if (n==='' || n==='-') return n;
+    var num = Number(n);
+    if (isNaN(num)) return n;
+    return num.toLocaleString('ko-KR');
+  }
+  function handleChange(e) {
+    var raw = e.target.value.replace(/,/g,'');
+    set(function(p) { var o = Object.assign({}, p); o[field] = raw; return o; });
+  }
+  return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f1f5f9'}}>
+      <span style={{fontSize:13,color:'#64748b',flexShrink:0,minWidth:110}}>{label}</span>
+      <input
+        className="fi"
+        style={{width:140,textAlign:'right',padding:'4px 8px',fontSize:13,height:'auto'}}
+        value={fmtInput(form[field])}
+        placeholder="0"
+        onChange={handleChange}
+      />
+    </div>
+  );
+}
+
+function SalaryView({ user }) {
+  const [users, setUsers] = useState([]);
+  const [sals, setSals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(false);
+  const [selU, setSelU] = useState(null);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const [month, setMonth] = useState(new Date().toISOString().slice(0,7));
+  const [emMsg, setEmMsg] = useState('');
+  const [salTab, setSalTab] = useState('tax');
+  const [salSort, setSalSort] = useState({col:'default', dir:'asc'});
+  const [prevSals, setPrevSals] = useState([]);
+  const [copying, setCopying] = useState(false);
+  const [copyModal, setCopyModal] = useState(false);
+  const [copySrcMonth, setCopySrcMonth] = useState('');
+  const [copySrcTab, setCopySrcTab] = useState('');
+  const [slipModal, setSlipModal] = useState(false);
+  const [slipTarget, setSlipTarget] = useState(null);
+  const [salaryItems, setSalaryItems] = useState([]);
+  const [details, setDetails] = useState([]); // salary_details for current month
+  const [prevDetails, setPrevDetails] = useState([]);
+  const [itemModal, setItemModal] = useState(false); // 항목관리 모달
+  const [itemForm, setItemForm] = useState({label:'',type:'income'});
+  const [delMonthModal, setDelMonthModal] = useState(false);
+  const [delMonthIng, setDelMonthIng] = useState(false);
+
+  var EXCEL_ORDER = ['강호갑','이수금','강승우','김병용','장용기','조원범','박호진','윤종수','유현수','이규민','이창환','이다빈','안소영','신재호','신병호','송성익','안구환','윤성원','박상철','황보경','한예은','임수혁','한동우','최상민','안명만','현나경','김동현','송영환'];
+
+  function load() {
+    setLoading(true);
+    var prevMonth = (function(){
+      var d = new Date(month + '-01');
+      d.setMonth(d.getMonth()-1);
+      return d.toISOString().slice(0,7);
+    })();
+    Promise.all([
+      sb.from('users').select('id,name,email,position,team_id,birth_date').neq('role','contractor').order('name'),
+      sb.from('salaries').select('*').eq('month', month).eq('sal_type', salTab),
+      sb.from('teams').select('id,name'),
+      sb.from('salary_members').select('id,name,hire_date,leave_date,birth_date').order('name'),
+      sb.from('salaries').select('*').eq('month', prevMonth).eq('sal_type', salTab),
+      sb.from('salary_items').select('*').order('order_no'),
+      sb.from('salary_details').select('*'),
+    ]).then(function(results) {
+      var ud = results[0].data || [];
+      var sd = results[1].data || [];
+      var td = results[2].data || [];
+      var sm = results[3].data || [];
+      var pd = results[4].data || [];
+      var si = results[5].data || [];
+      var dets = results[6].data || [];
+      setPrevSals(pd);
+      setSalaryItems(si);
+      // 현재 월 salary_ids
+      var curSalIds = sd.map(function(s){ return s.id; });
+      var prevSalIds = pd.map(function(s){ return s.id; });
+      setDetails(dets.filter(function(d){ return curSalIds.indexOf(d.salary_id) !== -1; }));
+      setPrevDetails(dets.filter(function(d){ return prevSalIds.indexOf(d.salary_id) !== -1; }));
+      var tmap = {};
+      td.forEach(function(t) { tmap[t.id] = t.name; });
+      var systemUsers = ud.map(function(u) {
+        return Object.assign({}, u, {teamName: tmap[u.team_id]||'-', isMemberOnly: false});
+      });
+      var systemNames = ud.map(function(u){ return u.name; });
+      var extraMembers = sm.filter(function(m){ return systemNames.indexOf(m.name) === -1; })
+        .map(function(m){ return {id: m.id, name: m.name, email: null, position: '', teamName: '-', isMemberOnly: true}; });
+      // 선택 월 기준 재직자 필터링
+      function isActive(u) {
+        var monthStart = new Date(month + '-01');
+        var monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth()+1, 0);
+        var hire = u.hire_date ? new Date(u.hire_date) : null;
+        var leave = u.leave_date ? new Date(u.leave_date) : null;
+        if (hire && hire > monthEnd) return false;
+        if (leave && leave < monthStart) return false;
+        return true;
+      }
+      var allUsers = systemUsers.concat(extraMembers).filter(isActive);
+      // 엑셀 순서 정렬, 목록에 없는 사람은 뒤에 추가
+      allUsers.sort(function(a,b){
+        var ai = EXCEL_ORDER.indexOf(a.name);
+        var bi = EXCEL_ORDER.indexOf(b.name);
+        if (ai === -1 && bi === -1) return a.name.localeCompare(b.name, 'ko');
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      });
+      setUsers(allUsers);
+      setSals(sd);
+      setLoading(false);
+    });
+  }
+
+  function moveMonth(d) {
+    var dt = new Date(month + '-01');
+    dt.setMonth(dt.getMonth() + d);
+    setMonth(dt.toISOString().slice(0,7));
+  }
+
+  async function copyFromSrc(overwrite) {
+    setCopying(true); setCopyModal(false);
+    // 소스 월/탭 데이터 조회
+    var srcR = await sb.from('salaries').select('*').eq('month', copySrcMonth).eq('sal_type', copySrcTab);
+    var srcSals = srcR.data || [];
+    var srcIds = srcSals.map(function(s){ return s.id; });
+    var srcDetsR = srcIds.length > 0
+      ? await sb.from('salary_details').select('*').in('salary_id', srcIds)
+      : { data: [] };
+    var srcDets = srcDetsR.data || [];
+
+    for (var i=0; i<srcSals.length; i++) {
+      var ps = srcSals[i];
+      var existing = sals.find(function(s){ return s.user_id === ps.user_id; });
+      if (existing && !overwrite) continue;
+      var pDets = srcDets.filter(function(d){ return d.salary_id === ps.id; });
+      var c = calcFromDetails(pDets);
+      var salId;
+      if (existing) {
+        await sb.from('salaries').update({ memo: ps.memo||'', total_income: c.inc, total_deduction: c.ded, net_pay: c.net }).eq('id', existing.id);
+        salId = existing.id;
+      } else {
+        var r = await sb.from('salaries').insert({ user_id: ps.user_id, month: month, sal_type: salTab, memo: ps.memo||'', total_income: c.inc, total_deduction: c.ded, net_pay: c.net }).select();
+        if (r.error || !r.data[0]) continue;
+        salId = r.data[0].id;
+      }
+      if (pDets.length > 0) {
+        var newDets = pDets.map(function(d){ return { salary_id: salId, item_id: d.item_id, amount: d.amount||0 }; });
+        await sb.from('salary_details').upsert(newDets, { onConflict: 'salary_id,item_id' });
+      }
+    }
+    setCopying(false);
+    load();
+  }
+
+  useEffect(function() { load(); }, [month, salTab]);
+
+  function getSal(uid) { return sals.find(function(s) { return s.user_id === uid; }); }
+  function getDetails(salId) { return details.filter(function(d){ return d.salary_id === salId; }); }
+  function getPrevDetails(salId) { return prevDetails.filter(function(d){ return d.salary_id === salId; }); }
+
+  function numV(v) { return Number(String(v||0).replace(/,/g,'')) || 0; }
+
+  function calcFromDetails(dets) {
+    var inc = 0, ded = 0;
+    dets.forEach(function(d) {
+      var item = salaryItems.find(function(i){ return i.id === d.item_id; });
+      if (!item) return;
+      if (item.type === 'income') inc += d.amount||0;
+      else ded += d.amount||0;
+    });
+    return { inc: inc, ded: ded, net: inc - ded };
+  }
+
+  function calcFromForm(f) {
+    var inc = 0, ded = 0;
+    salaryItems.forEach(function(item) {
+      var v = numV(f[item.id]||0);
+      if (item.type === 'income') inc += v;
+      else ded += v;
+    });
+    return { inc: inc, ded: ded, net: inc - ded };
+  }
+
+  function openEdit(u) {
+    var s = getSal(u.id);
+    setSelU(u);
+    var initForm = { memo: s ? (s.memo||'') : '' };
+    salaryItems.forEach(function(item) { initForm[item.id] = ''; });
+    if (s) {
+      var dets = getDetails(s.id);
+      dets.forEach(function(d) { initForm[d.item_id] = d.amount||''; });
+    }
+    setForm(initForm);
+    setErr(''); setModal(true);
+  }
+
+  async function saveSal() {
+    if (!selU) return;
+    setSaving(true); setErr('');
+    var c = calcFromForm(form);
+    var existing = getSal(selU.id);
+    var salId;
+    if (existing) {
+      var r = await sb.from('salaries').update({
+        memo: form.memo||'', total_income: c.inc, total_deduction: c.ded, net_pay: c.net,
+      }).eq('id', existing.id);
+      if (r.error) { setErr('저장 오류: ' + r.error.message); setSaving(false); return; }
+      salId = existing.id;
+    } else {
+      var r2 = await sb.from('salaries').insert({
+        user_id: selU.id, month: month, sal_type: salTab,
+        memo: form.memo||'', total_income: c.inc, total_deduction: c.ded, net_pay: c.net,
+      }).select();
+      if (r2.error) { setErr('저장 오류: ' + r2.error.message); setSaving(false); return; }
+      salId = r2.data[0].id;
+    }
+    // salary_details upsert
+    var detailPayloads = salaryItems.map(function(item) {
+      return { salary_id: salId, item_id: item.id, amount: numV(form[item.id])||0 };
+    });
+    await sb.from('salary_details').upsert(detailPayloads, { onConflict: 'salary_id,item_id' });
+    setSaving(false);
+    setModal(false);
+    load();
+  }
+
+  async function deleteMonthData() {
+    setDelMonthIng(true); setDelMonthModal(false);
+    // 이번 달 salaries id 목록
+    var salIds = sals.map(function(s){ return s.id; });
+    if (salIds.length > 0) {
+      // salary_details 먼저 삭제 (CASCADE가 있지만 명시적으로)
+      await sb.from('salary_details').delete().in('salary_id', salIds);
+      await sb.from('salaries').delete().in('id', salIds);
+    }
+    setDelMonthIng(false);
+    load();
+  }
+
+  async function deleteSalaryItem(item) {
+    if (!window.confirm('[' + item.label + '] 항목을 삭제합니다.\n관련 급여 데이터도 모두 삭제됩니다. 계속할까요?')) return;
+    await sb.from('salary_details').delete().eq('item_id', item.id);
+    await sb.from('salary_items').delete().eq('id', item.id);
+    load();
+  }
+
+  async function addSalaryItem() {
+    if (!itemForm.label) return;
+    var maxOrder = salaryItems.filter(function(i){ return i.type===itemForm.type; })
+      .reduce(function(m,i){ return Math.max(m, i.order_no); }, 0);
+    await sb.from('salary_items').insert({ label: itemForm.label, type: itemForm.type, order_no: maxOrder+1, active: true });
+    setItemForm({label:'',type:'income'});
+    load();
+  }
+
+  async function moveItem(item, dir) {
+    // 같은 type 내에서 order_no 기준 정렬
+    var sameType = salaryItems.filter(function(i){ return i.type === item.type; })
+      .slice().sort(function(a,b){ return a.order_no - b.order_no; });
+    var idx = sameType.findIndex(function(i){ return i.id === item.id; });
+    var swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= sameType.length) return;
+    var swapItem = sameType[swapIdx];
+    // order_no 교환
+    await sb.from('salary_items').update({ order_no: swapItem.order_no }).eq('id', item.id);
+    await sb.from('salary_items').update({ order_no: item.order_no }).eq('id', swapItem.id);
+    load();
+  }
+
+  async function toggleItem(item) {
+    await sb.from('salary_items').update({ active: !item.active }).eq('id', item.id);
+    load();
+  }
+
+  function sendSlip(u) {
+    var s = getSal(u.id);
+    if (!s) { alert('급여 데이터를 먼저 입력해주세요.'); return; }
+    if (!u.email) { alert('직원 이메일 주소가 없습니다.'); return; }
+    if (!window.emailjs || !APP_CONFIG.EMAILJS_SERVICE_ID) {
+      alert('EmailJS 설정이 필요합니다.');
+      return;
+    }
+    setSlipTarget(u);
+    setSlipModal(true);
+  }
+
+  async function doSendSlip() {
+    var u = slipTarget;
+    var s = getSal(u.id);
+    setSlipModal(false);
+    setEmMsg('발송 중...');
+
+    // 토큰 생성 (랜덤 32자)
+    var token = Array.from(crypto.getRandomValues(new Uint8Array(20)))
+      .map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+
+    // 만료일: 7일 후
+    var expires = new Date();
+    expires.setDate(expires.getDate() + 7);
+
+    // salary_slips INSERT
+    var r = await sb.from('salary_slips').insert({
+      token: token,
+      salary_id: s.id,
+      user_id: u.id,
+      expires_at: expires.toISOString(),
+    });
+    if (r.error) {
+      setEmMsg('❌ 발송 실패: ' + r.error.message);
+      setTimeout(function(){ setEmMsg(''); }, 5000);
+      return;
+    }
+
+    // 명세서 링크
+    var slipUrl = window.location.origin + '/slip.html?token=' + token;
+
+    // 이메일 발송
+    window.emailjs.send(APP_CONFIG.EMAILJS_SERVICE_ID, APP_CONFIG.EMAILJS_TEMPLATE_ID, {
+      to_email: u.email,
+      name: u.name,
+      month: month,
+      company_name: APP_CONFIG.COMPANY_KO,
+      company_tel: APP_CONFIG.TEL,
+      slip_url: slipUrl,
+    }).then(function() {
+      setEmMsg('📧 ' + u.name + ' 님께 발송 완료 ✓');
+      setTimeout(function(){ setEmMsg(''); }, 3000);
+    }).catch(function(e) {
+      setEmMsg('❌ 발송 실패: ' + (e.text || e.message || JSON.stringify(e)));
+      setTimeout(function(){ setEmMsg(''); }, 5000);
+    });
+  }
+
+  if (loading) return <div className="page"><div className="loading">로딩 중...</div></div>;
+
+  var totals = sals.reduce(function(acc, s) {
+    return { inc: acc.inc + (s.total_income||0), ded: acc.ded + (s.total_deduction||0), net: acc.net + (s.net_pay||0) };
+  }, { inc:0, ded:0, net:0 });
+
+  return (
+    <div className="page">
+      <div className="ph" style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
+        <div><div className="pt">💼 급여 관리</div><div className="ps">관리자 전용</div></div>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <button className="btn btn-s btn-sm" onClick={function(){moveMonth(-1);}}>◀</button>
+          <input type="month" className="fi" value={month} onChange={function(e){setMonth(e.target.value);}} style={{width:'auto'}} />
+          <button className="btn btn-s btn-sm" onClick={function(){moveMonth(1);}}>▶</button>
+        </div>
+      </div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <div style={{display:'flex',gap:8}}>
+          <button className={salTab==='tax'?'itab active':'itab'} onClick={function(){setSalTab('tax');}}>🏛 급여신고</button>
+          <button className={salTab==='pay'?'itab active':'itab'} onClick={function(){setSalTab('pay');}}>💵 급여지급</button>
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          <button className="btn btn-s btn-sm" onClick={function(){setItemModal(true);}} style={{fontSize:12}}>⚙️ 항목관리</button>
+          <button className="btn btn-sm" onClick={function(){setDelMonthModal(true);}} style={{fontSize:12,background:'transparent',color:'#ef4444',border:'1px solid #ef4444',borderRadius:4,padding:'3px 10px',cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>🗑 데이터 삭제</button>
+          <button className="btn btn-s btn-sm" onClick={function(){
+            var d = new Date(month + '-01');
+            d.setMonth(d.getMonth()-1);
+            setCopySrcMonth(d.toISOString().slice(0,7));
+            setCopySrcTab(salTab);
+            setCopyModal(true);
+          }} disabled={copying} style={{fontSize:12}}>
+            {copying ? '복사 중...' : '📋 급여 복사'}
+          </button>
+        </div>
+      </div>
+
+      {emMsg && <div className="al al-s">{emMsg}</div>}
+
+      <div className="card">
+        <div className="tbl-wrap">
+          <table>
+            <thead><tr>
+                {(function(){
+                  function Sh(col, label, cls) {
+                    var active = salSort.col === col;
+                    var next = active && salSort.dir==='asc' ? 'desc' : 'asc';
+                    return (
+                      <th className={cls||''} style={{cursor:'pointer',userSelect:'none',whiteSpace:'nowrap'}}
+                        onClick={function(){setSalSort({col:col,dir:next});}}>
+                        {label} {active ? (salSort.dir==='asc'?'↑':'↓') : '↕'}
+                      </th>
+                    );
+                  }
+                  return [
+                    Sh('name','직원',null),
+                    Sh('team','팀',null),
+                    Sh('base','기본급','tr'),
+                    Sh('inc','총 지급','tr'),
+                    Sh('ded','총 공제','tr'),
+                    Sh('net','실수령액','tr'),
+                    <th key="diff" className="tr">전월대비</th>,
+                    <th key="st" className="tc">상태</th>,
+                    <th key="mg" className="tc">관리</th>,
+                  ];
+                })()}
+              </tr></thead>
+            <tbody>
+              {(function(){
+                // 엑셀 기본 순서 저장 (load 시 순서 그대로)
+                var sorted = users.slice();
+                if (salSort.col !== 'default') {
+                  sorted.sort(function(a, b) {
+                    var sa = getSal(a.id); var sb2 = getSal(b.id);
+                    var ca = sa ? calcFromDetails(getDetails(sa.id)) : {inc:0,ded:0,net:0};
+                    var cb = sb2 ? calcFromDetails(getDetails(sb2.id)) : {inc:0,ded:0,net:0};
+                    var va, vb;
+                    if (salSort.col==='name')  { va=a.name; vb=b.name; }
+                    else if (salSort.col==='team')  { va=a.teamName; vb=b.teamName; }
+                    else if (salSort.col==='base')  { va=sa?sa.base_salary||0:0; vb=sb2?sb2.base_salary||0:0; }
+                    else if (salSort.col==='inc')   { va=ca.inc; vb=cb.inc; }
+                    else if (salSort.col==='ded')   { va=ca.ded; vb=cb.ded; }
+                    else if (salSort.col==='net')   { va=ca.net; vb=cb.net; }
+                    else { va=0; vb=0; }
+                    if (typeof va==='string') return salSort.dir==='asc' ? va.localeCompare(vb,'ko') : vb.localeCompare(va,'ko');
+                    return salSort.dir==='asc' ? va-vb : vb-va;
+                  });
+                }
+                return sorted;
+              })().map(function(u) {
+                var s = getSal(u.id);
+                var dets = s ? getDetails(s.id) : [];
+                var c = s ? calcFromDetails(dets) : { inc:0, ded:0, net:0 };
+                var ps = prevSals.find(function(x){ return x.user_id === u.id; });
+                var diff = (s && ps) ? (s.net_pay||0) - (ps.net_pay||0) : null;
+                return (
+                  <tr key={u.id}>
+                    <td>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <div style={{width:28,height:28,borderRadius:'50%',background: u.isMemberOnly ? '#94a3b8' : '#7c3aed',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name[0]}</div>
+                        <div>
+                          <div style={{fontWeight:600}}>{u.name}</div>
+                          {u.isMemberOnly
+                            ? <div style={{fontSize:10,color:'#94a3b8'}}>급여전용</div>
+                            : <div style={{fontSize:11,color:'#94a3b8'}}>{u.position||''}</div>
+                          }
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{color:'#64748b'}}>{u.teamName}</td>
+                    <td className="tr">{s ? fmtN(s.base_salary)+'원' : '-'}</td>
+                    <td className="tr" style={{color:'#1d4ed8',fontWeight:600}}>{s ? fmtN(c.inc)+'원' : '-'}</td>
+                    <td className="tr" style={{color:'#dc2626'}}>{s ? fmtN(c.ded)+'원' : '-'}</td>
+                    <td className="tr" style={{fontWeight:700,color:'#7c3aed',fontSize:14}}>{s ? fmtN(c.net)+'원' : '-'}</td>
+                    <td className="tr" style={{fontSize:12,fontWeight:600,color: diff===null?'#94a3b8': diff>0?'#059669': diff<0?'#dc2626':'#64748b'}}>
+                      {diff===null ? '-' : (diff>0?'+':'')+fmtN(diff)+'원'}
+                    </td>
+                    <td className="tc">{s ? <span className="badge bg">입력완료</span> : <span className="badge bgr">미입력</span>}</td>
+                    <td className="tc">
+                      <div style={{display:'flex',gap:4,justifyContent:'center'}}>
+                        <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>입력</button>
+                        {s && !u.isMemberOnly && <button className="btn btn-p btn-sm" onClick={function(){sendSlip(u);}}>📧</button>}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {slipModal && slipTarget && (
+        <div className="mbg" onClick={function(){setSlipModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:380}}>
+            <div className="mh"><span className="mht">📧 급여명세서 발송</span><button className="mc" onClick={function(){setSlipModal(false);}}>×</button></div>
+            <div className="mb">
+              <p style={{fontSize:13,color:'#475569',marginBottom:8}}>
+                아래 직원에게 급여명세서를 발송합니다.
+              </p>
+              <div style={{background:'#f8fafc',borderRadius:8,padding:'12px 16px',marginBottom:16}}>
+                <div style={{fontWeight:700,fontSize:15}}>{slipTarget.name}</div>
+                <div style={{fontSize:12,color:'#64748b',marginTop:4}}>{slipTarget.email}</div>
+              </div>
+              <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+                <button className="btn btn-s" onClick={function(){setSlipModal(false);}}>취소</button>
+                <button className="btn btn-p" onClick={doSendSlip}>발송</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {delMonthModal && (
+        <div className="mbg" onClick={function(){setDelMonthModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:360}}>
+            <div className="mh"><span className="mht" style={{color:'#ef4444'}}>🗑 데이터 삭제</span><button className="mc" onClick={function(){setDelMonthModal(false);}}>×</button></div>
+            <div className="mb">
+              <p style={{fontSize:13,color:'#475569',marginBottom:8}}>
+                <b>{month}</b> [{salTab==='tax'?'급여신고':'급여지급'}] 데이터를 전부 삭제합니다.
+              </p>
+              <div className="al al-e" style={{fontSize:12,marginBottom:0}}>이 작업은 되돌릴 수 없습니다.</div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setDelMonthModal(false);}}>취소</button>
+              <button className="btn btn-d" onClick={deleteMonthData} disabled={delMonthIng}>{delMonthIng?'삭제 중...':'삭제 확인'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {itemModal && (
+        <div className="mbg" onClick={function(){setItemModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:480}}>
+            <div className="mh"><span className="mht">⚙️ 급여 항목 관리</span><button className="mc" onClick={function(){setItemModal(false);}}>×</button></div>
+            <div className="mb">
+              <div style={{marginBottom:16}}>
+                <div style={{fontWeight:700,fontSize:12,color:'#475569',marginBottom:8}}>새 항목 추가</div>
+                <div style={{display:'flex',gap:8}}>
+                  <select className="fi" style={{width:100,flexShrink:0}} value={itemForm.type} onChange={function(e){setItemForm(function(p){return Object.assign({},p,{type:e.target.value});});}}>
+                    <option value="income">지급</option>
+                    <option value="deduction">공제</option>
+                  </select>
+                  <input className="fi" placeholder="항목명" value={itemForm.label} onChange={function(e){setItemForm(function(p){return Object.assign({},p,{label:e.target.value});});}} />
+                  <button className="btn btn-p btn-sm" onClick={addSalaryItem} style={{flexShrink:0}}>추가</button>
+                </div>
+              </div>
+              <div style={{fontSize:11,color:'#94a3b8',marginBottom:10}}>
+                항목을 숨기면 급여 입력 모달에서 표시되지 않습니다. 기존 데이터는 유지됩니다.
+              </div>
+              <div style={{display:'flex',gap:16}}>
+                {['income','deduction'].map(function(type){
+                  var items = salaryItems.filter(function(i){ return i.type===type; });
+                  return (
+                    <div key={type} style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:12,color:'#475569',marginBottom:8}}>{type==='income'?'■ 지급 항목':'■ 공제 항목'}</div>
+                      {items.map(function(item){
+                        var sameType = salaryItems.filter(function(i){ return i.type===item.type; })
+                          .slice().sort(function(a,b){ return a.order_no - b.order_no; });
+                        var idx = sameType.findIndex(function(i){ return i.id===item.id; });
+                        var isFirst = idx === 0;
+                        var isLast  = idx === sameType.length - 1;
+                        return (
+                          <div key={item.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'7px 10px',background:item.active?'#f8fafc':'#fef2f2',borderRadius:6,marginBottom:4,border:'1px solid '+(item.active?'#e2e8f0':'#fecaca')}}>
+                            <div style={{display:'flex',alignItems:'center',gap:4}}>
+                              <div style={{display:'flex',flexDirection:'column',gap:1}}>
+                                <button onClick={function(){moveItem(item,-1);}} disabled={isFirst}
+                                  style={{fontSize:9,padding:'1px 5px',border:'1px solid #e2e8f0',borderRadius:3,cursor:isFirst?'default':'pointer',background:'#fff',color:isFirst?'#cbd5e1':'#475569',lineHeight:1}}>▲</button>
+                                <button onClick={function(){moveItem(item,1);}} disabled={isLast}
+                                  style={{fontSize:9,padding:'1px 5px',border:'1px solid #e2e8f0',borderRadius:3,cursor:isLast?'default':'pointer',background:'#fff',color:isLast?'#cbd5e1':'#475569',lineHeight:1}}>▼</button>
+                              </div>
+                              <span style={{fontSize:13,color:item.active?'#1e293b':'#94a3b8',textDecoration:item.active?'none':'line-through'}}>{item.label}</span>
+                            </div>
+                            <div style={{display:'flex',gap:4}}>
+                              <button onClick={function(){toggleItem(item);}}
+                                style={{fontSize:11,padding:'3px 10px',borderRadius:4,border:'none',cursor:'pointer',
+                                  background:item.active?'#e2e8f0':'#dcfce7',
+                                  color:item.active?'#475569':'#16a34a',fontWeight:700,whiteSpace:'nowrap'}}>
+                                {item.active?'숨기기':'나타내기'}
+                              </button>
+                              <button onClick={function(){deleteSalaryItem(item);}}
+                                style={{fontSize:11,padding:'3px 8px',borderRadius:4,border:'none',cursor:'pointer',
+                                  background:'#fee2e2',color:'#dc2626',fontWeight:700}}>
+                                삭제
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="mf"><button className="btn btn-s" onClick={function(){setItemModal(false);}}>닫기</button></div>
+          </div>
+        </div>
+      )}
+
+      {copyModal && (
+        <div className="mbg" onClick={function(){setCopyModal(false);}}>
+          <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:400}}>
+            <div className="mh"><span className="mht">📋 급여 복사</span><button className="mc" onClick={function(){setCopyModal(false);}}>×</button></div>
+            <div className="mb">
+              <div style={{marginBottom:16}}>
+                <label className="fl" style={{marginBottom:6,display:'block'}}>복사할 원본 선택</label>
+                <div style={{display:'flex',gap:8}}>
+                  <input type="month" className="fi" value={copySrcMonth}
+                    onChange={function(e){setCopySrcMonth(e.target.value);}}
+                    style={{flex:1}} />
+                  <select className="fi" value={copySrcTab}
+                    onChange={function(e){setCopySrcTab(e.target.value);}}
+                    style={{width:100,flexShrink:0}}>
+                    <option value="tax">급여신고</option>
+                    <option value="pay">급여지급</option>
+                  </select>
+                </div>
+                <div style={{fontSize:11,color:'#94a3b8',marginTop:6}}>
+                  → <b>{month}</b> [{salTab==='tax'?'급여신고':'급여지급'}] 으로 복사됩니다
+                </div>
+              </div>
+              <p style={{fontSize:13,color:'#475569',marginBottom:12}}>이미 입력된 직원 데이터는 어떻게 처리할까요?</p>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                <button className="btn btn-p" style={{width:'100%',padding:'10px 0'}} onClick={function(){copyFromSrc(true);}}>
+                  덮어쓰기 — 기존 데이터 포함 전체 복사
+                </button>
+                <button className="btn btn-s" style={{width:'100%',padding:'10px 0'}} onClick={function(){copyFromSrc(false);}}>
+                  스킵 — 미입력 직원만 복사
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal && selU && (
+        <div className="mbg" onClick={function(){setModal(false);}}>
+          <div className="mbox" style={{maxWidth:680}} onClick={function(e){e.stopPropagation();}}>
+            <div className="mh">
+              <span className="mht">💼 {selU.name} 급여 입력 ({month})</span>
+              <button className="mc" onClick={function(){setModal(false);}}>×</button>
+            </div>
+            <div className="mb">
+              {err && <div className="al al-e">{err}</div>}
+              {(function(){
+                var cv = calcFromForm(form);
+                var incItems = salaryItems.filter(function(i){ return i.type==='income' && i.active; });
+                var dedItems = salaryItems.filter(function(i){ return i.type==='deduction' && i.active; });
+                return (
+                  <div style={{display:'flex',gap:20,marginBottom:12}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',letterSpacing:'.3px',marginBottom:6,paddingBottom:6,borderBottom:'2px solid var(--theme,#0f172a)'}}>지급 항목</div>
+                      {incItems.map(function(item){
+                        return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
+                      })}
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:8,marginTop:4,borderTop:'2px solid var(--theme,#0f172a)'}}>
+                        <span style={{fontSize:13,fontWeight:800}}>총 지급액</span>
+                        <span style={{fontSize:15,fontWeight:800,color:'#1d4ed8'}}>{fmtN(cv.inc)}원</span>
+                      </div>
+                    </div>
+                    <div style={{width:1,background:'#e2e8f0',flexShrink:0}} />
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'#64748b',letterSpacing:'.3px',marginBottom:6,paddingBottom:6,borderBottom:'2px solid var(--theme,#0f172a)'}}>공제 항목</div>
+                      {dedItems.map(function(item){
+                        return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
+                      })}
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',paddingTop:8,marginTop:4,borderTop:'2px solid var(--theme,#0f172a)'}}>
+                        <span style={{fontSize:13,fontWeight:800}}>총 공제액</span>
+                        <span style={{fontSize:15,fontWeight:800,color:'#dc2626'}}>{fmtN(cv.ded)}원</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'12px 16px',marginBottom:12}}>
+                <span style={{fontWeight:700,fontSize:14,color:'#1e293b'}}>실수령액</span>
+                <span style={{fontWeight:800,fontSize:18,color:'#7c3aed'}}>{fmtN((function(){var cv=calcFromForm(form);return cv.net;})())}원</span>
+              </div>
+              <div>
+                <label className="fl">메모</label>
+                <input className="fi" value={form.memo||''} placeholder="메모" onChange={function(e){setForm(function(p){return Object.assign({},p,{memo:e.target.value});});}} />
+              </div>
+            </div>
+            <div className="mf">
+              <button className="btn btn-s" onClick={function(){setModal(false);}}>취소</button>
+              <button className="btn btn-p" onClick={saveSal} disabled={saving}>{saving?'저장 중...':'저장'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 직원 관리 ─────────────────────────────────────────────────────────────
+
+function LoginScreen({ onLogin }) {
+  const [phone, setPhone] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [remain, setRemain] = useState(0);
+
+  // 잠금 상태 카운트다운
+  useEffect(function() {
+    const bf = Sysbar.Auth.checkBruteForce();
+    if (bf.locked) { setLocked(true); setRemain(bf.remainSec); }
+    const timer = setInterval(function() {
+      const bf2 = Sysbar.Auth.checkBruteForce();
+      if (bf2.locked) { setLocked(true); setRemain(bf2.remainSec); }
+      else { setLocked(false); setRemain(0); }
+    }, 1000);
+    return function() { clearInterval(timer); };
+  }, []);
+
+  async function doLogin() {
+    if (locked) return;
+    if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
+    setLoading(true); setErr('');
+    // allowedRoles: contractor만 차단 (팀 권한은 hasAccess로 판단)
+    const result = await Sysbar.Auth.doLogin(sb, phone, pw, {
+        allowedRoles: ['admin', 'manager', 'staff', 'employee'],
+      });
+    setLoading(false);
+    if (result.ok) {
+      onLogin(result.user);
+    } else {
+      if (result.locked) { setLocked(true); setRemain(result.remainSec); }
+      setErr(result.reason);
+    }
+  }
+
+  return (
+    <div className="lwrap">
+      <div className="lbox">
+        <div className="llogo">🏢</div>
+        <div className="ltit">{APP_CONFIG.COMPANY_SHORT}</div>
+        <div className="lsub">관리포털 · 관리팀/관리자 전용</div>
+        {err && <div className="al al-e">{err}</div>}
+        <div style={{marginBottom:12}}>
+          <label className="fl">아이디 (전화번호)</label>
+          <input className="fi" value={phone} placeholder="전화번호 입력" disabled={locked}
+            onChange={function(e){setPhone(e.target.value);}}
+            onKeyDown={function(e){if(e.key==='Enter')document.getElementById('ap-pw').focus();}} />
+        </div>
+        <div style={{marginBottom:20}}>
+          <label className="fl">비밀번호</label>
+          <input id="ap-pw" type="password" className="fi" value={pw} placeholder="비밀번호 입력" disabled={locked}
+            onChange={function(e){setPw(e.target.value);}}
+            onKeyDown={function(e){if(e.key==='Enter')doLogin();}} />
+        </div>
+        <button className="btn btn-p" onClick={doLogin} disabled={loading || locked} style={{width:'100%',justifyContent:'center',padding:'12px'}}>
+          {locked ? `잠금 ${remain}초` : (loading ? '로그인 중...' : '로그인')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────
+const SysBar = Sysbar.createComponent(React);
+
+
+const CURRENT_PAGE = 'sl';
+const PageView = SalaryView;
+
+// ── 관리포털 페이지 정의 (네비게이션) ──────────────────────────────────────
+// 각 페이지 파일은 상단에서 CURRENT_PAGE 를 지정한다.
+//   admin-worklog.html  → 'wl'
+//   admin-perf.html     → 'pf'
+//   admin-salary.html   → 'sl'
+//   admin-account.html  → 'ab'
+//   admin-staff.html    → 'st'
+const PORTAL_PAGES = [
+  { key:'wl', label:'📝 업무일지', href:'admin-worklog.html', need:'access' },
+  { key:'pf', label:'📊 실적관리', href:'admin-perf.html',    need:'access' },
+  { key:'sl', label:'💼 급여관리', href:'admin-salary.html',  need:'sal'    },
+  { key:'ab', label:'🔑 계정관리', href:'admin-account.html', need:'ab'     },
+  { key:'st', label:'👥 직원관리', href:'admin-staff.html',   need:'access' },
+];
+
+function App() {
+  var initialUser = (function() {
+    var v = Sysbar.Auth.getSession();
+    if (v && v.id && v.role) return v;
+    return null;
+  })();
+  const [user, setUser] = useState(initialUser);
+  const [ssoChecked, setSsoChecked] = useState(!!initialUser);
+  const [teamName, setTeamName] = useState('');
+  const [hasAccess, setHasAccess] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+
+  useEffect(function() {
+    if (initialUser) return;
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { setUser(null); return; }
+    setSsoChecked(true);
+  }, []);
+
+  useEffect(function() {
+    if (!initialUser) return;
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { logout(); return; }
+    if (ssoChecked) { Sysbar.SessionManager.onLogin(function() { logout(); }); }
+  }, []);
+
+  useEffect(function() {
+    if (!user) return;
+    if (user.role === 'admin') { setTeamName('관리자'); setHasAccess(true); setAccessChecked(true); return; }
+    if (!user.team_id) { setHasAccess(false); setAccessChecked(true); return; }
+    sb.from('teams').select('name').eq('id', user.team_id).single().then(function(r) {
+      var name = r.data ? r.data.name : '';
+      setTeamName(name);
+      setHasAccess(name === '관리팀');
+      setAccessChecked(true);
+    });
+  }, [user ? user.id : null]);
+
+  function handleLogin(u) {
+    setUser(u);
+    Sysbar.SessionManager.onLogin(function() { logout(); });
+  }
+
+  function logout() {
+    Sysbar.Auth.logout(sb);
+    setUser(null); setTeamName(''); setHasAccess(false);
+  }
+
+  if (!ssoChecked || (user && !accessChecked)) return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'var(--theme,#0f172a)',color:'#94a3b8',fontSize:14}}>
+      로딩 중...
+    </div>
+  );
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
+
+  if (user.role !== 'admin' && !hasAccess) return (
+    <div className="lwrap">
+      <div className="lbox" style={{textAlign:'center'}}>
+        <div style={{fontSize:48,marginBottom:16}}>🚫</div>
+        <div className="ltit" style={{marginBottom:8}}>접근 권한 없음</div>
+        <p style={{fontSize:13,color:'#64748b',lineHeight:1.6,marginBottom:24}}>관리포털은 관리팀 및 관리자만<br/>이용할 수 있습니다.</p>
+        <a href="project.html" className="btn btn-s" style={{justifyContent:'center'}}>공정관리로 돌아가기</a>
+      </div>
+    </div>
+  );
+
+  var canSal = user.role === 'admin';
+  var canAb  = user.role === 'admin' || teamName === '관리팀';
+
+  // 현재 페이지가 권한이 없는 페이지면 업무일지로 리다이렉트
+  if (CURRENT_PAGE === 'sl' && !canSal) { location.replace('admin-worklog.html'); return null; }
+  if (CURRENT_PAGE === 'ab' && !canAb)  { location.replace('admin-worklog.html'); return null; }
+
+  function canShow(need) {
+    if (need === 'sal') return canSal;
+    if (need === 'ab')  return canAb;
+    return true;
+  }
+
+  return (
+    <div>
+      <SysBar
+        activeKey="admin"
+        user={user}
+        teamName={teamName}
+        onLogout={logout}
+      />
+      {/* 시스템 제목 바 */}
+      <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #7c3aed',position:'sticky',top:38,zIndex:250}}>
+        <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
+        <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>관리 포털</p>
+      </div>
+      <div className="top-nav">
+        {PORTAL_PAGES.filter(function(pg){ return canShow(pg.need); }).map(function(pg) {
+          return (
+            <button key={pg.key}
+              className={CURRENT_PAGE===pg.key?'nav-btn active':'nav-btn'}
+              onClick={function(){ if (CURRENT_PAGE!==pg.key) location.href = pg.href; }}>
+              {pg.label}
+            </button>
+          );
+        })}
+      </div>
+      <PageView user={user} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
