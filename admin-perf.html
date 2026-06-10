@@ -1596,8 +1596,8 @@ function PerfView({ user }) {
               .reduce(function(s,c){ return s+(c.amount||0); }, 0);
             var totalOut = cols.filter(function(c){ return c.project_id === p.id; })
               .reduce(function(s,c){ return s+(c.outsource_cost||0); }, 0);
-            var netContractAmt = ct.amount;
-            var netCol = totalCol;
+            var netContractAmt = ct.amount - (ct.expected_outsource||0);
+            var netCol = totalCol - totalOut;
             var remain = netContractAmt - (ct.prior_collected||0) - netCol;
             if (remain <= 0) return null;
             return { p:p, remain:remain, endDate:p.end_date, isPast: p.end_date < today };
