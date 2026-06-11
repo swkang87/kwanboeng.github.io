@@ -43,6 +43,11 @@ var APP_CONFIG = {
   SUPABASE_URL:   'https://pxtddjilxwomzfsjhmvn.supabase.co',
   SUPABASE_KEY:   'sb_publishable_M2fWxHmHFMLfdtRConOuMg_GfIMv9bS',
 
+  // ── 관리 설정 ─────────────────────────────────────────────────
+  ADMIN_TEAM_NAME: '관리팀',          // 관리포털 접근 팀명
+  SESSION_PREFIX:  'kwanbo',          // 스토리지 키 prefix
+  AUTH_DOMAIN:     'kwanbo.internal', // 로그인 이메일 도메인
+
   // ── 시스템 메뉴 ───────────────────────────────────────────────
   // active: true  → 클릭 가능
   // active: false → 준비중 표시 (비활성)

@@ -18,7 +18,8 @@
 (function(global) {
   'use strict';
 
-  var SESSION_KEY = 'kwanbo_session';
+  var _prefix = (global.APP_CONFIG && global.APP_CONFIG.SESSION_PREFIX) ? global.APP_CONFIG.SESSION_PREFIX : 'kwanbo';
+  var SESSION_KEY = _prefix + '_session';
 
   var SYS_MENUS = [
     { key:'home',    icon:'🏠', label:'메인메뉴', url:'home.html' },
@@ -125,9 +126,9 @@
   // ── SessionManager ─────────────────────────────────────────
   // 1시간 비활동 자동 로그아웃 + 브라우저/컴퓨터 재시작 후 만료 체크
   var SessionManager = (function() {
-    var ACTIVE_KEY  = 'kwanbo_last_active';
-    var LOGIN_KEY   = 'kwanbo_login_ts';
-    var ORIGIN_KEY  = 'kwanbo_browser_origin';
+    var ACTIVE_KEY  = _prefix + '_last_active';
+    var LOGIN_KEY   = _prefix + '_login_ts';
+    var ORIGIN_KEY  = _prefix + '_browser_origin';
     var TIMEOUT_MS  = 60 * 60 * 1000;  // 1시간
     var WARN_MS     = 55 * 60 * 1000;  // 55분 경과 시 경고
     var THROTTLE_MS = 30 * 1000;
@@ -238,7 +239,7 @@
   var Auth = (function() {
 
     // ── 브루트포스 방어 ──────────────────────────────────────
-    var BF_KEY     = 'kwanbo_login_fail';
+    var BF_KEY     = _prefix + '_login_fail';
     var BF_MAX     = 5;
     var BF_LOCK_MS = 5 * 60 * 1000;  // 5분 잠금
 
@@ -335,7 +336,8 @@
         // 숫자만이면 전화번호 digits로, 아니면 그대로
         var digits = loginIdRaw.replace(/\D/g, '');
         var emailLocal = digits.length > 0 ? digits : loginIdRaw;
-        var email = emailLocal + '@kwanbo.internal';
+        var domain = (global.APP_CONFIG && global.APP_CONFIG.AUTH_DOMAIN) ? global.APP_CONFIG.AUTH_DOMAIN : 'kwanbo.internal';
+        var email = emailLocal + '@' + domain;
 
         // Supabase Auth 로그인
         var authRes = await sbClient.auth.signInWithPassword({ email: email, password: String(pw) });
@@ -521,7 +523,7 @@
       var onDisabled = props.onDisabledClick || function(){};
       var noPrint    = props.noPrint         || false;
       var contractor = !!(user && user.role === 'contractor');
-      var canAdmin   = !!(user && (user.role === 'admin' || teamName === '관리팀'));
+      var canAdmin   = !!(user && (user.role === 'admin' || teamName === ((global.APP_CONFIG && global.APP_CONFIG.ADMIN_TEAM_NAME) || '관리팀')));
       var e = React.createElement;
 
       var links = SYS_MENUS

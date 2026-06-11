@@ -777,7 +777,7 @@ function App() {
     sb.from('teams').select('name').eq('id', user.team_id).single().then(function(r) {
       var name = r.data ? r.data.name : '';
       setTeamName(name);
-      setHasAccess(name === '관리팀');
+      setHasAccess(name === (APP_CONFIG.ADMIN_TEAM_NAME || '관리팀'));
       setAccessChecked(true);
     });
   }, [user ? user.id : null]);
