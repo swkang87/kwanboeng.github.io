@@ -1435,6 +1435,15 @@ function getSb() {
   return supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
 }
 
+var _BF_KEY = (APP_CONFIG.SESSION_PREFIX || 'kwanbo') + '_login_fail';
+var _BF_MAX = 5;
+var _BF_LOCK_MS = 5 * 60 * 1000;
+function _bfGet() { try { return JSON.parse(localStorage.getItem(_BF_KEY) || 'null') || {count:0,lockedAt:0}; } catch(e) { return {count:0,lockedAt:0}; } }
+function _bfSet(v) { localStorage.setItem(_BF_KEY, JSON.stringify(v)); }
+function _bfCheck() { var s=_bfGet(); if(s.lockedAt){ var el=Date.now()-s.lockedAt; if(el<_BF_LOCK_MS) return {locked:true,remainSec:Math.ceil((_BF_LOCK_MS-el)/1000)}; _bfSet({count:0,lockedAt:0}); } return {locked:false}; }
+function _bfFail() { var s=_bfGet(); s.count=(s.count||0)+1; if(s.count>=_BF_MAX) s.lockedAt=Date.now(); _bfSet(s); }
+function _bfClear() { localStorage.removeItem(_BF_KEY); }
+
 function renderLoginSection(user) {
   const sec = document.getElementById('modalLoginSection');
   if (!sec) return;
@@ -1486,16 +1495,21 @@ function renderLoginSection(user) {
       loginBtn.disabled = true;
       loginBtn.textContent = '로그인 중...';
       errEl.textContent = '';
+      var bf = _bfCheck();
+      if (bf.locked) { errEl.textContent = '로그인 시도가 너무 많습니다. ' + Math.ceil(bf.remainSec/60) + '분 후 다시 시도하세요.'; loginBtn.disabled=false; loginBtn.textContent='로그인'; return; }
 
       try {
         var sb = getSb();
         var phoneDigits = phone.replace(/\D/g, '');
         var emailLocal = phoneDigits.length > 0 ? phoneDigits : phone;
-        var email = emailLocal + '@kwanbo.internal';
+        var email = emailLocal + '@' + (APP_CONFIG.AUTH_DOMAIN || 'kwanbo.internal');
 
         // Supabase Auth 로그인
         var authRes = await sb.auth.signInWithPassword({ email: email, password: pw });
         if (authRes.error) {
+          _bfFail();
+          var bfAfter = _bfCheck();
+          if (bfAfter.locked) { errEl.textContent = '로그인 시도가 너무 많습니다. ' + Math.ceil(bfAfter.remainSec/60) + '분 후 다시 시도하세요.'; loginBtn.disabled=false; loginBtn.textContent='로그인'; return; }
           errEl.textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
           loginBtn.disabled = false;
           loginBtn.textContent = '로그인';
@@ -1517,7 +1531,8 @@ function renderLoginSection(user) {
         }
 
         var u = profileRes.data;
-        sessionStorage.setItem('kwanbo_session', JSON.stringify(u));
+        _bfClear();
+        sessionStorage.setItem((APP_CONFIG.SESSION_PREFIX||'kwanbo')+'_session', JSON.stringify(u));
         localStorage.removeItem('kwanbo_pm_user');
         sessionStorage.removeItem('kwanbo_uid');
         window.location.href = (u.role === 'contractor') ? 'project.html' : 'home.html';

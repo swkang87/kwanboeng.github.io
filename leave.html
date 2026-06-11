@@ -864,11 +864,14 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
     const ph=form.phone.replace(/\D/g,'');
     if(users.find(u=>u.phone===ph)){alert('이미 등록된 전화번호입니다.');return;}
     // 초기 비밀번호: 입력값 있으면 사용, 없으면 랜덤 6자리 생성
-    const tempPw = genTempPw();
-    await sb.from('users').insert({...form,phone:ph,total_days:Number(form.total_days)||15});
+    const { data: cuData, error: cuErr } = await sb.functions.invoke('create-user', {
+      body: { name:form.name, phone:ph, role:form.role, team_id:form.team_id||null,
+              join_date:form.join_date, total_days:Number(form.total_days)||15, init_pw:genTempPw() }
+    });
+    if (cuErr || cuData?.error) { alert('등록 실패: ' + (cuData?.error || cuErr?.message)); return; }
     await audit(adm.id,'직원추가',null,form.name);
     setShowAdd(false);setForm({name:'',phone:'',password:'',role:'employee',team_id:'',join_date:today(),total_days:15});onRefresh();
-    alert(`✅ ${form.name} 등록 완료\n\n초기 비밀번호(생년월일)를 Supabase 대시보드에서 직접 설정해주세요.`);
+    alert(`✅ ${form.name} 등록 완료\n초기 비밀번호: ${cuData.init_pw}`);
   };
   const updateUser=async()=>{
     await sb.from('users').update({name:editU.name,phone:editU.phone.replace(/\D/g,''),role:editU.role,team_id:editU.team_id||null,total_days:Number(editU.total_days),join_date:editU.join_date}).eq('id',editU.id);
@@ -884,7 +887,12 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
       const ph=phone.replace(/\D/g,'');
       if(users.find(u=>u.phone===ph))continue;
       const team=teams.find(t=>t.name===teamName);
-      await sb.from('users').insert({name,phone:ph,role:roleLabel==='팀장'?'manager':'employee',team_id:team?.id||null,join_date:joinDate||today(),total_days:Number(daysStr)||15});
+      const { data: cuData, error: cuErr } = await sb.functions.invoke('create-user', {
+        body: { name, phone:ph, role:roleLabel==='팀장'?'manager':'employee',
+                team_id:team?.id||null, join_date:joinDate||today(), total_days:Number(daysStr)||15,
+                init_pw: ph }
+      });
+      if (cuErr || cuData?.error) continue;
       ok++;
     }
     await audit(adm.id,'일괄등록',null,`${ok}명 등록`);
