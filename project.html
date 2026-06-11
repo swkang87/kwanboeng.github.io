@@ -729,15 +729,17 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
       .filter(p => {
         const isLatestWeek = selWeek === allWeeks[0];
         if (!isLatestWeek) {
-          const arr = reportsByProject.get(p.id);
-          const hasReport = arr && arr.some(r => r.week_date <= selWeek);
-          const sunday = (() => {
-            const d = new Date(selWeek + 'T00:00:00');
-            d.setDate(d.getDate() + 6);
-            return localDateStr(d);
-          })();
-          const hasStarted = p.start_date && p.start_date <= sunday;
-          if (!hasReport && !hasStarted) return false;
+          if (p.status !== '완료') {
+            const arr = reportsByProject.get(p.id);
+            const hasReport = arr && arr.some(r => r.week_date <= selWeek);
+            const sunday = (() => {
+              const d = new Date(selWeek + 'T00:00:00');
+              d.setDate(d.getDate() + 6);
+              return localDateStr(d);
+            })();
+            const hasStarted = p.start_date && p.start_date <= sunday;
+            if (!hasReport && !hasStarted) return false;
+          }
         }
         // 기술지원: 배정된 프로젝트만
         if (memberPids !== null && !memberPids.has(p.id)) return false;
