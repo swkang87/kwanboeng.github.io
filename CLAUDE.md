@@ -68,6 +68,32 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 ### salary_details·salary_items·salary_members·salary_slips anon RLS 봉쇄
 - 4개 테이블 anon SELECT 차단, authenticated 허용 정책 적용 완료.
 
+### slip.html XSS 방지 (escapeHtml 적용)
+- `escapeHtml(s)` 유틸 추가 (&, <, >, ", ' 5종 이스케이프).
+- slipCard 렌더링 6곳 적용: `userData.name`, `fmtDate(userData.birth_date)`,
+  `fmtDate(payDate)`, `userData.position`, `makeRows` 내 `item.label`, tag의 `month`.
+- 341/379행 에러 메시지는 하드코딩 문자열 — 변경 제외.
+
+### project.html AUTH_DOMAIN 하드코딩 제거
+- `ChangePasswordModal`(~3067행)·`ProfileView`(~3208행) 두 곳의 `'@kwanbo.internal'` →
+  `'@' + (APP_CONFIG.AUTH_DOMAIN || 'kwanbo.internal')` 패턴으로 교체.
+
+### 현재 세션 키 'kwanbo_session' 리터럴 → SESSION_PREFIX 기반 통일
+- index.html 4곳 / home.html 2곳 / worklog.html 2곳 / project.html 2곳, 총 10곳 교체.
+- 교체 패턴: `((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session'`
+- 잔여 리터럴 0건 확인. 레거시 정리용 `removeItem('kwanbo_pm_user')` · `removeItem('kwanbo_uid')`는 리터럴 유지.
+
+---
+
+## ❕ 패턴·원칙
+
+- **화이트라벨 키는 항상 config 참조**: 세션키·인증 도메인 등은 `APP_CONFIG.*` 참조로 작성.
+  단, 레거시 정리용 `removeItem` 키(`kwanbo_pm_user`, `kwanbo_uid`)는 리터럴 유지 —
+  과거 데이터가 해당 키로 저장되어 있으므로 prefix화하면 안 됨.
+- **project.html 비밀번호 변경 로직은 두 벌이 정상 동작**:
+  `ChangePasswordModal`(관리자 phone 기반 재인증)과 `ProfileView`(본인 username 우선
+  자가변경, 별도 authClient 세션). 용도가 다른 독립 플로우 — 중복 아님, 삭제 금지.
+
 ---
 
 ## 🔲 미완료 — 대시보드 작업 필요
@@ -77,3 +103,11 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - `slip.html`(미사용)이 anon으로 급여+생년월일 전체 조회 가능한 상태.
 - `admin-salary.html`은 JWT(authenticated) 경로 — 봉쇄 후에도 정상 동작해야 함.
 - 순서: 현황 조회 SQL 실행 → 확인 후 봉쇄 SQL 실행 (승우님이 SQL Editor에서 직접).
+
+### SYS_MENUS 이중 관리 해소
+`sysbar.js`의 `SYS_MENUS`가 `config.js`의 `MENUS`와 별개로 하드코딩됨.
+화이트라벨 시 config에서 메뉴를 빼도 시스템바 드롭다운엔 여전히 남는 구조 — 미해결.
+
+### index.html 회사명·연락처 하드코딩 config 주입 전환
+title / footer / 연락처 등이 하드코딩된 상태.
+`APP_CONFIG`에서 주입하도록 전환하면 납품 체크리스트 항목 단축 가능 — 미해결.
