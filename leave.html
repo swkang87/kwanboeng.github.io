@@ -114,6 +114,7 @@ async function loadNagerHolidays(){
 const COLORS=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16'];
 
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+function localDateStr(d){var y=d.getFullYear();var m=String(d.getMonth()+1).padStart(2,'0');var dd=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dd;}
 const thisYear=()=>new Date().getFullYear();
 const isHol=d=>!!HOLIDAYS[d];
 const isSub=d=>!!SUBSTITUTE[d];
@@ -533,7 +534,7 @@ function CalView({users,teams,leaves}){
   // 주간 뷰 - 오늘이 속한 주 일요일부터 시작
   const getSunday=d=>{const x=new Date(d);x.setDate(x.getDate()-x.getDay());return x;};
   const [weekStart,setWeekStart]=useState(()=>getSunday(now));
-  const getWeekDays=()=>Array.from({length:7},(_,i)=>{const x=new Date(weekStart);x.setDate(weekStart.getDate()+i);return x.toISOString().split('T')[0];});
+  const getWeekDays=()=>Array.from({length:7},(_,i)=>{const x=new Date(weekStart);x.setDate(weekStart.getDate()+i);return localDateStr(x);});
   const weekDays=getWeekDays();
   const weekLabel=()=>{const s=new Date(weekStart),e=new Date(weekStart);e.setDate(s.getDate()+6);return s.getMonth()===e.getMonth()?`${s.getFullYear()}년 ${s.getMonth()+1}월 ${s.getDate()}일 ~ ${e.getDate()}일`:`${s.getFullYear()}년 ${s.getMonth()+1}월 ${s.getDate()}일 ~ ${e.getMonth()+1}월 ${e.getDate()}일`;};
   const prevWeek=()=>{const d=new Date(weekStart);d.setDate(d.getDate()-7);setWeekStart(d);};

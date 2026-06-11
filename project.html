@@ -327,6 +327,7 @@ const ff = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return
 const fs = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${String(t.getMonth()+1).padStart(2,'0')}.${String(t.getDate()).padStart(2,'0')}`; };
 const fmt = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${t.getMonth()+1}/${t.getDate()}`; };
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+function localDateStr(d){var y=d.getFullYear();var m=String(d.getMonth()+1).padStart(2,'0');var dd=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dd;}
 const thisMonday = () => { const d = new Date(); d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1)); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const sixMonthsAgo = () => { const d = new Date(); d.setMonth(d.getMonth() - 6); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; };
 const thirtyDaysAgo = () => { const d = new Date(); d.setDate(d.getDate()-30); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -359,7 +360,7 @@ const isMonday = (dateStr) => {
   if (!dateStr) return false;
   return new Date(dateStr + 'T00:00:00').getDay() === 1;
 };
-const weekLabel = (d) => { const dt = new Date(d+'T00:00:00'); const s = new Date(dt); s.setDate(s.getDate()-(dt.getDay()===0?6:dt.getDay()-1)); const e = new Date(s); e.setDate(e.getDate()+4); return `${s.getFullYear()}년 ${s.getMonth()+1}월 ${Math.ceil(s.getDate()/7)}주차 (${fmt(s.toISOString().split('T')[0])}~${fmt(e.toISOString().split('T')[0])})`; };
+const weekLabel = (d) => { const dt = new Date(d+'T00:00:00'); const s = new Date(dt); s.setDate(s.getDate()-(dt.getDay()===0?6:dt.getDay()-1)); const e = new Date(s); e.setDate(e.getDate()+4); return `${s.getFullYear()}년 ${s.getMonth()+1}월 ${Math.ceil(s.getDate()/7)}주차 (${fmt(localDateStr(s))}~${fmt(localDateStr(e))})`; };
 
 // ─── Shared Components ───
 const Bd = ({ children, bg = '#64748b', sm }) => (
@@ -774,7 +775,7 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
   const avgPct = activeProjects.length > 0 ? Math.round(activeProjects.reduce((s,p) => { const r = getReport(p.id); return s + (r?.progress_pct || 0); }, 0) / activeProjects.length) : 0;
   const issueCount = thisWeekReports.filter(r => r.issues).length;
 
-  const twoWeeksLater = selWeek ? (() => { const d = new Date(selWeek+'T00:00:00'); d.setDate(d.getDate()+14); return d.toISOString().split('T')[0]; })() : '';
+  const twoWeeksLater = selWeek ? (() => { const d = new Date(selWeek+'T00:00:00'); d.setDate(d.getDate()+14); return localDateStr(d); })() : '';
   const upcomingEvs = events.filter(e =>
     selWeek &&
     e.event_date >= selWeek &&
@@ -1379,7 +1380,7 @@ function WeeklyTaskList({ allCalEvents, projects, gp }) {
 
   const weekDates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart); d.setDate(d.getDate() + i);
-    return d.toISOString().split('T')[0];
+    return localDateStr(d);
   });
   const weekEnd = weekDates[6];
   const weekLabel = (() => {
@@ -2321,7 +2322,7 @@ function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers 
       pm_id: form.pm_id || project.pm_id,
       updated_at: new Date().toISOString(),
       completed_at: form.status === '완료' && project.status !== '완료'
-        ? new Date().toISOString().split('T')[0]
+        ? today()
         : form.status !== '완료' ? null : (project.completed_at || null),
     };
     const { error } = await sb.from('projects').update(updates).eq('id', project.id);
@@ -2831,7 +2832,7 @@ function InlineProjectEdit({ project, users, userId, onSaved }) {
       pm_id: form.pm_id || project.pm_id,
       updated_at: new Date().toISOString(),
       completed_at: form.status === '완료' && project.status !== '완료'
-        ? new Date().toISOString().split('T')[0]
+        ? today()
         : form.status !== '완료' ? null : (project.completed_at || null),
     };
     const { error } = await sb.from('projects').update(updates).eq('id', project.id);

@@ -1463,6 +1463,7 @@ function renderLoginSection(user) {
       sessionStorage.removeItem('kwanbo_session');
       localStorage.removeItem('kwanbo_pm_user');
       sessionStorage.removeItem('kwanbo_uid');
+      try { getSb().auth.signOut(); } catch(e) {}
       renderLoginSection(null);
     });
   } else {
