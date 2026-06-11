@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>📥 주간보고 일괄 가져오기</title>
 <script src="config.js"></script>
+<script src="sysbar.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -147,33 +148,16 @@ input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#2563eb}
 <script>
 // ─── Supabase ───
 const { createClient } = supabase;
-// RLS용: 로그인된 user의 헤더를 포함한 Supabase 클라이언트 생성
-function _makeSb(userId, userRole) {
-  const extraHeaders = {};
-  if (userId) {
-    extraHeaders['x-user-id'] = String(userId);
-    extraHeaders['x-user-role'] = userRole || '';
-  }
-  return createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY, {
-    global: { headers: extraHeaders }
-  });
-}
 // localStorage 통합 세션에서 user 복원
 let _ssoUser = null;
 try {
-  // 신규: kwanbo_session에 user 객체 전체
-  const sessRaw = sessionStorage.getItem('kwanbo_session');
+  const sessRaw = sessionStorage.getItem(Sysbar.SESSION_KEY);
   if (sessRaw) {
     const v = JSON.parse(sessRaw);
     if (v && v.id && v.role) _ssoUser = v;
   }
-  // 구버전: kwanbo_pm_user 키 (마이그레이션)
-  if (!_ssoUser) {
-    const pmRaw = localStorage.getItem('kwanbo_pm_user');
-    if (pmRaw) _ssoUser = JSON.parse(pmRaw);
-  }
 } catch(e) {}
-let sb = _makeSb(_ssoUser?.id, _ssoUser?.role);
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
 // 세션 없음 → 로그인 페이지로
 if (!_ssoUser) {
   alert('로그인이 필요합니다. 메인 화면에서 다시 진입해주세요.');
