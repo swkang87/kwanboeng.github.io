@@ -279,6 +279,10 @@ function fmtDate(d) {
   if (!d) return '-';
   return d.replace(/-/g, '.');
 }
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 
 // URL에서 token 추출
 function getToken() {
@@ -397,7 +401,7 @@ function renderSlip() {
     return items.map(function(item) {
       var amt = getAmt(item.id);
       if (amt === 0) return '';
-      return '<div class="slip-row"><span class="rname">' + item.label + '</span><span class="rval">' + fmtN(amt) + '원</span></div>';
+      return '<div class="slip-row"><span class="rname">' + escapeHtml(item.label) + '</span><span class="rval">' + fmtN(amt) + '원</span></div>';
     }).join('');
   }
 
@@ -412,25 +416,25 @@ function renderSlip() {
     <div class="slip-header">
       <div class="co-name">${APP_CONFIG.COMPANY_KO || ''}</div>
       <div class="co-en">${APP_CONFIG.COMPANY_EN || ''}</div>
-      <span class="tag">📄 ${month.replace('-','년 ')}월 ${salType}</span>
+      <span class="tag">📄 ${escapeHtml(month.replace('-','년 '))}월 ${salType}</span>
     </div>
 
     <div class="slip-info">
       <div class="slip-info-item">
         <div class="label">성명</div>
-        <div class="value">${userData.name}</div>
+        <div class="value">${escapeHtml(userData.name)}</div>
       </div>
       <div class="slip-info-item">
         <div class="label">생년월일</div>
-        <div class="value">${fmtDate(userData.birth_date)}</div>
+        <div class="value">${escapeHtml(fmtDate(userData.birth_date))}</div>
       </div>
       <div class="slip-info-item">
         <div class="label">임금 지급일</div>
-        <div class="value">${fmtDate(payDate)}</div>
+        <div class="value">${escapeHtml(fmtDate(payDate))}</div>
       </div>
       <div class="slip-info-item">
         <div class="label">직위</div>
-        <div class="value">${userData.position || '-'}</div>
+        <div class="value">${escapeHtml(userData.position || '-')}</div>
       </div>
     </div>
 

@@ -752,11 +752,11 @@ function App(){
   const initUser=(()=>{
     try{
       if(Sysbar.SessionManager.checkOnLoad())return null;
-      const raw=sessionStorage.getItem('kwanbo_session');
+      const raw=sessionStorage.getItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session');
       if(!raw)return null;
       const v=JSON.parse(raw);
       if(v&&v.id&&v.role){
-        if(v.password){delete v.password;sessionStorage.setItem('kwanbo_session',JSON.stringify(v));}
+        if(v.password){delete v.password;sessionStorage.setItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session',JSON.stringify(v));}
         if(v.role==='contractor'){window.location.replace('project.html');return null;}
         return v;
       }

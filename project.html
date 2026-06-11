@@ -402,12 +402,12 @@ function App() {
   const [user, setUser] = useState(() => {
     try {
       // 통합 세션 읽기
-      const sessRaw = sessionStorage.getItem('kwanbo_session');
+      const sessRaw = sessionStorage.getItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session');
       if (sessRaw) {
         const v = JSON.parse(sessRaw);
         // 신규 형태: user 객체 전체 (id 포함)
         if (v && v.id && v.role) {
-          if (v.password) { delete v.password; sessionStorage.setItem('kwanbo_session', JSON.stringify(v)); }
+          if (v.password) { delete v.password; sessionStorage.setItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session', JSON.stringify(v)); }
           localStorage.removeItem('kwanbo_pm_user');
           return v;
         }
@@ -3064,7 +3064,7 @@ function ChangePasswordModal({ user, onClose }) {
     const phoneDigits = uData?.phone ? uData.phone.replace(/\D/g,'') : uData?.phone;
     const emailLocal = phoneDigits && phoneDigits.length > 0 ? phoneDigits : uData?.phone;
     const { error: signInErr } = await sb.auth.signInWithPassword({
-      email: (emailLocal || '') + '@kwanbo.internal', password: curr
+      email: (emailLocal || '') + '@' + (APP_CONFIG.AUTH_DOMAIN || 'kwanbo.internal'), password: curr
     });
     if (signInErr) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
     const { error } = await sb.auth.updateUser({ password: next });
@@ -3205,7 +3205,7 @@ function ProfileView({ user, onLogout }) {
       ? (user.username.replace(/\D/g,'').length > 0 ? user.username.replace(/\D/g,'') : user.username)
       : (user.phone ? user.phone.replace(/\D/g,'') : user.phone);
     const { data: signInData, error: signInErr2 } = await sb.auth.signInWithPassword({
-      email: loginId + '@kwanbo.internal', password: curr
+      email: loginId + '@' + (APP_CONFIG.AUTH_DOMAIN || 'kwanbo.internal'), password: curr
     });
     if (signInErr2) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
     // signInWithPassword로 얻은 세션으로 비밀번호 변경

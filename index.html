@@ -1469,7 +1469,7 @@ function renderLoginSection(user) {
         'color:var(--gray);cursor:pointer;font-family:inherit;">로그아웃</button>' +
       '</div>';
     document.getElementById('modalLogoutBtn').addEventListener('click', function() {
-      sessionStorage.removeItem('kwanbo_session');
+      sessionStorage.removeItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session');
       localStorage.removeItem('kwanbo_pm_user');
       sessionStorage.removeItem('kwanbo_uid');
       try { getSb().auth.signOut(); } catch(e) {}
@@ -1552,13 +1552,13 @@ function renderLoginSection(user) {
 
 // 모달 열릴 때 세션 체크 후 로그인 섹션 렌더
 function initModalLogin() {
-  var raw = sessionStorage.getItem('kwanbo_session');
+  var raw = sessionStorage.getItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session');
   if (raw) {
     try {
       var v = JSON.parse(raw);
       // 신규 형태: user 객체 전체
       if (v && v.id && v.role) {
-        if (v.password) { delete v.password; sessionStorage.setItem('kwanbo_session', JSON.stringify(v)); }
+        if (v.password) { delete v.password; sessionStorage.setItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session', JSON.stringify(v)); }
         renderLoginSection(v);
         return;
       }
@@ -1569,7 +1569,7 @@ function initModalLogin() {
           if (u) {
             var safeU = Object.assign({}, u); delete safeU.password;
             // 통합 세션으로 마이그레이션
-            sessionStorage.setItem('kwanbo_session', JSON.stringify(safeU));
+            sessionStorage.setItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session', JSON.stringify(safeU));
             localStorage.removeItem('kwanbo_pm_user');
             renderLoginSection(safeU);
           } else renderLoginSection(null);
