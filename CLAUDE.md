@@ -1,97 +1,79 @@
 # 보안·버그 수정 작업계획 (2026-06)
 
-> 이 문서는 CLAUDE.md에 이어붙여 클로드코드 세션 컨텍스트로 사용한다.
-> 작업 묶음은 A(즉시) / B(2단계) / C(보류)로 나뉜다.
-> **C는 이번 세션에서 건드리지 않는다.**
+> 작업 묶음은 ✅ 완료 / 🔲 미완료로 표시한다.
 
 ---
 
-## 묶음 A — 즉시 작업 (클로드코드 단독, 함수 본체 불필요)
+## ✅ 완료된 작업
 
-### A-1. 날짜 타임존 버그 6곳 수정
+### 날짜 타임존 버그 6곳 수정
+`new Date(...).toISOString().split('T')[0]` → `localDateStr()` / `today()` 교체.
+- `leave.html` 537행 (`getWeekDays`) — `localDateStr(x)`
+- `project.html` 363행 (`weekLabel`) — `localDateStr(s)`, `localDateStr(e)`
+- `project.html` 778행 (`twoWeeksLater`) — `localDateStr(d)`
+- `project.html` 1383행 (`weekDates`) — `localDateStr(d)`
+- `project.html` 2325·2835행 (`completed_at`) — `today()`
+- `localDateStr` 헬퍼: leave.html 117행, project.html 330행에 추가.
+- 건드리지 않은 안전한 행: leave.html 127행, project.html 326·329·330·344·676·812행.
 
-증상: `new Date(...)`(로컬 자정 Date)에 `.toISOString().split('T')[0]`를 적용하면
-KST(UTC+9) 기준 **오전 9시 이전 접속 시 날짜가 하루 전으로 밀린다.**
+### index.html 로그아웃 signOut 추가
+`renderLoginSection` 로그아웃 핸들러에 `try { getSb().auth.signOut(); } catch(e) {}` 추가.
 
-대상 (정확히 이 6곳만):
-- `leave.html` 536행  — `getWeekDays` 내부
-- `project.html` 362행 — `weekLabel` 내부 (s, e 두 군데)
-- `project.html` 777행 — `twoWeeksLater`
-- `project.html` 1382행 — `weekDates` 배열
-- `project.html` 2324행 — `completed_at` 기록
-- `project.html` 2834행 — `completed_at` 기록
+### index.html 브루트포스 잠금 + AUTH_DOMAIN config화
+로그인 5회 실패 시 5분 잠금. `_bfCheck` / `_bfFail` / `_bfClear` 함수 추가.
+- BF_KEY: `SESSION_PREFIX + '_login_fail'`
+- 이메일 도메인: `AUTH_DOMAIN` config 참조
+- 세션 저장키: `SESSION_PREFIX + '_session'`
 
-**건드리지 말 것 (이미 안전하거나 정오 기준):**
-- `leave.html` 127행 (`countWD`) — `T12:00:00` 기준이라 안전
-- `project.html` 326·329·330·344·676·812행 — 이미 `getFullYear/getMonth/getDate` 패턴
+### config.js 화이트라벨 config화
+`ADMIN_TEAM_NAME`, `SESSION_PREFIX`, `AUTH_DOMAIN` 3항목 추가 (MENUS 위).
 
-수정 방법: 각 파일에 로컬 날짜 헬퍼를 하나 정의하고, 위 6곳의
-`X.toISOString().split('T')[0]` 를 `localDateStr(X)` 로 교체한다.
+### sysbar.js 하드코딩 5곳 config 참조로 교체
+- `SESSION_KEY` / `ACTIVE_KEY` / `LOGIN_KEY` / `ORIGIN_KEY` / `BF_KEY` → `_prefix` 변수 기반
+- `doLogin` 이메일 도메인 → `AUTH_DOMAIN` 참조
+- `canAdmin` 팀명 조건 → `ADMIN_TEAM_NAME` 참조
 
-```js
-// 각 파일 상단(다른 날짜 헬퍼 옆)에 추가. Babel standalone 호환: function 키워드 사용.
-function localDateStr(d) {
-  var y = d.getFullYear();
-  var m = String(d.getMonth() + 1).padStart(2, '0');
-  var dd = String(d.getDate()).padStart(2, '0');
-  return y + '-' + m + '-' + dd;
-}
-```
+### admin 5개 파일 관리팀 하드코딩 교체
+admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
+- `setHasAccess(name === '관리팀')` → `setHasAccess(name === (APP_CONFIG.ADMIN_TEAM_NAME || '관리팀'))`
 
-- project.html 2324·2834는 `new Date().toISOString().split('T')[0]` 형태 →
-  `localDateStr(new Date())` 로 교체.
-- project.html은 이미 `today()`가 동일 로직이므로 `today()` 재사용도 가능
-  (스코프 확인 후 택일). leave.html은 `today()`가 인자를 안 받으므로
-  `localDateStr` 신규 추가가 안전.
+### admin-staff.html 호출부 sb.functions.invoke()로 전환
+- `savePwReset`: `fetch('/functions/v1/reset-user-password')` → `sb.functions.invoke('smooth-function')`
+- `savePhone`: `fetch('/functions/v1/update-user-phone')` → `sb.functions.invoke('update-user-phone')`
+- 헤더 블록(`apikey`, `Authorization`, `x-user-id`, `x-user-role`) 전체 제거.
 
-검증: 수정 후 두 파일 **Babel 컴파일 통과 필수**. 중괄호 균형 Python으로 확인.
+### import_weekly.html _makeSb 제거 + sysbar 통합
+- `_makeSb` 함수 및 RLS 헤더 블록 제거.
+- `sb` 단순화: `supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY)`
+- 세션키: `'kwanbo_session'` → `Sysbar.SESSION_KEY`
+- `kwanbo_pm_user` 레거시 fallback 제거.
+- `sysbar.js` 스크립트 태그 추가 (config.js 다음).
 
-### A-2. index.html 로그아웃 시 auth.signOut() 누락 보완
+### leave.html 직원 추가 create-user Edge Function으로 전환 (Auth 자동 생성)
+- `addUser`: `sb.from('users').insert(...)` → `sb.functions.invoke('create-user', { body: {..., init_pw: genTempPw()} })`
+  - 성공 시 초기 비밀번호를 `cuData.init_pw`로 알림.
+- `processBulk`: 동일 전환. 실패 시 `continue`.
 
-`renderLoginSection`의 로그아웃 핸들러가 sessionStorage만 지우고
-Supabase Auth 세션을 안 닫는다 (1464행 부근).
-`sessionStorage.removeItem('kwanbo_session')` 직후에 Supabase signOut 호출 추가.
+### Edge Function JWT 전환 (smooth-function, update-user-phone, dynamic-action)
+- 세 함수 모두 `x-user-role` 헤더 방식 → JWT 검증 방식으로 전환 완료.
+- 호출부(admin-staff.html)도 `sb.functions.invoke()` 방식으로 동시 전환.
 
-```js
-// 기존: sessionStorage/localStorage 제거만
-// 추가: getSb() 또는 동일 클라이언트로
-try { sb.auth.signOut(); } catch(e) {}
-```
-index.html의 supabase 클라이언트 변수명을 먼저 grep으로 확인하고
-(1435행 부근 createClient) 그 변수로 signOut 호출.
+### Edge Function AUTH_DOMAIN 환경변수화 (update-user-phone, dynamic-action)
+- 이메일 도메인을 `AUTH_DOMAIN` 환경변수로 분리. 하드코딩 제거.
 
----
+### create-user Edge Function 신규 배포
+- Supabase Auth 계정 자동 생성 + users 테이블 insert를 서버사이드에서 처리.
+- 초기 비밀번호(`init_pw`)를 응답으로 반환.
 
-## 묶음 B — 2단계 작업 (현황 조회 → 확정 → 실행)
-
-### B-1. 급여 테이블 RLS 봉쇄
-
-목표: `salaries`, `salary_details`, `salary_items`, `salary_members`,
-`salary_slips`의 **anon SELECT 차단, authenticated 허용.**
-+ `users.birth_date`의 anon 노출 차단.
-
-배경:
-- slip.html(미사용)이 anon으로 급여+생년월일 전체를 읽을 수 있는 상태.
-- admin-salary.html은 signInWithPassword → JWT로 접근 (authenticated).
-- import_weekly.html은 x-user-role 헤더 기반 (salary 안 읽음 → 무관).
-
-**먼저 현황 조회 SQL(RLS_step1_inspect.sql) 실행 → 결과 확인 후 봉쇄 SQL 확정.**
-현재 정책이 `USING(true)`인지, RLS가 켜져 있는지 모르는 상태에서
-봉쇄 SQL을 바로 실행하면 admin-salary가 깨질 수 있음.
-
-이 작업은 **대시보드 SQL Editor에서 승우님이 실행** (클로드코드는 SQL 파일만 작성).
+### salary_details·salary_items·salary_members·salary_slips anon RLS 봉쇄
+- 4개 테이블 anon SELECT 차단, authenticated 허용 정책 적용 완료.
 
 ---
 
-## 묶음 C — 보류 (함수 본체 확보 후, 호출부와 동시 진행)
+## 🔲 미완료 — 대시보드 작업 필요
 
-### C-1. Edge Function JWT 전환
-
-`reset-user-password`, `update-user-phone` 두 함수.
-- 현재 호출부(admin-staff.html 533·570행)는 `x-user-role` 헤더 의존.
-- `functions.invoke()`로 바꾸면 헤더가 안 가서 함수가 깨짐.
-- 따라서 **함수 본체 코드를 Supabase 대시보드에서 가져온 뒤**,
-  본체(JWT 검증 ON)와 호출부(invoke 전환)를 한 커밋에 동시 수정.
-- import_weekly.html의 `_makeSb` 헤더 방식도 이 묶음에서 함께 정리.
-
-**이번 세션에서 절대 건드리지 않는다.**
+### salaries·salary_slips·users.birth_date RLS 봉쇄
+`salaries`, `salary_slips`의 anon SELECT 차단 + `users.birth_date` anon 노출 차단이 남아있음.
+- `slip.html`(미사용)이 anon으로 급여+생년월일 전체 조회 가능한 상태.
+- `admin-salary.html`은 JWT(authenticated) 경로 — 봉쇄 후에도 정상 동작해야 함.
+- 순서: 현황 조회 SQL 실행 → 확인 후 봉쇄 SQL 실행 (승우님이 SQL Editor에서 직접).
