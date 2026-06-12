@@ -743,22 +743,13 @@ function MyLogView({ user, canWrite }) {
   }, [user.id]);
 
   // ── 공유 할일 ───────────────────────────────────────────────────────────────
-  const loadTodos = async () => {
+  const loadTodos = () => {
     setTodoLoading(true);
-    // 설계/지반팀 user ID만 필터
-    const { data: teamRows } = await sb.from('teams').select('id').in('name', ALLOWED_TEAMS);
-    const tids = (teamRows || []).map(t => t.id);
-    if (tids.length === 0) { setTodos([]); setTodoLoading(false); return; }
-    const { data: uu } = await sb.from('users').select('id').in('team_id', tids);
-    const uids = (uu || []).map(u => u.id);
-    if (uids.length === 0) { setTodos([]); setTodoLoading(false); return; }
-    const { data } = await sb.from('shared_todos')
+    sb.from('shared_todos')
       .select('*,creator:created_by(name),completer:completed_by(name)')
-      .in('created_by', uids)
       .neq('status', '완료')
-      .order('created_at', { ascending: true });
-    setTodos(data || []);
-    setTodoLoading(false);
+      .order('created_at', { ascending: true })
+      .then(r => { setTodos(r.data || []); setTodoLoading(false); });
   };
   const addTodo = () => {
     const title = todoInput.trim();
