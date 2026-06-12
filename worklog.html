@@ -687,6 +687,11 @@ function MyLogView({ user, canWrite }) {
   const [saving, setSaving]   = useState(false);
   const [loading, setLoading] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
+  // 공유 할일
+  const [todos, setTodos]           = useState([]);
+  const [todoLoading, setTodoLoading] = useState(false);
+  const [todoInput, setTodoInput]   = useState('');
+  const [todoAdding, setTodoAdding] = useState(false);
 
   // 공정관리에서 해당 날짜 + 본인 PM인 수당 이벤트 조회
   const loadLinkedEvents = useCallback(async (d) => {
@@ -737,6 +742,39 @@ function MyLogView({ user, canWrite }) {
     }
   }, [user.id]);
 
+  // ── 공유 할일 ───────────────────────────────────────────────────────────────
+  const loadTodos = () => {
+    setTodoLoading(true);
+    sb.from('shared_todos').select('*,creator:created_by(name),completer:completed_by(name)')
+      .neq('status', '완료')
+      .order('created_at', { ascending: true })
+      .then(r => { setTodos(r.data || []); setTodoLoading(false); });
+  };
+  const addTodo = () => {
+    const title = todoInput.trim();
+    if (!title) return;
+    setTodoAdding(true);
+    sb.from('shared_todos').insert({ title, created_by: user.id, status: '대기' })
+      .then(r => { setTodoAdding(false); if (!r.error) { setTodoInput(''); loadTodos(); } });
+  };
+  const completeTodo = (id) => {
+    sb.from('shared_todos').update({
+      status: '완료', completed_by: user.id, completed_at: new Date().toISOString()
+    }).eq('id', id).then(() => loadTodos());
+  };
+  const deleteTodo = (id) => {
+    sb.from('shared_todos').delete().eq('id', id).then(() => loadTodos());
+  };
+  const restoreTodo = (id) => {
+    sb.from('shared_todos').update({
+      status: '대기', completed_by: null, completed_at: null
+    }).eq('id', id).then(() => loadTodos());
+  };
+  const pickTodo = (todo) => {
+    setTasks(p => [...p, { id: genId(), content: todo.title, status: '완료', fromTodoId: todo.id }]);
+    completeTodo(todo.id);
+  };
+
   const loadLog = useCallback(async (d) => {
     setLoading(true);
     const { data } = await sb.from('work_logs')
@@ -767,6 +805,7 @@ function MyLogView({ user, canWrite }) {
   }, [user.id, loadLinkedEvents]);
 
   useEffect(() => { loadLog(date); }, [date, loadLog]);
+  useEffect(() => { loadTodos(); }, []);
 
   const save = async () => {
     const hasOvertime = !!(overtimeEnd && overtimeEnd > OT_START);
@@ -860,6 +899,65 @@ function MyLogView({ user, canWrite }) {
         </div>
       </div>
 
+      {/* 공유 할일 */}
+      <div className="log-section">
+        <div className="sec-header">
+          <div className="sec-title">
+            <span className="sec-icon">📋</span>공유 할일
+            {todos.length > 0 && <span style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', marginLeft:4 }}>{todos.length}건 남음</span>}
+          </div>
+          <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+            <input
+              style={{ padding:'5px 10px', border:'1.5px solid var(--border)', borderRadius:6,
+                fontSize:12, width:180, outline:'none', fontFamily:'inherit' }}
+              value={todoInput}
+              placeholder="할일 추가"
+              onChange={e => setTodoInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addTodo(); }}
+            />
+            <button
+              style={{ padding:'5px 12px', background:'var(--accent)', color:'#fff', border:'none',
+                borderRadius:6, fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap',
+                opacity: (todoAdding || !todoInput.trim()) ? 0.5 : 1 }}
+              onClick={addTodo}
+              disabled={todoAdding || !todoInput.trim()}>
+              {todoAdding ? '...' : '+ 추가'}
+            </button>
+          </div>
+        </div>
+        {todoLoading ? (
+          <div style={{ fontSize:12, color:'var(--text-muted)', padding:'6px 0' }}>불러오는 중...</div>
+        ) : todos.length === 0 ? (
+          <div style={{ fontSize:12, color:'var(--text-muted)', padding:'6px 0' }}>등록된 할일이 없습니다</div>
+        ) : (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+            {todos.map(todo => (
+              <div key={todo.id} style={{ display:'flex', alignItems:'center', gap:8,
+                padding:'7px 10px', background:'var(--bg)', borderRadius:8,
+                border:'1.5px solid var(--border)', minWidth:0 }}>
+                <span style={{ fontSize:12, color:'var(--text-muted)', flexShrink:0 }}>☐</span>
+                <span style={{ flex:1, fontSize:12, color:'var(--text)', fontWeight:500,
+                  overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}
+                  title={todo.title}>{todo.title}</span>
+                {todo.creator && (
+                  <span style={{ fontSize:10, color:'var(--text-muted)', flexShrink:0 }}>{todo.creator.name}</span>
+                )}
+                <button onClick={() => pickTodo(todo)}
+                  style={{ flexShrink:0, padding:'2px 8px', background:'#ede9fe',
+                    color:'#6d28d9', border:'none', borderRadius:6,
+                    fontSize:11, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  가져오기
+                </button>
+                <button onClick={() => deleteTodo(todo.id)}
+                  style={{ flexShrink:0, background:'transparent', border:'none',
+                    color:'var(--text-muted)', cursor:'pointer', fontSize:13, lineHeight:1, padding:'0 2px' }}
+                  title="삭제">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {loading ? <div className="loading">불러오는 중...</div> : (<>
         {/* 오늘 한 일 */}
         <div className="log-section">
@@ -872,7 +970,8 @@ function MyLogView({ user, canWrite }) {
             : <div className="task-list">
                 {tasks.map(t => (
                   <TaskItem key={t.id} task={t} showStatus={true}
-                    onChange={u => updTask(t.id, u)} onDelete={() => delTask(t.id)} />
+                    onChange={u => updTask(t.id, u)}
+                    onDelete={() => { if (t.fromTodoId) restoreTodo(t.fromTodoId); delTask(t.id); }} />
                 ))}
               </div>
           }
