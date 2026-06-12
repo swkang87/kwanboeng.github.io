@@ -462,23 +462,32 @@ function WorklogView({ user }) {
   }, []);
 
   // ── 공유 할일 로드/추가/완료 ─────────────────────────────────────────────
-  function loadTodos() {
+  async function loadTodos() {
     setTodoLoading(true);
-    sb.from('shared_todos').select('*,creator:created_by(name),completer:completed_by(name)')
-      .eq('scope', 'admin')
+    // 관리팀 + admin 역할 user ID만 필터
+    const { data: mgmtTeam } = await sb.from('teams').select('id')
+      .eq('name', APP_CONFIG.ADMIN_TEAM_NAME || '관리팀').maybeSingle();
+    const mgmtId = mgmtTeam ? mgmtTeam.id : null;
+    const uQuery = mgmtId
+      ? sb.from('users').select('id').or('team_id.eq.' + mgmtId + ',role.eq.admin')
+      : sb.from('users').select('id').eq('role', 'admin');
+    const { data: uu } = await uQuery;
+    const uids = (uu || []).map(function(u) { return u.id; });
+    if (uids.length === 0) { setTodos([]); setTodoLoading(false); return; }
+    const { data } = await sb.from('shared_todos')
+      .select('*,creator:created_by(name),completer:completed_by(name)')
+      .in('created_by', uids)
       .neq('status', '완료')
-      .order('created_at', { ascending: true })
-      .then(function(r) {
-        setTodos(r.data || []);
-        setTodoLoading(false);
-      });
+      .order('created_at', { ascending: true });
+    setTodos(data || []);
+    setTodoLoading(false);
   }
 
   function addTodo() {
     var title = todoInput.trim();
     if (!title) return;
     setTodoAdding(true);
-    sb.from('shared_todos').insert({ title: title, created_by: user.id, status: '대기', scope: 'admin' })
+    sb.from('shared_todos').insert({ title: title, created_by: user.id, status: '대기' })
       .then(function(r) {
         setTodoAdding(false);
         if (!r.error) { setTodoInput(''); loadTodos(); }
