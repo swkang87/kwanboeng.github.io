@@ -85,6 +85,13 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 
 ---
 
+### WeeklyReport 완료 용역 과거 주 표시 버그 수정
+`applyAppData`의 완료 제거 필터 + `loadAll`의 `.neq('status','완료')` + `sortedProjects`의 `if (p.status !== '완료')` 래핑 — 세 곳 제거.
+- WeeklyReport는 완료 용역 포함 전체 데이터를 받아야 `completed_at` 기반 과거 주 표시가 동작함.
+- 완료 용역의 표시/숨김은 `sortedProjects` 필터 하단 `p.status === '완료'` 분기에서 `completed_at >= selWeek` 조건으로 결정.
+
+---
+
 ## ❕ 패턴·원칙
 
 - **화이트라벨 키는 항상 config 참조**: 세션키·인증 도메인 등은 `APP_CONFIG.*` 참조로 작성.
