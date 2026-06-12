@@ -465,6 +465,7 @@ function WorklogView({ user }) {
   function loadTodos() {
     setTodoLoading(true);
     sb.from('shared_todos').select('*,creator:created_by(name),completer:completed_by(name)')
+      .eq('scope', 'admin')
       .neq('status', '완료')
       .order('created_at', { ascending: true })
       .then(function(r) {
@@ -477,7 +478,7 @@ function WorklogView({ user }) {
     var title = todoInput.trim();
     if (!title) return;
     setTodoAdding(true);
-    sb.from('shared_todos').insert({ title: title, created_by: user.id, status: '대기' })
+    sb.from('shared_todos').insert({ title: title, created_by: user.id, status: '대기', scope: 'admin' })
       .then(function(r) {
         setTodoAdding(false);
         if (!r.error) { setTodoInput(''); loadTodos(); }
