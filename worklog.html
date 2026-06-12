@@ -747,6 +747,7 @@ function MyLogView({ user, canWrite }) {
     setTodoLoading(true);
     sb.from('shared_todos')
       .select('*,creator:created_by(name),completer:completed_by(name)')
+      .eq('scope', 'worklog')
       .neq('status', '완료')
       .order('created_at', { ascending: true })
       .then(r => { setTodos(r.data || []); setTodoLoading(false); });
@@ -755,7 +756,7 @@ function MyLogView({ user, canWrite }) {
     const title = todoInput.trim();
     if (!title) return;
     setTodoAdding(true);
-    sb.from('shared_todos').insert({ title, created_by: user.id, status: '대기' })
+    sb.from('shared_todos').insert({ title, created_by: user.id, status: '대기', scope: 'worklog' })
       .then(r => { setTodoAdding(false); if (!r.error) { setTodoInput(''); loadTodos(); } });
   };
   const completeTodo = (id) => {
