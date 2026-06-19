@@ -418,7 +418,7 @@ const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KE
 const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────
-const VIEWS = { MY_LOG: 'my_log', ALL_LOGS: 'all_logs', HISTORY: 'history', LOGS: 'logs' };
+const VIEWS = { MY_LOG: 'my_log', ALL_LOGS: 'all_logs', HISTORY: 'history', SUPPLY: 'supply', LOGS: 'logs' };
 const STATUS = ['완료', '진행중', '보류'];
 const STATUS_CLS = { '완료': 'done-active', '진행중': 'prog-active', '보류': 'hold-active' };
 const STATUS_BADGE = { '완료': 'vt-done', '진행중': 'vt-prog', '보류': 'vt-hold' };
@@ -1711,12 +1711,257 @@ function MyHistoryView({ user }) {
   );
 }
 
+// ─── SUPPLY VIEW (비품관리) ─────────────────────────────────────────────────
+function SupplyView({ user }) {
+  const PAY_METHODS = (window.APP_CONFIG && APP_CONFIG.PAYMENT_METHODS) || [];
+
+  const [records, setRecords]   = useState([]);
+  const [loading, setLoading]   = useState(false);
+  const [userMap, setUserMap]   = useState({});
+
+  // 입력 폼
+  const [fDate, setFDate]       = useState(todayStr());
+  const [fMethod, setFMethod]   = useState(PAY_METHODS[0] || '');
+  const [fItem, setFItem]       = useState('');
+  const [fQty, setFQty]         = useState('1');
+  const [fAmount, setFAmount]   = useState('');
+  const [fNote, setFNote]       = useState('');
+  const [editId, setEditId]     = useState(null);
+  const [saving, setSaving]     = useState(false);
+  const [formErr, setFormErr]   = useState('');
+  const [delId, setDelId]       = useState(null);
+
+  // 필터
+  const [filStart, setFilStart]   = useState('');
+  const [filEnd, setFilEnd]       = useState('');
+  const [filMethod, setFilMethod] = useState('all');
+
+  const canEditAll = user.role === 'admin' || user.role === 'manager';
+
+  const loadUsers = () => {
+    sb.from('users').select('id,name').then(r => {
+      const m = {};
+      (r.data || []).forEach(u => { m[u.id] = u.name; });
+      setUserMap(m);
+    });
+  };
+
+  const loadRecords = useCallback(() => {
+    setLoading(true);
+    let q = sb.from('supply_records').select('*')
+      .order('record_date', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (filStart) q = q.gte('record_date', filStart);
+    if (filEnd)   q = q.lte('record_date', filEnd);
+    if (filMethod !== 'all') q = q.eq('payment_method', filMethod);
+    q.then(r => { setRecords(r.data || []); setLoading(false); });
+  }, [filStart, filEnd, filMethod]);
+
+  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { loadRecords(); }, [loadRecords]);
+
+  const resetForm = () => {
+    setEditId(null); setFDate(todayStr()); setFMethod(PAY_METHODS[0] || '');
+    setFItem(''); setFQty('1'); setFAmount(''); setFNote(''); setFormErr('');
+  };
+
+  const save = () => {
+    setFormErr('');
+    if (!fDate)          { setFormErr('날짜를 입력하세요.'); return; }
+    if (!fMethod)        { setFormErr('결제수단을 선택하세요.'); return; }
+    if (!fItem.trim())   { setFormErr('품목을 입력하세요.'); return; }
+    if (fAmount === '' || isNaN(Number(fAmount))) { setFormErr('총액을 숫자로 입력하세요.'); return; }
+    setSaving(true);
+    const payload = {
+      record_date:    fDate,
+      payment_method: fMethod,
+      item_name:      fItem.trim(),
+      quantity:       Number(fQty) || 1,
+      total_amount:   Number(fAmount) || 0,
+      note:           fNote.trim() || null,
+    };
+    const done = (r) => {
+      setSaving(false);
+      if (r.error) { setFormErr('저장 오류: ' + r.error.message); return; }
+      resetForm(); loadRecords();
+    };
+    if (editId) {
+      sb.from('supply_records').update(payload).eq('id', editId).then(done);
+    } else {
+      payload.user_id = user.id;
+      sb.from('supply_records').insert(payload).then(done);
+    }
+  };
+
+  const startEdit = (rec) => {
+    setEditId(rec.id);
+    setFDate(rec.record_date || todayStr());
+    setFMethod(rec.payment_method || (PAY_METHODS[0] || ''));
+    setFItem(rec.item_name || '');
+    setFQty(String(rec.quantity == null ? 1 : rec.quantity));
+    setFAmount(String(rec.total_amount == null ? '' : rec.total_amount));
+    setFNote(rec.note || '');
+    setFormErr('');
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const removeRec = (rec) => {
+    if (delId === rec.id) {
+      sb.from('supply_records').delete().eq('id', rec.id).then(() => {
+        setDelId(null);
+        if (editId === rec.id) resetForm();
+        loadRecords();
+      });
+    } else {
+      setDelId(rec.id);
+      setTimeout(() => setDelId(null), 3000);
+    }
+  };
+
+  const canEditRow = (rec) => canEditAll || rec.user_id === user.id;
+  const fmtAmt = (n) => Number(n || 0).toLocaleString('ko-KR');
+
+  // 집계 (필터된 records 기준) — 결제수단별 + 전체
+  const methodTotals = {};
+  let grandTotal = 0;
+  records.forEach(r => {
+    const amt = Number(r.total_amount) || 0;
+    methodTotals[r.payment_method] = (methodTotals[r.payment_method] || 0) + amt;
+    grandTotal += amt;
+  });
+  const methodRows = [];
+  PAY_METHODS.forEach(m => { if (methodTotals[m]) methodRows.push([m, methodTotals[m]]); });
+  Object.keys(methodTotals).forEach(m => {
+    if (PAY_METHODS.indexOf(m) === -1) methodRows.push([m, methodTotals[m]]);
+  });
+
+  const inputStyle  = { padding:'7px 10px', border:'1.5px solid var(--border)', borderRadius:6, fontSize:13, color:'var(--text)', outline:'none', background:'#fff' };
+  const labelStyle  = { fontSize:11, fontWeight:700, color:'var(--text-sub)' };
+  const iconBtnStyle = { background:'none', border:'1px solid var(--border)', borderRadius:5, cursor:'pointer', fontSize:12, padding:'3px 7px' };
+  const COLS = '96px 104px 1fr 56px 110px 84px 1fr 92px';
+
+  return (
+    <div className="view-wrap">
+      <div className="view-header">
+        <div>
+          <div className="view-title">🧾 비품관리</div>
+          <div className="view-sub">비품·식대 구매 기록 및 결제수단별 집계</div>
+        </div>
+      </div>
+
+      {/* 입력 폼 */}
+      <div style={{ background:'var(--card)', border:'1.5px solid var(--border)', borderRadius:'var(--radius)', padding:14, marginBottom:18 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:'var(--text)', marginBottom:10 }}>
+          {editId ? '✏️ 기록 수정' : '➕ 새 기록'}
+        </div>
+        <div style={{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'flex-end' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
+            <label style={labelStyle}>날짜</label>
+            <input type="date" style={inputStyle} value={fDate} onChange={e => setFDate(e.target.value)} />
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
+            <label style={labelStyle}>결제수단</label>
+            <select style={{ ...inputStyle, cursor:'pointer' }} value={fMethod} onChange={e => setFMethod(e.target.value)}>
+              {PAY_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:3, flex:'1 1 160px' }}>
+            <label style={labelStyle}>품목</label>
+            <input type="text" style={inputStyle} value={fItem} placeholder="품목명" onChange={e => setFItem(e.target.value)} />
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:3, width:78 }}>
+            <label style={labelStyle}>수량</label>
+            <input type="number" style={inputStyle} value={fQty} min="0" onChange={e => setFQty(e.target.value)} />
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:3, width:118 }}>
+            <label style={labelStyle}>총액(원)</label>
+            <input type="number" style={inputStyle} value={fAmount} min="0" placeholder="0" onChange={e => setFAmount(e.target.value)} />
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:3, flex:'1 1 160px' }}>
+            <label style={labelStyle}>비고</label>
+            <input type="text" style={inputStyle} value={fNote} placeholder="(선택)" onChange={e => setFNote(e.target.value)} />
+          </div>
+          <div style={{ display:'flex', gap:6 }}>
+            <button className="save-btn" onClick={save} disabled={saving} style={{ padding:'8px 16px' }}>
+              {saving ? '저장 중...' : (editId ? '수정 저장' : '추가')}
+            </button>
+            {editId && <button className="today-btn" onClick={resetForm} disabled={saving}>취소</button>}
+          </div>
+        </div>
+        {formErr && <div style={{ marginTop:8, fontSize:12, color:'#dc2626', fontWeight:700 }}>{formErr}</div>}
+      </div>
+
+      {/* 필터 */}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:14, alignItems:'center' }}>
+        <input type="date" style={inputStyle} value={filStart} onChange={e => setFilStart(e.target.value)} />
+        <span style={{ color:'var(--text-sub)' }}>~</span>
+        <input type="date" style={inputStyle} value={filEnd} onChange={e => setFilEnd(e.target.value)} />
+        <select style={{ ...inputStyle, cursor:'pointer' }} value={filMethod} onChange={e => setFilMethod(e.target.value)}>
+          <option value="all">전체 결제수단</option>
+          {PAY_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+        {(filStart || filEnd || filMethod !== 'all') &&
+          <button className="today-btn" onClick={() => { setFilStart(''); setFilEnd(''); setFilMethod('all'); }}>필터 해제</button>}
+        <span style={{ fontSize:12, color:'var(--text-sub)' }}>총 {records.length}건</span>
+      </div>
+
+      {/* 집계 패널 */}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:8, marginBottom:16 }}>
+        {methodRows.map(([m, amt]) => (
+          <div key={m} style={{ background:'var(--bg)', border:'1.5px solid var(--border)', borderRadius:8, padding:'8px 12px', minWidth:118 }}>
+            <div style={{ fontSize:11, color:'var(--text-sub)', fontWeight:700, marginBottom:2 }}>{m}</div>
+            <div style={{ fontSize:15, fontWeight:800, color:'var(--text)' }}>{fmtAmt(amt)}원</div>
+          </div>
+        ))}
+        <div style={{ background:'#0f172a', borderRadius:8, padding:'8px 14px', minWidth:130 }}>
+          <div style={{ fontSize:11, color:'#cbd5e1', fontWeight:700, marginBottom:2 }}>전체 합계</div>
+          <div style={{ fontSize:15, fontWeight:800, color:'#fff' }}>{fmtAmt(grandTotal)}원</div>
+        </div>
+      </div>
+
+      {/* 목록 */}
+      {loading ? <div className="loading">불러오는 중...</div> : (
+        records.length === 0
+          ? <div className="empty-state"><div className="empty-icon">🧾</div><div className="empty-text">기록이 없습니다</div><div className="empty-sub">새 비품 구매 기록을 추가하세요</div></div>
+          : <div style={{ background:'var(--card)', border:'1.5px solid var(--border)', borderRadius:'var(--radius)', overflow:'hidden' }}>
+              <div style={{ display:'grid', gridTemplateColumns:COLS, gap:0, background:'var(--bg)', borderBottom:'1.5px solid var(--border)', padding:'8px 14px', fontSize:11, fontWeight:800, color:'var(--text-sub)', textTransform:'uppercase', letterSpacing:'.04em' }}>
+                <span>날짜</span><span>결제수단</span><span>품목</span><span style={{ textAlign:'center' }}>수량</span><span style={{ textAlign:'right' }}>총액</span><span>작성자</span><span>비고</span><span style={{ textAlign:'center' }}>관리</span>
+              </div>
+              {records.map((rec, i) => (
+                <div key={rec.id} style={{ display:'grid', gridTemplateColumns:COLS, gap:0, padding:'9px 14px', borderBottom: i < records.length-1 ? '1px solid var(--border)' : 'none', fontSize:13, alignItems:'center', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <span style={{ color:'var(--text-sub)' }}>{rec.record_date}</span>
+                  <span style={{ fontWeight:700 }}>{rec.payment_method}</span>
+                  <span>{rec.item_name}</span>
+                  <span style={{ textAlign:'center' }}>{rec.quantity}</span>
+                  <span style={{ textAlign:'right', fontWeight:700, fontFamily:'monospace' }}>{fmtAmt(rec.total_amount)}</span>
+                  <span style={{ color:'var(--text-sub)', fontSize:12 }}>{userMap[rec.user_id] || '-'}</span>
+                  <span style={{ color:'var(--text-sub)', fontSize:12 }}>{rec.note || ''}</span>
+                  <span style={{ textAlign:'center' }}>
+                    {canEditRow(rec) ? (
+                      <span style={{ display:'inline-flex', gap:6, justifyContent:'center' }}>
+                        <button onClick={() => startEdit(rec)} title="수정" style={iconBtnStyle}>✏️</button>
+                        <button onClick={() => removeRec(rec)} title="삭제"
+                          style={{ ...iconBtnStyle, color: delId === rec.id ? '#dc2626' : 'inherit', fontWeight: delId === rec.id ? 800 : 400 }}>
+                          {delId === rec.id ? '확인?' : '🗑️'}
+                        </button>
+                      </span>
+                    ) : <span style={{ color:'var(--text-muted)', fontSize:11 }}>-</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+      )}
+    </div>
+  );
+}
+
 // ─── TOP NAV BAR ───────────────────────────────────────────────────────────
 function TopNavBar({ view, setView, user, onLogout, canWrite }) {
   const NAV = [
     { id: VIEWS.MY_LOG,   icon: '📝', label: '내 업무일지' },
     { id: VIEWS.ALL_LOGS, icon: '👥', label: '전체 업무일지' },
     { id: VIEWS.HISTORY,  icon: '📅', label: '내 기록' },
+    { id: VIEWS.SUPPLY,   icon: '🧾', label: '비품관리' },
     ...(user?.role === 'admin'
       ? [{ id: VIEWS.LOGS, icon: '🗒️', label: '작성이력' }]
       : []),
@@ -1740,6 +1985,7 @@ function MobileNav({ view, setView }) {
     { id: VIEWS.MY_LOG,  icon: '📝', label: '내 일지' },
     { id: VIEWS.ALL_LOGS,icon: '👥', label: '전체' },
     { id: VIEWS.HISTORY, icon: '📅', label: '기록' },
+    { id: VIEWS.SUPPLY,  icon: '🧾', label: '비품' },
   ];
   return (
     <nav className="mobile-nav">
@@ -1868,6 +2114,7 @@ function App() {
           {view === VIEWS.MY_LOG   && <MyLogView user={user} canWrite={canWrite} />}
           {view === VIEWS.ALL_LOGS && <AllLogsView user={user} />}
           {view === VIEWS.HISTORY  && <MyHistoryView user={user} />}
+          {view === VIEWS.SUPPLY   && <SupplyView user={user} />}
           {view === VIEWS.LOGS     && user.role === 'admin' && <LogsView user={user} />}
         </main>
         <MobileNav view={view} setView={nv} />
