@@ -412,6 +412,14 @@ function FI({ label, field, form, set }) {
   );
 }
 
+// 초기 비밀번호: 랜덤 6자리 (leave.html과 동일)
+function genTempPw() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(6)))
+    .map(b => b % 10).join('');
+}
+// 로컬 날짜(KST) — toISOString().split('T')[0] 금지 (UTC+9에서 전날로 밀림)
+const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+
 function StaffView({ user }) {
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -560,20 +568,37 @@ function StaffView({ user }) {
       var { memo: _memo, ...formWithoutMemo } = form;
       if (!formWithoutMemo.hire_date) formWithoutMemo.hire_date = null;
       if (!formWithoutMemo.leave_date) formWithoutMemo.leave_date = null;
-      var p;
+
       if (editU) {
-        p = sb.from('users').update(formWithoutMemo).eq('id', editU.id);
+        // 기존 직원 수정: Auth 계정은 건드리지 않고 users 레코드만 갱신
+        var r = await sb.from('users').update(formWithoutMemo).eq('id', editU.id);
+        setSaving(false);
+        if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
+        setModal(false); load();
       } else {
-        // Auth 계정 생성 (초기 비밀번호: 전화번호)
-        const phoneDigits = (form.phone||'').replace(/\D/g,'');
-        const emailLocal = phoneDigits.length > 0 ? phoneDigits : form.phone;
-        const authId = null; // Auth 계정은 Supabase 대시보드에서 직접 생성
-        p = sb.from('users').insert(Object.assign({}, formWithoutMemo, {auth_id: authId}));
+        // 신규 등록: create-user Edge Function이 Auth 계정 생성 + auth_id 채움
+        // (email = 전화번호@AUTH_DOMAIN 구성은 서버에 위임 — leave.html과 동일 패턴)
+        var ph = (form.phone||'').replace(/\D/g,'');
+        var tempPw = genTempPw();
+        const { data: cuData, error: cuErr } = await sb.functions.invoke('create-user', {
+          body: { name:form.name, phone:ph, role:form.role||'staff', team_id:form.team_id||null,
+                  join_date:formWithoutMemo.hire_date||today(), total_days:15, init_pw:tempPw }
+        });
+        if (cuErr || cuData?.error) {
+          setSaving(false);
+          setErr('등록 실패: ' + (cuData?.error || cuErr?.message || ''));
+          return;
+        }
+        // admin-staff 고유 필드(email/position/hire_date/leave_date)는 create-user 스펙과
+        // 무관하게 phone 기준 별도 UPDATE로 보강 — 필드 유실 방지
+        await sb.from('users').update({
+          email: form.email||null, position: form.position||null,
+          hire_date: formWithoutMemo.hire_date, leave_date: formWithoutMemo.leave_date
+        }).eq('phone', ph);
+        setSaving(false);
+        setModal(false); load();
+        alert('✅ ' + form.name + ' 등록 완료\n초기 비밀번호: ' + (cuData?.init_pw || tempPw));
       }
-      var r = await p;
-      setSaving(false);
-      if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
-      setModal(false); load();
     } catch (e) {
       setSaving(false);
       setErr('저장 중 오류가 발생했습니다.');
