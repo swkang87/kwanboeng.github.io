@@ -420,6 +420,19 @@ function genTempPw() {
 // 로컬 날짜(KST) — toISOString().split('T')[0] 금지 (UTC+9에서 전날로 밀림)
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 
+// Edge Function 호출 시 로그인 JWT를 명시적으로 첨부 (자동첨부 미동기화로 인한 401 방지)
+async function invokeAuthed(fnName, body) {
+  var sess = await sb.auth.getSession();
+  var session = sess.data ? sess.data.session : null;
+  if (!session || !session.access_token) {
+    return { data: null, error: { message: '세션이 만료되었습니다. 다시 로그인해 주세요.' } };
+  }
+  return sb.functions.invoke(fnName, {
+    body: body,
+    headers: { Authorization: 'Bearer ' + session.access_token }
+  });
+}
+
 function StaffView({ user }) {
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -528,7 +541,7 @@ function StaffView({ user }) {
   async function savePwReset() {
     setPwResetSaving(true); setPwResetErr('');
     try {
-      const { data, error } = await sb.functions.invoke('smooth-function', { body: { user_id: pwResetTarget.id } });
+      const { data, error } = await invokeAuthed('smooth-function', { user_id: pwResetTarget.id });
       if (error || data?.error) { setPwResetErr(error?.message || data?.error || '초기화 실패'); setPwResetSaving(false); return; }
       setPwResetModal(false);
     } catch(e) {
@@ -550,7 +563,7 @@ function StaffView({ user }) {
     if (trimmed === currentId) { setPhoneErr('현재 아이디와 동일합니다.'); return; }
     setPhoneSaving(true); setPhoneErr('');
     try {
-      const { data, error } = await sb.functions.invoke('update-user-phone', { body: { user_id: phoneTarget.id, new_username: trimmed || null } });
+      const { data, error } = await invokeAuthed('update-user-phone', { user_id: phoneTarget.id, new_username: trimmed || null });
       if (error || data?.error) { setPhoneErr(error?.message || data?.error || '변경 실패'); setPhoneSaving(false); return; }
       setPhoneModal(false);
       load();
@@ -580,9 +593,9 @@ function StaffView({ user }) {
         // (email = 전화번호@AUTH_DOMAIN 구성은 서버에 위임 — leave.html과 동일 패턴)
         var ph = (form.phone||'').replace(/\D/g,'');
         var tempPw = genTempPw();
-        const { data: cuData, error: cuErr } = await sb.functions.invoke('create-user', {
-          body: { name:form.name, phone:ph, role:form.role||'staff', team_id:form.team_id||null,
-                  join_date:formWithoutMemo.hire_date||today(), total_days:15, init_pw:tempPw }
+        const { data: cuData, error: cuErr } = await invokeAuthed('create-user', {
+          name:form.name, phone:ph, role:form.role||'staff', team_id:form.team_id||null,
+          join_date:formWithoutMemo.hire_date||today(), total_days:15, init_pw:tempPw
         });
         if (cuErr || cuData?.error) {
           setSaving(false);
