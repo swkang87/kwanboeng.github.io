@@ -97,6 +97,20 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - 한계: **이미 깨진 서영우(auth_id=null) 1건은 미복구.** 소급 복구(smooth-function Fix B)는
   Edge Function 소스가 레포에 없어 별도 처리 — 아래 미완료 항목 참조.
 
+### admin-staff.html Edge Function 호출 JWT 명시 첨부 (invoke 401 해소)
+- 원인: 세션은 유효(users 조회 정상, 18명 표시)하나 `functions.invoke`가 세션 자동첨부에
+  의존 → 사용자 JWT 없이 호출되어 Edge Function `getUser()` 실패로 401
+  ("사용자 정보를 확인할 수 없습니다"). leave.html과 클라이언트 코드는 동일했음 — 런타임 차이.
+- 구조적 배경: 앱 "로그인됨" UI는 sessionStorage 프로필 기반, 실제 인증 JWT는 supabase
+  localStorage 세션. 둘이 분리돼 invoke에 토큰이 안 실릴 수 있음.
+- 수정: `invokeAuthed(fnName, body)` 헬퍼 추가 — `sb.auth.getSession()`으로 토큰 조회 후
+  `headers:{Authorization:'Bearer '+access_token}` 명시 첨부. 세션 부재 시 재로그인 안내 error 반환.
+- 적용 3곳: `create-user`(save) / `smooth-function`(savePwReset) / `update-user-phone`(savePhone).
+  각 호출부 기존 에러 처리 유지 → 세션 만료 메시지가 동일 경로로 노출.
+- 검증: 브레이스/괄호 balance 0, Babel PASS.
+- **패턴 원칙:** JWT 검증 Edge Function 호출은 자동첨부에 의존하지 말고 토큰 명시 첨부할 것
+  (다른 페이지에도 동일 위험 — 필요 시 같은 헬퍼 패턴 적용).
+
 ---
 
 ### WeeklyReport 완료 용역 과거 주 표시 버그 수정
