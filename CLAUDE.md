@@ -83,6 +83,20 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - 교체 패턴: `((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session'`
 - 잔여 리터럴 0건 확인. 레거시 정리용 `removeItem('kwanbo_pm_user')` · `removeItem('kwanbo_uid')`는 리터럴 유지.
 
+### admin-staff.html 신규 등록 create-user 전환 (auth_id=null 로그인 불가 버그 수정)
+- 원인: `save()` 신규 분기가 `auth_id:null`로 raw insert만 하고 Auth 계정을 안 만듦 →
+  관리포털로 등록된 직원은 로그인·비번 초기화 불가 (예: 서영우).
+- 수정: leave.html과 동일하게 `sb.functions.invoke('create-user', {...})` 호출로 전환.
+  - body: `name/phone(숫자)/role/team_id/join_date(=hire_date||today())/total_days:15/init_pw:genTempPw()`
+  - admin-staff 고유 필드(email/position/hire_date/leave_date)는 create-user 성공 후
+    `.eq('phone', ph)` 기준 별도 UPDATE로 보강 (create-user 스펙 무관, 필드 유실 방지).
+  - `genTempPw`/`today` 헬퍼 leave.html에서 복사 추가 (today는 로컬 KST, toISOString 금지).
+  - dead code 제거: `phoneDigits`/`emailLocal`/`authId=null`.
+  - **editU(기존 수정) 분기는 Auth 미관여로 그대로 유지** — 건드리지 말 것.
+- 검증: 브레이스/괄호 balance 0, Babel(preset-react+env) 트랜스파일 PASS.
+- 한계: **이미 깨진 서영우(auth_id=null) 1건은 미복구.** 소급 복구(smooth-function Fix B)는
+  Edge Function 소스가 레포에 없어 별도 처리 — 아래 미완료 항목 참조.
+
 ---
 
 ### WeeklyReport 완료 용역 과거 주 표시 버그 수정
@@ -104,6 +118,15 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 ---
 
 ## 🔲 미완료 — 대시보드 작업 필요
+
+### auth_id=null 기존 직원 소급 복구 (smooth-function Fix B) + 서영우 1건
+관리포털 신규 등록 버그(위 완료 항목)로 생긴 `auth_id=null` 직원들의 로그인·비번 초기화 복구.
+- 대상 예: 서영우(01028641014, contractor, auth_id=null).
+- 방법: `smooth-function`(비번 초기화) Edge Function에 caller `getUser()` UID 추출 →
+  대상 user의 `auth_id`가 null이면 `auth.admin.createUser()` 소급 생성 → `users.auth_id` UPDATE → 비번 설정.
+- ⚠️ **Edge Function 소스가 이 레포에 없음** (`supabase/functions/` 미존재, git 미추적).
+  소스 확보 후 작업 → `supabase functions deploy smooth-function` 으로 배포(승우님 직접).
+- 임시: 서영우 1건은 Supabase 대시보드/SQL로 Auth 계정 수동 생성 후 auth_id 연결 가능.
 
 ### salaries·salary_slips·users.birth_date RLS 봉쇄
 `salaries`, `salary_slips`의 anon SELECT 차단 + `users.birth_date` anon 노출 차단이 남아있음.
