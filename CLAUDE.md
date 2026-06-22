@@ -113,6 +113,18 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 
 ---
 
+### admin-perf.html 계약/잔금·예상수금 개편 (worklog 비품관리 탭과 별개)
+- **잔금 공식 = 순 현금 기준**: `잔금 = 계약 − 기수금(prior_collected) − 누적수금 − 예상외주(expected_outsource) + 실지급외주누적`.
+  외주잔여(예상−실지급) 음수 허용(클램프 없음). row·총합 동일 공식, `totalRemain = Σ r.remain`이라 1행 총잔금 = row 합 자동 일치.
+- **전 기간 누적 통일**: 계약/잔금 탭 `getTotalCol`·`getTotalOut`가 `yCols`(선택 연도) → `cols`(전 기간)로 변경됨.
+  → 계약/기수금/수금/외주 4개 항이 모두 전 기간 누적. **부수효과(의도)**: 계약/잔금 탭 수금·외주·잔금·수금률이 **연도 선택과 무관**(계약 잔액 성격). 연도 선택은 수금/연도집계 탭에만 영향.
+- **요약 박스 2행**: 1행(수금) 총계약/누적수금/총잔금, 2행(외주) 총외주계약(Σ expected_outsource)/누적지급(Σ outsource_cost)/외주잔금.
+  `SummaryBox` 컴포넌트 + 톤 상수(`TONE_CONTRACT/COLLECT/REMAIN`) 신설 — 6박스가 단일 컴포넌트·동일 톤 재사용(신규 색상 하드코딩 없음).
+- **row 금액열 보조 소자**(회색, 0이면 숨김, `subLabel` 상수 재사용): 계약금액↓ `외주 {expected_outsource}`, 수금액↓ `외주지급 {실지급}`, 잔금↓ `기수금 …원 제외`(>0만).
+  거짓 라벨 `예상외주 …원 제외` 제거.
+- **예상수금(autoExpected) 음수 표시**: `remain <= 0` → `remain === 0`(완납만 제외, 음수 행 표시). 음수 잔금 빨강(`r.remain<0?'#dc2626'` 기존 패턴 재사용).
+- **예상수금 누락 원인**: 진단 결과 누락은 전부 **종료일(end_date) 미입력 16건**(계약없음·완납 0건). 종료일 미입력 건은 표시 안 됨이 의도된 동작 — 추가 처리 안 함.
+
 ### WeeklyReport 완료 용역 과거 주 표시 버그 수정
 `applyAppData`의 완료 제거 필터 + `loadAll`의 `.neq('status','완료')` + `sortedProjects`의 `if (p.status !== '완료')` 래핑 — 세 곳 제거.
 - WeeklyReport는 완료 용역 포함 전체 데이터를 받아야 `completed_at` 기반 과거 주 표시가 동작함.
