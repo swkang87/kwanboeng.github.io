@@ -1447,11 +1447,11 @@ function PerfView({ user }) {
 
         function getContract(pid) { return contracts.find(function(c){ return c.project_id === pid; }); }
         function getTotalCol(pid) {
-          return yCols.filter(function(c){ return c.project_id === pid; })
+          return cols.filter(function(c){ return c.project_id === pid; })
             .reduce(function(s,c){ return s + (c.amount||0); }, 0);
         }
         function getTotalOut(pid) {
-          return yCols.filter(function(c){ return c.project_id === pid; })
+          return cols.filter(function(c){ return c.project_id === pid; })
             .reduce(function(s,c){ return s + (c.outsource_cost||0); }, 0);
         }
 
@@ -1466,7 +1466,8 @@ function PerfView({ user }) {
             var totalOut = getTotalOut(p.id);
             var netContractAmt = contractAmt;
             var netCol         = totalCol;
-            var remain   = netContractAmt - priorCollected - netCol;
+            // 잔금 = 계약 − 기수금 − 누적수금 − 예상외주 + 실지급외주누적 (외주잔여 음수 허용, 클램프 없음)
+            var remain   = netContractAmt - priorCollected - netCol - expectedOut + totalOut;
             var pct      = contractAmt > 0 ? Math.min(100, Math.round(totalCol / contractAmt * 100)) : 0;
             return { p:p, ct:ct, contractAmt:contractAmt, expectedOut:expectedOut, netContractAmt:netContractAmt, priorCollected:priorCollected, totalCol:totalCol, totalOut:totalOut, remain:remain, pct:pct, startDate:(ct&&ct.start_date)?ct.start_date:(p.start_date||null) };
           })
