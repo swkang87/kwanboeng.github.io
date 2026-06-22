@@ -1607,6 +1607,28 @@ function PerfView({ user }) {
         var overdueList = upcoming.filter(function(e){ return e.expected_date < today; });
         var overdueAmt  = overdueList.reduce(function(s,e){ return s + (e.amount||0); }, 0);
 
+        // [임시 진단] 예상수금 누락 원인 카운트 (콘솔 확인 후 제거 예정)
+        (function(){
+          var noEnd=[], noContract=[], zeroRemain=[], shown=[];
+          projects.forEach(function(p){
+            if (p.status === '완료' || p.status === '중지') return;
+            if (!p.end_date) { noEnd.push(p); return; }
+            var ct = contracts.find(function(c){ return c.project_id === p.id; });
+            if (!ct || !ct.amount) { noContract.push(p); return; }
+            var tCol = cols.filter(function(c){ return c.project_id===p.id; }).reduce(function(s,c){ return s+(c.amount||0); },0);
+            var tOut = cols.filter(function(c){ return c.project_id===p.id; }).reduce(function(s,c){ return s+(c.outsource_cost||0); },0);
+            var rem = (ct.amount-(ct.expected_outsource||0)) - (ct.prior_collected||0) - (tCol-tOut);
+            if (rem === 0) { zeroRemain.push(p); return; }
+            shown.push(p);
+          });
+          var byCat = function(arr){ var m={}; arr.forEach(function(p){ var k=p.category||'(미지정)'; m[k]=(m[k]||0)+1; }); return m; };
+          var nm = function(arr){ return arr.map(function(p){ return (p.category||'(미지정)')+':'+p.name; }); };
+          console.log('[예상수금 진단] 종료일없음', noEnd.length, byCat(noEnd), nm(noEnd));
+          console.log('[예상수금 진단] 계약없음/금액0', noContract.length, byCat(noContract), nm(noContract));
+          console.log('[예상수금 진단] remain=0(완납)', zeroRemain.length, byCat(zeroRemain));
+          console.log('[예상수금 진단] 표시됨(양수+음수)', shown.length, byCat(shown));
+        })();
+
         // 용역 종료일 기반 자동 잔금 예상
         var autoExpected = projects
           .filter(function(p){ return p.end_date && p.status !== '완료' && p.status !== '중지'; })
@@ -1620,7 +1642,7 @@ function PerfView({ user }) {
             var netContractAmt = ct.amount - (ct.expected_outsource||0);
             var netCol = totalCol - totalOut;
             var remain = netContractAmt - (ct.prior_collected||0) - netCol;
-            if (remain <= 0) return null;
+            if (remain === 0) return null;  // 완납(0)만 제외, 음수는 표시
             return { p:p, remain:remain, endDate:p.end_date, isPast: p.end_date < today };
           })
           .filter(Boolean)
@@ -1715,7 +1737,7 @@ function PerfView({ user }) {
                             <td style={{whiteSpace:'nowrap',fontSize:12,color: r.isPast?'#dc2626':daysLeft<=30?'#f59e0b':'#64748b',fontWeight:600}}>
                               {r.isPast ? '+'+Math.abs(daysLeft)+'일 경과' : 'D-'+daysLeft}
                             </td>
-                            <td className="tr" style={{fontWeight:800,color:'#7c3aed'}}>{fmtN(r.remain)}원</td>
+                            <td className="tr" style={{fontWeight:800,color: r.remain < 0 ? '#dc2626' : '#7c3aed'}}>{fmtN(r.remain)}원</td>
                             <td className="tr">
                               <div style={{display:'flex',alignItems:'center',gap:6,justifyContent:'flex-end'}}>
                                 <div style={{width:50,height:5,background:'#e2e8f0',borderRadius:3,overflow:'hidden'}}>
