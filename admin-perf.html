@@ -1529,6 +1529,7 @@ function PerfView({ user }) {
                   {filterByCat(rows, function(r){ return r.p.category; }).map(function(r) {
                     var p = r.p;
                     var isCompleted = p.status === '완료';
+                    var subLabel = {fontSize:10,color:'#94a3b8',fontWeight:400,marginTop:1};
                     return (
                       <tr key={p.id} style={{opacity: isCompleted ? 0.6 : 1, background: isCompleted ? '#fafafa' : ''}}>
                         <td>
@@ -1558,15 +1559,20 @@ function PerfView({ user }) {
                             }}>
                             {r.contractAmt > 0 ? fmtN(r.contractAmt)+'원' : '+ 입력'}
                           </span>
+                          {r.expectedOut > 0 && (
+                            <div style={subLabel}>외주 {fmtN(r.expectedOut)}원</div>
+                          )}
                         </td>
-                        <td className="tr" style={{color:'#059669',fontWeight:600}}>{fmtN(r.totalCol)}원</td>
+                        <td className="tr" style={{color:'#059669',fontWeight:600}}>
+                          {fmtN(r.totalCol)}원
+                          {r.totalOut > 0 && (
+                            <div style={subLabel}>외주지급 {fmtN(r.totalOut)}원</div>
+                          )}
+                        </td>
                         <td className="tr" style={{fontWeight:700,color:r.remain<0?'#dc2626':r.remain===0?'#94a3b8':'#7c3aed'}}>
                           {r.remain < 0 ? '초과 '+fmtN(Math.abs(r.remain)) : fmtN(r.remain)}원
-                          {r.expectedOut > 0 && (
-                            <div style={{fontSize:10,color:'#94a3b8',fontWeight:400,marginTop:1}}>예상외주 {fmtN(r.expectedOut)}원 제외</div>
-                          )}
                           {r.priorCollected > 0 && (
-                            <div style={{fontSize:10,color:'#94a3b8',fontWeight:400,marginTop:1}}>기수금 {fmtN(r.priorCollected)}원 제외</div>
+                            <div style={subLabel}>기수금 {fmtN(r.priorCollected)}원 제외</div>
                           )}
                         </td>
                         <td>
