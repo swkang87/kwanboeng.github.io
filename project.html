@@ -605,7 +605,9 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
     } else if (!appData?.loaded && !loading) {
       // appData 갱신 시 반영
     }
-  }, [appData?.loaded, appData?.projects?.length]);
+    // appData 객체 식별자로 의존 — reload 시 reports만 바뀌어도(개수 동일) 재반영되게.
+    // (기존: projects.length 의존 → 주간보고 수정 저장이 새로고침 전엔 미반영되던 버그)
+  }, [appData]);
 
   useEffect(() => {
     if (!appData?.loaded) loadAll();
