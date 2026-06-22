@@ -344,6 +344,18 @@ function MiniCalendar({ value, onChange, maxDate }) {
   );
 }
 const fmtN = (n) => n ? Number(n).toLocaleString('ko-KR') : '0';
+// 계약/잔금 요약 박스 색상 톤 — 1행(수금)·2행(외주)이 동일 톤 재사용
+const TONE_CONTRACT = { bg:'#eff6ff', border:'#bfdbfe', color:'#1d4ed8' };
+const TONE_COLLECT  = { bg:'#f0fdf4', border:'#bbf7d0', color:'#15803d' };
+const TONE_REMAIN   = { bg:'#f5f3ff', border:'#ddd6fe', color:'#7c3aed' };
+function SummaryBox({ label, value, tone }) {
+  return (
+    <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:tone.bg,border:'1px solid '+tone.border,display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
+      <span style={{fontSize:11,fontWeight:600,color:tone.color,whiteSpace:'nowrap'}}>{label}</span>
+      <span style={{fontSize:13,fontWeight:800,color:tone.color,whiteSpace:'nowrap'}}>{value}</span>
+    </div>
+  );
+}
 const fmtD = (d) => {
   if (!d) return '-';
   const dt = new Date(d + 'T00:00:00');
@@ -1456,7 +1468,7 @@ function PerfView({ user }) {
             var netCol         = totalCol;
             var remain   = netContractAmt - priorCollected - netCol;
             var pct      = contractAmt > 0 ? Math.min(100, Math.round(totalCol / contractAmt * 100)) : 0;
-            return { p:p, ct:ct, contractAmt:contractAmt, expectedOut:expectedOut, netContractAmt:netContractAmt, priorCollected:priorCollected, totalCol:totalCol, remain:remain, pct:pct, startDate:(ct&&ct.start_date)?ct.start_date:(p.start_date||null) };
+            return { p:p, ct:ct, contractAmt:contractAmt, expectedOut:expectedOut, netContractAmt:netContractAmt, priorCollected:priorCollected, totalCol:totalCol, totalOut:totalOut, remain:remain, pct:pct, startDate:(ct&&ct.start_date)?ct.start_date:(p.start_date||null) };
           })
           .sort(function(a,b){
             var catOrd = function(c){ return c==='사급'?0:c==='관급'?1:2; };
@@ -1475,6 +1487,10 @@ function PerfView({ user }) {
         var totalContract = rows.reduce(function(s,r){ return s + r.contractAmt; }, 0);
         var totalNetCol   = rows.reduce(function(s,r){ return s + r.totalCol; }, 0);
         var totalRemain   = rows.reduce(function(s,r){ return s + r.remain; }, 0);
+        // 외주 관점(2행): 예상 외주비 합 / 실제 지급 누적 / 외주 잔금
+        var totalExpectedOut = rows.reduce(function(s,r){ return s + r.expectedOut; }, 0);
+        var totalOutPaid     = rows.reduce(function(s,r){ return s + r.totalOut; }, 0);
+        var totalOutRemain   = totalExpectedOut - totalOutPaid;
 
         return (
           <div className="card">
@@ -1482,19 +1498,17 @@ function PerfView({ user }) {
               <span className="st">계약/잔금 현황</span>
               <span style={{fontSize:12,color:'#94a3b8'}}>계약금액 클릭 시 입력/수정</span>
             </div>
-            {/* 요약 */}
-            <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
-              <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#eff6ff',border:'1px solid #bfdbfe',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
-                <span style={{fontSize:11,fontWeight:600,color:'#1d4ed8',whiteSpace:'nowrap'}}>총 계약금액</span>
-                <span style={{fontSize:13,fontWeight:800,color:'#1d4ed8',whiteSpace:'nowrap'}}>{fmtN(totalContract)}원</span>
+            {/* 요약 — 1행: 수금 관점 / 2행: 외주 관점 */}
+            <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:16}}>
+              <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                <SummaryBox label="총 계약금액" value={fmtN(totalContract)+'원'} tone={TONE_CONTRACT} />
+                <SummaryBox label="누적 수금액" value={fmtN(totalNetCol)+'원'} tone={TONE_COLLECT} />
+                <SummaryBox label="총 잔금" value={fmtN(totalRemain)+'원'} tone={TONE_REMAIN} />
               </div>
-              <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#f0fdf4',border:'1px solid #bbf7d0',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
-                <span style={{fontSize:11,fontWeight:600,color:'#15803d',whiteSpace:'nowrap'}}>누적 수금액</span>
-                <span style={{fontSize:13,fontWeight:800,color:'#15803d',whiteSpace:'nowrap'}}>{fmtN(totalNetCol)}원</span>
-              </div>
-              <div style={{flex:1,minWidth:120,padding:'8px 14px',borderRadius:8,background:'#f5f3ff',border:'1px solid #ddd6fe',display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}>
-                <span style={{fontSize:11,fontWeight:600,color:'#7c3aed',whiteSpace:'nowrap'}}>총 잔금</span>
-                <span style={{fontSize:13,fontWeight:800,color:'#7c3aed',whiteSpace:'nowrap'}}>{fmtN(totalRemain)}원</span>
+              <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                <SummaryBox label="총 외주계약금액" value={fmtN(totalExpectedOut)+'원'} tone={TONE_CONTRACT} />
+                <SummaryBox label="누적 지급액" value={fmtN(totalOutPaid)+'원'} tone={TONE_COLLECT} />
+                <SummaryBox label="총 외주잔금" value={fmtN(totalOutRemain)+'원'} tone={TONE_REMAIN} />
               </div>
             </div>
             <div className="tbl-wrap">
