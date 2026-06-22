@@ -1607,28 +1607,6 @@ function PerfView({ user }) {
         var overdueList = upcoming.filter(function(e){ return e.expected_date < today; });
         var overdueAmt  = overdueList.reduce(function(s,e){ return s + (e.amount||0); }, 0);
 
-        // [임시 진단] 예상수금 누락 원인 카운트 (콘솔 확인 후 제거 예정)
-        (function(){
-          var noEnd=[], noContract=[], zeroRemain=[], shown=[];
-          projects.forEach(function(p){
-            if (p.status === '완료' || p.status === '중지') return;
-            if (!p.end_date) { noEnd.push(p); return; }
-            var ct = contracts.find(function(c){ return c.project_id === p.id; });
-            if (!ct || !ct.amount) { noContract.push(p); return; }
-            var tCol = cols.filter(function(c){ return c.project_id===p.id; }).reduce(function(s,c){ return s+(c.amount||0); },0);
-            var tOut = cols.filter(function(c){ return c.project_id===p.id; }).reduce(function(s,c){ return s+(c.outsource_cost||0); },0);
-            var rem = (ct.amount-(ct.expected_outsource||0)) - (ct.prior_collected||0) - (tCol-tOut);
-            if (rem === 0) { zeroRemain.push(p); return; }
-            shown.push(p);
-          });
-          var byCat = function(arr){ var m={}; arr.forEach(function(p){ var k=p.category||'(미지정)'; m[k]=(m[k]||0)+1; }); return m; };
-          var nm = function(arr){ return arr.map(function(p){ return (p.category||'(미지정)')+':'+p.name; }); };
-          console.log('[예상수금 진단] 종료일없음', noEnd.length, byCat(noEnd), nm(noEnd));
-          console.log('[예상수금 진단] 계약없음/금액0', noContract.length, byCat(noContract), nm(noContract));
-          console.log('[예상수금 진단] remain=0(완납)', zeroRemain.length, byCat(zeroRemain));
-          console.log('[예상수금 진단] 표시됨(양수+음수)', shown.length, byCat(shown));
-        })();
-
         // 용역 종료일 기반 자동 잔금 예상
         var autoExpected = projects
           .filter(function(p){ return p.end_date && p.status !== '완료' && p.status !== '중지'; })
