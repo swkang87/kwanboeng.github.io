@@ -170,7 +170,7 @@ tr:hover td{background:#f8fafc;}
 .llogo{width:56px;height:56px;background:linear-gradient(135deg,#7c3aed,#4c1d95);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;}
 .ltit{font-size:18px;font-weight:800;color:#0f172a;text-align:center;margin-bottom:4px;}
 .lsub{font-size:12px;color:#94a3b8;text-align:center;margin-bottom:24px;}
-@media(max-width:768px){.g2,.g3{grid-template-columns:1fr;}.sal-row{grid-template-columns:1fr;}}
+@media(max-width:768px){.g2,.g3{grid-template-columns:1fr;}.sal-row{grid-template-columns:1fr;}.page{padding:12px;}.itabs{flex-wrap:wrap;}.btn{min-height:44px;}.btn-sm{min-height:36px;}.sh{flex-wrap:wrap;}.mbox{margin:12px;}}
 </style>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
@@ -1014,8 +1014,8 @@ function SalaryView({ user }) {
                 var incItems = salaryItems.filter(function(i){ return i.type==='income' && i.active; });
                 var dedItems = salaryItems.filter(function(i){ return i.type==='deduction' && i.active; });
                 return (
-                  <div style={{display:'flex',gap:20,marginBottom:12}}>
-                    <div style={{flex:1}}>
+                  <div style={{display:'flex',gap:20,marginBottom:12,flexWrap:'wrap'}}>
+                    <div style={{flex:1,minWidth:200}}>
                       <div style={{fontSize:11,fontWeight:700,color:'#64748b',letterSpacing:'.3px',marginBottom:6,paddingBottom:6,borderBottom:'2px solid var(--theme,#0f172a)'}}>지급 항목</div>
                       {incItems.map(function(item){
                         return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
@@ -1026,7 +1026,7 @@ function SalaryView({ user }) {
                       </div>
                     </div>
                     <div style={{width:1,background:'#e2e8f0',flexShrink:0}} />
-                    <div style={{flex:1}}>
+                    <div style={{flex:1,minWidth:200}}>
                       <div style={{fontSize:11,fontWeight:700,color:'#64748b',letterSpacing:'.3px',marginBottom:6,paddingBottom:6,borderBottom:'2px solid var(--theme,#0f172a)'}}>공제 항목</div>
                       {dedItems.map(function(item){
                         return <FI key={item.id} label={item.label} field={item.id} form={form} set={setForm} />;
