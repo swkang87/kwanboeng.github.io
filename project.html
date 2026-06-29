@@ -824,18 +824,14 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
       const catColor = CAT_COLOR[p.category] || '#64748b';
       const nameStyle = stopped ? 'color:#9ca3af;font-weight:600' : 'font-weight:600';
       const todayForPrint = today();
-      const printCutoff = (() => { const d = new Date(todayForPrint+'T00:00:00'); d.setDate(d.getDate()-14); const y=d.getFullYear(),mo=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'); return y+'-'+mo+'-'+dd; })();
-      const upEv = events.filter(e => e.project_id === p.id && e.event_date >= printCutoff)
+      const upEv = events.filter(e => e.project_id === p.id && e.event_date >= todayForPrint)
         .sort((a,b) => a.event_date.localeCompare(b.event_date))
         .slice(0, 3);
       const evHtml = upEv.map(e => {
         const c = evColors[e.type] || '#94a3b8';
         const d2 = new Date(e.event_date+'T00:00:00');
         const ds = `${d2.getMonth()+1}/${d2.getDate()}`;
-        const isPastEv = e.event_date < todayForPrint;
-        const doneStyle = isPastEv ? 'text-decoration:line-through;opacity:.6;' : '';
-        const donePrefix = isPastEv ? '✓ ' : '';
-        return `<div style="margin-bottom:2px;font-size:6pt;${doneStyle}"><span style="background:${isPastEv?'#94a3b8':c};color:#fff;padding:0 3px;border-radius:2px;font-weight:700;font-size:5.5pt">${esc(e.type)}</span> ${donePrefix}${esc(e.title)} <span style="color:#888">(${ds})</span></div>`;
+        return `<div style="margin-bottom:2px;font-size:6pt;"><span style="background:${c};color:#fff;padding:0 3px;border-radius:2px;font-weight:700;font-size:5.5pt">${esc(e.type)}</span> ${esc(e.title)} <span style="color:#888">(${ds})</span></div>`;
       }).join('');
         const isOverdue = p.end_date && p.end_date < selWeek && p.status !== '완료';
         const issueText = [
