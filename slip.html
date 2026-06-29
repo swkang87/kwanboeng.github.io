@@ -179,6 +179,22 @@
   .error-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: #1e293b; }
   .error-card p { font-size: 13px; color: #64748b; line-height: 1.6; }
 
+  @media(max-width:768px){
+    body { padding: 12px; }
+    .slip-header { padding: 20px 20px 16px; }
+    .slip-info { padding: 16px 20px; }
+    .slip-section { padding: 16px 20px; }
+    .slip-total { padding: 12px 20px; }
+    .slip-net { margin: 0 20px 20px; padding: 14px 16px; }
+    .slip-net .nv { font-size: 18px; }
+    .slip-footer { padding: 12px 20px; }
+    .slip-actions { padding: 12px 20px 20px; }
+    .slip-actions button { min-height: 44px; }
+  }
+  @media(max-width:480px){
+    .slip-info { grid-template-columns: 1fr; }
+    .slip-net { flex-direction: column; align-items: flex-start; gap: 6px; }
+  }
   @media print {
     body { background: #fff; padding: 0; }
     .slip-actions { display: none; }

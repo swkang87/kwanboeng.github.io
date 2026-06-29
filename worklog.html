@@ -1629,10 +1629,11 @@ function LogsView({ user }) {
               <div className="empty-sub">해당 기간에 작성된 업무일지가 없습니다</div>
             </div>
           : <div style={{ background:'var(--card)', border:'1.5px solid var(--border)', borderRadius:'var(--radius)', overflow:'hidden' }}>
+              <div style={{ overflowX:'auto' }}>
               {/* 헤더 */}
               <div style={{ display:'grid', gridTemplateColumns:'80px 70px 90px 1fr 140px 70px', gap:0,
                 background:'var(--bg)', borderBottom:'1.5px solid var(--border)', padding:'8px 14px',
-                fontSize:11, fontWeight:800, color:'var(--text-sub)', textTransform:'uppercase', letterSpacing:'.04em' }}>
+                fontSize:11, fontWeight:800, color:'var(--text-sub)', textTransform:'uppercase', letterSpacing:'.04em', minWidth:520 }}>
                 <span>팀</span>
                 <span>이름</span>
                 <span>일지 날짜</span>
@@ -1644,7 +1645,7 @@ function LogsView({ user }) {
               {filtered.map((l, i) => (
                 <div key={l.id} style={{ display:'grid', gridTemplateColumns:'80px 70px 90px 1fr 140px 70px', gap:0,
                   padding:'9px 14px', borderBottom: i < filtered.length-1 ? '1px solid var(--border)' : 'none',
-                  fontSize:13, alignItems:'center',
+                  fontSize:13, alignItems:'center', minWidth:520,
                   background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <span style={{ color:'var(--text-sub)', fontSize:12 }}>{teamName(l.user_id)}</span>
                   <span style={{ fontWeight:700 }}>{userName(l.user_id)}</span>
@@ -1663,6 +1664,7 @@ function LogsView({ user }) {
                   </span>
                 </div>
               ))}
+              </div>
             </div>
       )}
     </div>

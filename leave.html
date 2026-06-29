@@ -917,11 +917,12 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
         <div style={{display:'flex',gap:6}}><button onClick={()=>setShowBulk(true)} style={btn()}>엑셀 일괄 등록</button><button onClick={()=>setShowAdd(true)} style={btn('primary')}>+ 직원 추가</button></div>
       </div>
       <div style={{...card,padding:0,overflow:'hidden'}}>
-        <div style={{display:'grid',gridTemplateColumns:'1.2fr 0.8fr 0.8fr 44px 44px 44px 80px',padding:'7px 12px',background:'#f8fafc',fontSize:10,fontWeight:700,color:'#94a3b8',gap:5,borderBottom:'1px solid #f1f5f9'}}>
+        <div style={{overflowX:'auto'}}>
+        <div style={{display:'grid',gridTemplateColumns:'1.2fr 0.8fr 0.8fr 44px 44px 44px 80px',padding:'7px 12px',background:'#f8fafc',fontSize:10,fontWeight:700,color:'#94a3b8',gap:5,borderBottom:'1px solid #f1f5f9',minWidth:520}}>
           <span>직원</span><span>팀</span><span>전화</span><span style={{textAlign:'center'}}>총</span><span style={{textAlign:'center'}}>사용</span><span style={{textAlign:'center'}}>잔여</span><span style={{textAlign:'center'}}>관리</span>
         </div>
         {emp.map(u=>{const used=getUsed(u.id),total=Number(u.total_days||0),rem=total-used,team=teams.find(t=>t.id===u.team_id);return(
-          <div key={u.id} style={{display:'grid',gridTemplateColumns:'1.2fr 0.8fr 0.8fr 44px 44px 44px 80px',padding:'9px 12px',borderBottom:'1px solid #f8fafc',gap:5,alignItems:'center'}}>
+          <div key={u.id} style={{display:'grid',gridTemplateColumns:'1.2fr 0.8fr 0.8fr 44px 44px 44px 80px',padding:'9px 12px',borderBottom:'1px solid #f8fafc',gap:5,alignItems:'center',minWidth:520}}>
             <div><p style={{margin:0,fontWeight:600,fontSize:12,color:'#0f172a'}}>{u.name} {u.role==='manager'&&<span style={{fontSize:9,color:'#1e40af'}}>(팀장)</span>}</p></div>
             <span style={{fontSize:11,color:'#374151'}}>{team?.name||'미배정'}</span>
             <span style={{fontSize:10,color:'#64748b'}}>{fmtPhone(u.phone)}</span>
@@ -931,6 +932,7 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
             <div style={{display:'flex',gap:3,justifyContent:'center'}}><button onClick={()=>setEditU({...u})} style={{...btn(),padding:'3px 6px',fontSize:10}}>수정</button></div>
           </div>
         );})}
+        </div>
       </div>
       {showAdd&&<Modal title="직원 추가" onClose={()=>setShowAdd(false)}>
         {[{l:'이름',k:'name',ph:'홍길동'},{l:'전화번호',k:'phone',ph:'01012345678'},{l:'입사일',k:'join_date',type:'date'},{l:'연차 일수',k:'total_days',type:'number'}].map(f=><div key={f.k} style={{marginBottom:10}}><label style={lbl}>{f.l}</label><input type={f.type||'text'} value={form[f.k]} onChange={e=>setForm(p=>({...p,[f.k]:e.target.value}))} placeholder={f.ph} style={inp}/></div>)}

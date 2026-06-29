@@ -191,6 +191,7 @@ button{cursor:pointer}
   .tbl{font-size:10px}
   .tbl th,.tbl td{padding:4px 3px}
   .btn-sm{padding:4px 8px;font-size:10px}
+  .admin-edit-grid{grid-template-columns:1fr!important}
 }
 </style>
 </head>
@@ -1784,7 +1785,7 @@ function ProjectDetail({ id, user, gb }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
         <button className="btn btn-secondary btn-sm" onClick={gb}>← 목록</button>
         {(user?.role === 'admin' || project?.pm_id === user?.id || members.some(m => m.user_id === user?.id)) && (
           <button className="btn btn-success btn-sm" onClick={() => setEditModal('report')}>📝 주간보고 입력</button>
@@ -2969,7 +2970,7 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+    <div className="admin-edit-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
       {/* 왼쪽: 프로젝트 목록 */}
       <div className="card card-p">
         <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>프로젝트 목록 ({projects.length}건)</div>
