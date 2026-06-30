@@ -461,6 +461,12 @@ function StaffView({ user }) {
   const [pwResetTarget, setPwResetTarget] = useState(null);
   const [pwResetSaving, setPwResetSaving] = useState(false);
   const [pwResetErr, setPwResetErr] = useState('');
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(function() {
+    function onResize() { setIsMobile(window.innerWidth < 768); }
+    window.addEventListener('resize', onResize);
+    return function() { window.removeEventListener('resize', onResize); };
+  }, []);
 
   var ROLE_ORDER = {admin:0, manager:1, employee:2, staff:2, contractor:3};
 
@@ -673,61 +679,104 @@ function StaffView({ user }) {
           </div>
           {user.role === 'admin' && <button className="btn btn-p btn-sm" onClick={openNew}>+ 직원 등록</button>}
         </div>
-        <div className="tbl-wrap">
-          <table>
-            <thead><tr>
-              <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('name');}}>이름{sortIcon('name')}</th>
-              <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('team');}}>팀{sortIcon('team')}</th>
-              <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('position');}}>직책{sortIcon('position')}</th>
-              <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('role');}}>역할{sortIcon('role')}</th>
-              <th>전화번호</th><th>로그인아이디</th><th>이메일</th><th>입사일</th><th>퇴사일</th>{user.role==='admin'&&<th className="tc">관리</th>}
-            </tr></thead>
-            <tbody>
-              {filtered.map(function(u) {
-                return (
-                  <tr key={u.id}>
-                    <td>
-                      <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <div style={{width:28,height:28,borderRadius:'50%',background:'#1e293b',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name ? u.name[0] : ''}</div>
-                        <span style={{fontWeight:600}}>{u.name}</span>
+        {isMobile ? (
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {filtered.map(function(u) {
+              return (
+                <div key={u.id} style={{borderRadius:8,border:'1px solid #e2e8f0',padding:12,background:'#fff'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <div style={{width:32,height:32,borderRadius:'50%',background:'#1e293b',color:'#fff',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name ? u.name[0] : ''}</div>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:14}}>{u.name}</div>
+                        <div style={{fontSize:11,color:'#94a3b8'}}>{tName(u)}{u.position?' · '+u.position:''}</div>
                       </div>
-                    </td>
-                    <td>{tName(u)}</td>
-                    <td style={{color:'#475569'}}>{u.position||'-'}</td>
-                    <td><span className={'badge ' + roleCls(u.role)}>{roleL(u.role)}</span></td>
-                    <td style={{color:'#64748b'}}>{u.phone}</td>
-                    <td style={{color:'#64748b',fontSize:12}}>
-                      {u.username
-                        ? <span style={{display:'inline-flex',alignItems:'center',gap:4}}><span style={{fontSize:10,background:'#dbeafe',color:'#1d4ed8',padding:'1px 5px',borderRadius:3,fontWeight:700}}>변경됨</span>{u.username}</span>
-                        : <span style={{color:'#94a3b8'}}>-</span>}
-                    </td>
-                    <td style={{color:'#64748b',fontSize:12}}>{u.email||'-'}</td>
-                    <td style={{color:'#64748b',fontSize:12}}>{u.hire_date||'-'}</td>
-                    <td style={{color:'#dc2626',fontSize:12}}>{u.leave_date||'-'}</td>
-                    {user.role==='admin'&&<td className="tc" style={{whiteSpace:'nowrap'}}>
+                    </div>
+                    <span className={'badge ' + roleCls(u.role)}>{roleL(u.role)}</span>
+                  </div>
+                  <div style={{fontSize:12,color:'#64748b',marginBottom:8,display:'flex',flexDirection:'column',gap:3}}>
+                    <div><span style={{color:'#94a3b8',marginRight:4}}>전화</span>{u.phone||'-'}</div>
+                    <div><span style={{color:'#94a3b8',marginRight:4}}>이메일</span>{u.email||'-'}</div>
+                    <div><span style={{color:'#94a3b8',marginRight:4}}>입사</span>{u.hire_date||'-'}{u.leave_date && <span style={{marginLeft:8,color:'#dc2626'}}>퇴사 {u.leave_date}</span>}</div>
+                  </div>
+                  {user.role==='admin' && (
+                    <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
                       <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>수정</button>
-                      {' '}
                       <button className="btn btn-sm" onClick={function(){openPhoneChange(u);}}
                         style={{background:'transparent',color:'#2563eb',border:'1px solid #2563eb',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
                         아이디변경
                       </button>
-                      {' '}
                       <button className="btn btn-sm" onClick={function(){openPwReset(u);}}
                         style={{background:'transparent',color:'#7c3aed',border:'1px solid #7c3aed',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
                         비밀번호초기화
                       </button>
-                      {' '}
                       <button className="btn btn-sm" onClick={function(){deleteUser(u);}}
                         style={{background: delConfirm&&delConfirm.id===u.id ? '#ef4444':'transparent', color: delConfirm&&delConfirm.id===u.id ? '#fff':'#ef4444', border:'1px solid #ef4444', borderRadius:4, padding:'3px 8px', fontSize:11, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif", fontWeight:600}}>
                         {delConfirm&&delConfirm.id===u.id ? '확인(삭제)' : '삭제'}
                       </button>
-                    </td>}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="tbl-wrap">
+            <table style={{minWidth:750}}>
+              <thead><tr>
+                <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('name');}}>이름{sortIcon('name')}</th>
+                <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('team');}}>팀{sortIcon('team')}</th>
+                <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('position');}}>직책{sortIcon('position')}</th>
+                <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('role');}}>역할{sortIcon('role')}</th>
+                <th>전화번호</th><th>로그인아이디</th><th>이메일</th><th>입사일</th><th>퇴사일</th>{user.role==='admin'&&<th className="tc">관리</th>}
+              </tr></thead>
+              <tbody>
+                {filtered.map(function(u) {
+                  return (
+                    <tr key={u.id}>
+                      <td>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          <div style={{width:28,height:28,borderRadius:'50%',background:'#1e293b',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name ? u.name[0] : ''}</div>
+                          <span style={{fontWeight:600}}>{u.name}</span>
+                        </div>
+                      </td>
+                      <td>{tName(u)}</td>
+                      <td style={{color:'#475569'}}>{u.position||'-'}</td>
+                      <td><span className={'badge ' + roleCls(u.role)}>{roleL(u.role)}</span></td>
+                      <td style={{color:'#64748b'}}>{u.phone}</td>
+                      <td style={{color:'#64748b',fontSize:12}}>
+                        {u.username
+                          ? <span style={{display:'inline-flex',alignItems:'center',gap:4}}><span style={{fontSize:10,background:'#dbeafe',color:'#1d4ed8',padding:'1px 5px',borderRadius:3,fontWeight:700}}>변경됨</span>{u.username}</span>
+                          : <span style={{color:'#94a3b8'}}>-</span>}
+                      </td>
+                      <td style={{color:'#64748b',fontSize:12}}>{u.email||'-'}</td>
+                      <td style={{color:'#64748b',fontSize:12}}>{u.hire_date||'-'}</td>
+                      <td style={{color:'#dc2626',fontSize:12}}>{u.leave_date||'-'}</td>
+                      {user.role==='admin'&&<td className="tc" style={{whiteSpace:'nowrap'}}>
+                        <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>수정</button>
+                        {' '}
+                        <button className="btn btn-sm" onClick={function(){openPhoneChange(u);}}
+                          style={{background:'transparent',color:'#2563eb',border:'1px solid #2563eb',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
+                          아이디변경
+                        </button>
+                        {' '}
+                        <button className="btn btn-sm" onClick={function(){openPwReset(u);}}
+                          style={{background:'transparent',color:'#7c3aed',border:'1px solid #7c3aed',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
+                          비밀번호초기화
+                        </button>
+                        {' '}
+                        <button className="btn btn-sm" onClick={function(){deleteUser(u);}}
+                          style={{background: delConfirm&&delConfirm.id===u.id ? '#ef4444':'transparent', color: delConfirm&&delConfirm.id===u.id ? '#fff':'#ef4444', border:'1px solid #ef4444', borderRadius:4, padding:'3px 8px', fontSize:11, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif", fontWeight:600}}>
+                          {delConfirm&&delConfirm.id===u.id ? '확인(삭제)' : '삭제'}
+                        </button>
+                      </td>}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
       <div className="card" style={{marginTop:16}}>
         <div className="sh">

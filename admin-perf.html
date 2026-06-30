@@ -616,6 +616,12 @@ function PerfView({ user }) {
     window.addEventListener('popstate', onPop);
     return function() { window.removeEventListener('popstate', onPop); };
   }, []);
+  var [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(function() {
+    function onResize() { setIsMobile(window.innerWidth < 768); }
+    window.addEventListener('resize', onResize);
+    return function() { window.removeEventListener('resize', onResize); };
+  }, []);
   var [users, setUsers] = useState([]);
   var [cols, setCols] = useState([]);
   var [perfs, setPerfs] = useState([]);
@@ -991,120 +997,182 @@ function PerfView({ user }) {
           {yCols.length === 0 ? (
             <div className="empty"><div className="ei">💰</div><div className="et">수금 내역이 없습니다</div></div>
           ) : (
-            <div className="tbl-wrap">
-              <CatFilterBar />
-              <table style={{tableLayout:'fixed',width:'100%'}}>
-                <colgroup>
-                  <col style={{width:'30%'}} />
-                  <col style={{width:'8%'}} />
-                  <col style={{width:'7%'}} />
-                  <col style={{width:'12%'}} />
-                  <col style={{width:'12%'}} />
-                  <col style={{width:'12%'}} />
-                  <col style={{width:'7%'}} />
-                  <col style={{width:'12%'}} />
-                </colgroup>
-                <thead><tr>
-                  <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
-                  <SortTh label="날짜"     col="date"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
-                  <SortTh label="유형"     col="type"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
-                  <SortTh label="수금액"   col="amount" state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
-                  <SortTh label="외주비"   col="out"    state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
-                  <SortTh label="순 실적"  col="net"    state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
-                  <th>메모</th><th></th>
-                </tr></thead>
-                <tbody>
-                  {sortRows(filterByCat(yCols, function(c){
-                    if (c.entry_type==='supervision') return '감리';
-                    var proj = projects.find(function(p){ return p.id===c.project_id; });
-                    return proj ? proj.category : '';
-                  }), colSort, function(c, col) {
-                    if (col==='proj')   return pName(c.project_id);
-                    if (col==='date')   return c.collected_at;
-                    if (col==='type')   return c.entry_type;
-                    if (col==='amount') return c.amount||0;
-                    if (col==='out')    return c.outsource_cost||0;
-                    if (col==='net')    return (c.amount||0)-(c.outsource_cost||0);
-                    return '';
-                  }).map(function(c) {
-                    var isOut = c.entry_type === 'outsource_only';
-                    var net   = (c.amount||0) - (c.outsource_cost||0);
-                    return (
-                      <tr key={c.id} style={{background: isOut ? '#fff5f5' : ''}}>
-                        <td style={{verticalAlign:'top',paddingTop:10}}>
-                          {(function(){
-                            var proj = projects.find(function(p){ return p.id === c.project_id; });
-                            var cat  = proj ? proj.category : '';
-                            if (c.entry_type === 'supervision') {
-                              var sp = parseSupvMemo(c.memo);
-                              return (
-                                <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
-                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 0',borderRadius:4,marginTop:2,
-                                    width:36,textAlign:'center',display:'inline-block',
-                                    background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>감리</span>
-                                  <span style={{display:'flex',flexDirection:'column',gap:1,minWidth:0}}>
-                                    {sp.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block'}}>{sp.client}</span>}
-                                    <span style={{fontWeight:600,fontSize:12,wordBreak:'keep-all',lineHeight:1.4}}>{sp.name||c.memo||'-'}</span>
-                                  </span>
+            {(function(){
+              var visRows = sortRows(filterByCat(yCols, function(c){
+                if (c.entry_type==='supervision') return '감리';
+                var proj = projects.find(function(p){ return p.id===c.project_id; });
+                return proj ? proj.category : '';
+              }), colSort, function(c, col) {
+                if (col==='proj')   return pName(c.project_id);
+                if (col==='date')   return c.collected_at;
+                if (col==='type')   return c.entry_type;
+                if (col==='amount') return c.amount||0;
+                if (col==='out')    return c.outsource_cost||0;
+                if (col==='net')    return (c.amount||0)-(c.outsource_cost||0);
+                return '';
+              });
+              if (isMobile) return (
+                <div>
+                  <CatFilterBar />
+                  <div style={{marginTop:8}}>
+                    {visRows.map(function(c){
+                      var isOut = c.entry_type === 'outsource_only';
+                      var isSupv = c.entry_type === 'supervision';
+                      var net = (c.amount||0) - (c.outsource_cost||0);
+                      var proj = projects.find(function(p){ return p.id === c.project_id; });
+                      var cat = proj ? proj.category : '';
+                      var sp = isSupv ? parseSupvMemo(c.memo) : null;
+                      var bColor = isSupv ? '#6ee7b7' : (CAT_COLOR[cat]||'#e2e8f0');
+                      return (
+                        <div key={c.id} style={{borderLeft:'3px solid '+bColor,background:isOut?'#fff5f5':'#fff',border:'1px solid #e2e8f0',borderRadius:8,padding:12,marginBottom:8}}>
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+                            <div style={{flex:1,marginRight:8}}>
+                              {isSupv ? (
+                                <div>
+                                  <span style={{fontSize:10,fontWeight:700,padding:'1px 5px',borderRadius:4,background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>감리</span>
+                                  <div style={{fontWeight:600,fontSize:13,marginTop:3}}>{sp&&sp.name ? sp.name : (c.memo||'-')}</div>
+                                  {sp&&sp.client && <div style={{fontSize:11,color:'#94a3b8'}}>{sp.client}</div>}
                                 </div>
-                              );
-                            }
-                            return (
-                              <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
-                                {cat && (
-                                  <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 0',borderRadius:4,marginTop:2,
-                                    width:36,textAlign:'center',display:'inline-block',
-                                    background: CAT_BG[cat]||'#f1f5f9', color: CAT_TX[cat]||'#475569',
-                                    border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0')}}>
-                                    {cat}
-                                  </span>
-                                )}
-                                <span style={{display:'flex',flexDirection:'column',gap:1,minWidth:0}}>
-                                  {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block'}}>{proj.client}</span>}
-                                  <span style={{fontWeight:600,fontSize:12,wordBreak:'keep-all',lineHeight:1.4,overflowWrap:'anywhere'}}>{pName(c.project_id)}</span>
-                                </span>
-                              </div>
-                            );
-                          })()}
-                        </td>
-                        <td style={{whiteSpace:'nowrap',fontSize:12}}>{fmtD(c.collected_at)}</td>
-                        <td>
-                          {c.entry_type==='supervision'
-                            ? <span className="badge" style={{fontSize:10,background:'#ecfdf5',color:'#065f46'}}>감리</span>
-                            : isOut
-                              ? <span className="badge bgr" style={{fontSize:10}}>외주비만</span>
-                              : <span className="badge bg" style={{fontSize:10}}>수금</span>
-                          }
-                        </td>
-                        <td className="tr" style={{fontWeight:700,fontSize:12,color: isOut ? '#94a3b8' : '#1d4ed8',whiteSpace:'nowrap'}}>
-                          {isOut ? '—' : fmtN(c.amount)+'원'}
-                        </td>
-                        <td className="tr" style={{color:'#dc2626',fontSize:12,whiteSpace:'nowrap'}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
-                        <td className="tr" style={{fontWeight:700,fontSize:12,whiteSpace:'nowrap',color: net < 0 ? '#dc2626' : '#7c3aed'}}>{fmtN(net)}원</td>
-                        <td style={{color:'#64748b',fontSize:11,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.entry_type==='supervision' ? (parseSupvMemo(c.memo).note||'') : (c.memo||'-')}</td>
-                        <td style={{whiteSpace:'nowrap'}}>
-                          <div style={{display:'flex',gap:3}}>
-                          <button className="btn btn-s btn-sm" onClick={function(){
-                            setEditItem(c);
-                            var base = Object.assign({},c,{amount:c.amount?fmtN(c.amount):'',outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):'',entry_type:c.entry_type||'both'});
-                            if (c.entry_type === 'supervision') {
-                              var parsed = parseSupvMemo(c.memo);
-                              base.supv_name = parsed.name;
-                              base.supv_client = parsed.client;
-                              base.supv_note = parsed.note;
-                            }
-                            setForm(base);
-                            setModal('col');
-                          }}>수정</button>
-                          <button className="btn btn-d btn-sm" onClick={function(){deleteCol(c.id);}}>삭제</button>
+                              ) : (
+                                <div>
+                                  {cat && <span style={{fontSize:10,fontWeight:700,padding:'1px 5px',borderRadius:4,background:CAT_BG[cat]||'#f1f5f9',color:CAT_TX[cat]||'#475569',border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0')}}>{cat}</span>}
+                                  <div style={{fontWeight:600,fontSize:13,marginTop:3}}>{pName(c.project_id)}</div>
+                                  {proj&&proj.client && <div style={{fontSize:11,color:'#94a3b8'}}>{proj.client}</div>}
+                                </div>
+                              )}
+                            </div>
+                            <span style={{fontSize:11,color:'#64748b',whiteSpace:'nowrap',flexShrink:0}}>{fmtD(c.collected_at)}</span>
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:8}}>
+                            <div style={{background:'#eff6ff',borderRadius:6,padding:'6px 8px',textAlign:'center'}}>
+                              <div style={{fontSize:10,color:'#94a3b8'}}>수금액</div>
+                              <div style={{fontWeight:700,color:'#1d4ed8',fontSize:12}}>{isOut?'—':fmtN(c.amount)+'원'}</div>
+                            </div>
+                            <div style={{background:'#fff5f5',borderRadius:6,padding:'6px 8px',textAlign:'center'}}>
+                              <div style={{fontSize:10,color:'#94a3b8'}}>외주비</div>
+                              <div style={{fontWeight:700,color:'#dc2626',fontSize:12}}>{(c.outsource_cost||0)>0?fmtN(c.outsource_cost)+'원':'-'}</div>
+                            </div>
+                            <div style={{background:'#f5f3ff',borderRadius:6,padding:'6px 8px',textAlign:'center'}}>
+                              <div style={{fontSize:10,color:'#94a3b8'}}>순실적</div>
+                              <div style={{fontWeight:700,color:net<0?'#dc2626':'#7c3aed',fontSize:12}}>{fmtN(net)}원</div>
+                            </div>
+                          </div>
+                          {c.memo&&!isSupv && <div style={{fontSize:11,color:'#64748b',marginBottom:6,padding:'4px 8px',background:'#f8fafc',borderRadius:4}}>{c.memo}</div>}
+                          <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                            <button className="btn btn-s btn-sm" onClick={function(){
+                              setEditItem(c);
+                              var base = Object.assign({},c,{amount:c.amount?fmtN(c.amount):'',outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):'',entry_type:c.entry_type||'both'});
+                              if (c.entry_type === 'supervision') {
+                                var parsed = parseSupvMemo(c.memo);
+                                base.supv_name = parsed.name;
+                                base.supv_client = parsed.client;
+                                base.supv_note = parsed.note;
+                              }
+                              setForm(base); setModal('col');
+                            }}>수정</button>
+                            <button className="btn btn-d btn-sm" onClick={function(){deleteCol(c.id);}}>삭제</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+              return (
+                <div className="tbl-wrap">
+                  <CatFilterBar />
+                  <table style={{minWidth:760}}>
+                    <thead><tr>
+                      <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
+                      <SortTh label="날짜"     col="date"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
+                      <SortTh label="유형"     col="type"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
+                      <SortTh label="수금액"   col="amount" state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
+                      <SortTh label="외주비"   col="out"    state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
+                      <SortTh label="순 실적"  col="net"    state={colSort} onSort={mkSortHandler(colSort,setColSort)} className="tr" />
+                      <th>메모</th><th></th>
+                    </tr></thead>
+                    <tbody>
+                      {visRows.map(function(c) {
+                        var isOut = c.entry_type === 'outsource_only';
+                        var net   = (c.amount||0) - (c.outsource_cost||0);
+                        return (
+                          <tr key={c.id} style={{background: isOut ? '#fff5f5' : ''}}>
+                            <td style={{verticalAlign:'top',paddingTop:10}}>
+                              {(function(){
+                                var proj = projects.find(function(p){ return p.id === c.project_id; });
+                                var cat  = proj ? proj.category : '';
+                                if (c.entry_type === 'supervision') {
+                                  var sp = parseSupvMemo(c.memo);
+                                  return (
+                                    <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+                                      <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 0',borderRadius:4,marginTop:2,
+                                        width:36,textAlign:'center',display:'inline-block',
+                                        background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>감리</span>
+                                      <span style={{display:'flex',flexDirection:'column',gap:1,minWidth:0}}>
+                                        {sp.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block'}}>{sp.client}</span>}
+                                        <span style={{fontWeight:600,fontSize:12,wordBreak:'keep-all',lineHeight:1.4}}>{sp.name||c.memo||'-'}</span>
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+                                    {cat && (
+                                      <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 0',borderRadius:4,marginTop:2,
+                                        width:36,textAlign:'center',display:'inline-block',
+                                        background: CAT_BG[cat]||'#f1f5f9', color: CAT_TX[cat]||'#475569',
+                                        border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0')}}>
+                                        {cat}
+                                      </span>
+                                    )}
+                                    <span style={{display:'flex',flexDirection:'column',gap:1,minWidth:0}}>
+                                      {proj && proj.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block'}}>{proj.client}</span>}
+                                      <span style={{fontWeight:600,fontSize:12,wordBreak:'keep-all',lineHeight:1.4,overflowWrap:'anywhere'}}>{pName(c.project_id)}</span>
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                            <td style={{whiteSpace:'nowrap',fontSize:12}}>{fmtD(c.collected_at)}</td>
+                            <td>
+                              {c.entry_type==='supervision'
+                                ? <span className="badge" style={{fontSize:10,background:'#ecfdf5',color:'#065f46'}}>감리</span>
+                                : isOut
+                                  ? <span className="badge bgr" style={{fontSize:10}}>외주비만</span>
+                                  : <span className="badge bg" style={{fontSize:10}}>수금</span>
+                              }
+                            </td>
+                            <td className="tr" style={{fontWeight:700,fontSize:12,color: isOut ? '#94a3b8' : '#1d4ed8',whiteSpace:'nowrap'}}>
+                              {isOut ? '—' : fmtN(c.amount)+'원'}
+                            </td>
+                            <td className="tr" style={{color:'#dc2626',fontSize:12,whiteSpace:'nowrap'}}>{c.outsource_cost > 0 ? fmtN(c.outsource_cost)+'원' : '-'}</td>
+                            <td className="tr" style={{fontWeight:700,fontSize:12,whiteSpace:'nowrap',color: net < 0 ? '#dc2626' : '#7c3aed'}}>{fmtN(net)}원</td>
+                            <td style={{color:'#64748b',fontSize:11,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.entry_type==='supervision' ? (parseSupvMemo(c.memo).note||'') : (c.memo||'-')}</td>
+                            <td style={{whiteSpace:'nowrap'}}>
+                              <div style={{display:'flex',gap:3}}>
+                              <button className="btn btn-s btn-sm" onClick={function(){
+                                setEditItem(c);
+                                var base = Object.assign({},c,{amount:c.amount?fmtN(c.amount):'',outsource_cost:c.outsource_cost?fmtN(c.outsource_cost):'',entry_type:c.entry_type||'both'});
+                                if (c.entry_type === 'supervision') {
+                                  var parsed = parseSupvMemo(c.memo);
+                                  base.supv_name = parsed.name;
+                                  base.supv_client = parsed.client;
+                                  base.supv_note = parsed.note;
+                                }
+                                setForm(base);
+                                setModal('col');
+                              }}>수정</button>
+                              <button className="btn btn-d btn-sm" onClick={function(){deleteCol(c.id);}}>삭제</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           )}
         </div>
       )}

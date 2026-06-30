@@ -541,15 +541,7 @@ function AccountBookView({ user }) {
                 padding:'6px 0',borderBottom:'2px solid var(--theme,#0f172a)',marginBottom:8}}>
                 {cat}
               </div>
-              <div className="tbl-wrap"><table style={{width:'100%',tableLayout:'fixed',borderCollapse:'collapse'}}>
-                <colgroup>
-                  <col style={{width:'18%'}} />
-                  <col style={{width:'12%'}} />
-                  <col style={{width:'13%'}} />
-                  <col style={{width:'13%'}} />
-                  <col style={{width:'auto'}} />
-                  {isAdmin && <col style={{width:80}} />}
-                </colgroup>
+              <div className="tbl-wrap"><table style={{borderCollapse:'collapse',minWidth:560}}>
                 <thead>
                   <tr style={{background:'#f8fafc'}}>
                     <th style={{padding:'7px 10px',fontSize:11,color:'#64748b',textAlign:'left',fontWeight:700}}>사이트</th>

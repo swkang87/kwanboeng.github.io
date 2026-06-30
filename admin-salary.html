@@ -439,6 +439,12 @@ function SalaryView({ user }) {
   const [itemForm, setItemForm] = useState({label:'',type:'income'});
   const [delMonthModal, setDelMonthModal] = useState(false);
   const [delMonthIng, setDelMonthIng] = useState(false);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  useEffect(function() {
+    function onResize() { setIsMobile(window.innerWidth < 768); }
+    window.addEventListener('resize', onResize);
+    return function() { window.removeEventListener('resize', onResize); };
+  }, []);
 
   var EXCEL_ORDER = ['강호갑','이수금','강승우','김병용','장용기','조원범','박호진','윤종수','유현수','이규민','이창환','이다빈','안소영','신재호','신병호','송성익','안구환','윤성원','박상철','황보경','한예은','임수혁','한동우','최상민','안명만','현나경','김동현','송영환'];
 
@@ -764,98 +770,140 @@ function SalaryView({ user }) {
 
       {emMsg && <div className="al al-s">{emMsg}</div>}
 
-      <div className="card">
-        <div className="tbl-wrap">
-          <table>
-            <thead><tr>
-                {(function(){
-                  function Sh(col, label, cls) {
-                    var active = salSort.col === col;
-                    var next = active && salSort.dir==='asc' ? 'desc' : 'asc';
-                    return (
-                      <th className={cls||''} style={{cursor:'pointer',userSelect:'none',whiteSpace:'nowrap'}}
-                        onClick={function(){setSalSort({col:col,dir:next});}}>
-                        {label} {active ? (salSort.dir==='asc'?'↑':'↓') : '↕'}
-                      </th>
-                    );
-                  }
-                  return [
-                    Sh('name','직원',null),
-                    Sh('team','팀',null),
-                    Sh('base','기본급','tr'),
-                    Sh('inc','총 지급','tr'),
-                    Sh('ded','총 공제','tr'),
-                    Sh('net','실수령액','tr'),
-                    <th key="diff" className="tr">전월대비</th>,
-                    <th key="st" className="tc">상태</th>,
-                    <th key="mg" className="tc">관리</th>,
-                  ];
-                })()}
-              </tr></thead>
-            <tbody>
-              {(function(){
-                // 엑셀 기본 순서 저장 (load 시 순서 그대로)
-                var sorted = users.slice();
-                if (salSort.col !== 'default') {
-                  sorted.sort(function(a, b) {
-                    var sa = getSal(a.id); var sb2 = getSal(b.id);
-                    var ca = sa ? calcFromDetails(getDetails(sa.id)) : {inc:0,ded:0,net:0};
-                    var cb = sb2 ? calcFromDetails(getDetails(sb2.id)) : {inc:0,ded:0,net:0};
-                    var va, vb;
-                    if (salSort.col==='name')  { va=a.name; vb=b.name; }
-                    else if (salSort.col==='team')  { va=a.teamName; vb=b.teamName; }
-                    else if (salSort.col==='base')  { va=sa?sa.base_salary||0:0; vb=sb2?sb2.base_salary||0:0; }
-                    else if (salSort.col==='inc')   { va=ca.inc; vb=cb.inc; }
-                    else if (salSort.col==='ded')   { va=ca.ded; vb=cb.ded; }
-                    else if (salSort.col==='net')   { va=ca.net; vb=cb.net; }
-                    else { va=0; vb=0; }
-                    if (typeof va==='string') return salSort.dir==='asc' ? va.localeCompare(vb,'ko') : vb.localeCompare(va,'ko');
-                    return salSort.dir==='asc' ? va-vb : vb-va;
-                  });
-                }
-                return sorted;
-              })().map(function(u) {
+      {(function(){
+        var sorted = users.slice();
+        if (salSort.col !== 'default') {
+          sorted.sort(function(a, b) {
+            var sa = getSal(a.id); var sb2 = getSal(b.id);
+            var ca = sa ? calcFromDetails(getDetails(sa.id)) : {inc:0,ded:0,net:0};
+            var cb = sb2 ? calcFromDetails(getDetails(sb2.id)) : {inc:0,ded:0,net:0};
+            var va, vb;
+            if (salSort.col==='name')  { va=a.name; vb=b.name; }
+            else if (salSort.col==='team')  { va=a.teamName; vb=b.teamName; }
+            else if (salSort.col==='base')  { va=sa?sa.base_salary||0:0; vb=sb2?sb2.base_salary||0:0; }
+            else if (salSort.col==='inc')   { va=ca.inc; vb=cb.inc; }
+            else if (salSort.col==='ded')   { va=ca.ded; vb=cb.ded; }
+            else if (salSort.col==='net')   { va=ca.net; vb=cb.net; }
+            else { va=0; vb=0; }
+            if (typeof va==='string') return salSort.dir==='asc' ? va.localeCompare(vb,'ko') : vb.localeCompare(va,'ko');
+            return salSort.dir==='asc' ? va-vb : vb-va;
+          });
+        }
+        if (isMobile) return (
+          <div className="card">
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {sorted.map(function(u) {
                 var s = getSal(u.id);
                 var dets = s ? getDetails(s.id) : [];
                 var c = s ? calcFromDetails(dets) : { inc:0, ded:0, net:0 };
                 var ps = prevSals.find(function(x){ return x.user_id === u.id; });
                 var diff = (s && ps) ? (s.net_pay||0) - (ps.net_pay||0) : null;
                 return (
-                  <tr key={u.id}>
-                    <td>
+                  <div key={u.id} style={{borderRadius:8,border:'1px solid #e2e8f0',padding:12,background:s?'#fff':'#fafafa'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <div style={{width:28,height:28,borderRadius:'50%',background: u.isMemberOnly ? '#94a3b8' : '#7c3aed',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name[0]}</div>
+                        <div style={{width:32,height:32,borderRadius:'50%',background:u.isMemberOnly?'#94a3b8':'#7c3aed',color:'#fff',fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name[0]}</div>
                         <div>
-                          <div style={{fontWeight:600}}>{u.name}</div>
-                          {u.isMemberOnly
-                            ? <div style={{fontSize:10,color:'#94a3b8'}}>급여전용</div>
-                            : <div style={{fontSize:11,color:'#94a3b8'}}>{u.position||''}</div>
-                          }
+                          <div style={{fontWeight:700,fontSize:14}}>{u.name}</div>
+                          <div style={{fontSize:11,color:'#94a3b8'}}>{u.teamName}{u.position?' · '+u.position:''}</div>
                         </div>
                       </div>
-                    </td>
-                    <td style={{color:'#64748b'}}>{u.teamName}</td>
-                    <td className="tr">{s ? fmtN(s.base_salary)+'원' : '-'}</td>
-                    <td className="tr" style={{color:'#1d4ed8',fontWeight:600}}>{s ? fmtN(c.inc)+'원' : '-'}</td>
-                    <td className="tr" style={{color:'#dc2626'}}>{s ? fmtN(c.ded)+'원' : '-'}</td>
-                    <td className="tr" style={{fontWeight:700,color:'#7c3aed',fontSize:14}}>{s ? fmtN(c.net)+'원' : '-'}</td>
-                    <td className="tr" style={{fontSize:12,fontWeight:600,color: diff===null?'#94a3b8': diff>0?'#059669': diff<0?'#dc2626':'#64748b'}}>
-                      {diff===null ? '-' : (diff>0?'+':'')+fmtN(diff)+'원'}
-                    </td>
-                    <td className="tc">{s ? <span className="badge bg">입력완료</span> : <span className="badge bgr">미입력</span>}</td>
-                    <td className="tc">
-                      <div style={{display:'flex',gap:4,justifyContent:'center'}}>
-                        <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>입력</button>
-                        {s && !u.isMemberOnly && <button className="btn btn-p btn-sm" onClick={function(){sendSlip(u);}}>📧</button>}
+                      {s ? <span className="badge bg" style={{fontSize:11}}>입력완료</span> : <span className="badge bgr" style={{fontSize:11}}>미입력</span>}
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:8}}>
+                      <div style={{background:'#f5f3ff',borderRadius:6,padding:'6px 10px'}}>
+                        <div style={{fontSize:10,color:'#94a3b8'}}>실수령액</div>
+                        <div style={{fontWeight:700,color:'#7c3aed',fontSize:14}}>{s ? fmtN(c.net)+'원' : '-'}</div>
                       </div>
-                    </td>
-                  </tr>
+                      <div style={{background:'#f8fafc',borderRadius:6,padding:'6px 10px'}}>
+                        <div style={{fontSize:10,color:'#94a3b8'}}>전월대비</div>
+                        <div style={{fontWeight:700,fontSize:13,color:diff===null?'#94a3b8':diff>0?'#059669':diff<0?'#dc2626':'#64748b'}}>{diff===null?'-':(diff>0?'+':'')+fmtN(diff)+'원'}</div>
+                      </div>
+                    </div>
+                    <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                      <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>입력</button>
+                      {s && !u.isMemberOnly && <button className="btn btn-p btn-sm" onClick={function(){sendSlip(u);}}>📧</button>}
+                    </div>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </div>
+          </div>
+        );
+        return (
+          <div className="card">
+            <div className="tbl-wrap">
+              <table style={{minWidth:700}}>
+                <thead><tr>
+                    {(function(){
+                      function Sh(col, label, cls) {
+                        var active = salSort.col === col;
+                        var next = active && salSort.dir==='asc' ? 'desc' : 'asc';
+                        return (
+                          <th className={cls||''} style={{cursor:'pointer',userSelect:'none',whiteSpace:'nowrap'}}
+                            onClick={function(){setSalSort({col:col,dir:next});}}>
+                            {label} {active ? (salSort.dir==='asc'?'↑':'↓') : '↕'}
+                          </th>
+                        );
+                      }
+                      return [
+                        Sh('name','직원',null),
+                        Sh('team','팀',null),
+                        Sh('base','기본급','tr'),
+                        Sh('inc','총 지급','tr'),
+                        Sh('ded','총 공제','tr'),
+                        Sh('net','실수령액','tr'),
+                        <th key="diff" className="tr">전월대비</th>,
+                        <th key="st" className="tc">상태</th>,
+                        <th key="mg" className="tc">관리</th>,
+                      ];
+                    })()}
+                  </tr></thead>
+                <tbody>
+                  {sorted.map(function(u) {
+                    var s = getSal(u.id);
+                    var dets = s ? getDetails(s.id) : [];
+                    var c = s ? calcFromDetails(dets) : { inc:0, ded:0, net:0 };
+                    var ps = prevSals.find(function(x){ return x.user_id === u.id; });
+                    var diff = (s && ps) ? (s.net_pay||0) - (ps.net_pay||0) : null;
+                    return (
+                      <tr key={u.id}>
+                        <td>
+                          <div style={{display:'flex',alignItems:'center',gap:8}}>
+                            <div style={{width:28,height:28,borderRadius:'50%',background: u.isMemberOnly ? '#94a3b8' : '#7c3aed',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{u.name[0]}</div>
+                            <div>
+                              <div style={{fontWeight:600}}>{u.name}</div>
+                              {u.isMemberOnly
+                                ? <div style={{fontSize:10,color:'#94a3b8'}}>급여전용</div>
+                                : <div style={{fontSize:11,color:'#94a3b8'}}>{u.position||''}</div>
+                              }
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{color:'#64748b'}}>{u.teamName}</td>
+                        <td className="tr">{s ? fmtN(s.base_salary)+'원' : '-'}</td>
+                        <td className="tr" style={{color:'#1d4ed8',fontWeight:600}}>{s ? fmtN(c.inc)+'원' : '-'}</td>
+                        <td className="tr" style={{color:'#dc2626'}}>{s ? fmtN(c.ded)+'원' : '-'}</td>
+                        <td className="tr" style={{fontWeight:700,color:'#7c3aed',fontSize:14}}>{s ? fmtN(c.net)+'원' : '-'}</td>
+                        <td className="tr" style={{fontSize:12,fontWeight:600,color: diff===null?'#94a3b8': diff>0?'#059669': diff<0?'#dc2626':'#64748b'}}>
+                          {diff===null ? '-' : (diff>0?'+':'')+fmtN(diff)+'원'}
+                        </td>
+                        <td className="tc">{s ? <span className="badge bg">입력완료</span> : <span className="badge bgr">미입력</span>}</td>
+                        <td className="tc">
+                          <div style={{display:'flex',gap:4,justifyContent:'center'}}>
+                            <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>입력</button>
+                            {s && !u.isMemberOnly && <button className="btn btn-p btn-sm" onClick={function(){sendSlip(u);}}>📧</button>}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {slipModal && slipTarget && (
         <div className="mbg" onClick={function(){setSlipModal(false);}}>
