@@ -996,8 +996,7 @@ function PerfView({ user }) {
           </div>
           {yCols.length === 0 ? (
             <div className="empty"><div className="ei">💰</div><div className="et">수금 내역이 없습니다</div></div>
-          ) : (
-            {(function(){
+          ) : (function(){
               var visRows = sortRows(filterByCat(yCols, function(c){
                 if (c.entry_type==='supervision') return '감리';
                 var proj = projects.find(function(p){ return p.id===c.project_id; });
@@ -1172,8 +1171,7 @@ function PerfView({ user }) {
                   </table>
                 </div>
               );
-            })()}
-          )}
+          })()}
         </div>
       )}
 
