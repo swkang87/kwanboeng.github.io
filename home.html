@@ -74,6 +74,8 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
   .cal-hol{font-size:7px;}
   .btn{min-height:44px;}
   .nav-btn{min-height:44px;}
+  .cal-week-inner{min-width:0!important;grid-template-columns:repeat(7,minmax(44px,1fr))!important;}
+  .cal-year-grid{grid-template-columns:repeat(2,1fr)!important;}
 }
 </style>
 <script src="config.js"></script>
@@ -467,7 +469,7 @@ function CalendarView({user,teamName}){
   const renderWeekView=()=>{
     return(
       <div style={{overflowX:'auto'}}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(7,minmax(120px,1fr))',minWidth:700}}>
+        <div className="cal-week-inner" style={{display:'grid',gridTemplateColumns:'repeat(7,minmax(120px,1fr))',minWidth:700}}>
           {/* 요일 헤더 */}
           {wdays.map((ds,i)=>{
             const dow=new Date(ds+'T12:00:00').getDay();
@@ -600,7 +602,7 @@ function CalendarView({user,teamName}){
 
   const renderYearView=()=>(
     <div style={{padding:'14px 14px 10px'}}>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
+      <div className="cal-year-grid" style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}}>
         {Array.from({length:12},(_,m)=>renderMiniMonth(yr,m))}
       </div>
       {/* 연간 범례 */}
