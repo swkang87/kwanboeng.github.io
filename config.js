@@ -47,6 +47,7 @@ var APP_CONFIG = {
   ADMIN_TEAM_NAME: '관리팀',          // 관리포털 접근 팀명
   SESSION_PREFIX:  'kwanbo',          // 스토리지 키 prefix
   AUTH_DOMAIN:     'kwanbo.internal', // 로그인 이메일 도메인
+  MOBILE_MAX_WIDTH: 768,              // 모바일 판별 기준 폭(px) — 이하일 때 모바일 처리
 
   // ── 비품관리 결제수단 ─────────────────────────────────────────
   // worklog.html 비품관리 탭의 결제수단 드롭다운 (식대카드 역산 집계용)
