@@ -146,6 +146,21 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   `tax_invoice_items`: invoice_id(FK)·item_date·item_name·item_spec·item_qty·item_price·item_supply_amount·item_tax_amount·item_remark.
 - 검증: Babel(preset-react+env) 트랜스파일 PASS.
 
+### admin-perf.html 세금계산서 탭 드래그앤드롭 + 업로드 미반영 수정
+- **드롭존**: 기존 안내 텍스트 div를 드롭존으로 교체(파일 input·업로드 버튼 유지, 클릭해도 파일 선택 열림).
+  `taxDrag` 상태로 드래그 오버 시 보라 점선 하이라이트 + "여기에 파일을 놓으세요". 처리 중엔 pointerEvents:none.
+- **확장자 검증**: `handleTaxFiles` 입구에서 `/\.(xls|xlsx)$/i` 필터 — input/드롭 공통.
+  전부 비엑셀이면 ❌ 토스트 후 중단, 혼합이면 진행 후 "엑셀 외 파일 N개 제외" 병기.
+- **에러 무시 4곳 수정**: upsert 실패 시 `error.message (code)` 수집(`pushErr`, 중복 제거, 토스트에 최대 3건 표시),
+  maybeSingle/품목 delete/품목 insert 에러도 수집. loadTax 조회 에러도 토스트 표시.
+  결과 포맷: "성공 N건 (신규/업데이트) · 실패 M건 — 에러상세".
+- **업로드 후 미반영 원인**: `loadTax()` refetch·'전체' 월필터 기본값은 원래 있었음. 실제 원인은
+  ① 에러 무증상(approval_no UNIQUE 제약 부재 시 42P10도 숫자로만 집계) ② 매입 탭 보며 매출 파일 업로드 시 안 보이는 UX.
+  → 저장 성공 시 `setTaxMonth('전체')` + 저장된 invoice_type 탭으로 자동 전환(`savedKinds`).
+- **x-user-id 헤더 확인 결과**: 이 파일은 plain `createClient`(182행) 하나로 모든 테이블 저장 — 커스텀 헤더 자체가 없고
+  다른 테이블(collections 등)과 동일 경로. 헤더 불일치 아님. RLS는 authenticated 세션 기반.
+- 검증: Babel(preset-react+env) 트랜스파일 PASS.
+
 ### WeeklyReport 완료 용역 과거 주 표시 버그 수정
 `applyAppData`의 완료 제거 필터 + `loadAll`의 `.neq('status','완료')` + `sortedProjects`의 `if (p.status !== '완료')` 래핑 — 세 곳 제거.
 - WeeklyReport는 완료 용역 포함 전체 데이터를 받아야 `completed_at` 기반 과거 주 표시가 동작함.
@@ -165,6 +180,19 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 ---
 
 ## 🔲 미완료 — 대시보드 작업 필요
+
+### tax_invoices·tax_invoice_items RLS admin+manager 제한 (SQL 작성 완료, 실행 대기중)
+- **현재 상태: authenticated 전체 허용(임시)** — 최초 정책이 `x-user-role` 커스텀 헤더 방식이라
+  Auth 세션 기반인 이 앱에서 전부 차단됨(업로드해도 안 보이는 버그 원인) → 임시로
+  `using(true)/with check(true)` 전체 허용으로 풀어 동작 확인한 상태. 로그인한 전 직원이
+  세금계산서 조회/업로드/삭제 가능해 위험.
+- **`supabase/sql/tax_invoices_rls.sql` 작성 완료** — 승우님이 SQL Editor에서 검토 후 직접 실행.
+  - 두 테이블의 기존 정책을 이름 무관 일괄 drop(DO 블록, pg_policies 순회) 후
+    select/insert/update/delete 전부 admin+manager 전용으로 재생성.
+  - 권한 판정: supply_records.sql 선택 블록과 동일 패턴 —
+    `exists (select 1 from public.users where auth_id = auth.uid() and role in ('admin','manager'))`.
+  - 전제: users에 authenticated SELECT 정책 존재(충족 확인됨), auth_id=null 계정은 접근 불가.
+  - 실행 후 검증 쿼리 포함(테이블당 4개, 총 8개 정책 확인).
 
 ### auth_id=null 기존 직원 소급 복구 (smooth-function Fix B) + 서영우 1건
 관리포털 신규 등록 버그(위 완료 항목)로 생긴 `auth_id=null` 직원들의 로그인·비번 초기화 복구.
