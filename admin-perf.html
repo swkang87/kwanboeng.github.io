@@ -819,15 +819,13 @@ function PerfView({ user }) {
             issue_date: parseXlDate(r[2]),
             send_date: parseXlDate(r[3]),
             supplier_biz_no: xlStr(r[4]),
-            supplier_sub_biz_no: xlStr(r[5]),
             supplier_name: xlStr(r[6]),
             supplier_ceo: xlStr(r[7]),
-            supplier_addr: xlStr(r[8]),
+            supplier_address: xlStr(r[8]),
             buyer_biz_no: xlStr(r[9]),
-            buyer_sub_biz_no: xlStr(r[10]),
             buyer_name: xlStr(r[11]),
             buyer_ceo: xlStr(r[12]),
-            buyer_addr: xlStr(r[13]),
+            buyer_address: xlStr(r[13]),
             total_amount: parseXlNum(r[14]),
             supply_amount: parseXlNum(r[15]),
             tax_amount: parseXlNum(r[16]),
@@ -2266,13 +2264,13 @@ function PerfView({ user }) {
                 <Row label="상호" value={iv.supplier_name} />
                 <Row label="사업자번호" value={iv.supplier_biz_no} />
                 <Row label="대표자" value={iv.supplier_ceo} />
-                <Row label="주소" value={iv.supplier_addr} />
+                <Row label="주소" value={iv.supplier_address} />
 
                 <div className="sal-st" style={{marginTop:12}}>공급받는자</div>
                 <Row label="상호" value={iv.buyer_name} />
                 <Row label="사업자번호" value={iv.buyer_biz_no} />
                 <Row label="대표자" value={iv.buyer_ceo} />
-                <Row label="주소" value={iv.buyer_addr} />
+                <Row label="주소" value={iv.buyer_address} />
 
                 <div className="sal-st" style={{marginTop:12}}>구분/기타</div>
                 <Row label="분류" value={iv.invoice_class} />

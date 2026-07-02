@@ -139,11 +139,13 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   결과 토스트: "N건 저장(신규 M / 업데이트 K · 실패 E)".
 - **UI**: 매입/매출 토글 + 월 필터(작성일자 기준). 목록=발급일자/거래처/합계금액/품목명("○○ 외 N건"), 발급일자 최신순.
   행 클릭·"자세히" → 상세 모달(일자 4종·공급자/공급받는자 전체·합계/공급가액/세액 SummaryBox 재사용·구분/기타·이메일 3종·품목 테이블·삭제).
-- **⚠️ DB 컬럼명 계약**: 레포에 SQL 없음 → 코드가 가정한 컬럼명(snake_case, .xls 컬럼 순서 매핑)과 실제 테이블 일치 필요.
+- **DB 컬럼명 계약 (실제 스키마 확정, 2026-07 전수 대조 완료)**:
   `tax_invoices`: approval_no(UNIQUE 제약 필수)·invoice_type·counterpart_name·write_date·issue_date·send_date·
-  supplier_{biz_no,sub_biz_no,name,ceo,addr}·buyer_{biz_no,sub_biz_no,name,ceo,addr}·total_amount·supply_amount·tax_amount·
-  classification·invoice_kind·issue_kind·remark·receipt_type·supplier_email·buyer_email1·buyer_email2.
-  `tax_invoice_items`: invoice_id(FK)·item_date·item_name·item_spec·item_qty·item_price·item_supply_amount·item_tax_amount·item_remark.
+  supplier_{biz_no,name,ceo,address}·buyer_{biz_no,name,ceo,address}·total_amount·supply_amount·tax_amount·
+  invoice_class·invoice_kind·issue_type·note·receipt_type·supplier_email·buyer_email1·buyer_email2.
+  `tax_invoice_items`: invoice_id(FK)·item_date·item_name·item_spec·item_qty·item_unit_price·item_supply_amount·item_tax_amount·item_note.
+  ⚠️ 주소는 `_address`(축약 `_addr` 아님). **종사업장번호(sub_biz_no) 컬럼은 테이블에 없음** —
+  .xls col5/col10은 파싱하지 않고 버림(payload에 넣으면 PGRST204 전 건 실패).
 - 검증: Babel(preset-react+env) 트랜스파일 PASS.
 
 ### admin-perf.html 세금계산서 탭 드래그앤드롭 + 업로드 미반영 수정
