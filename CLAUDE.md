@@ -125,6 +125,27 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - **예상수금(autoExpected) 음수 표시**: `remain <= 0` → `remain === 0`(완납만 제외, 음수 행 표시). 음수 잔금 빨강(`r.remain<0?'#dc2626'` 기존 패턴 재사용).
 - **예상수금 누락 원인**: 진단 결과 누락은 전부 **종료일(end_date) 미입력 16건**(계약없음·완납 0건). 종료일 미입력 건은 표시 안 됨이 의도된 동작 — 추가 처리 안 함.
 
+### admin-perf.html 세금계산서 탭 추가 (홈택스 전자세금계산서 .xls 파싱)
+- **config.js**: `COMPANY_BIZ_NO: '604-81-29017'` 추가(회사정보 섹션). 매입/매출 판별·화이트라벨 기준값.
+- **SheetJS**: `xlsx@0.18.5` CDN 스크립트 태그 추가(supabase 다음). import_weekly.html과 동일 버전.
+- **모듈 헬퍼**(fmtShort 아래): `parseXlDate`(엑셀 시리얼/문자 날짜 → YYYY-MM-DD), `parseXlNum`(콤마제거 Number), `xlStr`(트림), `normBizNo`(숫자만).
+- **탭 권한**: `canTax = user.role==='admin'||'manager'` — 탭 버튼/업로드/삭제 모두 canTax 게이팅. RLS로도 이미 봉쇄됨.
+- **파싱**: 헤더 6행(index 5), 데이터 index 6부터. 승인번호(col1) 없는 행 스킵.
+  매입/매출 = 공급받는자사업자번호(col9)===COMPANY_BIZ_NO → '매입', 공급자(col4)===COMPANY_BIZ_NO → '매출'(둘 다 아니면 스킵).
+  counterpart_name = 매입이면 공급자상호(col6), 매출이면 공급받는자상호(col11).
+  같은 승인번호 여러 줄 → 헤더 1건(첫 줄) + 품목명(col26) 있는 줄마다 item.
+- **저장**: 헤더는 `upsert(onConflict:'approval_no')`, 품목은 invoice_id 기존 삭제 후 재삽입.
+  다중 파일·다중 승인번호 **순차 처리**(await 루프). 신규/업데이트는 upsert 전 `maybeSingle` 조회로 판별.
+  결과 토스트: "N건 저장(신규 M / 업데이트 K · 실패 E)".
+- **UI**: 매입/매출 토글 + 월 필터(작성일자 기준). 목록=발급일자/거래처/합계금액/품목명("○○ 외 N건"), 발급일자 최신순.
+  행 클릭·"자세히" → 상세 모달(일자 4종·공급자/공급받는자 전체·합계/공급가액/세액 SummaryBox 재사용·구분/기타·이메일 3종·품목 테이블·삭제).
+- **⚠️ DB 컬럼명 계약**: 레포에 SQL 없음 → 코드가 가정한 컬럼명(snake_case, .xls 컬럼 순서 매핑)과 실제 테이블 일치 필요.
+  `tax_invoices`: approval_no(UNIQUE 제약 필수)·invoice_type·counterpart_name·write_date·issue_date·send_date·
+  supplier_{biz_no,sub_biz_no,name,ceo,addr}·buyer_{biz_no,sub_biz_no,name,ceo,addr}·total_amount·supply_amount·tax_amount·
+  classification·invoice_kind·issue_kind·remark·receipt_type·supplier_email·buyer_email1·buyer_email2.
+  `tax_invoice_items`: invoice_id(FK)·item_date·item_name·item_spec·item_qty·item_price·item_supply_amount·item_tax_amount·item_remark.
+- 검증: Babel(preset-react+env) 트랜스파일 PASS.
+
 ### WeeklyReport 완료 용역 과거 주 표시 버그 수정
 `applyAppData`의 완료 제거 필터 + `loadAll`의 `.neq('status','완료')` + `sortedProjects`의 `if (p.status !== '완료')` 래핑 — 세 곳 제거.
 - WeeklyReport는 완료 용역 포함 전체 데이터를 받아야 `completed_at` 기반 과거 주 표시가 동작함.

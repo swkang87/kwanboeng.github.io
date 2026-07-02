@@ -12,6 +12,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script src="config.js"></script>
 <script src="sysbar.js?v=20260530"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
@@ -370,6 +371,33 @@ const CAT_TX    = { '관급': '#1e40af', '사급': '#15803d', '기술지원': '#
 
 const fmtShort = (ds) => { const d = new Date(ds + 'T00:00:00'); return (d.getMonth()+1) + '/' + d.getDate(); };
 
+// ── 세금계산서(전자세금계산서) 파싱 헬퍼 ─────────────────────────────────────
+// 홈택스 다운로드 .xls의 셀 → 표준 값 변환
+function parseXlDate(val) {
+  if (val === null || val === undefined || val === '') return null;
+  // xlsx가 raw:true로 읽으면 날짜가 숫자(엑셀 시리얼)로 옴
+  if (typeof val === 'number' && val > 1000) {
+    const ms = (val - 25569) * 86400 * 1000; // Excel epoch: 1899-12-30
+    const d = new Date(ms);
+    return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
+  }
+  const s = String(val).trim();
+  // "2026-06-30 12:00:00" / "2026/06/30" / "2026.06.30" 모두 대응
+  const m = s.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+  if (m) return m[1] + '-' + m[2].padStart(2,'0') + '-' + m[3].padStart(2,'0');
+  return null;
+}
+// 숫자셀 → Number (콤마 제거)
+function parseXlNum(val) {
+  if (val === null || val === undefined || val === '') return 0;
+  const n = Number(String(val).replace(/,/g,'').trim());
+  return isNaN(n) ? 0 : n;
+}
+// 문자셀 → 트림 문자열
+function xlStr(val) { return (val === null || val === undefined) ? '' : String(val).trim(); }
+// 사업자번호 정규화(숫자만) — 하이픈 유무 무관 비교용
+function normBizNo(v) { return String(v||'').replace(/[^0-9]/g,''); }
+
 const getWeekDates = (dateStr) => {
   const d = new Date(dateStr + 'T00:00:00');
   const day = d.getDay();
@@ -635,6 +663,18 @@ function PerfView({ user }) {
   var [err, setErr] = useState('');
   var [year, setYear] = useState(String(new Date().getFullYear()));
 
+  // ── 세금계산서 상태 ──
+  var canTax = !!user && (user.role === 'admin' || user.role === 'manager');
+  var [taxInvoices, setTaxInvoices] = useState([]);
+  var [taxItems, setTaxItems] = useState([]);
+  var [taxLoading, setTaxLoading] = useState(false);
+  var [taxKind, setTaxKind] = useState('매입');       // 매입 / 매출 토글
+  var [taxMonth, setTaxMonth] = useState('전체');      // 작성일자 월 필터
+  var [taxDetail, setTaxDetail] = useState(null);      // 자세히보기 모달 대상 invoice
+  var [taxMsg, setTaxMsg] = useState('');              // 업로드 결과 토스트
+  var [taxBusy, setTaxBusy] = useState(false);         // 업로드 처리 중
+  var taxFileRef = useRef(null);
+
   // ── 탭별 정렬 상태 ──
   var [colSort,  setColSort]  = useState({ col: null, dir: 'asc' });
   var [projSort, setProjSort] = useState({ col: null, dir: 'asc' });
@@ -726,6 +766,159 @@ function PerfView({ user }) {
   }
 
   useEffect(function() { load(); }, []);
+
+  // ── 세금계산서 로드 ──
+  function loadTax() {
+    if (!canTax) return;
+    setTaxLoading(true);
+    Promise.all([
+      sb.from('tax_invoices').select('*').order('issue_date', { ascending: false }),
+      sb.from('tax_invoice_items').select('*'),
+    ]).then(function(res) {
+      setTaxInvoices(res[0].data || []);
+      setTaxItems(res[1].data || []);
+      setTaxLoading(false);
+    });
+  }
+  useEffect(function() { if (canTax) loadTax(); }, [canTax]);
+
+  // ── 세금계산서 업로드(.xls/.xlsx 다중, 순차 처리) ──
+  // 홈택스 목록: 헤더=6행(index 5), 데이터=7행(index 6)부터.
+  // 컬럼 순서(0-index):
+  //  0 작성일자 1 승인번호 2 발급일자 3 전송일자
+  //  4 공급자사업자번호 5 공급자종사업장 6 공급자상호 7 공급자대표 8 공급자주소
+  //  9 공급받는자사업자번호 10 공급받는자종사업장 11 공급받는자상호 12 공급받는자대표 13 공급받는자주소
+  //  14 합계금액 15 공급가액 16 세액 17 분류 18 종류 19 발급유형 20 비고 21 영수/청구
+  //  22 공급자이메일 23 공급받는자이메일1 24 공급받는자이메일2
+  //  25 품목일자 26 품목명 27 품목규격 28 품목수량 29 품목단가 30 품목공급가액 31 품목세액 32 품목비고
+  function parseTaxWorkbook(arrayBuffer) {
+    var wb = XLSX.read(arrayBuffer, { type: 'array', raw: true });
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    var data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+    var myBiz = normBizNo(APP_CONFIG.COMPANY_BIZ_NO);
+    var byApproval = {}; // 승인번호 → { header, items:[] }
+    for (var i = 6; i < data.length; i++) {
+      var r = data[i];
+      if (!r) continue;
+      var approvalNo = xlStr(r[1]);
+      if (!approvalNo) continue; // 빈 줄·합계 요약 줄 스킵
+      var supBiz = normBizNo(r[4]);
+      var buyBiz = normBizNo(r[9]);
+      var kind = (buyBiz === myBiz) ? '매입' : (supBiz === myBiz) ? '매출' : '';
+      if (!kind) continue; // 우리 회사와 무관한 행 스킵(안전장치)
+      if (!byApproval[approvalNo]) {
+        byApproval[approvalNo] = {
+          header: {
+            approval_no: approvalNo,
+            invoice_type: kind,
+            counterpart_name: (kind === '매입') ? xlStr(r[6]) : xlStr(r[11]),
+            write_date: parseXlDate(r[0]),
+            issue_date: parseXlDate(r[2]),
+            send_date: parseXlDate(r[3]),
+            supplier_biz_no: xlStr(r[4]),
+            supplier_sub_biz_no: xlStr(r[5]),
+            supplier_name: xlStr(r[6]),
+            supplier_ceo: xlStr(r[7]),
+            supplier_addr: xlStr(r[8]),
+            buyer_biz_no: xlStr(r[9]),
+            buyer_sub_biz_no: xlStr(r[10]),
+            buyer_name: xlStr(r[11]),
+            buyer_ceo: xlStr(r[12]),
+            buyer_addr: xlStr(r[13]),
+            total_amount: parseXlNum(r[14]),
+            supply_amount: parseXlNum(r[15]),
+            tax_amount: parseXlNum(r[16]),
+            invoice_class: xlStr(r[17]),
+            invoice_kind: xlStr(r[18]),
+            issue_type: xlStr(r[19]),
+            note: xlStr(r[20]),
+            receipt_type: xlStr(r[21]),
+            supplier_email: xlStr(r[22]),
+            buyer_email1: xlStr(r[23]),
+            buyer_email2: xlStr(r[24]),
+          },
+          items: [],
+        };
+      }
+      // 품목(품목명이 있는 행만) — 승인번호당 여러 줄이면 각 줄이 품목
+      if (xlStr(r[26])) {
+        byApproval[approvalNo].items.push({
+          item_date: parseXlDate(r[25]),
+          item_name: xlStr(r[26]),
+          item_spec: xlStr(r[27]),
+          item_qty: parseXlNum(r[28]),
+          item_unit_price: parseXlNum(r[29]),
+          item_supply_amount: parseXlNum(r[30]),
+          item_tax_amount: parseXlNum(r[31]),
+          item_note: xlStr(r[32]),
+        });
+      }
+    }
+    return byApproval;
+  }
+
+  function readFileAsArrayBuffer(file) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function(e) { resolve(e.target.result); };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  async function handleTaxFiles(fileList) {
+    var files = Array.prototype.slice.call(fileList || []);
+    if (files.length === 0) return;
+    setTaxBusy(true); setTaxMsg('');
+    var newCnt = 0, updCnt = 0, errCnt = 0;
+    try {
+      for (var f = 0; f < files.length; f++) {
+        var buf = await readFileAsArrayBuffer(files[f]);
+        var byApproval;
+        try { byApproval = parseTaxWorkbook(buf); }
+        catch (pe) { errCnt++; continue; }
+        var approvals = Object.keys(byApproval);
+        // 기존 승인번호 조회(신규/업데이트 판별) — 순차 처리
+        for (var a = 0; a < approvals.length; a++) {
+          var entry = byApproval[approvals[a]];
+          var existing = await sb.from('tax_invoices').select('id').eq('approval_no', entry.header.approval_no).maybeSingle();
+          var wasNew = !(existing.data && existing.data.id);
+          // 헤더 upsert (승인번호 기준)
+          var up = await sb.from('tax_invoices')
+            .upsert(entry.header, { onConflict: 'approval_no' })
+            .select('id').single();
+          if (up.error || !up.data) { errCnt++; continue; }
+          var invoiceId = up.data.id;
+          // 품목: 기존 삭제 후 재삽입
+          await sb.from('tax_invoice_items').delete().eq('invoice_id', invoiceId);
+          if (entry.items.length > 0) {
+            var itemPayload = entry.items.map(function(it) { return Object.assign({ invoice_id: invoiceId }, it); });
+            await sb.from('tax_invoice_items').insert(itemPayload);
+          }
+          if (wasNew) newCnt++; else updCnt++;
+        }
+      }
+      var total = newCnt + updCnt;
+      setTaxMsg('✅ ' + total + '건 저장 (신규 ' + newCnt + '건 / 업데이트 ' + updCnt + '건)' + (errCnt ? ' · 실패 ' + errCnt + '건' : ''));
+      loadTax();
+    } catch (e) {
+      setTaxMsg('❌ 업로드 오류: ' + (e.message || e));
+    } finally {
+      setTaxBusy(false);
+      if (taxFileRef.current) taxFileRef.current.value = '';
+    }
+  }
+
+  function deleteTaxInvoice(inv) {
+    if (!window.confirm('이 세금계산서(' + inv.counterpart_name + ')를 삭제하시겠습니까?')) return;
+    sb.from('tax_invoice_items').delete().eq('invoice_id', inv.id).then(function() {
+      sb.from('tax_invoices').delete().eq('id', inv.id).then(function(r) {
+        if (r.error) { alert('삭제 오류: ' + r.error.message); return; }
+        setTaxDetail(null);
+        loadTax();
+      });
+    });
+  }
 
   // ── 인덱싱 ──
   var userById = (function(){ var m=new Map(); for(var i=0;i<users.length;i++) m.set(users[i].id, users[i]); return m; })();
@@ -983,6 +1176,7 @@ function PerfView({ user }) {
         <button className={tab==='user'?'itab active':'itab'} onClick={function(){changeTab('user');}}>직원별 실적</button>
         <button className={tab==='contract'?'itab active':'itab'} onClick={function(){changeTab('contract');}}>계약/잔금</button>
         <button className={tab==='expected'?'itab active':'itab'} onClick={function(){changeTab('expected');}}>예상수금</button>
+        {canTax && <button className={tab==='tax'?'itab active':'itab'} onClick={function(){changeTab('tax');}}>세금계산서</button>}
       </div>
 
       {tab === 'col' && (
@@ -1885,6 +2079,208 @@ function PerfView({ user }) {
                 </div>
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {/* ── 세금계산서 탭 ── */}
+      {tab === 'tax' && canTax && (function() {
+        // invoice_id → 품목 배열
+        var itemsByInvoice = (function(){
+          var m = new Map();
+          for (var i=0; i<taxItems.length; i++) {
+            var it = taxItems[i];
+            var arr = m.get(it.invoice_id);
+            if (!arr) { arr = []; m.set(it.invoice_id, arr); }
+            arr.push(it);
+          }
+          return m;
+        })();
+        // 작성일자 기준 월 목록
+        var monthSet = {};
+        taxInvoices.forEach(function(iv){ if (iv.write_date) monthSet[iv.write_date.slice(0,7)] = true; });
+        var monthOptions = Object.keys(monthSet).sort(function(a,b){ return b.localeCompare(a); });
+        // 필터 + 정렬(발급일자 최신순)
+        var rows = taxInvoices
+          .filter(function(iv){ return iv.invoice_type === taxKind; })
+          .filter(function(iv){ return taxMonth === '전체' || (iv.write_date && iv.write_date.slice(0,7) === taxMonth); })
+          .slice()
+          .sort(function(a,b){ return String(b.issue_date||'').localeCompare(String(a.issue_date||'')); });
+        var sumTotal = rows.reduce(function(s,iv){ return s + (iv.total_amount||0); }, 0);
+        function itemLabel(iv) {
+          var its = itemsByInvoice.get(iv.id) || [];
+          if (its.length === 0) return '-';
+          var first = its[0].item_name || '-';
+          return its.length > 1 ? (first + ' 외 ' + (its.length-1) + '건') : first;
+        }
+        return (
+          <div className="card">
+            <div className="sh">
+              <span className="st">세금계산서 ({taxKind})</span>
+              <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                <input ref={taxFileRef} type="file" accept=".xls,.xlsx" multiple style={{display:'none'}}
+                  onChange={function(e){ handleTaxFiles(e.target.files); }} />
+                <button className="btn btn-p btn-sm" disabled={taxBusy}
+                  onClick={function(){ if (taxFileRef.current) taxFileRef.current.click(); }}>
+                  {taxBusy ? '처리 중...' : '⬆ 홈택스 파일 업로드'}
+                </button>
+              </div>
+            </div>
+
+            {taxMsg && <div className={'al ' + (taxMsg.indexOf('❌')===0 ? 'al-e' : 'al-s')}>{taxMsg}</div>}
+            <div style={{fontSize:11,color:'#94a3b8',marginBottom:12}}>
+              홈택스 전자세금계산서 목록(.xls/.xlsx)을 업로드하면 매입/매출 자동판별 후 저장됩니다. 여러 파일 동시 업로드 가능.
+            </div>
+
+            {/* 매입/매출 토글 + 월 필터 */}
+            <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap',marginBottom:12}}>
+              <div className="itabs" style={{marginBottom:0}}>
+                <button className={taxKind==='매입'?'itab active':'itab'} onClick={function(){setTaxKind('매입');}}>매입</button>
+                <button className={taxKind==='매출'?'itab active':'itab'} onClick={function(){setTaxKind('매출');}}>매출</button>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <label className="fl" style={{margin:0}}>월</label>
+                <select className="fi" style={{width:130}} value={taxMonth} onChange={function(e){setTaxMonth(e.target.value);}}>
+                  <option value="전체">전체</option>
+                  {monthOptions.map(function(m){ return <option key={m} value={m}>{m}</option>; })}
+                </select>
+              </div>
+              <div style={{marginLeft:'auto',fontSize:12,color:'#64748b'}}>
+                {rows.length}건 · 합계 <b style={{color:'#7c3aed'}}>{fmtN(sumTotal)}원</b>
+              </div>
+            </div>
+
+            {taxLoading ? (
+              <div className="loading">로딩 중...</div>
+            ) : rows.length === 0 ? (
+              <div className="empty"><div className="ei">🧾</div><div className="et">{taxKind} 세금계산서가 없습니다</div><div className="es">홈택스 파일을 업로드하세요</div></div>
+            ) : (
+              <div className="tbl-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>발급일자</th>
+                      <th>거래처</th>
+                      <th className="tr">합계금액</th>
+                      <th>품목명</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(function(iv) {
+                      return (
+                        <tr key={iv.id} style={{cursor:'pointer'}} onClick={function(){ setTaxDetail(iv); }}>
+                          <td className="tc">{fmtD(iv.issue_date)}</td>
+                          <td style={{fontWeight:600}}>{iv.counterpart_name || '-'}</td>
+                          <td className="tr" style={{fontWeight:700}}>{fmtN(iv.total_amount)}원</td>
+                          <td style={{color:'#475569',fontSize:12}}>{itemLabel(iv)}</td>
+                          <td>
+                            <button className="btn btn-s btn-sm" onClick={function(e){ e.stopPropagation(); setTaxDetail(iv); }}>자세히</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── 세금계산서 상세 모달 ── */}
+      {taxDetail && (function() {
+        var iv = taxDetail;
+        var its = taxItems.filter(function(it){ return it.invoice_id === iv.id; });
+        function Row({ label, value }) {
+          return (
+            <div style={{display:'flex',padding:'5px 0',borderBottom:'1px solid #f1f5f9',fontSize:13}}>
+              <span style={{width:110,flexShrink:0,color:'#94a3b8'}}>{label}</span>
+              <span style={{flex:1,color:'#1e293b',wordBreak:'break-all'}}>{value || '-'}</span>
+            </div>
+          );
+        }
+        return (
+          <div className="mbg" onClick={function(){setTaxDetail(null);}}>
+            <div className="mbox" style={{maxWidth:640}} onClick={function(e){e.stopPropagation();}}>
+              <div className="mh">
+                <span className="mht">🧾 {iv.invoice_type} 세금계산서</span>
+                <button className="mc" onClick={function(){setTaxDetail(null);}}>×</button>
+              </div>
+              <div className="mb">
+                <div style={{display:'flex',gap:8,marginBottom:12}}>
+                  <SummaryBox label="합계금액" value={fmtN(iv.total_amount)+'원'} tone={TONE_CONTRACT} />
+                  <SummaryBox label="공급가액" value={fmtN(iv.supply_amount)+'원'} tone={TONE_COLLECT} />
+                  <SummaryBox label="세액" value={fmtN(iv.tax_amount)+'원'} tone={TONE_REMAIN} />
+                </div>
+
+                <div className="sal-st" style={{marginTop:4}}>일자</div>
+                <Row label="작성일자" value={fmtD(iv.write_date)} />
+                <Row label="발급일자" value={fmtD(iv.issue_date)} />
+                <Row label="전송일자" value={fmtD(iv.send_date)} />
+                <Row label="승인번호" value={iv.approval_no} />
+
+                <div className="sal-st" style={{marginTop:12}}>공급자</div>
+                <Row label="상호" value={iv.supplier_name} />
+                <Row label="사업자번호" value={iv.supplier_biz_no} />
+                <Row label="대표자" value={iv.supplier_ceo} />
+                <Row label="주소" value={iv.supplier_addr} />
+
+                <div className="sal-st" style={{marginTop:12}}>공급받는자</div>
+                <Row label="상호" value={iv.buyer_name} />
+                <Row label="사업자번호" value={iv.buyer_biz_no} />
+                <Row label="대표자" value={iv.buyer_ceo} />
+                <Row label="주소" value={iv.buyer_addr} />
+
+                <div className="sal-st" style={{marginTop:12}}>구분/기타</div>
+                <Row label="분류" value={iv.invoice_class} />
+                <Row label="종류" value={iv.invoice_kind} />
+                <Row label="발급유형" value={iv.issue_type} />
+                <Row label="영수/청구" value={iv.receipt_type} />
+                <Row label="비고" value={iv.note} />
+
+                <div className="sal-st" style={{marginTop:12}}>이메일</div>
+                <Row label="공급자" value={iv.supplier_email} />
+                <Row label="공급받는자1" value={iv.buyer_email1} />
+                <Row label="공급받는자2" value={iv.buyer_email2} />
+
+                <div className="sal-st" style={{marginTop:12}}>품목 ({its.length}건)</div>
+                {its.length === 0 ? (
+                  <div style={{fontSize:12,color:'#94a3b8',padding:'8px 0'}}>품목 내역이 없습니다.</div>
+                ) : (
+                  <div className="tbl-wrap" style={{maxHeight:'none',marginTop:6}}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>일자</th><th>품목명</th><th>규격</th>
+                          <th className="tr">수량</th><th className="tr">단가</th>
+                          <th className="tr">공급가액</th><th className="tr">세액</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {its.map(function(it, idx) {
+                          return (
+                            <tr key={it.id || idx}>
+                              <td className="tc">{fmtD(it.item_date)}</td>
+                              <td>{it.item_name||'-'}</td>
+                              <td>{it.item_spec||'-'}</td>
+                              <td className="tr">{it.item_qty ? fmtN(it.item_qty) : '-'}</td>
+                              <td className="tr">{it.item_unit_price ? fmtN(it.item_unit_price) : '-'}</td>
+                              <td className="tr">{fmtN(it.item_supply_amount)}</td>
+                              <td className="tr">{fmtN(it.item_tax_amount)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div className="mf">
+                <button className="btn btn-d" onClick={function(){deleteTaxInvoice(iv);}}>삭제</button>
+                <button className="btn btn-s" onClick={function(){setTaxDetail(null);}}>닫기</button>
+              </div>
+            </div>
           </div>
         );
       })()}

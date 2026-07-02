@@ -19,6 +19,7 @@ var APP_CONFIG = {
   COMPANY_KO_EM:  '관보종합기술단',    // em태그 강조 없는 버전
   COMPANY_EN:     'KWANBO ENGINEERING CO., LTD.',
   COMPANY_SHORT:  '관보종합기술단',    // 짧은 이름 (시스템 헤더 등)
+  COMPANY_BIZ_NO: '604-81-29017',     // 사업자등록번호 (세금계산서 매입/매출 판별용)
   LOGO_URL:       'logo.png',
   SINCE:          '1987',             // 설립연도
 
