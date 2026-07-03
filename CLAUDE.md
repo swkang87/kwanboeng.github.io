@@ -170,8 +170,11 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   supply_records.sql/invoice_collection_matches.sql과 동일 패턴. 이제 세금계산서는 admin+manager 전용.
 
 ### admin-perf.html 세금계산서 탭: 전량 로드 + 연도 필터 연결 + 매출 우선
-- **1000건 제한 해제**: `fetchAllRows(table, orderCol, ascending)` 헬퍼 — `.range()` 1000건씩 반복,
-  반환 < 페이지크기면 종료(.then 재귀, async/await 없음). tax_invoices(issue_date desc)/tax_invoice_items(id asc) 적용.
+- **1000건 제한 해제**: `fetchAllRows(table, orderCol, ascending, order2Col)` 헬퍼 — `.range()` 1000건씩 반복,
+  반환 < 페이지크기면 종료(.then 재귀, async/await 없음). tax_invoices(write_date desc, 2차 id asc)/tax_invoice_items(id asc) 적용.
+  order2Col은 1차 키 동일값의 페이지 경계 중복/누락 방지용.
+- **정렬 기준 write_date 통일(2026-07)**: 로드 order·화면 목록 sort 모두 작성일(write_date) desc + id 2차 —
+  연도/월 필터와 기준 일치. 목록의 "발급일자" 표시 컬럼은 그대로(issue_date). 매칭확인 ±30일 로직은 issue_date 기준 유지(무영향).
   ⚠️ PostgREST는 limit 명시 없으면 기본 1000행만 반환 — 최신순 정렬과 만나 22년 이전 데이터가 잘려 보였던 원인.
 - **연도 필터**: 목록에 `write_date.slice(0,4) === year` 조건 추가(작성일 기준, 월 필터와 통일).
   월 옵션도 선택 연도의 월만 표시. **연도 변경 시 `setTaxMonth('전체')` 리셋**(useEffect [year]) —

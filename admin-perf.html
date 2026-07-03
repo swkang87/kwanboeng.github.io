@@ -796,12 +796,14 @@ function PerfView({ user }) {
   useEffect(function() { load(); }, []);
 
   // ── 전량 로드: PostgREST 기본 1000행 제한 해제 (range 반복, 반환 < 페이지크기면 종료) ──
-  function fetchAllRows(table, orderCol, ascending) {
+  // order2Col: 1차 키 동일값 대비 2차 정렬 키(페이지 경계 중복/누락 방지)
+  function fetchAllRows(table, orderCol, ascending, order2Col) {
     var PAGE = 1000;
     var all = [];
     function page(from) {
-      return sb.from(table).select('*')
-        .order(orderCol, { ascending: ascending })
+      var qy = sb.from(table).select('*').order(orderCol, { ascending: ascending });
+      if (order2Col) qy = qy.order(order2Col, { ascending: true });
+      return qy
         .range(from, from + PAGE - 1)
         .then(function(r) {
           if (r.error) return { data: null, error: r.error };
@@ -818,7 +820,7 @@ function PerfView({ user }) {
     if (!canTax) return;
     setTaxLoading(true);
     Promise.all([
-      fetchAllRows('tax_invoices', 'issue_date', false),
+      fetchAllRows('tax_invoices', 'write_date', false, 'id'),
       fetchAllRows('tax_invoice_items', 'id', true),
     ]).then(function(res) {
       var loadErr = res[0].error || res[1].error;
@@ -2269,7 +2271,11 @@ function PerfView({ user }) {
           .filter(function(iv){ return iv.write_date && iv.write_date.slice(0,4) === year; })
           .filter(function(iv){ return taxMonth === '전체' || (iv.write_date && iv.write_date.slice(0,7) === taxMonth); })
           .slice()
-          .sort(function(a,b){ return String(b.issue_date||'').localeCompare(String(a.issue_date||'')); });
+          .sort(function(a,b){
+            var cmp = String(b.write_date||'').localeCompare(String(a.write_date||''));
+            if (cmp !== 0) return cmp;
+            return String(a.id).localeCompare(String(b.id)); // 작성일 동일 시 안정 정렬
+          });
         var sumTotal = rows.reduce(function(s,iv){ return s + (iv.total_amount||0); }, 0);
         function itemLabel(iv) {
           var its = itemsByInvoice.get(iv.id) || [];
