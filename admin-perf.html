@@ -53,6 +53,9 @@ th{padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:#64748b;
 td{padding:9px 8px;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:#f8fafc;}
+.tbl-compact td{padding:3px 8px;font-size:12px;}
+.tbl-compact th{padding:5px 8px;}
+.tbl-compact .btn-sm{padding:2px 8px;font-size:11px;}
 .tr{text-align:right;white-space:nowrap;}
 .tc{text-align:center;white-space:nowrap;}
 .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;}
@@ -2354,7 +2357,7 @@ function PerfView({ user }) {
               <div className="empty"><div className="ei">🧾</div><div className="et">{taxKind} 세금계산서가 없습니다</div><div className="es">홈택스 파일을 업로드하세요</div></div>
             ) : (
               <div className="tbl-wrap">
-                <table>
+                <table className="tbl-compact">
                   <thead>
                     <tr>
                       <SortTh label="작성일자" col="date"   state={taxSort} onSort={mkSortHandler(taxSort,setTaxSort)} />
