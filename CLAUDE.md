@@ -166,9 +166,15 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 ### admin-perf.html 매칭확인 서브탭 (수금↔매출 세금계산서 자동 대사)
 - **스키마 근거(REST 프로브로 확정)**: 두 테이블 간 직접 FK 없음 → 휴리스틱 매칭이 유일.
   collections엔 발주처명 컬럼 없음 → `projects.client` 조인, 감리(supervision)는 `parseSupvMemo(memo).client`.
-- **매칭 조건(모두 충족)**: ① `normCoName` 정규화(법인 표기 ㈜/(주)/주식회사/(유)/(재)/(사) 등 제거, 한글·영문·숫자만) 후
-  양방향 포함관계 ② `collections.amount === tax_invoices.total_amount` 완전일치 ③ `issue_date` ±`MATCH_WINDOW_DAYS`(30일) 내 `collected_at`.
+- **매칭 조건(2조건 AND, 2026-07 개정)**: ① `collections.amount === tax_invoices.total_amount` 완전일치
+  ② `issue_date` ±`MATCH_WINDOW_DAYS`(30일) 내 `collected_at`. **거래처명은 조건에서 제외** — 화면 참고 표시만(오매칭 육안 확인용,
+  `normCoName` 정규화는 검색 필터에서 계속 사용).
 - **greedy 1:1**: 후보쌍을 날짜차 오름차순 정렬 후 미사용 쌍만 확정. 대상: 매출 계산서만, `entry_type='outsource_only'`(amount=0) 수금 제외.
+- **수동매칭 + 확인완료(2026-07 추가)**: 자동매칭은 매번 재계산(DB 저장 안 함), 수동매칭은 `invoice_collection_matches`에
+  insert(match_type='manual', created_by=user.id), 확인완료는 `invoice_collection_reviews`에 upsert(onConflict:'item_type,item_id',
+  status='confirmed_ok', reviewed_by=user.id). 두 테이블 기록은 미수금/미발행 후보 풀에서 사전 제외. 낙관적 업데이트 + 실패 시 롤백·에러 토스트.
+  수동매칭 모달 후보는 **연도 필터 무관 전체 미매칭 건**(unpaidAll/unissuedAll), 금액차→날짜차 순 정렬, 상위 50건.
+  매칭된 건 보기에 자동(badge bg)/수동(badge bp) 구분 배지. `user.id`는 sysbar 세션의 users.id(uuid) — created_by/reviewed_by FK용.
 - **UI**: 실적관리 서브탭 '매칭확인'(canTax 게이팅, 세금계산서 탭 옆). 연도는 상단 공통 선택 재사용,
   거래처명 검색 + "매칭된 건 보기" 토글. 미수금 의심(badge br)/미발행 의심(badge ba)/매칭됨(badge bg) — 기존 badge 클래스 재사용.
   미수금 테이블의 프로젝트명은 계산서에 연결정보가 없어 항상 '-'.
@@ -194,6 +200,14 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 ---
 
 ## 🔲 미완료 — 대시보드 작업 필요
+
+### invoice_collection_matches·reviews 테이블 생성 + RLS (SQL 작성 완료, 실행 대기중)
+- **`supabase/sql/invoice_collection_matches.sql` 작성 완료** — 승우님이 SQL Editor에서 검토 후 직접 실행.
+- 매칭확인 탭의 수동매칭/확인완료 기능은 **이 SQL 실행 전까지 저장 실패**(42P01 relation does not exist가
+  매칭 탭 토스트에 표시됨). 자동매칭 표시는 테이블 없이도 동작.
+- 원안 대비 변경 1건: matches FK에 `on delete cascade` 추가 — deleteTaxInvoice(계산서 삭제)가 FK 위반으로
+  실패하지 않도록. reviews.item_id는 polymorphic이라 FK 없음(원본 삭제 시 잔존 기록 무해).
+- RLS는 tax_invoices_rls.sql과 동일 패턴(admin+manager 전용, 테이블당 4개 정책). 실행 후 검증 쿼리 포함.
 
 ### tax_invoices·tax_invoice_items RLS admin+manager 제한 (SQL 작성 완료, 실행 대기중)
 - **현재 상태: authenticated 전체 허용(임시)** — 최초 정책이 `x-user-role` 커스텀 헤더 방식이라
