@@ -163,6 +163,18 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   다른 테이블(collections 등)과 동일 경로. 헤더 불일치 아님. RLS는 authenticated 세션 기반.
 - 검증: Babel(preset-react+env) 트랜스파일 PASS.
 
+### admin-perf.html 매칭확인 서브탭 (수금↔매출 세금계산서 자동 대사)
+- **스키마 근거(REST 프로브로 확정)**: 두 테이블 간 직접 FK 없음 → 휴리스틱 매칭이 유일.
+  collections엔 발주처명 컬럼 없음 → `projects.client` 조인, 감리(supervision)는 `parseSupvMemo(memo).client`.
+- **매칭 조건(모두 충족)**: ① `normCoName` 정규화(법인 표기 ㈜/(주)/주식회사/(유)/(재)/(사) 등 제거, 한글·영문·숫자만) 후
+  양방향 포함관계 ② `collections.amount === tax_invoices.total_amount` 완전일치 ③ `issue_date` ±`MATCH_WINDOW_DAYS`(30일) 내 `collected_at`.
+- **greedy 1:1**: 후보쌍을 날짜차 오름차순 정렬 후 미사용 쌍만 확정. 대상: 매출 계산서만, `entry_type='outsource_only'`(amount=0) 수금 제외.
+- **UI**: 실적관리 서브탭 '매칭확인'(canTax 게이팅, 세금계산서 탭 옆). 연도는 상단 공통 선택 재사용,
+  거래처명 검색 + "매칭된 건 보기" 토글. 미수금 의심(badge br)/미발행 의심(badge ba)/매칭됨(badge bg) — 기존 badge 클래스 재사용.
+  미수금 테이블의 프로젝트명은 계산서에 연결정보가 없어 항상 '-'.
+- 헬퍼: `normCoName`/`dayDiffAbs`/`MATCH_WINDOW_DAYS` 모듈 레벨 신설(normBizNo 아래).
+- 검증: Python 중괄호 balance 일치(1758/1758), Babel 트랜스파일 PASS. outputs/admin-perf.html 사본 저장.
+
 ### WeeklyReport 완료 용역 과거 주 표시 버그 수정
 `applyAppData`의 완료 제거 필터 + `loadAll`의 `.neq('status','완료')` + `sortedProjects`의 `if (p.status !== '완료')` 래핑 — 세 곳 제거.
 - WeeklyReport는 완료 용역 포함 전체 데이터를 받아야 `completed_at` 기반 과거 주 표시가 동작함.
