@@ -702,6 +702,10 @@ function PerfView({ user }) {
   var [pickSel, setPickSel] = useState({});            // 수동매칭 모달 다중선택 {상대id: true} (분할입금 대응)
   var [hideResolved, setHideResolved] = useState(false); // 처리완료(수동매칭/확인완료) 행 숨기기 토글
   var [matchMsg, setMatchMsg] = useState('');          // 매칭 탭 결과/에러 토스트
+  var [reviewPick, setReviewPick] = useState(null);    // 확인완료 메모 입력 팝업 대상 {itemType, itemId, label}
+  var [reviewNote, setReviewNote] = useState('');      // 확인완료 메모 입력값 (선택)
+  var [noteView, setNoteView] = useState(null);        // 저장된 메모 전문 보기 팝업 내용
+  var [taxSort, setTaxSort] = useState({ col: null, dir: 'asc' }); // 세금계산서 목록 헤더 정렬
 
   // ── 탭별 정렬 상태 ──
   var [colSort,  setColSort]  = useState({ col: null, dir: 'asc' });
@@ -849,12 +853,13 @@ function PerfView({ user }) {
   // 연도 변경 시 월 필터 리셋 — 다른 연도의 월이 선택된 채 남아 빈 목록이 되는 것 방지
   useEffect(function() { setTaxMonth('전체'); }, [year]);
 
-  // 확인완료(이상없음) — 낙관적 업데이트 + 실패 시 롤백
-  function confirmOk(itemType, itemId) {
+  // 확인완료(이상없음) — 낙관적 업데이트 + 실패 시 롤백. note는 선택 입력(빈값 허용)
+  function confirmOk(itemType, itemId, note) {
+    var noteVal = note || '';
     var prev = icReviews;
-    setIcReviews(prev.concat([{ item_type: itemType, item_id: itemId, status: 'confirmed_ok' }]));
+    setIcReviews(prev.concat([{ item_type: itemType, item_id: itemId, status: 'confirmed_ok', note: noteVal }]));
     sb.from('invoice_collection_reviews')
-      .upsert({ item_type: itemType, item_id: itemId, status: 'confirmed_ok', reviewed_by: user.id },
+      .upsert({ item_type: itemType, item_id: itemId, status: 'confirmed_ok', note: noteVal, reviewed_by: user.id },
               { onConflict: 'item_type,item_id' })
       .then(function(r) {
         if (r.error) {
@@ -2276,6 +2281,15 @@ function PerfView({ user }) {
             if (cmp !== 0) return cmp;
             return String(a.id).localeCompare(String(b.id)); // 작성일 동일 시 안정 정렬
           });
+        // 헤더 클릭 정렬 — 선택 시 기본 정렬(작성일 desc) 대신 적용
+        if (taxSort.col) {
+          rows = sortRows(rows, taxSort, function(iv, col) {
+            if (col === 'date') return iv.write_date || '';
+            if (col === 'name') return iv.counterpart_name || '';
+            if (col === 'amount') return iv.total_amount || 0;
+            return '';
+          });
+        }
         var sumTotal = rows.reduce(function(s,iv){ return s + (iv.total_amount||0); }, 0);
         function itemLabel(iv) {
           var its = itemsByInvoice.get(iv.id) || [];
@@ -2343,9 +2357,9 @@ function PerfView({ user }) {
                 <table>
                   <thead>
                     <tr>
-                      <th>발급일자</th>
-                      <th>거래처</th>
-                      <th className="tr">합계금액</th>
+                      <SortTh label="작성일자" col="date"   state={taxSort} onSort={mkSortHandler(taxSort,setTaxSort)} />
+                      <SortTh label="거래처"   col="name"   state={taxSort} onSort={mkSortHandler(taxSort,setTaxSort)} />
+                      <SortTh label="합계금액" col="amount" state={taxSort} onSort={mkSortHandler(taxSort,setTaxSort)} className="tr" />
                       <th>품목명</th>
                       <th></th>
                     </tr>
@@ -2354,7 +2368,7 @@ function PerfView({ user }) {
                     {rows.map(function(iv) {
                       return (
                         <tr key={iv.id} style={{cursor:'pointer'}} onClick={function(){ setTaxDetail(iv); }}>
-                          <td className="tc">{fmtD(iv.issue_date)}</td>
+                          <td className="tc">{fmtD(iv.write_date)}</td>
                           <td style={{fontWeight:600}}>{iv.counterpart_name || '-'}</td>
                           <td className="tr" style={{fontWeight:700}}>{fmtN(iv.total_amount)}원</td>
                           <td style={{color:'#475569',fontSize:12}}>{itemLabel(iv)}</td>
@@ -2377,11 +2391,11 @@ function PerfView({ user }) {
         // DB 기록 기반 제외 집합: 매칭 등록(자동/수동 무관) + 확인완료
         var dbInvUsed = {}, dbColUsed = {};
         icMatches.forEach(function(m) { dbInvUsed[m.tax_invoice_id] = true; dbColUsed[m.collection_id] = true; });
-        var revInv = {}, revCol = {};
+        var revInv = {}, revCol = {}, revNoteInv = {}, revNoteCol = {};
         icReviews.forEach(function(rv) {
           if (rv.status !== 'confirmed_ok') return;
-          if (rv.item_type === 'tax_invoice') revInv[rv.item_id] = true;
-          else if (rv.item_type === 'collection') revCol[rv.item_id] = true;
+          if (rv.item_type === 'tax_invoice') { revInv[rv.item_id] = true; if (rv.note) revNoteInv[rv.item_id] = rv.note; }
+          else if (rv.item_type === 'collection') { revCol[rv.item_id] = true; if (rv.note) revNoteCol[rv.item_id] = rv.note; }
         });
         // 대상: 매출 세금계산서 ↔ 수금 건(외주비만 입력 건 제외), DB 기록된 건 제외
         var salesInvs = taxInvoices.filter(function(iv) {
@@ -2577,11 +2591,15 @@ function PerfView({ user }) {
                                     <button className="btn btn-p btn-sm" style={{marginRight:4}}
                                       onClick={function() { setMatchPick({ type: 'invoice', item: iv }); setPickSearch(''); setPickSel({}); }}>수동매칭</button>
                                     <button className="btn btn-s btn-sm"
-                                      onClick={function() { confirmOk('tax_invoice', iv.id); }}>확인완료</button>
+                                      onClick={function() { setReviewPick({ itemType: 'tax_invoice', itemId: iv.id, label: iv.counterpart_name || '-' }); setReviewNote(''); }}>확인완료</button>
                                   </span>
                                 ) : (
                                   <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
                                     <span className={'badge ' + (st === 'manual' ? 'bp' : 'bgr')}>{st === 'manual' ? '수동매칭' : '확인완료'}</span>
+                                    {st === 'reviewed' && revNoteInv[iv.id] && (
+                                      <button className="btn btn-s btn-sm" title="메모 보기"
+                                        onClick={function() { setNoteView(revNoteInv[iv.id]); }}>📝</button>
+                                    )}
                                     <button className="btn btn-s btn-sm"
                                       onClick={function() {
                                         if (st === 'manual') removeMatchByItem('tax_invoice', iv.id);
@@ -2623,11 +2641,15 @@ function PerfView({ user }) {
                                     <button className="btn btn-p btn-sm" style={{marginRight:4}}
                                       onClick={function() { setMatchPick({ type: 'collection', item: c }); setPickSearch(''); setPickSel({}); }}>수동매칭</button>
                                     <button className="btn btn-s btn-sm"
-                                      onClick={function() { confirmOk('collection', c.id); }}>확인완료</button>
+                                      onClick={function() { setReviewPick({ itemType: 'collection', itemId: c.id, label: colClient(c) || '-' }); setReviewNote(''); }}>확인완료</button>
                                   </span>
                                 ) : (
                                   <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
                                     <span className={'badge ' + (st === 'manual' ? 'bp' : 'bgr')}>{st === 'manual' ? '수동매칭' : '확인완료'}</span>
+                                    {st === 'reviewed' && revNoteCol[c.id] && (
+                                      <button className="btn btn-s btn-sm" title="메모 보기"
+                                        onClick={function() { setNoteView(revNoteCol[c.id]); }}>📝</button>
+                                    )}
                                     <button className="btn btn-s btn-sm"
                                       onClick={function() {
                                         if (st === 'manual') removeMatchByItem('collection', c.id);
@@ -2691,6 +2713,41 @@ function PerfView({ user }) {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* 확인완료 메모 입력 팝업 — 메모는 선택(빈칸 저장 가능) */}
+            {reviewPick && (
+              <div className="mbg" onClick={function() { setReviewPick(null); setReviewNote(''); }}>
+                <div className="mbox" style={{maxWidth:420}} onClick={function(e) { e.stopPropagation(); }}>
+                  <div style={{fontWeight:700,fontSize:14,marginBottom:8}}>✅ 확인완료 처리</div>
+                  <div style={{fontSize:12,color:'#64748b',marginBottom:10}}>
+                    <b>{reviewPick.label}</b> — 메모를 남길 수 있습니다 (선택 입력, 빈칸 저장 가능).
+                  </div>
+                  <textarea className="fi" rows={3} placeholder="메모 (선택)" autoFocus
+                    style={{resize:'vertical'}} value={reviewNote}
+                    onChange={function(e) { setReviewNote(e.target.value); }} />
+                  <div style={{display:'flex',justifyContent:'flex-end',gap:6,marginTop:10}}>
+                    <button className="btn btn-s btn-sm" onClick={function() { setReviewPick(null); setReviewNote(''); }}>취소</button>
+                    <button className="btn btn-p btn-sm" onClick={function() {
+                      confirmOk(reviewPick.itemType, reviewPick.itemId, reviewNote.trim());
+                      setReviewPick(null); setReviewNote('');
+                    }}>확인완료 저장</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 확인완료 메모 전문 보기 팝업 */}
+            {noteView && (
+              <div className="mbg" onClick={function() { setNoteView(null); }}>
+                <div className="mbox" style={{maxWidth:420}} onClick={function(e) { e.stopPropagation(); }}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                    <span style={{fontWeight:700,fontSize:14}}>📝 확인완료 메모</span>
+                    <button className="btn btn-s btn-sm" onClick={function() { setNoteView(null); }}>닫기</button>
+                  </div>
+                  <div style={{fontSize:13,color:'#1e293b',whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{noteView}</div>
+                </div>
               </div>
             )}
 

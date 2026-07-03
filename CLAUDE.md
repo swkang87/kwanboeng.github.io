@@ -185,6 +185,12 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   월 필터 리셋은 연도 변경 useEffect가 자동 수행(별도 구현 불필요 확인). 토스트에 "· YYYY년으로 이동" 병기.
   연도 select는 전 탭 공통이므로 업로드 시 다른 탭 기준 연도도 함께 바뀜(의도된 동작).
 - **매출 우선**: 기본 taxKind '매출', 토글 버튼 매출 먼저, 업로드 후 자동 전환도 savedKinds 매출 우선.
+- **헤더 클릭 정렬(2026-07)**: 작성일자/거래처/합계금액 3컬럼 — 기존 `SortTh`/`mkSortHandler`/`sortRows` 재사용(`taxSort` state).
+  미선택 시 기본 정렬(작성일 desc + id) 유지, 클릭 시 asc↔desc 토글. 목록 일자 컬럼 표시도 발급일자→**작성일자**로 교체
+  (정렬·필터·표시 기준 일치). 상세 모달엔 4종 일자 그대로.
+- **확인완료 메모(2026-07)**: 매칭확인 탭 [확인완료]가 즉시 저장 대신 메모 입력 팝업(`reviewPick`/`reviewNote`) 오픈 —
+  빈칸 저장 가능, `confirmOk(itemType, itemId, note)`로 reviews.note에 저장(기존 컬럼). 회색 행에 note 있으면
+  📝 버튼 → 전문 보기 팝업(`noteView`). confirmOk는 매칭확인 탭 전용(세금계산서 탭엔 확인완료 버튼 없음 — 공유 없음 확인).
 
 ### admin-perf.html 매칭확인 서브탭 (수금↔매출 세금계산서 자동 대사)
 - **스키마 근거(REST 프로브로 확정)**: 두 테이블 간 직접 FK 없음 → 휴리스틱 매칭이 유일.
