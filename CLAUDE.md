@@ -177,7 +177,10 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   월 옵션도 선택 연도의 월만 표시. **연도 변경 시 `setTaxMonth('전체')` 리셋**(useEffect [year]) —
   다른 연도 월이 남아 빈 목록 되는 것 방지. 카드 타이틀에 연도 표기.
   연도 select에 '전체' 없음 — 세금계산서 탭은 연도 select를 따름(수금 탭과 동일 규칙).
-  단, 업로드한 파일이 현재 선택 연도가 아니면 업로드 후에도 안 보일 수 있음(연도 select는 공통이라 자동 전환 안 함).
+- **업로드 후 연도 자동 전환(2026-07 추가)**: 저장 성공 건의 `write_date` 연도를 `savedYears`로 수집 →
+  최신 연도가 현재 선택 연도와 다르면 `setYear(latestYear)` (여러 연도 혼재 시 최신 연도 대표).
+  월 필터 리셋은 연도 변경 useEffect가 자동 수행(별도 구현 불필요 확인). 토스트에 "· YYYY년으로 이동" 병기.
+  연도 select는 전 탭 공통이므로 업로드 시 다른 탭 기준 연도도 함께 바뀜(의도된 동작).
 - **매출 우선**: 기본 taxKind '매출', 토글 버튼 매출 먼저, 업로드 후 자동 전환도 savedKinds 매출 우선.
 
 ### admin-perf.html 매칭확인 서브탭 (수금↔매출 세금계산서 자동 대사)

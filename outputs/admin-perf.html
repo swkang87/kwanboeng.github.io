@@ -1009,7 +1009,7 @@ function PerfView({ user }) {
       return;
     }
     setTaxBusy(true); setTaxMsg('');
-    var newCnt = 0, updCnt = 0, errCnt = 0, errMsgs = [], savedKinds = {};
+    var newCnt = 0, updCnt = 0, errCnt = 0, errMsgs = [], savedKinds = {}, savedYears = {};
     function pushErr(prefix, error) {
       var m = prefix + ': ' + (error && error.message ? error.message : String(error)) + (error && error.code ? ' (' + error.code + ')' : '');
       if (errMsgs.indexOf(m) === -1) errMsgs.push(m);
@@ -1043,18 +1043,24 @@ function PerfView({ user }) {
           }
           if (wasNew) newCnt++; else updCnt++;
           savedKinds[entry.header.invoice_type] = true;
+          if (entry.header.write_date) savedYears[entry.header.write_date.slice(0, 4)] = true;
         }
       }
       var total = newCnt + updCnt;
+      // 저장된 데이터의 최신 연도(작성일 기준 — 연도 필터와 동일 컬럼). 여러 연도 혼재 시 최신 연도 대표
+      var latestYear = Object.keys(savedYears).sort().pop() || '';
+      var moveYear = total > 0 && latestYear !== '' && latestYear !== year;
       var msg = (total === 0 && errCnt > 0 ? '❌ ' : '✅ ')
         + '성공 ' + total + '건 (신규 ' + newCnt + ' / 업데이트 ' + updCnt + ')'
         + (errCnt ? ' · 실패 ' + errCnt + '건' : '')
-        + (skipCnt ? ' · 엑셀 외 파일 ' + skipCnt + '개 제외' : '');
+        + (skipCnt ? ' · 엑셀 외 파일 ' + skipCnt + '개 제외' : '')
+        + (moveYear ? ' · ' + latestYear + '년으로 이동' : '');
       if (errMsgs.length > 0) msg += ' — ' + errMsgs.slice(0, 3).join(' / ') + (errMsgs.length > 3 ? ' 외 ' + (errMsgs.length - 3) + '건' : '');
       setTaxMsg(msg);
       if (total > 0) {
         setTaxMonth('전체'); // 월 필터에 걸려 안 보이는 상황 방지
         if (!savedKinds[taxKind]) setTaxKind(savedKinds['매출'] ? '매출' : '매입'); // 저장된 종류 탭으로 전환(매출 우선)
+        if (moveYear) setYear(latestYear); // 연도 select 자동 전환 — 연도 변경 useEffect가 월 필터 '전체' 리셋도 수행
       }
       loadTax();
     } catch (e) {
