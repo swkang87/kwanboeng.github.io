@@ -163,6 +163,12 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   다른 테이블(collections 등)과 동일 경로. 헤더 불일치 아님. RLS는 authenticated 세션 기반.
 - 검증: Babel(preset-react+env) 트랜스파일 PASS.
 
+### tax_invoices·tax_invoice_items RLS admin+manager 제한 (실행 완료, 2026-07)
+- `supabase/sql/tax_invoices_rls.sql` 승우님이 SQL Editor에서 실행 — 임시 전체 허용 정책 일괄 drop 후
+  테이블당 4개(select/insert/update/delete), 총 8개 정책 재생성. 검증 쿼리로 확인 완료.
+- 권한 판정: `exists (select 1 from public.users where auth_id = auth.uid() and role in ('admin','manager'))` —
+  supply_records.sql/invoice_collection_matches.sql과 동일 패턴. 이제 세금계산서는 admin+manager 전용.
+
 ### admin-perf.html 매칭확인 서브탭 (수금↔매출 세금계산서 자동 대사)
 - **스키마 근거(REST 프로브로 확정)**: 두 테이블 간 직접 FK 없음 → 휴리스틱 매칭이 유일.
   collections엔 발주처명 컬럼 없음 → `projects.client` 조인, 감리(supervision)는 `parseSupvMemo(memo).client`.
@@ -203,19 +209,6 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 ---
 
 ## 🔲 미완료 — 대시보드 작업 필요
-
-### tax_invoices·tax_invoice_items RLS admin+manager 제한 (SQL 작성 완료, 실행 대기중)
-- **현재 상태: authenticated 전체 허용(임시)** — 최초 정책이 `x-user-role` 커스텀 헤더 방식이라
-  Auth 세션 기반인 이 앱에서 전부 차단됨(업로드해도 안 보이는 버그 원인) → 임시로
-  `using(true)/with check(true)` 전체 허용으로 풀어 동작 확인한 상태. 로그인한 전 직원이
-  세금계산서 조회/업로드/삭제 가능해 위험.
-- **`supabase/sql/tax_invoices_rls.sql` 작성 완료** — 승우님이 SQL Editor에서 검토 후 직접 실행.
-  - 두 테이블의 기존 정책을 이름 무관 일괄 drop(DO 블록, pg_policies 순회) 후
-    select/insert/update/delete 전부 admin+manager 전용으로 재생성.
-  - 권한 판정: supply_records.sql 선택 블록과 동일 패턴 —
-    `exists (select 1 from public.users where auth_id = auth.uid() and role in ('admin','manager'))`.
-  - 전제: users에 authenticated SELECT 정책 존재(충족 확인됨), auth_id=null 계정은 접근 불가.
-  - 실행 후 검증 쿼리 포함(테이블당 4개, 총 8개 정책 확인).
 
 ### auth_id=null 기존 직원 소급 복구 (smooth-function Fix B) + 서영우 1건
 관리포털 신규 등록 버그(위 완료 항목)로 생긴 `auth_id=null` 직원들의 로그인·비번 초기화 복구.
