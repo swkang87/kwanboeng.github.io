@@ -1191,7 +1191,7 @@ function PerfView({ user }) {
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <label className="fl" style={{margin:0}}>연도</label>
           <select className="fi" value={year} onChange={function(e) { setYear(e.target.value); }} style={{width:100}}>
-            {[2023,2024,2025,2026].map(function(y) { return <option key={y}>{y}</option>; })}
+            {(function(){ var ys=[]; for (var y=new Date().getFullYear(); y>=2010; y--) ys.push(y); return ys; })().map(function(y) { return <option key={y}>{y}</option>; })}
           </select>
         </div>
       </div>
