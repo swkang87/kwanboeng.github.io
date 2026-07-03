@@ -175,6 +175,9 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   status='confirmed_ok', reviewed_by=user.id). 두 테이블 기록은 미수금/미발행 후보 풀에서 사전 제외. 낙관적 업데이트 + 실패 시 롤백·에러 토스트.
   수동매칭 모달 후보는 **연도 필터 무관 전체 미매칭 건**(unpaidAll/unissuedAll), 금액차→날짜차 순 정렬, 상위 50건.
   매칭된 건 보기에 자동(badge bg)/수동(badge bp) 구분 배지. `user.id`는 sysbar 세션의 users.id(uuid) — created_by/reviewed_by FK용.
+- **DB 반영 완료(2026-07)**: `invoice_collection_matches.sql` 승우님이 SQL Editor에서 실행 — 테이블 2개 생성 +
+  RLS 정책 8개(테이블당 select/insert/update/delete, admin+manager 전용) 검증 쿼리로 확인 완료.
+  matches FK는 `on delete cascade`(계산서 삭제와 충돌 방지), reviews.item_id는 polymorphic(FK 없음).
 - **UI**: 실적관리 서브탭 '매칭확인'(canTax 게이팅, 세금계산서 탭 옆). 연도는 상단 공통 선택 재사용,
   거래처명 검색 + "매칭된 건 보기" 토글. 미수금 의심(badge br)/미발행 의심(badge ba)/매칭됨(badge bg) — 기존 badge 클래스 재사용.
   미수금 테이블의 프로젝트명은 계산서에 연결정보가 없어 항상 '-'.
@@ -200,14 +203,6 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 ---
 
 ## 🔲 미완료 — 대시보드 작업 필요
-
-### invoice_collection_matches·reviews 테이블 생성 + RLS (SQL 작성 완료, 실행 대기중)
-- **`supabase/sql/invoice_collection_matches.sql` 작성 완료** — 승우님이 SQL Editor에서 검토 후 직접 실행.
-- 매칭확인 탭의 수동매칭/확인완료 기능은 **이 SQL 실행 전까지 저장 실패**(42P01 relation does not exist가
-  매칭 탭 토스트에 표시됨). 자동매칭 표시는 테이블 없이도 동작.
-- 원안 대비 변경 1건: matches FK에 `on delete cascade` 추가 — deleteTaxInvoice(계산서 삭제)가 FK 위반으로
-  실패하지 않도록. reviews.item_id는 polymorphic이라 FK 없음(원본 삭제 시 잔존 기록 무해).
-- RLS는 tax_invoices_rls.sql과 동일 패턴(admin+manager 전용, 테이블당 4개 정책). 실행 후 검증 쿼리 포함.
 
 ### tax_invoices·tax_invoice_items RLS admin+manager 제한 (SQL 작성 완료, 실행 대기중)
 - **현재 상태: authenticated 전체 허용(임시)** — 최초 정책이 `x-user-role` 커스텀 헤더 방식이라
