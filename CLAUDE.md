@@ -169,6 +169,17 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - 권한 판정: `exists (select 1 from public.users where auth_id = auth.uid() and role in ('admin','manager'))` —
   supply_records.sql/invoice_collection_matches.sql과 동일 패턴. 이제 세금계산서는 admin+manager 전용.
 
+### admin-perf.html 세금계산서 탭: 전량 로드 + 연도 필터 연결 + 매출 우선
+- **1000건 제한 해제**: `fetchAllRows(table, orderCol, ascending)` 헬퍼 — `.range()` 1000건씩 반복,
+  반환 < 페이지크기면 종료(.then 재귀, async/await 없음). tax_invoices(issue_date desc)/tax_invoice_items(id asc) 적용.
+  ⚠️ PostgREST는 limit 명시 없으면 기본 1000행만 반환 — 최신순 정렬과 만나 22년 이전 데이터가 잘려 보였던 원인.
+- **연도 필터**: 목록에 `write_date.slice(0,4) === year` 조건 추가(작성일 기준, 월 필터와 통일).
+  월 옵션도 선택 연도의 월만 표시. **연도 변경 시 `setTaxMonth('전체')` 리셋**(useEffect [year]) —
+  다른 연도 월이 남아 빈 목록 되는 것 방지. 카드 타이틀에 연도 표기.
+  연도 select에 '전체' 없음 — 세금계산서 탭은 연도 select를 따름(수금 탭과 동일 규칙).
+  단, 업로드한 파일이 현재 선택 연도가 아니면 업로드 후에도 안 보일 수 있음(연도 select는 공통이라 자동 전환 안 함).
+- **매출 우선**: 기본 taxKind '매출', 토글 버튼 매출 먼저, 업로드 후 자동 전환도 savedKinds 매출 우선.
+
 ### admin-perf.html 매칭확인 서브탭 (수금↔매출 세금계산서 자동 대사)
 - **스키마 근거(REST 프로브로 확정)**: 두 테이블 간 직접 FK 없음 → 휴리스틱 매칭이 유일.
   collections엔 발주처명 컬럼 없음 → `projects.client` 조인, 감리(supervision)는 `parseSupvMemo(memo).client`.

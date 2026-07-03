@@ -684,7 +684,7 @@ function PerfView({ user }) {
   var [taxInvoices, setTaxInvoices] = useState([]);
   var [taxItems, setTaxItems] = useState([]);
   var [taxLoading, setTaxLoading] = useState(false);
-  var [taxKind, setTaxKind] = useState('매입');       // 매입 / 매출 토글
+  var [taxKind, setTaxKind] = useState('매출');       // 매출 / 매입 토글 (매출 기본·우선)
   var [taxMonth, setTaxMonth] = useState('전체');      // 작성일자 월 필터
   var [taxDetail, setTaxDetail] = useState(null);      // 자세히보기 모달 대상 invoice
   var [taxMsg, setTaxMsg] = useState('');              // 업로드 결과 토스트
@@ -795,13 +795,31 @@ function PerfView({ user }) {
 
   useEffect(function() { load(); }, []);
 
+  // ── 전량 로드: PostgREST 기본 1000행 제한 해제 (range 반복, 반환 < 페이지크기면 종료) ──
+  function fetchAllRows(table, orderCol, ascending) {
+    var PAGE = 1000;
+    var all = [];
+    function page(from) {
+      return sb.from(table).select('*')
+        .order(orderCol, { ascending: ascending })
+        .range(from, from + PAGE - 1)
+        .then(function(r) {
+          if (r.error) return { data: null, error: r.error };
+          all = all.concat(r.data || []);
+          if ((r.data || []).length < PAGE) return { data: all, error: null };
+          return page(from + PAGE);
+        });
+    }
+    return page(0);
+  }
+
   // ── 세금계산서 로드 ──
   function loadTax() {
     if (!canTax) return;
     setTaxLoading(true);
     Promise.all([
-      sb.from('tax_invoices').select('*').order('issue_date', { ascending: false }),
-      sb.from('tax_invoice_items').select('*'),
+      fetchAllRows('tax_invoices', 'issue_date', false),
+      fetchAllRows('tax_invoice_items', 'id', true),
     ]).then(function(res) {
       var loadErr = res[0].error || res[1].error;
       if (loadErr) setTaxMsg('❌ 목록 조회 오류: ' + loadErr.message + (loadErr.code ? ' (' + loadErr.code + ')' : ''));
@@ -825,6 +843,9 @@ function PerfView({ user }) {
   }
 
   useEffect(function() { if (canTax) { loadTax(); loadMatchTables(); } }, [canTax]);
+
+  // 연도 변경 시 월 필터 리셋 — 다른 연도의 월이 선택된 채 남아 빈 목록이 되는 것 방지
+  useEffect(function() { setTaxMonth('전체'); }, [year]);
 
   // 확인완료(이상없음) — 낙관적 업데이트 + 실패 시 롤백
   function confirmOk(itemType, itemId) {
@@ -1033,7 +1054,7 @@ function PerfView({ user }) {
       setTaxMsg(msg);
       if (total > 0) {
         setTaxMonth('전체'); // 월 필터에 걸려 안 보이는 상황 방지
-        if (!savedKinds[taxKind]) setTaxKind(savedKinds['매입'] ? '매입' : '매출'); // 저장된 종류 탭으로 전환
+        if (!savedKinds[taxKind]) setTaxKind(savedKinds['매출'] ? '매출' : '매입'); // 저장된 종류 탭으로 전환(매출 우선)
       }
       loadTax();
     } catch (e) {
@@ -2232,13 +2253,14 @@ function PerfView({ user }) {
           }
           return m;
         })();
-        // 작성일자 기준 월 목록
+        // 작성일자 기준 월 목록 — 상단 공통 연도 선택에 해당하는 월만
         var monthSet = {};
-        taxInvoices.forEach(function(iv){ if (iv.write_date) monthSet[iv.write_date.slice(0,7)] = true; });
+        taxInvoices.forEach(function(iv){ if (iv.write_date && iv.write_date.slice(0,4) === year) monthSet[iv.write_date.slice(0,7)] = true; });
         var monthOptions = Object.keys(monthSet).sort(function(a,b){ return b.localeCompare(a); });
-        // 필터 + 정렬(발급일자 최신순)
+        // 필터(연도: 작성일 기준 — 월 필터와 기준 통일) + 정렬(발급일자 최신순)
         var rows = taxInvoices
           .filter(function(iv){ return iv.invoice_type === taxKind; })
+          .filter(function(iv){ return iv.write_date && iv.write_date.slice(0,4) === year; })
           .filter(function(iv){ return taxMonth === '전체' || (iv.write_date && iv.write_date.slice(0,7) === taxMonth); })
           .slice()
           .sort(function(a,b){ return String(b.issue_date||'').localeCompare(String(a.issue_date||'')); });
@@ -2252,7 +2274,7 @@ function PerfView({ user }) {
         return (
           <div className="card">
             <div className="sh">
-              <span className="st">세금계산서 ({taxKind})</span>
+              <span className="st">세금계산서 ({taxKind} · {year}년)</span>
               <div style={{display:'flex',gap:6,alignItems:'center'}}>
                 <input ref={taxFileRef} type="file" accept=".xls,.xlsx" multiple style={{display:'none'}}
                   onChange={function(e){ handleTaxFiles(e.target.files); }} />
@@ -2285,8 +2307,8 @@ function PerfView({ user }) {
             {/* 매입/매출 토글 + 월 필터 */}
             <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap',marginBottom:12}}>
               <div className="itabs" style={{marginBottom:0}}>
-                <button className={taxKind==='매입'?'itab active':'itab'} onClick={function(){setTaxKind('매입');}}>매입</button>
                 <button className={taxKind==='매출'?'itab active':'itab'} onClick={function(){setTaxKind('매출');}}>매출</button>
+                <button className={taxKind==='매입'?'itab active':'itab'} onClick={function(){setTaxKind('매입');}}>매입</button>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:6}}>
                 <label className="fl" style={{margin:0}}>월</label>
