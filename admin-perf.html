@@ -699,6 +699,8 @@ function PerfView({ user }) {
   var [icReviews, setIcReviews] = useState([]);        // invoice_collection_reviews (확인완료 기록)
   var [matchPick, setMatchPick] = useState(null);      // 수동매칭 모달 대상 {type:'invoice'|'collection', item}
   var [pickSearch, setPickSearch] = useState('');      // 수동매칭 모달 검색어
+  var [pickSel, setPickSel] = useState({});            // 수동매칭 모달 다중선택 {상대id: true} (분할입금 대응)
+  var [hideResolved, setHideResolved] = useState(false); // 처리완료(수동매칭/확인완료) 행 숨기기 토글
   var [matchMsg, setMatchMsg] = useState('');          // 매칭 탭 결과/에러 토스트
 
   // ── 탭별 정렬 상태 ──
@@ -842,13 +844,14 @@ function PerfView({ user }) {
       });
   }
 
-  // 수동매칭 저장 — 낙관적 업데이트 + 실패 시 롤백
-  function saveManualMatch(invId, colId) {
+  // 수동매칭 저장(다중 row — 분할입금 대응) — 낙관적 업데이트 + 실패 시 롤백
+  function saveManualMatchRows(rows) {
+    if (rows.length === 0) return;
     var prev = icMatches;
-    setIcMatches(prev.concat([{ tax_invoice_id: invId, collection_id: colId, match_type: 'manual', created_by: user.id }]));
-    setMatchPick(null); setPickSearch('');
+    setIcMatches(prev.concat(rows));
+    setMatchPick(null); setPickSearch(''); setPickSel({});
     sb.from('invoice_collection_matches')
-      .insert({ tax_invoice_id: invId, collection_id: colId, match_type: 'manual', created_by: user.id })
+      .insert(rows)
       .then(function(r) {
         if (r.error) {
           setIcMatches(prev);
@@ -858,6 +861,37 @@ function PerfView({ user }) {
         setMatchMsg('');
         loadMatchTables();
       });
+  }
+
+  // 수동매칭 해제 — 해당 항목이 걸린 매칭 row 전부 delete
+  function removeMatchByItem(itemType, itemId) {
+    var field = itemType === 'tax_invoice' ? 'tax_invoice_id' : 'collection_id';
+    var prev = icMatches;
+    setIcMatches(prev.filter(function(m) { return m[field] !== itemId; }));
+    sb.from('invoice_collection_matches').delete().eq(field, itemId).then(function(r) {
+      if (r.error) {
+        setIcMatches(prev);
+        setMatchMsg('❌ 매칭 해제 실패: ' + r.error.message + (r.error.code ? ' (' + r.error.code + ')' : ''));
+        return;
+      }
+      setMatchMsg('');
+      loadMatchTables();
+    });
+  }
+
+  // 확인완료 해제
+  function removeReview(itemType, itemId) {
+    var prev = icReviews;
+    setIcReviews(prev.filter(function(rv) { return !(rv.item_type === itemType && rv.item_id === itemId); }));
+    sb.from('invoice_collection_reviews').delete().eq('item_type', itemType).eq('item_id', itemId).then(function(r) {
+      if (r.error) {
+        setIcReviews(prev);
+        setMatchMsg('❌ 확인완료 해제 실패: ' + r.error.message + (r.error.code ? ' (' + r.error.code + ')' : ''));
+        return;
+      }
+      setMatchMsg('');
+      loadMatchTables();
+    });
   }
 
   // ── 세금계산서 업로드(.xls/.xlsx 다중, 순차 처리) ──
@@ -2355,45 +2389,103 @@ function PerfView({ user }) {
           colUsed[p.ci] = true; invUsed[p.ii] = true;
           matchedPairs.push(p);
         });
-        // 미매칭 전체(연도 무관) — 수동매칭 모달의 상대 후보 풀
+        // 미매칭 전체(연도 무관) — 수동매칭 모달의 상대 후보 풀 (처리완료 건 미포함)
         var unpaidAll = salesInvs.filter(function(iv, j) { return !invUsed[j]; });
         var unissuedAll = payCols.filter(function(c, i) { return !colUsed[i]; });
-        // 표시 필터: 연도(상단 공통 선택) + 거래처명 검색
-        var q = normCoName(matchSearch);
-        var unpaid = unpaidAll.filter(function(iv) {
-          if (!iv.issue_date || !String(iv.issue_date).startsWith(year)) return false;
-          if (q && normCoName(iv.counterpart_name).indexOf(q) === -1) return false;
-          return true;
-        }).sort(function(a, b) { return String(b.issue_date).localeCompare(String(a.issue_date)); });
-        var unissued = unissuedAll.filter(function(c) {
-          if (!c.collected_at || !String(c.collected_at).startsWith(year)) return false;
-          if (q && normCoName(colClient(c)).indexOf(q) === -1) return false;
-          return true;
-        }).sort(function(a, b) { return String(b.collected_at).localeCompare(String(a.collected_at)); });
-        // 매칭된 건: 자동(재계산) + 수동(DB) 통합
         var invById = (function() { var m = new Map(); taxInvoices.forEach(function(iv) { m.set(iv.id, iv); }); return m; })();
         var colById = (function() { var m = new Map(); cols.forEach(function(c) { m.set(c.id, c); }); return m; })();
-        var matchedRows = matchedPairs.map(function(p) {
-          return { iv: salesInvs[p.ii], c: payCols[p.ci], dd: p.dd, mtype: 'auto' };
+        // 처리완료(수동매칭/확인완료) 항목 — 표시 리스트에만 status 플래그로 합류
+        // (salesInvs/payCols에서는 계속 제외 → greedy·후보 풀에 재참여하지 않음)
+        var resolvedInvs = taxInvoices.filter(function(iv) {
+          return iv.invoice_type === '매출' && (dbInvUsed[iv.id] || revInv[iv.id]);
+        }).map(function(iv) { return { item: iv, status: dbInvUsed[iv.id] ? 'manual' : 'reviewed' }; });
+        var resolvedCols = cols.filter(function(c) {
+          return c.entry_type !== 'outsource_only' && (c.amount || 0) > 0 && (dbColUsed[c.id] || revCol[c.id]);
+        }).map(function(c) { return { item: c, status: dbColUsed[c.id] ? 'manual' : 'reviewed' }; });
+        // 표시 필터: 연도(상단 공통 선택) + 거래처명 검색 → 이후 숨기기 토글 적용
+        var q = normCoName(matchSearch);
+        var unpaidEntries = unpaidAll.map(function(iv) { return { item: iv, status: 'none' }; })
+          .concat(resolvedInvs)
+          .filter(function(e) {
+            var iv = e.item;
+            if (!iv.issue_date || !String(iv.issue_date).startsWith(year)) return false;
+            if (q && normCoName(iv.counterpart_name).indexOf(q) === -1) return false;
+            return true;
+          }).sort(function(a, b) { return String(b.item.issue_date).localeCompare(String(a.item.issue_date)); });
+        var unissuedEntries = unissuedAll.map(function(c) { return { item: c, status: 'none' }; })
+          .concat(resolvedCols)
+          .filter(function(e) {
+            var c = e.item;
+            if (!c.collected_at || !String(c.collected_at).startsWith(year)) return false;
+            if (q && normCoName(colClient(c)).indexOf(q) === -1) return false;
+            return true;
+          }).sort(function(a, b) { return String(b.item.collected_at).localeCompare(String(a.item.collected_at)); });
+        var unpaidOpen = unpaidEntries.filter(function(e) { return e.status === 'none'; }).length;
+        var unissuedOpen = unissuedEntries.filter(function(e) { return e.status === 'none'; }).length;
+        var unpaidResolved = unpaidEntries.length - unpaidOpen;
+        var unissuedResolved = unissuedEntries.length - unissuedOpen;
+        var unpaid = hideResolved ? unpaidEntries.filter(function(e) { return e.status === 'none'; }) : unpaidEntries;
+        var unissued = hideResolved ? unissuedEntries.filter(function(e) { return e.status === 'none'; }) : unissuedEntries;
+        // 매칭된 건: 자동(재계산 1:1) + 수동(DB) — connected component 그룹핑
+        // (분할입금으로 1계산서↔N수금, 1수금↔N계산서가 연결되면 한 그룹으로 묶어 표시)
+        var edges = matchedPairs.map(function(p) {
+          return { inv: salesInvs[p.ii], col: payCols[p.ci], manual: false };
         });
         icMatches.forEach(function(m) {
           var iv = invById.get(m.tax_invoice_id), c = colById.get(m.collection_id);
           if (!iv || !c) return; // 원본이 삭제된 기록은 표시 생략
-          var dd = (iv.issue_date && c.collected_at) ? dayDiffAbs(iv.issue_date, c.collected_at) : null;
-          matchedRows.push({ iv: iv, c: c, dd: dd, mtype: m.match_type || 'manual' });
+          edges.push({ inv: iv, col: c, manual: (m.match_type || 'manual') !== 'auto' });
         });
-        matchedRows = matchedRows.filter(function(r) {
-          var inYear = (r.iv.issue_date && String(r.iv.issue_date).startsWith(year)) ||
-                       (r.c.collected_at && String(r.c.collected_at).startsWith(year));
+        var ufParent = {};
+        function ufFind(x) { while (ufParent[x] !== x) { ufParent[x] = ufParent[ufParent[x]]; x = ufParent[x]; } return x; }
+        edges.forEach(function(e) {
+          var a = 'I' + e.inv.id, b = 'C' + e.col.id;
+          if (!(a in ufParent)) ufParent[a] = a;
+          if (!(b in ufParent)) ufParent[b] = b;
+          var ra = ufFind(a), rb = ufFind(b);
+          if (ra !== rb) ufParent[rb] = ra;
+        });
+        var groupMap = {};
+        edges.forEach(function(e) {
+          var root = ufFind('I' + e.inv.id);
+          var g = groupMap[root];
+          if (!g) { g = { invMap: {}, colMap: {}, manual: false }; groupMap[root] = g; }
+          g.invMap[e.inv.id] = e.inv;
+          g.colMap[e.col.id] = e.col;
+          if (e.manual) g.manual = true;
+        });
+        var matchGroups = Object.keys(groupMap).map(function(k) {
+          var g = groupMap[k];
+          var invs = Object.keys(g.invMap).map(function(id) { return g.invMap[id]; })
+            .sort(function(a, b) { return String(b.issue_date || '').localeCompare(String(a.issue_date || '')); });
+          var gCols = Object.keys(g.colMap).map(function(id) { return g.colMap[id]; })
+            .sort(function(a, b) { return String(b.collected_at || '').localeCompare(String(a.collected_at || '')); });
+          return {
+            invs: invs, cols: gCols, manual: g.manual,
+            invSum: invs.reduce(function(s, iv) { return s + (iv.total_amount || 0); }, 0),
+            colSum: gCols.reduce(function(s, c) { return s + (c.amount || 0); }, 0),
+          };
+        }).filter(function(g) {
+          var inYear = g.invs.some(function(iv) { return iv.issue_date && String(iv.issue_date).startsWith(year); })
+                    || g.cols.some(function(c) { return c.collected_at && String(c.collected_at).startsWith(year); });
           if (!inYear) return false;
-          if (q && normCoName(r.iv.counterpart_name).indexOf(q) === -1 && normCoName(colClient(r.c)).indexOf(q) === -1) return false;
+          if (q) {
+            var hit = g.invs.some(function(iv) { return normCoName(iv.counterpart_name).indexOf(q) !== -1; })
+                   || g.cols.some(function(c) { return normCoName(colClient(c)).indexOf(q) !== -1; });
+            if (!hit) return false;
+          }
           return true;
-        }).sort(function(a, b) { return String(b.iv.issue_date || '').localeCompare(String(a.iv.issue_date || '')); });
-        function SectionHead({ icon, label, cls, count }) {
+        }).sort(function(a, b) {
+          var da = a.invs.length ? String(a.invs[0].issue_date || '') : '';
+          var db2 = b.invs.length ? String(b.invs[0].issue_date || '') : '';
+          return db2.localeCompare(da);
+        });
+        function SectionHead({ icon, label, cls, count, sub }) {
           return (
             <div style={{display:'flex',alignItems:'center',gap:8,margin:'16px 0 8px'}}>
               <span style={{fontWeight:700,fontSize:13,color:'#334155'}}>{icon} {label}</span>
               <span className={'badge ' + cls}>{count}건</span>
+              {sub > 0 && <span className="badge bgr">처리 {sub}건</span>}
             </div>
           );
         }
@@ -2405,7 +2497,8 @@ function PerfView({ user }) {
             <div style={{fontSize:11,color:'#94a3b8',marginBottom:12}}>
               매출 세금계산서와 수금내역을 금액(완전일치)·날짜(발행일 ±{MATCH_WINDOW_DAYS}일) 기준으로 1:1 자동 매칭합니다.
               거래처명은 참고 표시(오매칭 육안 확인용). 외주비만 입력된 수금 건은 제외. 연도는 상단 연도 선택을 따릅니다.
-              확인완료·수동매칭 처리한 건은 저장되어 이후에도 목록에서 제외됩니다.
+              확인완료·수동매칭 처리한 건은 회색으로 표시되며 "처리완료 항목 숨기기"로 감출 수 있습니다.
+              분할입금은 수동매칭에서 여러 건을 체크해 합산 매칭하세요.
             </div>
             {matchMsg && <div className={'al ' + (matchMsg.indexOf('❌') === 0 ? 'al-e' : 'al-s')}>{matchMsg}</div>}
             <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap',marginBottom:4}}>
@@ -2413,7 +2506,11 @@ function PerfView({ user }) {
                 value={matchSearch} onChange={function(e) { setMatchSearch(e.target.value); }} />
               <label style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b',cursor:'pointer'}}>
                 <input type="checkbox" checked={showMatched} onChange={function(e) { setShowMatched(e.target.checked); }} />
-                매칭된 건 보기 <span className="badge bg">{matchedRows.length}건</span>
+                매칭된 건 보기 <span className="badge bg">{matchGroups.length}건</span>
+              </label>
+              <label style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'#64748b',cursor:'pointer'}}>
+                <input type="checkbox" checked={hideResolved} onChange={function(e) { setHideResolved(e.target.checked); }} />
+                처리완료 항목 숨기기
               </label>
             </div>
 
@@ -2422,7 +2519,7 @@ function PerfView({ user }) {
             ) : (
               <div>
                 {/* 미수금 의심: 세금계산서만 있고 매칭 수금 없음 */}
-                <SectionHead icon="⚠" label="미수금 의심 — 세금계산서 발행 후 매칭 수금 없음" cls="br" count={unpaid.length} />
+                <SectionHead icon="⚠" label="미수금 의심 — 세금계산서 발행 후 매칭 수금 없음" cls="br" count={unpaidOpen} sub={unpaidResolved} />
                 {unpaid.length === 0 ? (
                   <div style={{fontSize:12,color:'#94a3b8',padding:'8px 4px'}}>해당 건이 없습니다.</div>
                 ) : (
@@ -2432,18 +2529,32 @@ function PerfView({ user }) {
                         <tr><th>거래처명</th><th>프로젝트명</th><th className="tr">합계금액</th><th>발행일</th><th className="tc">액션</th></tr>
                       </thead>
                       <tbody>
-                        {unpaid.map(function(iv) {
+                        {unpaid.map(function(e) {
+                          var iv = e.item, st = e.status;
                           return (
-                            <tr key={iv.id}>
+                            <tr key={iv.id} style={st === 'none' ? undefined : {opacity:0.55}}>
                               <td style={{fontWeight:600}}>{iv.counterpart_name || '-'}</td>
                               <td style={{color:'#94a3b8',fontSize:12}}>-</td>
                               <td className="tr" style={{fontWeight:700,color:'#dc2626'}}>{fmtN(iv.total_amount)}원</td>
                               <td className="tc">{fmtD(iv.issue_date)}</td>
                               <td className="tc" style={{whiteSpace:'nowrap'}}>
-                                <button className="btn btn-p btn-sm" style={{marginRight:4}}
-                                  onClick={function() { setMatchPick({ type: 'invoice', item: iv }); setPickSearch(''); }}>수동매칭</button>
-                                <button className="btn btn-s btn-sm"
-                                  onClick={function() { confirmOk('tax_invoice', iv.id); }}>확인완료</button>
+                                {st === 'none' ? (
+                                  <span>
+                                    <button className="btn btn-p btn-sm" style={{marginRight:4}}
+                                      onClick={function() { setMatchPick({ type: 'invoice', item: iv }); setPickSearch(''); setPickSel({}); }}>수동매칭</button>
+                                    <button className="btn btn-s btn-sm"
+                                      onClick={function() { confirmOk('tax_invoice', iv.id); }}>확인완료</button>
+                                  </span>
+                                ) : (
+                                  <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
+                                    <span className={'badge ' + (st === 'manual' ? 'bp' : 'bgr')}>{st === 'manual' ? '수동매칭' : '확인완료'}</span>
+                                    <button className="btn btn-s btn-sm"
+                                      onClick={function() {
+                                        if (st === 'manual') removeMatchByItem('tax_invoice', iv.id);
+                                        else removeReview('tax_invoice', iv.id);
+                                      }}>해제</button>
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           );
@@ -2454,7 +2565,7 @@ function PerfView({ user }) {
                 )}
 
                 {/* 미발행 의심: 수금만 있고 매칭 세금계산서 없음 */}
-                <SectionHead icon="🧾" label="미발행 의심 — 수금 후 매칭 세금계산서 없음" cls="ba" count={unissued.length} />
+                <SectionHead icon="🧾" label="미발행 의심 — 수금 후 매칭 세금계산서 없음" cls="ba" count={unissuedOpen} sub={unissuedResolved} />
                 {unissued.length === 0 ? (
                   <div style={{fontSize:12,color:'#94a3b8',padding:'8px 4px'}}>해당 건이 없습니다.</div>
                 ) : (
@@ -2464,18 +2575,32 @@ function PerfView({ user }) {
                         <tr><th>거래처명</th><th>프로젝트명</th><th className="tr">수금액</th><th>수금일</th><th className="tc">액션</th></tr>
                       </thead>
                       <tbody>
-                        {unissued.map(function(c) {
+                        {unissued.map(function(e) {
+                          var c = e.item, st = e.status;
                           return (
-                            <tr key={c.id}>
+                            <tr key={c.id} style={st === 'none' ? undefined : {opacity:0.55}}>
                               <td style={{fontWeight:600}}>{colClient(c) || '-'}</td>
                               <td style={{color:'#475569',fontSize:12}}>{projLabel(c)}</td>
                               <td className="tr" style={{fontWeight:700,color:'#d97706'}}>{fmtN(c.amount)}원</td>
                               <td className="tc">{fmtD(c.collected_at)}</td>
                               <td className="tc" style={{whiteSpace:'nowrap'}}>
-                                <button className="btn btn-p btn-sm" style={{marginRight:4}}
-                                  onClick={function() { setMatchPick({ type: 'collection', item: c }); setPickSearch(''); }}>수동매칭</button>
-                                <button className="btn btn-s btn-sm"
-                                  onClick={function() { confirmOk('collection', c.id); }}>확인완료</button>
+                                {st === 'none' ? (
+                                  <span>
+                                    <button className="btn btn-p btn-sm" style={{marginRight:4}}
+                                      onClick={function() { setMatchPick({ type: 'collection', item: c }); setPickSearch(''); setPickSel({}); }}>수동매칭</button>
+                                    <button className="btn btn-s btn-sm"
+                                      onClick={function() { confirmOk('collection', c.id); }}>확인완료</button>
+                                  </span>
+                                ) : (
+                                  <span style={{display:'inline-flex',alignItems:'center',gap:4}}>
+                                    <span className={'badge ' + (st === 'manual' ? 'bp' : 'bgr')}>{st === 'manual' ? '수동매칭' : '확인완료'}</span>
+                                    <button className="btn btn-s btn-sm"
+                                      onClick={function() {
+                                        if (st === 'manual') removeMatchByItem('collection', c.id);
+                                        else removeReview('collection', c.id);
+                                      }}>해제</button>
+                                  </span>
+                                )}
                               </td>
                             </tr>
                           );
@@ -2488,26 +2613,41 @@ function PerfView({ user }) {
                 {/* 매칭된 건 (토글) */}
                 {showMatched && (
                   <div>
-                    <SectionHead icon="✅" label="매칭된 건" cls="bg" count={matchedRows.length} />
-                    {matchedRows.length === 0 ? (
+                    <SectionHead icon="✅" label="매칭된 건" cls="bg" count={matchGroups.length} />
+                    {matchGroups.length === 0 ? (
                       <div style={{fontSize:12,color:'#94a3b8',padding:'8px 4px'}}>해당 건이 없습니다.</div>
                     ) : (
                       <div className="tbl-wrap">
                         <table>
                           <thead>
-                            <tr><th className="tc">구분</th><th>거래처명(계산서)</th><th>프로젝트명</th><th className="tr">금액</th><th>발행일</th><th>수금일</th><th className="tc">차이</th></tr>
+                            <tr><th className="tc">구분</th><th>거래처명</th><th>세금계산서</th><th>수금</th><th className="tr">합계 비교</th></tr>
                           </thead>
                           <tbody>
-                            {matchedRows.map(function(r, k) {
+                            {matchGroups.map(function(g, k) {
+                              var same = g.invSum === g.colSum;
+                              var firstName = g.invs.length ? (g.invs[0].counterpart_name || '-') : '-';
+                              var nameLabel = g.invs.length > 1 ? firstName + ' 외 ' + (g.invs.length - 1) : firstName;
                               return (
                                 <tr key={k}>
-                                  <td className="tc"><span className={'badge ' + (r.mtype === 'manual' ? 'bp' : 'bg')}>{r.mtype === 'manual' ? '수동' : '자동'}</span></td>
-                                  <td style={{fontWeight:600}}>{r.iv.counterpart_name || '-'}</td>
-                                  <td style={{color:'#475569',fontSize:12}}>{projLabel(r.c)}</td>
-                                  <td className="tr" style={{fontWeight:700}}>{fmtN(r.iv.total_amount)}원</td>
-                                  <td className="tc">{fmtD(r.iv.issue_date)}</td>
-                                  <td className="tc">{fmtD(r.c.collected_at)}</td>
-                                  <td className="tc" style={{fontSize:12,color:'#64748b'}}>{r.dd === null ? '-' : r.dd + '일'}</td>
+                                  <td className="tc"><span className={'badge ' + (g.manual ? 'bp' : 'bg')}>{g.manual ? '수동' : '자동'}</span></td>
+                                  <td style={{fontWeight:600}}>{nameLabel}</td>
+                                  <td style={{fontSize:12}}>
+                                    {g.invs.map(function(iv) {
+                                      return <div key={iv.id} style={{whiteSpace:'nowrap'}}>{fmtD(iv.issue_date)} · <b>{fmtN(iv.total_amount)}원</b></div>;
+                                    })}
+                                  </td>
+                                  <td style={{fontSize:12}}>
+                                    {g.cols.map(function(c) {
+                                      return (
+                                        <div key={c.id} style={{whiteSpace:'nowrap'}}>
+                                          {fmtD(c.collected_at)} · <b>{fmtN(c.amount)}원</b> <span style={{color:'#94a3b8'}}>{projLabel(c)}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </td>
+                                  <td className="tr" style={{whiteSpace:'nowrap',fontWeight:700,color: same ? '#059669' : '#64748b'}}>
+                                    {fmtN(g.invSum)} / {fmtN(g.colSum)}{same ? ' ✓' : ''}
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -2542,7 +2682,14 @@ function PerfView({ user }) {
                 if (d !== 0) return d;
                 return candDd(isInv ? a.collected_at : a.issue_date) - candDd(isInv ? b.collected_at : b.issue_date);
               }).slice(0, 50);
-              function closePick() { setMatchPick(null); setPickSearch(''); }
+              function closePick() { setMatchPick(null); setPickSearch(''); setPickSel({}); }
+              var selIds = Object.keys(pickSel).filter(function(id) { return pickSel[id]; });
+              var selSum = selIds.reduce(function(s, id) {
+                var x = isInv ? colById.get(id) : invById.get(id);
+                if (!x) return s;
+                return s + (isInv ? (x.amount || 0) : (x.total_amount || 0));
+              }, 0);
+              var sumMatch = selIds.length > 0 && selSum === tAmt;
               return (
                 <div className="mbg" onClick={closePick}>
                   <div className="mbox" style={{maxWidth:560}} onClick={function(e) { e.stopPropagation(); }}>
@@ -2559,15 +2706,22 @@ function PerfView({ user }) {
                     {cands.length === 0 ? (
                       <div style={{fontSize:12,color:'#94a3b8',padding:'12px 4px',textAlign:'center'}}>후보가 없습니다.</div>
                     ) : (
-                      <div style={{maxHeight:320,overflowY:'auto'}}>
+                      <div style={{maxHeight:300,overflowY:'auto'}}>
                         {cands.map(function(x) {
                           var xAmt = isInv ? (x.amount || 0) : (x.total_amount || 0);
                           var xDate = isInv ? x.collected_at : x.issue_date;
                           var xName = isInv ? (colClient(x) || '-') : (x.counterpart_name || '-');
                           var xSub = isInv ? projLabel(x) : '-';
                           var amtSame = xAmt === tAmt;
+                          var checked = !!pickSel[x.id];
                           return (
-                            <div key={x.id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 8px',borderBottom:'1px solid #f1f5f9',fontSize:12}}>
+                            <div key={x.id}
+                              onClick={function() {
+                                setPickSel(function(p) { var n = Object.assign({}, p); n[x.id] = !n[x.id]; return n; });
+                              }}
+                              style={{display:'flex',alignItems:'center',gap:8,padding:'7px 8px',borderBottom:'1px solid #f1f5f9',fontSize:12,
+                                cursor:'pointer',background: checked ? '#f5f3ff' : 'transparent'}}>
+                              <input type="checkbox" checked={checked} readOnly style={{flexShrink:0,pointerEvents:'none'}} />
                               <div style={{flex:1,minWidth:0}}>
                                 <div style={{fontWeight:600,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{xName}</div>
                                 <div style={{color:'#94a3b8',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{xSub}</div>
@@ -2576,13 +2730,28 @@ function PerfView({ user }) {
                                 <div style={{fontWeight:700,color:amtSame ? '#059669' : '#334155'}}>{fmtN(xAmt)}원</div>
                                 <div style={{color:'#94a3b8'}}>{fmtD(xDate)}</div>
                               </div>
-                              <button className="btn btn-p btn-sm" style={{flexShrink:0}}
-                                onClick={function() { saveManualMatch(isInv ? t.id : x.id, isInv ? x.id : t.id); }}>선택</button>
                             </div>
                           );
                         })}
                       </div>
                     )}
+                    {/* 선택 합계 vs 기준금액 실시간 비교 + 저장 (분할입금: 여러 건 합산 매칭) */}
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginTop:10,
+                      padding:'8px 12px',background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,fontSize:12}}>
+                      <span>
+                        선택 {selIds.length}건 합계 <b style={{color: sumMatch ? '#059669' : '#64748b'}}>{fmtN(selSum)}원</b>
+                        <span style={{color:'#94a3b8'}}> / 기준 {fmtN(tAmt)}원{sumMatch ? ' ✓ 일치' : ''}</span>
+                      </span>
+                      <button className="btn btn-p btn-sm" disabled={selIds.length === 0}
+                        onClick={function() {
+                          var rows = selIds.map(function(id) {
+                            return isInv
+                              ? { tax_invoice_id: t.id, collection_id: id, match_type: 'manual', created_by: user.id }
+                              : { tax_invoice_id: id, collection_id: t.id, match_type: 'manual', created_by: user.id };
+                          });
+                          saveManualMatchRows(rows);
+                        }}>{selIds.length > 0 ? selIds.length + '건 매칭 저장' : '매칭 저장'}</button>
+                    </div>
                   </div>
                 </div>
               );

@@ -184,6 +184,17 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - **DB 반영 완료(2026-07)**: `invoice_collection_matches.sql` 승우님이 SQL Editor에서 실행 — 테이블 2개 생성 +
   RLS 정책 8개(테이블당 select/insert/update/delete, admin+manager 전용) 검증 쿼리로 확인 완료.
   matches FK는 `on delete cascade`(계산서 삭제와 충돌 방지), reviews.item_id는 polymorphic(FK 없음).
+- **회색처리+숨기기 / 다중선택 / 그룹핑 (2026-07 확장)**:
+  - 처리완료(수동매칭/확인완료) 항목은 리스트에서 제거하지 않고 status 플래그('manual'/'reviewed')로 합류 —
+    회색(opacity 0.55) + 배지(수동매칭 bp/확인완료 bgr) + [해제] 버튼. **greedy·후보 풀(salesInvs/payCols)에서는 계속 제외**
+    (제외를 풀면 이미 처리된 건이 자동매칭에 재참여하는 오류 — 표시 리스트만 합류가 핵심).
+  - 해제: matches는 해당 항목이 걸린 row 전부 delete(`.eq(tax_invoice_id|collection_id)`), reviews는 (item_type,item_id) delete.
+    낙관적 업데이트+롤백 동일 패턴. "처리완료 항목 숨기기" 토글(`hideResolved`, 기본 보이기).
+    섹션 배지 = 미처리 건수, 처리 건수는 bgr 보조 배지.
+  - 수동매칭 다중선택(분할입금): 모달 [선택] 버튼 → 체크박스(`pickSel`), 선택 합계 vs 기준금액 실시간 비교(일치 초록 ✓),
+    저장 시 조합별 row 배열 한 번에 insert(`saveManualMatchRows`). DB 구조 변경 없음(unique 제약 그대로).
+  - 매칭된 건 보기: **connected-component 그룹핑**(union-find, 노드 'I'+invId/'C'+colId) — 1계산서↔N수금·1수금↔N계산서를
+    한 그룹 행으로 표시(계산서/수금 나열 + 양쪽 합계 비교, 일치 초록). 그룹에 수동 edge 있으면 '수동' 배지.
 - **UI**: 실적관리 서브탭 '매칭확인'(canTax 게이팅, 세금계산서 탭 옆). 연도는 상단 공통 선택 재사용,
   거래처명 검색 + "매칭된 건 보기" 토글. 미수금 의심(badge br)/미발행 의심(badge ba)/매칭됨(badge bg) — 기존 badge 클래스 재사용.
   미수금 테이블의 프로젝트명은 계산서에 연결정보가 없어 항상 '-'.
