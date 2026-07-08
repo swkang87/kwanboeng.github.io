@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
-<title>관리팀 실적관리</title>
+<title>관리팀 수금관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
 <style>
@@ -1447,7 +1447,7 @@ function PerfView({ user }) {
               return (
                 <div className="tbl-wrap">
                   <CatFilterBar />
-                  <table style={{minWidth:760}}>
+                  <table className="tbl-compact" style={{minWidth:760}}>
                     <thead><tr>
                       <SortTh label="프로젝트" col="proj"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
                       <SortTh label="날짜"     col="date"   state={colSort} onSort={mkSortHandler(colSort,setColSort)} />
@@ -1463,7 +1463,7 @@ function PerfView({ user }) {
                         var net   = (c.amount||0) - (c.outsource_cost||0);
                         return (
                           <tr key={c.id} style={{background: isOut ? '#fff5f5' : ''}}>
-                            <td style={{verticalAlign:'top',paddingTop:10}}>
+                            <td style={{verticalAlign:'top',paddingTop:6}}>
                               {(function(){
                                 var proj = projects.find(function(p){ return p.id === c.project_id; });
                                 var cat  = proj ? proj.category : '';
@@ -1565,7 +1565,7 @@ function PerfView({ user }) {
           ) : (
             <div className="tbl-wrap">
               <CatFilterBar />
-              <table>
+              <table className="tbl-compact">
                 <thead><tr>
                   <SortTh label="프로젝트" col="name" state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
                   <SortTh label="PM"       col="pm"   state={projSort} onSort={mkSortHandler(projSort,setProjSort)} />
@@ -1649,7 +1649,7 @@ function PerfView({ user }) {
               <div className="empty"><div className="ei">📐</div><div className="et">입력된 기여율이 없습니다</div></div>
             ) : (
               <div className="tbl-wrap">
-                <table>
+                <table className="tbl-compact">
                   <thead><tr>
                     <SortTh label="프로젝트" col="proj" state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} />
                     <SortTh label="직원"     col="user" state={pfSort} onSort={mkSortHandler(pfSort,setPfSort)} />
@@ -1947,7 +1947,7 @@ function PerfView({ user }) {
             </div>
             <div className="tbl-wrap">
               <CatFilterBar />
-              <table>
+              <table className="tbl-compact">
                 <thead>
                   <tr>
                     <SortTh label="용역명"   col="name"      state={ctSort} onSort={mkSortHandler(ctSort,setCtSort)} />
@@ -2110,7 +2110,7 @@ function PerfView({ user }) {
                   <span style={{marginLeft:'auto',fontSize:13,fontWeight:800,color:'#7c3aed'}}>{fmtN(autoTotal)}원</span>
                 </div>
                 <div className="tbl-wrap">
-                  <table>
+                  <table className="tbl-compact">
                     <thead>
                       <tr>
                         <th>용역명</th>
@@ -2171,7 +2171,7 @@ function PerfView({ user }) {
               <div style={{marginBottom:20}}>
                 <div className="st" style={{marginBottom:8}}>📋 예정 수금 ({upcoming.length}건)</div>
                 <div className="tbl-wrap">
-                  <table>
+                  <table className="tbl-compact">
                     <thead>
                       <tr><th>용역명</th><th>예상 수금일</th><th className="tr">예상 금액</th><th>메모</th><th></th></tr>
                     </thead>
@@ -2227,7 +2227,7 @@ function PerfView({ user }) {
               <div>
                 <div className="st" style={{marginBottom:8,color:'#94a3b8'}}>✅ 수금완료 ({done.length}건)</div>
                 <div className="tbl-wrap">
-                  <table>
+                  <table className="tbl-compact">
                     <thead>
                       <tr><th>용역명</th><th>수금일</th><th className="tr">금액</th><th>메모</th><th></th></tr>
                     </thead>
@@ -3163,7 +3163,7 @@ const PageView = PerfView;
 //   admin-staff.html    → 'st'
 const PORTAL_PAGES = [
   { key:'wl', label:'📝 업무일지', href:'admin-worklog.html', need:'access' },
-  { key:'pf', label:'📊 실적관리', href:'admin-perf.html',    need:'access' },
+  { key:'pf', label:'📊 수금관리', href:'admin-perf.html',    need:'access' },
   { key:'sl', label:'💼 급여관리', href:'admin-salary.html',  need:'sal'    },
   { key:'ab', label:'🔑 계정관리', href:'admin-account.html', need:'ab'     },
   { key:'st', label:'👥 직원관리', href:'admin-staff.html',   need:'access' },
