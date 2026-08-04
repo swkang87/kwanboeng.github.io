@@ -135,7 +135,16 @@ const EV_C={
 const evc=t=>EV_C[t]||EV_C['기타'];
 
 // ── 팀 색상 ──────────────────────────────────────────
-const TCOL={'설계1팀':'#2563eb','설계2팀':'#059669','지반팀':'#d97706','관리팀':'#7c3aed'};
+// ── 팀 색상 (config.js 주입) ──────────────────────────────
+// 팀 구성과 색상은 회사마다 다르므로 config.js TEAM_COLORS 에서 관리한다.
+const _HC=(typeof window!=='undefined'&&window.APP_CONFIG)||{};
+const TEAM_COLORS=_HC.TEAM_COLORS||{};
+const TEAM_COLOR_DEFAULT=_HC.TEAM_COLOR_DEFAULT||'#94a3b8';
+// 팀명 → 색상. 매핑에 없거나 팀 미배정(null/undefined/'')이면 DEFAULT
+const teamColorOf=(name)=>{
+  if(!name)return TEAM_COLOR_DEFAULT;
+  return TEAM_COLORS[name]||TEAM_COLOR_DEFAULT;
+};
 
 // ── LoginScreen → sysbar.js createLoginComponent 로 일원화 ──
 const LoginScreen = Sysbar.createLoginComponent(React, { blockedRoles: [] });
@@ -304,11 +313,11 @@ function CalendarView({user,teamName}){
   const teamById = useMemo(()=>{const m=new Map();for(const t of teams)m.set(t.id,t);return m;},[teams]);
   const userColorById = useMemo(()=>{
     const m=new Map();
-    for(const u of users){const t=teamById.get(u.team_id);m.set(u.id,TCOL[t?.name]||'#94a3b8');}
+    for(const u of users){const t=teamById.get(u.team_id);m.set(u.id,teamColorOf(t&&t.name));}
     return m;
   },[users,teamById]);
 
-  const tColor=uid=>userColorById.get(uid)||'#94a3b8';
+  const tColor=uid=>userColorById.get(uid)||TEAM_COLOR_DEFAULT;
 
   const lvLabel=l=>{
     const d=Number(l.days);const u=userById.get(l.user_id);const nm=u?.name||'';

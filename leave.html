@@ -165,6 +165,60 @@ const typeLabel=(type,days)=>{
   return d<1?daysLabel(d):`${type} ${daysLabel(d)}`;
 };
 
+// ── 캘린더 칩 설정 (config.js 주입) ────────────────────────
+// LEAVE_CALENDAR_MAX_VISIBLE : null=전원 표시, 숫자=초과분 '+N' 접기
+// LEAVE_CALENDAR_CHIP_COLUMNS: 칩 배치 열 수 (모바일은 폭 부족으로 항상 1열)
+const _LC=(typeof window!=='undefined'&&window.APP_CONFIG)||{};
+const CAL_MAX_VISIBLE=(_LC.LEAVE_CALENDAR_MAX_VISIBLE===undefined)?null:_LC.LEAVE_CALENDAR_MAX_VISIBLE;
+const CAL_CHIP_COLUMNS=_LC.LEAVE_CALENDAR_CHIP_COLUMNS||1;
+const CAL_CELL_MIN_HEIGHT=_LC.LEAVE_CALENDAR_CELL_MIN_HEIGHT||62;
+const CAL_MOBILE_MAX=_LC.MOBILE_MAX_WIDTH||768;
+
+// ── 팀 색상 (config.js 주입) ──────────────────────────────
+// 팀 구성과 색상은 회사마다 다르므로 config.js TEAM_COLORS 에서 관리한다.
+const CAL_TEAM_COLORS=_LC.TEAM_COLORS||{};
+const CAL_TEAM_COLOR_DEFAULT=_LC.TEAM_COLOR_DEFAULT||'#94a3b8';
+const CAL_NAME_MAX=(_LC.LEAVE_CALENDAR_NAME_MAX_CHARS===undefined)?3:_LC.LEAVE_CALENDAR_NAME_MAX_CHARS;
+
+// 팀명 → 색상. 매핑에 없거나 팀 미배정(null/undefined/'')이면 DEFAULT
+const teamColorOf=(name)=>{
+  if(!name)return CAL_TEAM_COLOR_DEFAULT;
+  return CAL_TEAM_COLORS[name]||CAL_TEAM_COLOR_DEFAULT;
+};
+
+// 표시 대상 자르기 — MAX_VISIBLE 이 null 이면 원본 그대로(전원 표시)
+const calVisible=(list)=>(CAL_MAX_VISIBLE===null?list:list.slice(0,CAL_MAX_VISIBLE));
+const calHidden=(list)=>(CAL_MAX_VISIBLE===null?0:Math.max(0,list.length-CAL_MAX_VISIBLE));
+
+// 칩 컨테이너 — 2열 설정이고 데스크톱일 때만 grid, 그 외엔 기존 세로 쌓기 유지
+const calChipWrap=(compact)=>{
+  const cols=compact?1:CAL_CHIP_COLUMNS;
+  if(cols<2)return null;
+  return{display:'grid',gridTemplateColumns:`repeat(${cols},minmax(0,1fr))`,gap:'0 2px'};
+};
+
+// 좁은 화면용 축약 라벨 — 이름 CAL_NAME_MAX 자 절단 + 반차 태그 (4H)→·4
+const calLabelC=(p,compact)=>{
+  if(!compact)return calLabel(p);
+  const d=Number(p.days);
+  let nm=p.name||'';
+  if(CAL_NAME_MAX!==null&&nm.length>CAL_NAME_MAX)nm=nm.slice(0,CAL_NAME_MAX);
+  if(d>=1)return nm;
+  const h=d<=0.25?'2':'4';
+  return p.type==='공가'?`${nm}·공${h}`:`${nm}·${h}`;
+};
+
+// 캘린더 칩 축약 여부 (MOBILE_MAX_WIDTH 이하)
+function useCalCompact(){
+  const [c,setC]=useState(typeof window!=='undefined'&&window.innerWidth<=CAL_MOBILE_MAX);
+  useEffect(()=>{
+    const h=()=>setC(window.innerWidth<=CAL_MOBILE_MAX);
+    window.addEventListener('resize',h);
+    return()=>window.removeEventListener('resize',h);
+  },[]);
+  return c;
+}
+
 // ── 비밀번호 해싱 → sysbar.js Sysbar.Auth 에 위임 ─────────
 
 // ── 랜덤 초기 비밀번호 생성 (숫자 6자리) ──────────────────
@@ -267,6 +321,7 @@ function EmpDashboard({user,leaves,onNav}){
 
 // ── MiniCal (연차신청용 달력 피커) ───────────────────────
 function MiniCal({yr,mo,onPrev,onNext,start,end,hoverDate,onHover,onDayClick,singleMode,teamLeaves,users,myId}){
+  const compact=useCalCompact();
   const WD=['일','월','화','수','목','금','토'];
   const dim=new Date(yr,mo+1,0).getDate();
   const fd=new Date(yr,mo,1).getDay();
@@ -307,8 +362,10 @@ function MiniCal({yr,mo,onPrev,onNext,start,end,hoverDate,onHover,onDayClick,sin
               <div style={{fontSize:12,fontWeight:isSel||isToday?700:400,color:isSel?'white':dc}}>{dn}</div>
               {HOLIDAYS[d]&&<div style={{fontSize:7,color:isSel?'#bfdbfe':'#dc2626',lineHeight:1.2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{HOLIDAYS[d]}</div>}
               {SUBSTITUTE[d]&&<div style={{fontSize:7,color:isSel?'#bfdbfe':'#dc2626',lineHeight:1.2}}>대체공휴일</div>}
-              {dayPeople.slice(0,2).map((l,j)=>{const u=users.find(x=>x.id===l.user_id);const isMe=l.user_id===myId;return<div key={j} style={{fontSize:7,background:isMe?'#dbeafe':'#fef9c3',color:isMe?'#1e40af':'#92400e',borderRadius:2,margin:'1px 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:isMe?700:400}}>{calLabel({name:u?.name||'',type:l.type,days:l.days})}</div>;})}
-              {dayPeople.length>2&&<div style={{fontSize:7,color:'#94a3b8'}}>+{dayPeople.length-2}</div>}
+              <div style={calChipWrap(compact)}>
+                {calVisible(dayPeople).map((l,j)=>{const u=users.find(x=>x.id===l.user_id);const isMe=l.user_id===myId;return<div key={j} style={{fontSize:7,lineHeight:1.3,background:isMe?'#dbeafe':'#fef9c3',color:isMe?'#1e40af':'#92400e',borderRadius:2,margin:'1px 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:isMe?700:400}}>{calLabelC({name:(u&&u.name)||'',type:l.type,days:l.days},compact)}</div>;})}
+              </div>
+              {calHidden(dayPeople)>0&&<div style={{fontSize:7,color:'#94a3b8'}}>+{calHidden(dayPeople)}</div>}
             </div>
           );
         })}
@@ -504,18 +561,18 @@ function HistoryView({user,leaves,onRefresh}){
 
 // ── Calendar ──────────────────────────────────────────────
 function CalView({users,teams,leaves}){
+  const compact=useCalCompact();
   const now=new Date();
   const [yr,setYr]=useState(now.getFullYear());
   const [mo,setMo]=useState(now.getMonth());
   const [sel,setSel]=useState(null);
   const [tab,setTab]=useState('month');
   const WD=['일','월','화','수','목','금','토'];
-  const TEAM_COLORS={'설계1팀':'#2563eb','설계2팀':'#059669','지반팀':'#d97706','관리팀':'#7c3aed'};
   // ── 인덱싱 (셀별 find 반복 제거) ──
   const userById=useMemo(()=>{const m=new Map();for(const u of users)m.set(u.id,u);return m;},[users]);
   const teamById=useMemo(()=>{const m=new Map();for(const t of teams)m.set(t.id,t);return m;},[teams]);
-  const userColorById=useMemo(()=>{const m=new Map();for(const u of users){const t=teamById.get(u.team_id);m.set(u.id,TEAM_COLORS[t?.name]||'#94a3b8');}return m;},[users,teamById]);
-  const getTeamColor=uid=>userColorById.get(uid)||'#94a3b8';
+  const userColorById=useMemo(()=>{const m=new Map();for(const u of users){const t=teamById.get(u.team_id);m.set(u.id,teamColorOf(t&&t.name));}return m;},[users,teamById]);
+  const getTeamColor=uid=>userColorById.get(uid)||CAL_TEAM_COLOR_DEFAULT;
   const approved=useMemo(()=>leaves.filter(l=>l.status==='approved'),[leaves]);
   const getDayPeople=ds=>{
     const out=[];
@@ -523,7 +580,7 @@ function CalView({users,teams,leaves}){
       const u=userById.get(l.user_id);
       if(!u?.team_id) continue;
       if(l.start_date<=ds && (l.end_date||l.start_date)>=ds){
-        out.push({name:u.name||'',color:userColorById.get(l.user_id)||'#94a3b8',type:l.type,days:l.days,time:l.start_time?`${l.start_time.slice(0,5)}~${l.end_time.slice(0,5)}`:null});
+        out.push({name:u.name||'',color:userColorById.get(l.user_id)||CAL_TEAM_COLOR_DEFAULT,type:l.type,days:l.days,time:l.start_time?`${l.start_time.slice(0,5)}~${l.end_time.slice(0,5)}`:null});
       }
     }
     return out;
@@ -590,13 +647,15 @@ function CalView({users,teams,leaves}){
                 :(isHolDay?'#f87171':dow===0?'#f87171':dow===6?'#93c5fd':'#b0b8c4');
               const displayDn=valid?dn:otherDn;
               return(
-                <div key={i} onClick={()=>valid&&setSel(sel===ds?null:ds)} style={{minHeight:62,padding:'2px',borderRadius:5,cursor:valid?'pointer':'default',background:bg,border}}>
+                <div key={i} onClick={()=>valid&&setSel(sel===ds?null:ds)} style={{minHeight:CAL_CELL_MIN_HEIGHT,padding:'2px',borderRadius:5,cursor:valid?'pointer':'default',background:bg,border}}>
                   <div style={{fontSize:10,fontWeight:(valid&&(isTday||isHolDay))?700:400,color:numColor}}>{displayDn}</div>
                   {hol&&<div style={{fontSize:8,color:valid?'#dc2626':'#f87171',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>{hol}</div>}
                   {sub&&<div style={{fontSize:8,color:valid?'#dc2626':'#f87171',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>대체공휴일</div>}
                   {valid&&(<>
-                    {people.slice(0,2).map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:2,padding:'1px 2px',fontSize:8,marginBottom:1,overflow:'hidden',whiteSpace:'nowrap'}}>{calLabel(p)}</div>)}
-                    {people.length>2&&<div style={{fontSize:8,color:'#94a3b8'}}>+{people.length-2}</div>}
+                    <div style={calChipWrap(compact)}>
+                      {calVisible(people).map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:2,padding:'0 2px',fontSize:compact?7:8,lineHeight:1.35,marginBottom:1,overflow:'hidden',whiteSpace:'nowrap'}}>{calLabelC(p,compact)}</div>)}
+                    </div>
+                    {calHidden(people)>0&&<div style={{fontSize:compact?7:8,color:'#94a3b8'}}>+{calHidden(people)}</div>}
                   </>)}
                 </div>
               );
@@ -669,10 +728,10 @@ function CalView({users,teams,leaves}){
       <div style={{...card,marginTop:4}}>
         <p style={{margin:'0 0 7px',fontSize:11,fontWeight:600,color:'#374151'}}>팀별 색상</p>
         <div style={{display:'flex',flexWrap:'wrap',gap:10}}>
-          {[{name:'설계1팀',color:'#2563eb'},{name:'설계2팀',color:'#059669'},{name:'지반팀',color:'#d97706'},{name:'관리팀',color:'#7c3aed'}].map(t=>(
-            <div key={t.name} style={{display:'flex',alignItems:'center',gap:5}}>
-              <div style={{width:10,height:10,borderRadius:3,background:t.color}}/>
-              <span style={{fontSize:11,color:'#374151'}}>{t.name}</span>
+          {Object.keys(CAL_TEAM_COLORS).map(tn=>(
+            <div key={tn} style={{display:'flex',alignItems:'center',gap:5}}>
+              <div style={{width:10,height:10,borderRadius:3,background:teamColorOf(tn)}}/>
+              <span style={{fontSize:11,color:'#374151'}}>{tn}</span>
             </div>
           ))}
         </div>

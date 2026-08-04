@@ -229,6 +229,50 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - WeeklyReport는 완료 용역 포함 전체 데이터를 받아야 `completed_at` 기반 과거 주 표시가 동작함.
 - 완료 용역의 표시/숨김은 `sortedProjects` 필터 하단 `p.status === '완료'` 분기에서 `completed_at >= selWeek` 조건으로 결정.
 
+### leave.html 캘린더 연차자 전원 표시 (+N 접기 제거, 칩 축소)
+- **문제**: 하루 3명 이상이면 `slice(0,2)` + `+N`으로 접혀 한눈에 안 들어옴.
+- **대상 2곳**: `CalView` 월간 탭 칩(구 598행), `MiniCal` 연차신청 피커 칩(구 310행).
+  `CalView` **주간 탭(구 622행)은 원래 자르기가 없어 무변경**.
+- **config.js 신규 3키**(MOBILE_MAX_WIDTH 아래 '연차 캘린더' 섹션):
+  `LEAVE_CALENDAR_MAX_VISIBLE`(null=전원 표시) / `LEAVE_CALENDAR_CHIP_COLUMNS`(1|2) /
+  `LEAVE_CALENDAR_CELL_MIN_HEIGHT`(62).
+- **모듈 헬퍼**(typeLabel 아래 신설): `calVisible`/`calHidden`(MAX_VISIBLE null이면 전체·0 반환),
+  `calChipWrap(compact)`(2열 설정 + 데스크톱일 때만 grid 반환, 그 외 null → 기존 세로 쌓기),
+  `calLabelC(p,compact)`(compact면 이름 3자 절단 + `(4H)`→`·4`, 아니면 기존 `calLabel` 위임),
+  `useCalCompact()` 훅(`MOBILE_MAX_WIDTH` 이하 판정 + resize 리스너).
+  `_LC`는 `window.APP_CONFIG` 참조 — config.js가 19행, babel 블록이 25행이라 로드 순서 안전.
+- **칩 축소**: 월간 `padding:'1px 2px'→'0 2px'` + `lineHeight:1.35` + 모바일 `fontSize 8→7` → 1인 11px→약 9px.
+  MiniCal은 `lineHeight:1.3` 추가(fontSize 7 유지).
+- **스크롤 없음(의도)**: 카드에 `maxHeight`/`overflow` 미적용 — 인원 많은 날은 셀이 자동 확장되고
+  페이지가 아래로 길어짐. 월간 달력은 내부 스크롤 시 요일 헤더가 잘려 오히려 불편해서 배제.
+- **2열은 키만 준비, 기본 1열**: 컨테이너 `maxWidth:900` 기준 데스크톱 셀 폭 약 121px(2열 가능),
+  모바일 390px에서 약 48px(2열 불가) → `calChipWrap`이 compact면 강제 1열.
+- MiniCal 재작성 줄의 `u?.name` → `(u&&u.name)||''`로 교체(신규 코드 `?.` 미사용 원칙).
+  ※ 이 파일 babel-standalone은 `data-presets="react"`만이라 `?.`는 트랜스파일 없이 통과 —
+  기존 `?.` 사용부(구 524행 등)는 정상 동작하므로 건드리지 않음.
+- 검증: 중괄호 1484/1484 balance, `slice(0,2)` 잔여 0건, Babel(preset-react+env) 트랜스파일 PASS,
+  config.js 문법 OK. 백업 `backup/leave_20260804.html`.
+- ~~미이관: `TEAM_COLORS` 하드코딩~~ → 아래 「팀 색상 config 이관」에서 해소됨.
+
+### 팀 색상 config 이관 (TEAM_COLORS 전역 키, leave.html + home.html)
+- **분기 판단 결과 = A (전역 키)**: 저장소 전수 검색 결과 팀 색상 매핑이 **2개 파일에 복제**되어 있었음 —
+  `leave.html:559` `TEAM_COLORS` / `home.html:138` `TCOL`. 값·구조·폴백까지 100% 동일.
+  → `LEAVE_` 접두어 대신 **전역 `TEAM_COLORS` / `TEAM_COLOR_DEFAULT`** 로 신설하고 두 파일 모두 config 참조로 통일.
+  ⚠️ config.js 내 위치도 「연차 캘린더」가 아닌 **별도 「팀 색상(Team Colors)」 섹션** — leave 전용이 아니므로.
+- **config.js 신규**: `TEAM_COLORS`(팀명→색상 4건) + `TEAM_COLOR_DEFAULT:'#94a3b8'` + 「연차 캘린더」 섹션에
+  `LEAVE_CALENDAR_NAME_MAX_CHARS: 3`(null이면 절단 없음).
+  ※ config.js 최초의 **평범한 key→value 객체 맵** — 기존엔 `MENUS`(객체 배열)/`PAYMENT_METHODS`(문자열 배열)뿐이었음.
+- **공통 헬퍼 `teamColorOf(name)`**: 두 파일에 각각 신설(파일 간 공유 모듈이 없는 구조라 중복 정의가 정상).
+  `if(!name) return DEFAULT` → 팀 미배정(null/undefined/'')과 매핑 미스를 한 경로로 처리.
+  leave는 `CAL_TEAM_COLORS`/`CAL_TEAM_COLOR_DEFAULT`/`CAL_NAME_MAX`, home은 `_HC`/`TEAM_COLORS`/`TEAM_COLOR_DEFAULT`.
+- **교체 지점**: leave.html 4곳(지역 맵 정의 삭제 / `userColorById` / `getTeamColor` / `getDayPeople`의 color)
+  + **'팀별 색상' 범례**(구 720행) — 이게 사실상 **3번째 중복 매핑**이었고 `Object.keys(CAL_TEAM_COLORS)` 기반으로 교체돼
+  이제 config에 팀을 추가하면 범례가 자동 반영됨. home.html 3곳(`TCOL` 정의 / `userColorById` / `tColor`).
+- 재작성한 줄의 `t?.name` → `(t&&t.name)` 교체(신규 코드 `?.` 미사용 원칙).
+- 검증: 중괄호 balance leave 1481/1481·home 645/645·config 6/6, Babel(preset-react+env) 두 파일 PASS,
+  config.js 문법 OK. 팀 **색상** 매핑 잔여 0건. 백업 `backup/leave_20260804_2.html`(같은 날 2차라 `_2` 접미),
+  `backup/home_20260804.html`, `backup/config_20260804.js`.
+
 ---
 
 ## ❕ 패턴·원칙
@@ -241,6 +285,22 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   자가변경, 별도 authClient 세션). 용도가 다른 독립 플로우 — 중복 아님, 삭제 금지.
 
 ---
+
+## 🔲 미완료 — 팀 목록 중복 소스 정리 (화이트라벨)
+
+`config.js`에 **팀 목록(`TEAMS` 등) 키는 없음**. 이번에 `TEAM_COLORS`를 만들면서 그 **키 순서가 사실상
+팀 목록·정렬순서 역할**을 하게 되어, 아래 하드코딩들과 **중복 소스**가 생겼다. 향후 `TEAMS` 단일 소스로 통합 필요.
+
+| 파일 | 라인 | 내용 | 성격 |
+|---|---|---|---|
+| `leave.html` | 961·1020 | `TEAM_ORDER=['설계1팀','설계2팀','지반팀','관리팀']` | 정렬 순서 (2곳 중복) |
+| `admin-staff.html` | 489 | `TEAM_ORDER={'관리팀':0,'설계1팀':1,'설계2팀':2,'지반팀':3,'기술지원':4}` | 정렬 순서 |
+| `worklog.html` | 427 | `ALLOWED_TEAMS=['설계1팀','설계2팀','지반팀']` | 접근 허용 팀 |
+| `admin-worklog.html` | 549 | `teams.find(t=>t.name==='관리팀')` | `ADMIN_TEAM_NAME` 미참조 |
+
+⚠️ **`admin-staff.html`의 '기술지원' 팀이 `TEAM_COLORS`에는 없음** — 해당 팀원은 캘린더에서
+`TEAM_COLOR_DEFAULT`(회색)로 표시됨. 실재하는 팀이면 config에 색상을 추가할 것.
+이번 작업 범위(색상 매핑 + 이름 절단)에는 포함하지 않음.
 
 ## 🔲 미완료 — 대시보드 작업 필요
 
