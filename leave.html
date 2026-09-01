@@ -154,11 +154,11 @@ const fmtDT=s=>{
   return`${kst.getUTCFullYear()}.${String(kst.getUTCMonth()+1).padStart(2,'0')}.${String(kst.getUTCDate()).padStart(2,'0')} ${String(kst.getUTCHours()).padStart(2,'0')}:${String(kst.getUTCMinutes()).padStart(2,'0')}`;
 };
 
+// 칩 라벨 — 시간(2H/4H)은 바 길이로 표현하므로 이름만 표시. 공가 마커만 유지
 const calLabel=(p)=>{
   const d=Number(p.days);
   if(d>=1)return p.name;
-  const tag=d<=0.25?'2H':'4H';
-  return p.type==='공가'?`${p.name}(공가·${tag})`:`${p.name}(${tag})`;
+  return p.type==='공가'?`${p.name}(공가)`:p.name;
 };
 const typeLabel=(type,days)=>{
   const d=Number(days);
@@ -180,6 +180,32 @@ const CAL_TEAM_COLORS=_LC.TEAM_COLORS||{};
 const CAL_TEAM_COLOR_DEFAULT=_LC.TEAM_COLOR_DEFAULT||'#94a3b8';
 const CAL_NAME_MAX=(_LC.LEAVE_CALENDAR_NAME_MAX_CHARS===undefined)?3:_LC.LEAVE_CALENDAR_NAME_MAX_CHARS;
 
+// ── 휴가 바 길이 (config.js 주입) ─────────────────────────
+// days(일 단위 소수) → 시간 → 바 폭. 반차 기준시간이 다른 회사는 config 만 고치면 된다.
+const CAL_DAY_HOURS=_LC.LEAVE_DAY_HOURS||8;
+const CAL_BAR_WIDTH=_LC.LEAVE_BAR_WIDTH||{};
+const CAL_BAR_LABEL=_LC.LEAVE_BAR_LABEL||{};
+const CAL_BAR_MIN_WIDTH=_LC.LEAVE_BAR_MIN_WIDTH||40;
+const CAL_MAX_WIDTH=_LC.LEAVE_CALENDAR_MAX_WIDTH||900;
+// 범례용 — 시간 내림차순 키 목록 + 샘플 바가 놓일 기준폭(px)
+const CAL_BAR_LEGEND=Object.keys(CAL_BAR_LABEL).sort((a,b)=>Number(b)-Number(a));
+const CAL_LEGEND_BAR_MAX=100;
+
+// 바 가로 길이 — days>=1 은 무조건 100%
+// (기간 신청은 days 가 전체 합계라 하루치 비율로 쓰면 안 됨. 3일 연차 = days 3)
+const calBarWidth=(p)=>{
+  const d=Number(p.days);
+  if(!(d<1))return '100%';
+  const h=String(Math.round(d*CAL_DAY_HOURS));
+  return CAL_BAR_WIDTH[h]||'100%';
+};
+
+// 바 title(호버 툴팁) — 이름 · 종류 · 시간
+const calBarTitle=(p)=>{
+  const t=`${p.name} · ${typeLabel(p.type,p.days)}`;
+  return p.time?`${t} · ${p.time}`:t;
+};
+
 // 팀명 → 색상. 매핑에 없거나 팀 미배정(null/undefined/'')이면 DEFAULT
 const teamColorOf=(name)=>{
   if(!name)return CAL_TEAM_COLOR_DEFAULT;
@@ -197,15 +223,14 @@ const calChipWrap=(compact)=>{
   return{display:'grid',gridTemplateColumns:`repeat(${cols},minmax(0,1fr))`,gap:'0 2px'};
 };
 
-// 좁은 화면용 축약 라벨 — 이름 CAL_NAME_MAX 자 절단 + 반차 태그 (4H)→·4
+// 좁은 화면용 축약 라벨 — 이름 CAL_NAME_MAX 자 절단. 시간 태그는 바 길이로 대체
 const calLabelC=(p,compact)=>{
   if(!compact)return calLabel(p);
   const d=Number(p.days);
   let nm=p.name||'';
   if(CAL_NAME_MAX!==null&&nm.length>CAL_NAME_MAX)nm=nm.slice(0,CAL_NAME_MAX);
   if(d>=1)return nm;
-  const h=d<=0.25?'2':'4';
-  return p.type==='공가'?`${nm}·공${h}`:`${nm}·${h}`;
+  return p.type==='공가'?`${nm}·공`:nm;
 };
 
 // 캘린더 칩 축약 여부 (MOBILE_MAX_WIDTH 이하)
@@ -217,6 +242,39 @@ function useCalCompact(){
     return()=>window.removeEventListener('resize',h);
   },[]);
   return c;
+}
+
+// 콘텐츠 래퍼 좌우 여백(px) — 확장 시 화면 가장자리에 붙지 않도록 남기는 간격
+const CAL_WIDEN_GUTTER=12;
+
+// 캘린더 화면 전용 폭 확장 — 공통 래퍼 밖으로 대칭 음수마진만큼 넓힌다.
+// 기준폭(base)은 현재 적용된 마진을 되돌려 실측하므로 공통 래퍼의 maxWidth 값을 중복 보유하지 않는다.
+// 화면이 좁으면 확장량이 0으로 클램프되어 가로 넘침이 생기지 않는다.
+function useCalWiden(){
+  const ref=useRef(null);
+  const gRef=useRef(0);
+  const [g,setG]=useState(0);
+  useEffect(()=>{
+    const calc=()=>{
+      const el=ref.current;
+      if(!el)return;
+      if(window.innerWidth<=CAL_MOBILE_MAX){
+        if(gRef.current!==0){gRef.current=0;setG(0);}
+        return;
+      }
+      // 현재 폭에서 적용 중인 음수마진을 빼면 래퍼가 허용하는 원래 폭이 나온다
+      const base=el.getBoundingClientRect().width-gRef.current*2;
+      // 뷰포트 폭은 documentElement.clientWidth 사용(세로 스크롤바 너비 제외됨)
+      const vw=document.documentElement.clientWidth||window.innerWidth;
+      const avail=Math.min(CAL_MAX_WIDTH,vw-CAL_WIDEN_GUTTER*2);
+      const next=Math.max(0,Math.round((avail-base)/2));
+      if(next!==gRef.current){gRef.current=next;setG(next);}
+    };
+    calc();
+    window.addEventListener('resize',calc);
+    return()=>window.removeEventListener('resize',calc);
+  },[]);
+  return[ref,g?{marginLeft:-g,marginRight:-g}:null];
 }
 
 // ── 비밀번호 해싱 → sysbar.js Sysbar.Auth 에 위임 ─────────
@@ -562,6 +620,7 @@ function HistoryView({user,leaves,onRefresh}){
 // ── Calendar ──────────────────────────────────────────────
 function CalView({users,teams,leaves}){
   const compact=useCalCompact();
+  const [wideRef,wideStyle]=useCalWiden();
   const now=new Date();
   const [yr,setYr]=useState(now.getFullYear());
   const [mo,setMo]=useState(now.getMonth());
@@ -601,7 +660,7 @@ function CalView({users,teams,leaves}){
   const todayStr=today();
 
   return(
-    <div>
+    <div ref={wideRef} style={wideStyle}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,flexWrap:'wrap',gap:6}}>
         <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:0}}>팀 캘린더</p>
         <div style={{display:'flex',gap:5}}>
@@ -653,7 +712,7 @@ function CalView({users,teams,leaves}){
                   {sub&&<div style={{fontSize:8,color:valid?'#dc2626':'#f87171',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>대체공휴일</div>}
                   {valid&&(<>
                     <div style={calChipWrap(compact)}>
-                      {calVisible(people).map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:2,padding:'0 2px',fontSize:compact?7:8,lineHeight:1.35,marginBottom:1,overflow:'hidden',whiteSpace:'nowrap'}}>{calLabelC(p,compact)}</div>)}
+                      {calVisible(people).map((p,pi)=><div key={pi} title={calBarTitle(p)} style={{background:p.color,color:'white',borderRadius:2,padding:'0 2px',fontSize:compact?(Number(p.days)<0.5?6:7):(Number(p.days)<0.5?7:8),lineHeight:1.35,marginBottom:1,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',width:calBarWidth(p),minWidth:compact?CAL_BAR_MIN_WIDTH:undefined,boxSizing:'border-box'}}>{calLabelC(p,compact)}</div>)}
                     </div>
                     {calHidden(people)>0&&<div style={{fontSize:compact?7:8,color:'#94a3b8'}}>+{calHidden(people)}</div>}
                   </>)}
@@ -678,7 +737,7 @@ function CalView({users,teams,leaves}){
                   <div style={{fontSize:11,fontWeight:700,color:numColor,marginBottom:2}}>{WD[dow]} {dn}</div>
                   {hol&&<div style={{fontSize:8,color:'#dc2626',fontWeight:600,marginBottom:2}}>{hol}</div>}
                   {sub&&<div style={{fontSize:8,color:'#dc2626',fontWeight:600,marginBottom:2}}>대체공휴일</div>}
-                  {people.map((p,pi)=><div key={pi} style={{background:p.color,color:'white',borderRadius:3,padding:'1px 4px',fontSize:9,marginBottom:2}}>{calLabel(p)}</div>)}
+                  {people.map((p,pi)=><div key={pi} title={calBarTitle(p)} style={{background:p.color,color:'white',borderRadius:3,padding:'1px 4px',fontSize:Number(p.days)<0.5?8:9,marginBottom:2,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',width:calBarWidth(p),boxSizing:'border-box'}}>{calLabel(p)}</div>)}
                   {people.length===0&&!isHolDay&&<div style={{fontSize:10,color:'#cbd5e1'}}>—</div>}
                 </div>
               );
@@ -732,6 +791,19 @@ function CalView({users,teams,leaves}){
             <div key={tn} style={{display:'flex',alignItems:'center',gap:5}}>
               <div style={{width:10,height:10,borderRadius:3,background:teamColorOf(tn)}}/>
               <span style={{fontSize:11,color:'#374151'}}>{tn}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{...card,marginTop:4}}>
+        <p style={{margin:'0 0 7px',fontSize:11,fontWeight:600,color:'#374151'}}>휴가 종류</p>
+        <div style={{display:'flex',flexDirection:compact?'column':'row',flexWrap:compact?'nowrap':'wrap',gap:compact?6:14}}>
+          {CAL_BAR_LEGEND.map(h=>(
+            <div key={h} style={{display:'flex',alignItems:'center',gap:6}}>
+              <div style={{width:CAL_LEGEND_BAR_MAX,flexShrink:0}}>
+                <div style={{width:CAL_BAR_WIDTH[h]||'100%',height:10,borderRadius:2,background:CAL_TEAM_COLOR_DEFAULT}}/>
+              </div>
+              <span style={{fontSize:11,color:'#374151'}}>{CAL_BAR_LABEL[h]}</span>
             </div>
           ))}
         </div>
