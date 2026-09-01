@@ -158,7 +158,9 @@ const fmtDT=s=>{
 const calLabel=(p)=>{
   const d=Number(p.days);
   if(d>=1)return p.name;
-  return p.type==='공가'?`${p.name}(공가)`:p.name;
+  const tag=CAL_BAR_TAG[calHourKey(d)];
+  if(!tag)return p.type==='공가'?`${p.name}(공가)`:p.name;
+  return p.type==='공가'?`${p.name}(공가·${tag})`:`${p.name}(${tag})`;
 };
 const typeLabel=(type,days)=>{
   const d=Number(days);
@@ -185,6 +187,7 @@ const CAL_NAME_MAX=(_LC.LEAVE_CALENDAR_NAME_MAX_CHARS===undefined)?3:_LC.LEAVE_C
 const CAL_DAY_HOURS=_LC.LEAVE_DAY_HOURS||8;
 const CAL_BAR_WIDTH=_LC.LEAVE_BAR_WIDTH||{};
 const CAL_BAR_LABEL=_LC.LEAVE_BAR_LABEL||{};
+const CAL_BAR_TAG=_LC.LEAVE_BAR_TAG||{};
 const CAL_BAR_MIN_WIDTH=(_LC.LEAVE_BAR_MIN_WIDTH===undefined)?0:_LC.LEAVE_BAR_MIN_WIDTH;
 const CAL_MAX_WIDTH=_LC.LEAVE_CALENDAR_MAX_WIDTH||900;
 // 범례용 — 시간 내림차순 키 목록 + 샘플 바가 놓일 기준폭(px)
@@ -193,11 +196,13 @@ const CAL_LEGEND_BAR_MAX=100;
 
 // 바 가로 길이 — days>=1 은 무조건 100%
 // (기간 신청은 days 가 전체 합계라 하루치 비율로 쓰면 안 됨. 3일 연차 = days 3)
+// days(일) → 시간 문자열 키. 폭·태그 맵이 같은 기준을 쓰도록 공유한다
+const calHourKey=(d)=>String(Math.round(d*CAL_DAY_HOURS));
+
 const calBarWidth=(p)=>{
   const d=Number(p.days);
   if(!(d<1))return '100%';
-  const h=String(Math.round(d*CAL_DAY_HOURS));
-  return CAL_BAR_WIDTH[h]||'100%';
+  return CAL_BAR_WIDTH[calHourKey(d)]||'100%';
 };
 
 // 바 title(호버 툴팁) — 이름 · 종류 · 시간
@@ -230,7 +235,10 @@ const calLabelC=(p,compact)=>{
   let nm=p.name||'';
   if(CAL_NAME_MAX!==null&&nm.length>CAL_NAME_MAX)nm=nm.slice(0,CAL_NAME_MAX);
   if(d>=1)return nm;
-  return p.type==='공가'?`${nm}·공`:nm;
+  const tag=CAL_BAR_TAG[calHourKey(d)];
+  if(!tag)return p.type==='공가'?`${nm}·공`:nm;
+  const h=tag.replace(/[Hh]$/,'');
+  return p.type==='공가'?`${nm}·공${h}`:`${nm}·${h}`;
 };
 
 // 캘린더 칩 축약 여부 (MOBILE_MAX_WIDTH 이하)
