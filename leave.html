@@ -185,7 +185,7 @@ const CAL_NAME_MAX=(_LC.LEAVE_CALENDAR_NAME_MAX_CHARS===undefined)?3:_LC.LEAVE_C
 const CAL_DAY_HOURS=_LC.LEAVE_DAY_HOURS||8;
 const CAL_BAR_WIDTH=_LC.LEAVE_BAR_WIDTH||{};
 const CAL_BAR_LABEL=_LC.LEAVE_BAR_LABEL||{};
-const CAL_BAR_MIN_WIDTH=_LC.LEAVE_BAR_MIN_WIDTH||40;
+const CAL_BAR_MIN_WIDTH=(_LC.LEAVE_BAR_MIN_WIDTH===undefined)?0:_LC.LEAVE_BAR_MIN_WIDTH;
 const CAL_MAX_WIDTH=_LC.LEAVE_CALENDAR_MAX_WIDTH||900;
 // 범례용 — 시간 내림차순 키 목록 + 샘플 바가 놓일 기준폭(px)
 const CAL_BAR_LEGEND=Object.keys(CAL_BAR_LABEL).sort((a,b)=>Number(b)-Number(a));
@@ -712,7 +712,7 @@ function CalView({users,teams,leaves}){
                   {sub&&<div style={{fontSize:8,color:valid?'#dc2626':'#f87171',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>대체공휴일</div>}
                   {valid&&(<>
                     <div style={calChipWrap(compact)}>
-                      {calVisible(people).map((p,pi)=><div key={pi} title={calBarTitle(p)} style={{background:p.color,color:'white',borderRadius:2,padding:'0 2px',fontSize:compact?(Number(p.days)<0.5?6:7):(Number(p.days)<0.5?7:8),lineHeight:1.35,marginBottom:1,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',width:calBarWidth(p),minWidth:compact?CAL_BAR_MIN_WIDTH:undefined,boxSizing:'border-box'}}>{calLabelC(p,compact)}</div>)}
+                      {calVisible(people).map((p,pi)=><div key={pi} title={calBarTitle(p)} style={{background:p.color,color:'white',borderRadius:2,padding:'0 2px',fontSize:compact?7:8,lineHeight:1.35,marginBottom:1,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',width:calBarWidth(p),minWidth:CAL_BAR_MIN_WIDTH,boxSizing:'border-box'}}>{calLabelC(p,compact)}</div>)}
                     </div>
                     {calHidden(people)>0&&<div style={{fontSize:compact?7:8,color:'#94a3b8'}}>+{calHidden(people)}</div>}
                   </>)}
@@ -737,7 +737,7 @@ function CalView({users,teams,leaves}){
                   <div style={{fontSize:11,fontWeight:700,color:numColor,marginBottom:2}}>{WD[dow]} {dn}</div>
                   {hol&&<div style={{fontSize:8,color:'#dc2626',fontWeight:600,marginBottom:2}}>{hol}</div>}
                   {sub&&<div style={{fontSize:8,color:'#dc2626',fontWeight:600,marginBottom:2}}>대체공휴일</div>}
-                  {people.map((p,pi)=><div key={pi} title={calBarTitle(p)} style={{background:p.color,color:'white',borderRadius:3,padding:'1px 4px',fontSize:Number(p.days)<0.5?8:9,marginBottom:2,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',width:calBarWidth(p),boxSizing:'border-box'}}>{calLabel(p)}</div>)}
+                  {people.map((p,pi)=><div key={pi} title={calBarTitle(p)} style={{background:p.color,color:'white',borderRadius:3,padding:'1px 4px',fontSize:9,marginBottom:2,overflow:'hidden',whiteSpace:'nowrap',textOverflow:'ellipsis',width:calBarWidth(p),boxSizing:'border-box'}}>{calLabel(p)}</div>)}
                   {people.length===0&&!isHolDay&&<div style={{fontSize:10,color:'#cbd5e1'}}>—</div>}
                 </div>
               );
