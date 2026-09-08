@@ -529,9 +529,14 @@ ul { list-style:none; }
 
 /* 사업분야 상세페이지 진입 링크 — 카드는 <a class="svc"> 로 치환,
    .svc-more 는 링크가 걸린 카드에만 추가 */
-a.svc { display:block; color:inherit; text-decoration:none; cursor:pointer; }
+/* display:flex + margin-top:auto — 카드별 목록 길이가 달라도
+   진입 표시를 카드 바닥에 정렬 */
+a.svc {
+  display:flex; flex-direction:column;
+  color:inherit; text-decoration:none; cursor:pointer;
+}
 .svc-more {
-  margin-top:18px; text-align:right;
+  margin-top:auto; padding-top:18px; text-align:right;
   font-size:.74rem; font-weight:600; color:var(--navy2);
   letter-spacing:-.01em;
 }
