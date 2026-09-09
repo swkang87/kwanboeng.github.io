@@ -440,6 +440,10 @@ footer {
   letter-spacing:-.02em;
 }
 
+/* NEXT 만 있는 페이지(01) 대응 — 자식 1개일 때만 매칭 */
+.pg-nav a:only-child { grid-column:1 / -1; }
+.pg-nav .nx:only-child { border-left:none; }
+
 /* ── CTA 밴드 ── */
 .pg-cta {
   background:var(--navy);
@@ -489,6 +493,7 @@ footer {
   .proc-step::before { left:-44px; width:32px; height:32px; font-size:.8rem; }
   .pg-nav { grid-template-columns:1fr; }
   .pg-nav .nx { border-left:none; border-top:1px solid var(--border); align-items:flex-start; text-align:left; }
+  .pg-nav .nx:only-child { border-top:none; }
   .pg-nav a { padding:26px 22px; }
   .pg-cta { padding:56px 22px; }
 }
