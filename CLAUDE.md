@@ -326,3 +326,54 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 ### index.html 회사명·연락처 하드코딩 config 주입 전환
 title / footer / 연락처 등이 하드코딩된 상태.
 `APP_CONFIG`에서 주입하도록 전환하면 납품 체크리스트 항목 단축 가능 — 미해결.
+
+## [진행중] 사업분야 상세페이지 (2026-09-09 갱신)
+
+### 상태
+- **푸시 완료** (6167dc3, origin/main 동기화). 미푸시 커밋 0건.
+- 배포됨: page.css / page-common.js / service-geotech.html
+- index.html 02번 카드에 상세페이지 진입 링크 연결됨
+
+### 완료
+- 정적 검증 + 헤드리스 실측 + **육안 검증 전부 통과 → 디자인 확정**
+- service-geotech.html 이 나머지 5개의 확정 템플릿
+- 회사 주소 705호 → 301호 변경 (config.js / index.html 2곳 / page-common.js 폴백)
+
+### 다음
+1. 실서버(kwanboeng.com) 확인 — 폰트 로딩, 상대경로, 주소 3곳
+2. 나머지 5개 페이지 순차 생성
+   (survey / development / design / cm / utility)
+   → 각 페이지 생성 시 index.html 해당 카드도 <a class="svc"> 로 치환 +
+     .svc-more 추가
+3. service-geotech.html 이전/다음 링크를 실제 경로로 교체
+   (현재 index.html#services 임시 연결, TODO 주석 있음)
+
+### 화이트라벨 부채 (홈페이지)
+- index.html CONTACT(1331) / footer(1382) 주소·연락처 하드코딩
+  → APP_CONFIG 참조 전환 필요. index.html은 page-common.js를 로드하지
+    않으므로 별도 주입 코드 필요. 5개 페이지 완성 후 일괄 진행.
+- 지도 좌표(iframe q=, ll=, 카카오맵 링크)가 config.js에 없음.
+  LAT / LNG / MAP_QUERY 키 신설 필요. 화이트라벨 납품 시 반드시 걸림.
+- .footer-addr CSS가 index.html:742 와 page.css:207 에 중복 정의됨.
+- page-common.js footer 마크업이 index.html footer의 의도된 복제.
+  주소·연락처 변경 시 항상 3곳(config / index CONTACT / index footer)을
+  함께 확인할 것.
+
+### 설계 결정 (확정, 번복 금지)
+- 개별 파일 방식(A). 홈페이지는 화이트라벨링 대상 아님.
+- 파일명: service-survey / geotech / development / design / cm / utility .html
+- 히어로 그라데이션은 --h1/--h2 CSS 변수로만 차등 (02 = #0d2044 → #0f4c5c)
+- ERP 로그인 모달 로직은 index.html에만. page-common.js에 복제 금지.
+- .svc-more 색은 var(--navy2). --red 는 인증현황·실적 강조색.
+- 카드 링크는 래핑이 아니라 <a class="svc"> 치환 + display:flex +
+  margin-top:auto (stretch·바닥정렬 유지)
+- 상세페이지 문체: 실무자·발주처 대상 기술문서 톤, 이모지 금지.
+- 지하안전평가 전문기관: 「지하안전관리에 관한 특별법」 제25조 근거.
+  등록번호·등록일은 사이트에 노출하지 않음. "국토교통부 등록" 표현 금지.
+
+### 학습
+- 카드를 링크로 만들 때 래핑하면 align-items:stretch 가 <a>에만 걸려
+  해당 카드만 높이가 어긋남. 치환이 정답.
+- 레이아웃 검증은 콘텐츠를 임시로 늘려 최악 조건을 만들 것.
+  현재 데이터로만 보면 우연히 맞아떨어져 문제를 놓친다.
+  (.svc-more 바닥정렬 — 02번이 마침 1행 최장이라 block으로도 붙어 있었음)
