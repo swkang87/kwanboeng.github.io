@@ -76,7 +76,7 @@
 
   /* ── FOOTER 마크업 ──────────────────────────────────────── */
   function footerHTML() {
-    var addr = cfg('ADDRESS', '부산광역시 연제구 거제대로 270, 705호 (거제동, 종근당빌딩)');
+    var addr = cfg('ADDRESS', '부산광역시 연제구 거제대로 270, 301호 (거제동, 종근당빌딩)');
     var tel  = cfg('TEL', '051) 853-2633');
     var fax  = cfg('FAX', '051) 853-4893');
     var mail = cfg('EMAIL_DESIGN', 'kwanboeng@naver.com');
