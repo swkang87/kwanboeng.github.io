@@ -330,23 +330,31 @@ title / footer / 연락처 등이 하드코딩된 상태.
 ## [진행중] 사업분야 상세페이지 (2026-09-09 갱신)
 
 ### 상태
-- **푸시 완료** (6167dc3, origin/main 동기화). 미푸시 커밋 0건.
-- 배포됨: page.css / page-common.js / service-geotech.html
-- index.html 02번 카드에 상세페이지 진입 링크 연결됨
+- **푸시 완료** (1c011be, origin/main 동기화). 미푸시 커밋 0건.
+- 배포됨: page.css / page-common.js / service-geotech.html(02) / service-survey.html(01)
+- index.html 01·02번 카드에 상세페이지 진입 링크 연결됨
 
 ### 완료
 - 정적 검증 + 헤드리스 실측 + **육안 검증 전부 통과 → 디자인 확정**
-- service-geotech.html 이 나머지 5개의 확정 템플릿
+- service-geotech.html 이 나머지 페이지의 확정 템플릿
 - 회사 주소 705호 → 301호 변경 (config.js / index.html 2곳 / page-common.js 폴백)
+- **01 측량업(service-survey.html) 생성** — 히어로 #0a2f6b→#1c86b8,
+  세부업무 5 / 등록현황 4 / 장비·SW 2 / 프로세스 8단계.
+  문구는 '자체 수행' 표현 제거(일부 공정 외주 반영).
+- `page.css` `.pg-nav` 단일 링크 대응 규칙(`:only-child`, 5행) — 01처럼 PREV 없는 페이지용.
+- **법정용어 정정**: 사후지하안전조사 → 착공후지하안전조사
+  (「지하안전관리에 관한 특별법」 제20조, 2021.7.27 개정).
+  index.html 인증현황도 '지하안전영향평가' → '지하안전평가 전문기관 등록'.
 
 ### 다음
 1. 실서버(kwanboeng.com) 확인 — 폰트 로딩, 상대경로, 주소 3곳
-2. 나머지 5개 페이지 순차 생성
-   (survey / development / design / cm / utility)
+2. 나머지 4개 페이지 순차 생성
+   (development / design / cm / utility)
    → 각 페이지 생성 시 index.html 해당 카드도 <a class="svc"> 로 치환 +
      .svc-more 추가
-3. service-geotech.html 이전/다음 링크를 실제 경로로 교체
-   (현재 index.html#services 임시 연결, TODO 주석 있음)
+3. 이전/다음 링크 실제 경로 교체 — 01↔02는 연결 완료.
+   service-geotech.html의 **NEXT(03 민간개발사업)만 index.html#services 임시 연결**
+   (TODO 주석 있음). 03 생성 시 교체할 것.
 
 ### 화이트라벨 부채 (홈페이지)
 - index.html CONTACT(1331) / footer(1382) 주소·연락처 하드코딩
