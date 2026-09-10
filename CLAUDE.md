@@ -330,11 +330,12 @@ title / footer / 연락처 등이 하드코딩된 상태.
 ## [진행중] 사업분야 상세페이지 (2026-09-10 갱신)
 
 ### 상태
-- **6개 중 3개 완료** — 01 측량업 / 02 지하안전 & 지반 / 03 민간개발사업.
-  남은 페이지: **04 토목설계 · 05 건설사업관리(감리) · 06 상수도 & 기타**.
+- **6개 중 4개 완료** — 01 측량업 / 02 지하안전 & 지반 / 03 민간개발사업 / 04 토목설계.
+  남은 페이지: **05 건설사업관리(감리) → `service-cm.html`** ·
+  **06 상수도 & 기타 → `service-utility.html`**.
 - 배포됨: page.css / page-common.js / service-survey.html(01) / service-geotech.html(02) /
-  service-development.html(03)
-- index.html 01·02·03번 카드에 상세페이지 진입 링크 연결됨 (`<a class="svc">` 치환 + `.svc-more`)
+  service-development.html(03) / service-design.html(04)
+- index.html 01·02·03·04번 카드에 상세페이지 진입 링크 연결됨 (`<a class="svc">` 치환 + `.svc-more`)
 
 ### 완료
 - 정적 검증 + 헤드리스 실측 + **육안 검증 전부 통과 → 디자인 확정**
@@ -345,6 +346,12 @@ title / footer / 연락처 등이 하드코딩된 상태.
 - **03 민간개발사업(service-development.html) 생성** — 세부업무 5 / 허가판단기준 4 /
   절차구분 2 / 프로세스 7단계 / 성과품 8. `.eval-grid` 4개·`.num-grid` 2개 제약 준수.
   index.html 03번 카드 `a.svc` 치환, service-geotech.html NEXT 를 실제 경로로 연결하고 TODO 주석 해소.
+- **04 토목설계(service-design.html) 생성** — 세부업무 6 / 주요발주처 4 / 설계성과 2 /
+  프로세스 6단계 / 성과품 8. index.html 04번 카드 `a.svc` 치환 + `<li>` 4개 교체,
+  service-development.html NEXT 를 실제 경로로 연결하고 TODO 주석 해소.
+  **문구 근거**: 실적 목록을 기반으로 세부업무를 **시설 종류별**로 재구성
+  (도로 / 상하수도 / 구조물 / 하천배수 / 단지경관 / 안전점검).
+  **개별 용역명·발주 건명은 비밀유지 조항으로 본문에 넣지 않음.**
 - `page.css` `.pg-nav` 단일 링크 대응 규칙(`:only-child`, 5행) — 01처럼 PREV 없는 페이지용.
 - **법정용어 정정**: 사후지하안전영향조사 → 착공후지하안전조사
   (「지하안전관리에 관한 특별법」 제20조). index.html 인증현황도
@@ -359,6 +366,10 @@ title / footer / 연락처 등이 하드코딩된 상태.
 | 01 | 측량업 (service-survey) | `#0a2f6b` | `#1c86b8` |
 | 02 | 지하안전 & 지반 (service-geotech) | `#0d2044` | `#0f4c5c` |
 | 03 | 민간개발사업 (service-development) | `#25351c` | `#4a5a2a` |
+| 04 | 토목설계 (service-design) | `#1e242b` | `#414d59` |
+
+04 는 charcoal → slate 의 **채도 낮은 중립 계열**.
+**05·06 색상 선정 시 남은 계열을 확인할 것** — 04가 중립이라 선택 폭이 있다.
 
 인라인 `<style>` 블록은 반드시 `<link href="page.css">` **뒤**에 둘 것 —
 선택자 특정성이 같아 순서로만 이긴다.
@@ -386,7 +397,25 @@ title / footer / 연락처 등이 하드코딩된 상태.
 | `.deliv` | `flex-wrap` | 개수 무관 |
 
 `.num` 에는 `-no` 요소가 없다(`.item`·`.eval` 과 다름). ⑥ 성과품 섹션의 `.pg-hd` 는
-`stag` 만 두고 `stitle` 없음 — 01·02·03 공통.
+`stag` 만 두고 `stitle` 없음 — 01~04 공통.
+
+- **`.item-grid` 6개 = 데스크톱 3열 × 2행으로 완전히 채워진다.**
+  `.pg-inner` 콘텐츠 폭 1132px 기준 `auto-fit, minmax(320px,1fr)` 의 최대 열 수는 3
+  (4열이면 열폭 268px 로 320px 미달). 5개는 3+2 로 빈칸 1개, 7개는 3+3+1 이 되므로
+  **05·06 도 세부업무 6개를 우선 검토할 것.**
+- **`.num-grid` 는 `align-items` 미선언 → 기본값 `stretch`.** 두 카드 높이는 자동으로
+  맞춰지지만 `.num` 이 flex 가 아니라 짧은 쪽은 하단에 여백만 남는다.
+  **두 `num-d` 길이를 비슷하게 맞출 것** (03 = 108/105자, 04 = 99/91자).
+
+### index.html 카드 규칙
+- **카드 `<li>` 와 상세페이지 세부업무 항목 수는 일치시키지 않는다 (04번부터 확정).**
+  04 = 카드 `<li>` 4개 / 페이지 세부업무 6개. **카드는 요약, 페이지가 전체 목록**이다.
+  카드 `<li>` 는 **4개 내외로 유지**해 `.svc-grid` 행 높이 균형을 지킬 것.
+- `.svc-grid` 는 `repeat(3,1fr)`(index.html) → 6개 카드 = **3열 2행**.
+  1행 = 01·02·03, 2행 = 04·05·06. 행 높이는 그 행의 최장 카드가 결정한다.
+- **과도기 상태 (해소 예정)**: 04번에만 `.svc-more` 가 붙어 2행 높이가 약 34px 어긋나고
+  `.svc-more` 없는 05·06 하단 여백이 커진다. **05·06 페이지 생성 시 자연 해소되므로
+  별도 조치 불필요.** `.svc`(div)는 flex 가 아니고 `a.svc` 만 `display:flex` 라 생기는 현상.
 
 ### `.pg-nav` 단일 링크 규칙
 `page.css` 에 `:only-child` 추가형 규칙이 있으나 **01번 전용**(PREV 없는 첫 페이지).
@@ -407,11 +436,11 @@ title / footer / 연락처 등이 하드코딩된 상태.
 
 ### 다음
 1. 실서버(kwanboeng.com) 확인 — 폰트 로딩, 상대경로, 주소 3곳
-2. 나머지 3개 페이지 순차 생성 (design / cm / utility)
+2. 나머지 2개 페이지 순차 생성 (cm / utility)
    → 각 페이지 생성 시 index.html 해당 카드도 `<a class="svc">` 로 치환 + `.svc-more` 추가
-3. **남은 TODO**: `service-development.html` 의 NEXT 가 `index.html#services` 임시 연결
-   (TODO 주석 있음) — **04번 생성 시 `service-design.html` 로 교체**할 것.
-   01↔02↔03 은 연결 완료.
+3. **남은 TODO**: `service-design.html` 의 NEXT 가 `index.html#services` 임시 연결
+   (TODO 주석 있음) — **05번 생성 시 `service-cm.html` 로 교체**할 것.
+   01↔02↔03↔04 는 연결 완료.
 
 ### 화이트라벨 부채 (홈페이지)
 - index.html CONTACT(1331) / footer(1382) 주소·연락처 하드코딩
