@@ -327,15 +327,17 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 title / footer / 연락처 등이 하드코딩된 상태.
 `APP_CONFIG`에서 주입하도록 전환하면 납품 체크리스트 항목 단축 가능 — 미해결.
 
-## [진행중] 사업분야 상세페이지 (2026-09-10 갱신)
+## [진행중] 사업분야 상세페이지 (2026-09-11 갱신)
 
 ### 상태
-- **6개 중 4개 완료** — 01 측량업 / 02 지하안전 & 지반 / 03 민간개발사업 / 04 토목설계.
-  남은 페이지: **05 건설사업관리(감리) → `service-cm.html`** ·
-  **06 상수도 & 기타 → `service-utility.html`**.
-- 배포됨: page.css / page-common.js / service-survey.html(01) / service-geotech.html(02) /
+- **6개 중 5개 완료** — 01 측량업 / 02 지하안전 & 지반 / 03 민간개발사업 / 04 토목설계 /
+  05 건설사업관리(감리). 남은 페이지: **06 상수도 & 기타 → `service-utility.html`**.
+- 배포(push)됨: page.css / page-common.js / service-survey.html(01) / service-geotech.html(02) /
   service-development.html(03) / service-design.html(04)
-- index.html 01·02·03·04번 카드에 상세페이지 진입 링크 연결됨 (`<a class="svc">` 치환 + `.svc-more`)
+- ⚠️ **미push**: 05(`service-cm.html`) 는 **커밋만 완료, origin 미반영**.
+  `service-cm.html` 의 NEXT 가 아직 없는 `service-utility.html` 을 가리키므로
+  **06 완성 후 일괄 push 예정**. 그 전에 push 하면 실서버에서 NEXT 링크가 404 가 된다.
+- index.html 01~05번 카드에 상세페이지 진입 링크 연결됨 (`<a class="svc">` 치환 + `.svc-more`)
 
 ### 완료
 - 정적 검증 + 헤드리스 실측 + **육안 검증 전부 통과 → 디자인 확정**
@@ -352,6 +354,11 @@ title / footer / 연락처 등이 하드코딩된 상태.
   **문구 근거**: 실적 목록을 기반으로 세부업무를 **시설 종류별**로 재구성
   (도로 / 상하수도 / 구조물 / 하천배수 / 단지경관 / 안전점검).
   **개별 용역명·발주 건명은 비밀유지 조항으로 본문에 넣지 않음.**
+- **05 건설사업관리(감리)(service-cm.html) 생성** — 세부업무 6 / 관리항목 4 / 대상공종 2 /
+  프로세스 7단계 / 성과품 7. index.html 05번 카드 `a.svc` 치환(`<li>` 3개 무변경),
+  service-design.html NEXT 를 실제 경로로 연결하고 TODO 주석 해소.
+  **금지 표현 추가분**: `국토교통부 등록` / `책임건설사업관리` / `검측감리` — 05 이후 전 페이지 적용.
+  **NEXT 는 placeholder 없이 `service-utility.html` 실경로로 작성** (06 과 일괄 push 전제).
 - `page.css` `.pg-nav` 단일 링크 대응 규칙(`:only-child`, 5행) — 01처럼 PREV 없는 페이지용.
 - **법정용어 정정**: 사후지하안전영향조사 → 착공후지하안전조사
   (「지하안전관리에 관한 특별법」 제20조). index.html 인증현황도
@@ -367,9 +374,13 @@ title / footer / 연락처 등이 하드코딩된 상태.
 | 02 | 지하안전 & 지반 (service-geotech) | `#0d2044` | `#0f4c5c` |
 | 03 | 민간개발사업 (service-development) | `#25351c` | `#4a5a2a` |
 | 04 | 토목설계 (service-design) | `#1e242b` | `#414d59` |
+| 05 | 건설사업관리 (service-cm) | `#1f1b3a` | `#3e3868` |
 
-04 는 charcoal → slate 의 **채도 낮은 중립 계열**.
-**05·06 색상 선정 시 남은 계열을 확인할 것** — 04가 중립이라 선택 폭이 있다.
+04 는 charcoal → slate 의 **채도 낮은 중립 계열**, 05 는 **deep purple (hue 약 248°)**.
+**06 은 hue 248° 기준 ±40° 이내 색 사용 금지** (05 와 구분되지 않음).
+05 선정 시 초안이던 burgundy(`#351a20`/`#5e2830`, hue 351°)는 **`--red` `#c41e1e`(hue 0°)와
+원형차 9°** 로 강조색과 뭉개져 폐기했다. **신규 히어로 색은 `--red`(0°)·`--gold`(45°)와의
+hue 원형차를 먼저 확인할 것.**
 
 인라인 `<style>` 블록은 반드시 `<link href="page.css">` **뒤**에 둘 것 —
 선택자 특정성이 같아 순서로만 이긴다.
@@ -382,7 +393,12 @@ title / footer / 연락처 등이 하드코딩된 상태.
 - 02 `#0f4c5c` = **3.20:1**
 - 03 `#4a5a2a` = **2.53:1** (초안 sage `#6b7a3a` 는 1.58:1 이었고, `--h2` 명도를 낮춰 해소)
 
-→ **04~06 색상 선정 시 `--h2` 명도를 02 수준 이하로 잡을 것.**
+**판단 기준은 HSL 의 L 이 아니라 WCAG 상대휘도와 gold 대비비다.**
+05 `#3e3868` 은 HSL L 이 31.4% 로 02 `#0f4c5c`(21%)보다 높지만,
+상대휘도는 0.0485 < 0.0604 로 **실제로는 02 보다 어둡고** gold 대비도 3.58:1 > 3.20:1 로 더 낫다.
+HSL L 로 판단하면 잘못된 결론이 나온다.
+
+→ **04~06 색상 선정 시 `--h2` 의 상대휘도를 02 수준 이하로 잡을 것.**
 `--h2` 를 어둡게 하면 흰색 물결 패턴(`.pg-hero::before`, `opacity:.12`) 도드라짐도 함께 완화된다.
 `--gold` 사용 방식 전면 재검토(AA 4.5:1 달성)는 **6개 페이지 완성 후 일괄 진행** —
 페이지별 오버라이드를 누적시키지 말 것.
@@ -436,11 +452,11 @@ title / footer / 연락처 등이 하드코딩된 상태.
 
 ### 다음
 1. 실서버(kwanboeng.com) 확인 — 폰트 로딩, 상대경로, 주소 3곳
-2. 나머지 2개 페이지 순차 생성 (cm / utility)
-   → 각 페이지 생성 시 index.html 해당 카드도 `<a class="svc">` 로 치환 + `.svc-more` 추가
-3. **남은 TODO**: `service-design.html` 의 NEXT 가 `index.html#services` 임시 연결
-   (TODO 주석 있음) — **05번 생성 시 `service-cm.html` 로 교체**할 것.
-   01↔02↔03↔04 는 연결 완료.
+2. 마지막 1개 페이지 생성 (utility) → index.html 06번 카드도 `<a class="svc">` 치환 + `.svc-more` 추가
+3. **06 완성 후 05·06 일괄 push** — 상세는 위 「상태」의 미push 항목 참조.
+4. **남은 TODO**: 없음. `service-cm.html` 의 NEXT 는 placeholder 가 아니라
+   `service-utility.html` 실경로이므로 **06 생성만 하면 자동으로 연결된다**(href 교체 불필요).
+   01↔02↔03↔04↔05 는 연결 완료.
 
 ### 화이트라벨 부채 (홈페이지)
 - index.html CONTACT(1331) / footer(1382) 주소·연락처 하드코딩
