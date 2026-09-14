@@ -170,7 +170,8 @@ tr:hover td{background:#f8fafc;}
 .llogo{width:56px;height:56px;background:linear-gradient(135deg,#7c3aed,#4c1d95);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;}
 .ltit{font-size:18px;font-weight:800;color:#0f172a;text-align:center;margin-bottom:4px;}
 .lsub{font-size:12px;color:#94a3b8;text-align:center;margin-bottom:24px;}
-@media(max-width:768px){.g2,.g3{grid-template-columns:1fr;}.sal-row{grid-template-columns:1fr;}.page{padding:12px;}.itabs{flex-wrap:wrap;}.btn{min-height:44px;}.btn-sm{min-height:36px;}.sh{flex-wrap:wrap;}.mbox{margin:12px;}}
+.todo-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+@media(max-width:768px){.todo-grid{grid-template-columns:1fr;}.g2,.g3{grid-template-columns:1fr;}.sal-row{grid-template-columns:1fr;}.page{padding:12px;}.itabs{flex-wrap:wrap;}.btn{min-height:44px;}.btn-sm{min-height:36px;}.sh{flex-wrap:wrap;}.mbox{margin:12px;}}
 </style>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
@@ -351,6 +352,9 @@ const fmtD = (d) => {
 };
 const genId = () => Math.random().toString(36).slice(2, 10);
 const WSTATUS = ['완료','진행중','보류'];
+// 업무일지 기본 1칸 — 비어 있으면 빈 줄 하나를 기본 제공
+const blankTask = () => ({ id: genId(), content: '', status: '진행중' });
+const withBlank = (arr) => (arr && arr.length) ? arr : [blankTask()];
 const SCLS = { '완료':'bg','진행중':'bb','보류':'ba' };
 const CAT_COLOR = { '관급': '#2563eb', '사급': '#059669', '기술지원': '#d97706' };
 const CAT_BG    = { '관급': '#dbeafe', '사급': '#dcfce7', '기술지원': '#fef3c7' };
@@ -428,6 +432,9 @@ function WorklogView({ user }) {
   const [todoLoading, setTodoLoading] = useState(false);
   const [todoInput, setTodoInput]   = useState('');
   const [todoAdding, setTodoAdding] = useState(false);
+  const [todoEditId, setTodoEditId]     = useState(null);
+  const [todoEditText, setTodoEditText] = useState('');
+  const [todoSaving, setTodoSaving]     = useState(false);
   // 전체 조회
   const [selDate, setSelDate]     = useState(TODAY());
   const [allUsers, setAllUsers]   = useState([]);
@@ -485,6 +492,27 @@ function WorklogView({ user }) {
       });
   }
 
+  function startEditTodo(todo) {
+    setTodoEditId(todo.id);
+    setTodoEditText(todo.title || '');
+  }
+
+  function cancelEditTodo() {
+    setTodoEditId(null);
+    setTodoEditText('');
+  }
+
+  function saveEditTodo(id) {
+    var title = todoEditText.trim();
+    if (!title) return;
+    setTodoSaving(true);
+    sb.from('shared_todos').update({ title: title }).eq('id', id)
+      .then(function(r) {
+        setTodoSaving(false);
+        if (!r.error) { cancelEditTodo(); loadTodos(); }
+      });
+  }
+
   function completeTodo(id) {
     sb.from('shared_todos').update({
       status: '완료',
@@ -507,7 +535,13 @@ function WorklogView({ user }) {
 
   // 업무일지 작성폼에서 할일 선택 → 항목 추가 + 완료처리
   function pickTodo(todo) {
-    setTasks(function(p) { return p.concat([{ id: genId(), content: todo.title, status: '완료', fromTodoId: todo.id }]); });
+    setTasks(function(p) {
+      const row = { id: genId(), content: todo.title, status: '완료', fromTodoId: todo.id };
+      // 빈 칸(기본 1칸 포함)이 있으면 그 자리를 채우고, 없으면 마지막에 추가
+      const idx = p.findIndex(function(x) { return !(x.content || '').trim(); });
+      if (idx < 0) return p.concat([row]);
+      return p.map(function(x, i) { return i === idx ? row : x; });
+    });
     completeTodo(todo.id);
   }
 
@@ -519,7 +553,7 @@ function WorklogView({ user }) {
     const { data } = await sb.from('admin_work_logs')
       .select('*').eq('user_id', user.id).eq('log_date', d).maybeSingle();
     if (data) {
-      setTasks(data.tasks || []);
+      setTasks(withBlank(data.tasks || []));
       setIssues(data.issues || '');
     } else {
       // 빈 날짜 → 직전 근무일 진행중 업무 자동 불러오기
@@ -530,7 +564,7 @@ function WorklogView({ user }) {
         ? (pd.tasks || []).filter(function(t) { return t.status === '진행중'; })
             .map(function(t) { return Object.assign({}, t, { id: genId() }); })
         : [];
-      setTasks(pending);
+      setTasks(withBlank(pending));
       setIssues('');
     }
     setLoading(false);
@@ -566,10 +600,20 @@ function WorklogView({ user }) {
 
   // ── 저장 ──────────────────────────────────────────────────────────────────
   function save() {
+    // 빈 줄(기본 1칸 포함) 제외 — 내용이 하나도 없으면 저장하지 않음
+    const clean = tasks
+      .filter(function(t) { return (t.content || '').trim(); })
+      .map(function(t) { return Object.assign({}, t, { content: t.content.trim() }); });
+    const iss = issues.trim();
+    if (!clean.length && !iss) {
+      setMsg('❌ 저장할 내용이 없습니다');
+      setTimeout(function() { setMsg(''); }, 2500);
+      return;
+    }
     setSaving(true);
     sb.from('admin_work_logs').upsert({
       user_id: user.id, log_date: date,
-      tasks: tasks, tomorrow_tasks: [], issues: issues,
+      tasks: clean, tomorrow_tasks: [], issues: iss,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,log_date' }).then(function(r) {
       setSaving(false);
@@ -660,29 +704,63 @@ function WorklogView({ user }) {
             ) : todos.length === 0 ? (
               <div style={{fontSize:12,color:'#cbd5e1',padding:'6px 0'}}>등록된 할일이 없습니다</div>
             ) : (
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+              <div className="todo-grid">
                 {todos.map(function(todo) {
+                  const editing = todoEditId === todo.id;
                   return (
                     <div key={todo.id} style={{display:'flex',alignItems:'center',gap:8,
-                      padding:'7px 10px',background:'#f8fafc',borderRadius:8,
-                      border:'1px solid #e2e8f0',minWidth:0}}>
+                      padding:'7px 10px',background:editing?'#fffbeb':'#f8fafc',borderRadius:8,
+                      border:'1px solid ' + (editing?'#fcd34d':'#e2e8f0'),minWidth:0}}>
                       <span style={{fontSize:12,color:'#94a3b8',flexShrink:0}}>☐</span>
-                      <span style={{flex:1,fontSize:12,color:'#1e293b',fontWeight:500,
-                        overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
-                        title={todo.title}>{todo.title}</span>
-                      {todo.creator && (
-                        <span style={{fontSize:10,color:'#94a3b8',flexShrink:0}}>{todo.creator.name}</span>
+                      {editing ? (
+                        <React.Fragment>
+                          <input className="fi" value={todoEditText} autoFocus
+                            style={{flex:1,minWidth:0,fontSize:12,padding:'3px 8px',height:26}}
+                            onChange={function(e){ setTodoEditText(e.target.value); }}
+                            onKeyDown={function(e){
+                              if (e.key === 'Enter') saveEditTodo(todo.id);
+                              if (e.key === 'Escape') cancelEditTodo();
+                            }} />
+                          <button onClick={function(){ saveEditTodo(todo.id); }}
+                            disabled={todoSaving || !todoEditText.trim()}
+                            style={{flexShrink:0,padding:'2px 8px',background:'#dcfce7',
+                              color:'#15803d',border:'none',borderRadius:6,
+                              fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap',
+                              opacity:(todoSaving || !todoEditText.trim())?0.5:1}}>
+                            {todoSaving ? '...' : '저장'}
+                          </button>
+                          <button onClick={cancelEditTodo}
+                            style={{flexShrink:0,background:'transparent',border:'none',
+                              color:'#94a3b8',cursor:'pointer',fontSize:11,fontWeight:700,
+                              padding:'0 2px',whiteSpace:'nowrap'}}>취소</button>
+                        </React.Fragment>
+                      ) : (
+                        <React.Fragment>
+                          <span style={{flex:1,fontSize:12,color:'#1e293b',fontWeight:500,
+                            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',cursor:'pointer'}}
+                            title={todo.title}
+                            onClick={function(){ startEditTodo(todo); }}>{todo.title}</span>
+                          {todo.creator && (
+                            <span style={{fontSize:10,color:'#94a3b8',flexShrink:0}}>{todo.creator.name}</span>
+                          )}
+                          <button onClick={function(){ startEditTodo(todo); }}
+                            style={{flexShrink:0,padding:'2px 8px',background:'#e0f2fe',
+                              color:'#0369a1',border:'none',borderRadius:6,
+                              fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+                            수정
+                          </button>
+                          <button onClick={function(){ pickTodo(todo); }}
+                            style={{flexShrink:0,padding:'2px 8px',background:'#ede9fe',
+                              color:'#6d28d9',border:'none',borderRadius:6,
+                              fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+                            가져오기
+                          </button>
+                          <button onClick={function(){ deleteTodo(todo.id); }}
+                            style={{flexShrink:0,background:'transparent',border:'none',
+                              color:'#cbd5e1',cursor:'pointer',fontSize:13,lineHeight:1,padding:'0 2px'}}
+                            title="삭제">✕</button>
+                        </React.Fragment>
                       )}
-                      <button onClick={function(){ pickTodo(todo); }}
-                        style={{flexShrink:0,padding:'2px 8px',background:'#ede9fe',
-                          color:'#6d28d9',border:'none',borderRadius:6,
-                          fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
-                        가져오기
-                      </button>
-                      <button onClick={function(){ deleteTodo(todo.id); }}
-                        style={{flexShrink:0,background:'transparent',border:'none',
-                          color:'#cbd5e1',cursor:'pointer',fontSize:13,lineHeight:1,padding:'0 2px'}}
-                        title="삭제">✕</button>
                     </div>
                   );
                 })}
@@ -696,7 +774,7 @@ function WorklogView({ user }) {
               <div className="sh">
                 <span className="st">오늘 한 일</span>
                 <button className="btn btn-s btn-sm" onClick={function() {
-                    setTasks(function(p) { return p.concat([{id:genId(),content:'',status:'진행중'}]); });
+                    setTasks(function(p) { return p.concat([blankTask()]); });
                   }}>+ 추가</button>
               </div>
               {tasks.length === 0 && <div style={{color:'#94a3b8',fontSize:13,marginBottom:12}}>업무를 추가하세요.</div>}
@@ -730,7 +808,11 @@ function WorklogView({ user }) {
               </div>
 
               <div className="sr">
-                {msg && <span style={{fontSize:12,color:'#059669',fontWeight:600}}>✓ {msg}</span>}
+                {msg && (
+                  msg.indexOf('❌') === 0
+                    ? <span style={{fontSize:12,color:'#dc2626',fontWeight:600}}>{msg}</span>
+                    : <span style={{fontSize:12,color:'#059669',fontWeight:600}}>✓ {msg}</span>
+                )}
                 <button className="btn btn-p" onClick={save} disabled={saving}>
                   {saving ? '저장 중...' : '💾 저장'}
                 </button>
