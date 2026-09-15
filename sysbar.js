@@ -737,6 +737,41 @@
     return false;
   }
 
+  /**
+   * invokeAuthed(sbClient, fnName, body)
+   * Edge Function 호출 시 로그인 JWT 를 Authorization 헤더로 명시 첨부한다.
+   *
+   * 왜 필요한가 — 이 앱의 "로그인됨" 화면 상태는 sessionStorage 프로필이고,
+   * 실제 인증 JWT 는 supabase 가 localStorage 에 들고 있는 세션이다. 둘이 어긋나면
+   * functions.invoke() 의 토큰 자동첨부가 누락돼 Edge Function 의 getUser() 가
+   * 실패하고 401 이 난다(admin-staff.html 에서 실제로 발생). 그래서 토큰을 직접 붙인다.
+   *
+   * 원래 admin-staff.html 안에만 있던 헬퍼를 공용으로 올린 것이다.
+   * sbClient 를 인자로 받으므로 어느 페이지에서나 쓸 수 있다.
+   *
+   * 반환: Promise<{ data, error }> — functions.invoke 와 같은 모양. throw 하지 않는다.
+   * ※ Edge Function 이 4xx/5xx 로 답하면 본문의 error 가 data.error 에 담겨 올 수
+   *   있으므로, 호출부는 error 와 data.error 를 모두 확인해야 한다.
+   */
+  function invokeAuthed(sbClient, fnName, body) {
+    if (!sbClient || !sbClient.auth || !sbClient.functions) {
+      return Promise.resolve({
+        data: null,
+        error: { message: 'Supabase 클라이언트를 사용할 수 없습니다.' },
+      });
+    }
+    return sbClient.auth.getSession().then(function(sess) {
+      var session = (sess && sess.data) ? sess.data.session : null;
+      if (!session || !session.access_token) {
+        return { data: null, error: { message: '세션이 만료되었습니다. 다시 로그인해 주세요.' } };
+      }
+      return sbClient.functions.invoke(fnName, {
+        body: body,
+        headers: { Authorization: 'Bearer ' + session.access_token },
+      });
+    });
+  }
+
   global.Sysbar = {
     SESSION_KEY: SESSION_KEY,
     SYS_MENUS:   SYS_MENUS,
@@ -746,6 +781,7 @@
     SessionManager:       SessionManager,
     Auth:                 Auth,
     showError:    showError,
+    invokeAuthed: invokeAuthed,
     logError:     logError,
     writeFailed:  writeFailed,
     describeError: describeError,

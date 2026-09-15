@@ -421,16 +421,9 @@ function genTempPw() {
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 
 // Edge Function 호출 시 로그인 JWT를 명시적으로 첨부 (자동첨부 미동기화로 인한 401 방지)
-async function invokeAuthed(fnName, body) {
-  var sess = await sb.auth.getSession();
-  var session = sess.data ? sess.data.session : null;
-  if (!session || !session.access_token) {
-    return { data: null, error: { message: '세션이 만료되었습니다. 다시 로그인해 주세요.' } };
-  }
-  return sb.functions.invoke(fnName, {
-    body: body,
-    headers: { Authorization: 'Bearer ' + session.access_token }
-  });
+// 구현은 sysbar.js 로 이관해 project.html 과 공유한다. 여기는 sb 를 묶어주는 어댑터.
+function invokeAuthed(fnName, body) {
+  return Sysbar.invokeAuthed(sb, fnName, body);
 }
 
 function StaffView({ user }) {
