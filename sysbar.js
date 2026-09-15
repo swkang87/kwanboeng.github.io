@@ -386,9 +386,84 @@
       }
     }
 
+    /**
+     * verifySession(sbClient)
+     * sessionStorage 캐시를 서버 JWT 로 검증한다.
+     *
+     * 왜 필요한가 — 지금까지 각 페이지는 sessionStorage 의 JSON 을 그대로 믿었다.
+     * 개발자도구에서 role:'admin' 을 써넣으면 관리자 UI 가 열린다. 실제 DB 접근은
+     * RLS 가 막지만, 화면이 열리는 것만으로도 오조작과 혼란을 부른다.
+     * 그래서 캐시는 '초기 렌더용'으로만 쓰고, 마운트 직후 이 함수로 서버에 확인한다.
+     *
+     * 절차
+     *   1. sbClient.auth.getSession() 으로 실제 JWT 존재를 확인한다.
+     *      (이름이 비슷한 Auth.getSession() 은 sessionStorage 캐시를 읽는 별개 함수다.)
+     *   2. JWT 가 없으면 캐시를 비우고 실패를 돌려준다 → 호출부는 로그인 화면으로 보낸다.
+     *   3. JWT 가 있으면 users 에서 auth_id = session.user.id 로 프로필을 재조회한다.
+     *   4. 프로필이 없거나 조회에 실패하면 캐시를 비우고 signOut 한다.
+     *      (auth_id 가 끊긴 계정이 유효한 세션처럼 남는 것을 막는다.)
+     *   5. 성공하면 서버 값으로 sessionStorage 를 덮어쓴다.
+     *      캐시의 role 은 신뢰하지 않는다 — 언제나 서버 값이 이긴다.
+     *
+     * .then() 체인으로 작성했고 throw 하지 않는다.
+     * 반환: Promise<{ ok, user, changed, reason, error }>
+     *   ok=false 의 reason: 'no-client' | 'no-session' | 'profile-missing'
+     *                       | 'profile-error' | 'auth-error'
+     *
+     * 페이지 공용이다. 다른 페이지도 마운트 직후 같은 방식으로 호출하면 된다.
+     */
+    function verifySession(sbClient) {
+      if (!sbClient || !sbClient.auth || !sbClient.auth.getSession) {
+        return Promise.resolve({ ok: false, reason: 'no-client' });
+      }
+      var cached = getSession();   // 검증 전 캐시 (role 비교용)
+
+      return sbClient.auth.getSession().then(function(res) {
+        var session = (res && res.data) ? res.data.session : null;
+        if (!session || !session.user) {
+          clearSession();
+          return { ok: false, reason: 'no-session' };
+        }
+
+        return sbClient
+          .from('users')
+          .select('id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days')
+          .eq('auth_id', session.user.id)
+          .maybeSingle()
+          .then(function(pr) {
+            if (pr.error || !pr.data) {
+              clearSession();
+              if (sbClient.auth.signOut) {
+                try { sbClient.auth.signOut(); } catch (e) {}
+              }
+              return {
+                ok: false,
+                reason: pr.error ? 'profile-error' : 'profile-missing',
+                error: pr.error || null,
+              };
+            }
+
+            var fresh = pr.data;
+            var changed = !cached || cached.id !== fresh.id || cached.role !== fresh.role;
+
+            // 캐시 role 은 믿지 않는다. 항상 서버 값으로 덮어쓴다.
+            try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(fresh)); } catch (e) {}
+
+            if (cached && cached.role !== fresh.role) {
+              logError({ cachedRole: cached.role, serverRole: fresh.role },
+                       '세션 role 불일치 — 서버 값으로 교정');
+            }
+            return { ok: true, user: fresh, changed: changed };
+          });
+      }, function(e) {
+        return { ok: false, reason: 'auth-error', error: e };
+      });
+    }
+
     return {
       doLogin:           doLogin,
       getSession:        getSession,
+      verifySession:     verifySession,
       clearSession:      clearSession,
       logout:            logout,
       checkBruteForce:   checkBruteForce,

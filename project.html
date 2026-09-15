@@ -479,10 +479,22 @@ function App() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // SSO 초기화 — 다른 시스템에서 로그인한 경우 자동 로그인
+  // 세션 서버 검증 — sessionStorage 는 초기 렌더용 캐시일 뿐이다.
+  // 마운트 직후 실제 JWT 와 users.role 을 서버에서 확인하고, 캐시 role 은 버린다.
+  // (개발자도구로 sessionStorage 에 role:'admin' 을 써넣어도 여기서 교정된다.)
   useEffect(() => {
-    // 신규 세션은 useState 초기값에서 이미 복원됨 → ssoChecked 확정만
-    setSsoChecked(true);
+    Sysbar.Auth.verifySession(sb).then(function(r) {
+      if (!r.ok) {
+        // JWT 없음/프로필 없음 → 캐시는 verifySession 이 이미 비웠다.
+        // 'no-client' 는 검증 자체가 불가능한 경우라 화면을 막지 않는다.
+        if (r.reason !== 'no-client') setUser(null);
+        if (r.reason === 'profile-error') Sysbar.logError(r.error, '세션 검증');
+      } else {
+        // 캐시가 아니라 서버가 돌려준 프로필로 교체한다.
+        setUser(r.user);
+      }
+      setSsoChecked(true);
+    });
   }, []);
 
   useEffect(() => {
