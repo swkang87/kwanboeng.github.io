@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=20260530"></script>
+<script src="sysbar.js?v=20260915"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -618,6 +618,7 @@ function WorklogView({ user }) {
     }, { onConflict: 'user_id,log_date' }).then(function(r) {
       setSaving(false);
       if (r.error) {
+        Sysbar.logError(r.error, '업무일지 저장');
         setMsg('❌ 저장 실패: ' + (r.error.message || JSON.stringify(r.error)));
       } else {
         setMsg('저장됐습니다');

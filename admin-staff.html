@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=20260530"></script>
+<script src="sysbar.js?v=20260915"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -522,15 +522,17 @@ function StaffView({ user }) {
     setSmSaving(true); setSmErr('');
     var payload = {name:smForm.name, hire_date:smForm.hire_date||null, leave_date:smForm.leave_date||null};
     var r = smEdit
-      ? await sb.from('salary_members').update(payload).eq('id', smEdit.id)
+      ? await sb.from('salary_members').update(payload).eq('id', smEdit.id).select()
       : await sb.from('salary_members').insert(payload);
     setSmSaving(false);
-    if (r.error) { setSmErr('저장 오류: ' + r.error.message); return; }
+    // 수정은 RLS 차단 시 error 없이 0행으로 끝나므로 expectRows 로 함께 판정한다.
+    if (Sysbar.writeFailed(r, '급여대상자 저장', { expectRows: !!smEdit })) { setSmErr('저장하지 못했습니다.'); return; }
     setSmModal(false); load();
   }
   async function deleteSm(m) {
     if (delConfirm && delConfirm.id === m.id) {
-      await sb.from('salary_members').delete().eq('id', m.id);
+      var smDelRes = await sb.from('salary_members').delete().eq('id', m.id).select();
+      if (Sysbar.writeFailed(smDelRes, '급여대상자 삭제', { expectRows: true })) { setDelConfirm(null); return; }
       setDelConfirm(null); load();
     } else {
       setDelConfirm(m);

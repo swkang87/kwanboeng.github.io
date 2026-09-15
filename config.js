@@ -50,6 +50,14 @@ var APP_CONFIG = {
   AUTH_DOMAIN:     'kwanbo.internal', // 로그인 이메일 도메인
   MOBILE_MAX_WIDTH: 768,              // 모바일 판별 기준 폭(px) — 이하일 때 모바일 처리
 
+  // ── 오류 안내 문구 ────────────────────────────────────────────
+  // Sysbar.showError / Sysbar.writeFailed 가 쓰는 공통 문구.
+  // 쓰기 실패(주로 RLS 차단) 시 사용자에게 보이는 텍스트라 여기서 관리한다.
+  ERROR_TITLE:      '처리하지 못했습니다',
+  ERROR_PERMISSION: '권한이 없습니다. 관리자에게 문의해 주세요.',
+  ERROR_GENERIC:    '처리 중 오류가 발생했습니다.',
+  ERROR_NO_ROWS:    '대상을 찾을 수 없거나 권한이 없어 변경되지 않았습니다.',
+
   // ── 팀 색상 (Team Colors) ─────────────────────────────────────
   // 팀 구성과 색상은 회사마다 다르므로 여기서 관리한다.
   // 참조: leave.html(팀 캘린더 칩·범례), home.html(연차 현황 칩)

@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=20260530"></script>
+<script src="sysbar.js?v=20260915"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -467,19 +467,22 @@ function AccountBookView({ user }) {
     var payload = {category:form.category, site_name:form.site_name, url:form.url||null,
       account_id:form.account_id||null, password:form.password||null, memo:form.memo||null};
     if (editItem) {
-      await sb.from('account_book').update(payload).eq('id', editItem.id);
+      var upRes = await sb.from('account_book').update(payload).eq('id', editItem.id).select();
+      if (Sysbar.writeFailed(upRes, '계정 수정', { expectRows: true })) { setSaving(false); return; }
     } else {
       var maxOrder = accounts.filter(function(a){ return a.category===form.category; })
         .reduce(function(m,a){ return Math.max(m, a.order_no||0); }, 0);
       payload.order_no = maxOrder + 1;
-      await sb.from('account_book').insert(payload);
+      var insRes = await sb.from('account_book').insert(payload);
+      if (Sysbar.writeFailed(insRes, '계정 등록')) { setSaving(false); return; }
     }
     setSaving(false); setModal(false); load();
   }
 
   async function del(a) {
     if (!window.confirm('['+a.site_name+'] 삭제할까요?')) return;
-    await sb.from('account_book').delete().eq('id', a.id);
+    var delRes = await sb.from('account_book').delete().eq('id', a.id).select();
+    if (Sysbar.writeFailed(delRes, '계정 삭제', { expectRows: true })) return;
     load();
   }
 
@@ -489,11 +492,12 @@ function AccountBookView({ user }) {
   }
 
   async function saveInline(a) {
-    await sb.from('account_book').update({
+    var inlRes = await sb.from('account_book').update({
       category:inlineForm.category, site_name:inlineForm.site_name,
       url:inlineForm.url||null, account_id:inlineForm.account_id||null,
       password:inlineForm.password||null, memo:inlineForm.memo||null,
-    }).eq('id', a.id);
+    }).eq('id', a.id).select();
+    if (Sysbar.writeFailed(inlRes, '계정 수정', { expectRows: true })) return;
     setInlineEdit(null); load();
   }
 

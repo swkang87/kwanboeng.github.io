@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=20260530"></script>
+<script src="sysbar.js?v=20260915"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
@@ -1725,7 +1725,8 @@ function ProjectDetail({ id, user, gb }) {
     if (delEvId === evId) {
       const evTarget = events.find(e => e.id === evId);
       if (evTarget) { const { error: clErr } = await sb.from('change_logs').insert({ project_id: evTarget.project_id, field_name: '주요공정 삭제', old_value: evTarget.type + ' | ' + evTarget.title + ' | ' + evTarget.event_date, new_value: '', changed_by: user?.id, created_at: new Date().toISOString() }); if (clErr) console.error('change_log insert error:', clErr.message); }
-      await sb.from('project_events').delete().eq('id', evId);
+      const evDelRes = await sb.from('project_events').delete().eq('id', evId).select();
+      if (Sysbar.writeFailed(evDelRes, '주요공정 삭제', { expectRows: true })) { setDelEvId(null); return; }
       setDelEvId(null); loadAll();
     } else {
       setDelEvId(evId);
@@ -2314,12 +2315,14 @@ function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers 
   const addMember = async () => {
     if (!newMUser) return;
     setMLoading(true);
-    await sb.from('project_members').insert({ project_id: project.id, user_id: newMUser, role: newMRole });
+    const addRes = await sb.from('project_members').insert({ project_id: project.id, user_id: newMUser, role: newMRole });
+    if (Sysbar.writeFailed(addRes, '팀원 추가')) { setMLoading(false); return; }
     setNewMUser(''); await loadMembers(); setMLoading(false);
   };
   const removeMember = async (id) => {
     setMLoading(true);
-    await sb.from('project_members').delete().eq('id', id);
+    const delRes = await sb.from('project_members').delete().eq('id', id).select();
+    if (Sysbar.writeFailed(delRes, '팀원 삭제', { expectRows: true })) { setMLoading(false); return; }
     await loadMembers(); setMLoading(false);
   };
 
@@ -2671,7 +2674,9 @@ function CreateProjectForm({ userId, users, onSaved }) {
     const { data, error } = await sb.from('projects').insert(insertPayload).select().single();
     if (error) { setErr('등록 중 오류: ' + error.message); setLoading(false); return; }
     // Auto-add PM as project_member
-    await sb.from('project_members').insert({ project_id: data.id, user_id: form.pm_id, role: 'pm' });
+    // 프로젝트는 이미 만들어졌으므로 PM 배정만 실패해도 목록은 갱신한다.
+    const pmRes = await sb.from('project_members').insert({ project_id: data.id, user_id: form.pm_id, role: 'pm' });
+    if (Sysbar.writeFailed(pmRes, 'PM 배정')) { onSaved(); setLoading(false); return; }
     setForm({ name:'', category:'관급', client:'', client_dept:'', client_contact:'', pm_id:'', start_date:'', end_date:'', status:'진행중', memo:'' });
     onSaved();
     setLoading(false);
@@ -2759,7 +2764,8 @@ function MemberAssign({ projects, users, onSaved }) {
     const exists = members.find(m => m.user_id === userId);
     if (exists) { alert('이미 배정된 인원입니다.'); return; }
     setLoading(true);
-    await sb.from('project_members').insert({ project_id: selPid, user_id: userId, role });
+    const maRes = await sb.from('project_members').insert({ project_id: selPid, user_id: userId, role });
+    if (Sysbar.writeFailed(maRes, '인원 배정')) { setLoading(false); return; }
     await loadMembers(selPid);
     onSaved();
     setLoading(false);
@@ -2767,7 +2773,8 @@ function MemberAssign({ projects, users, onSaved }) {
 
   const removeMember = async (id) => {
     setLoading(true);
-    await sb.from('project_members').delete().eq('id', id);
+    const maDelRes = await sb.from('project_members').delete().eq('id', id).select();
+    if (Sysbar.writeFailed(maDelRes, '인원 배정 해제', { expectRows: true })) { setLoading(false); return; }
     await loadMembers(selPid);
     onSaved();
     setLoading(false);
@@ -2960,12 +2967,14 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
     if (!selPid || !newMUser) return;
     if (members.find(m => m.user_id === newMUser)) { alert('이미 배정된 인원입니다.'); return; }
     setMLoading(true);
-    await sb.from('project_members').insert({ project_id: selPid, user_id: newMUser, role: newMRole });
+    const admAddRes = await sb.from('project_members').insert({ project_id: selPid, user_id: newMUser, role: newMRole });
+    if (Sysbar.writeFailed(admAddRes, '인원 배정')) { setMLoading(false); return; }
     await loadMembers(selPid); setNewMUser(''); setMLoading(false); onSaved();
   };
   const removeMember = async (id) => {
     setMLoading(true);
-    await sb.from('project_members').delete().eq('id', id);
+    const admDelRes = await sb.from('project_members').delete().eq('id', id).select();
+    if (Sysbar.writeFailed(admDelRes, '인원 배정 해제', { expectRows: true })) { setMLoading(false); return; }
     await loadMembers(selPid); setMLoading(false); onSaved();
   };
 
@@ -3040,11 +3049,18 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setDelConfirm(null)}>취소</button>
               <button className="btn btn-danger" onClick={async () => {
-                await sb.from('weekly_reports').delete().eq('project_id', delConfirm.id);
-                await sb.from('project_events').delete().eq('project_id', delConfirm.id);
-                await sb.from('project_members').delete().eq('project_id', delConfirm.id);
-                await sb.from('change_logs').delete().eq('project_id', delConfirm.id);
-                await sb.from('projects').delete().eq('id', delConfirm.id);
+                // 하위 4개는 원래 0행일 수 있어 expectRows 를 쓰지 않는다(error 만 판정).
+                const wrRes = await sb.from('weekly_reports').delete().eq('project_id', delConfirm.id);
+                if (Sysbar.writeFailed(wrRes, '주간보고 삭제')) return;
+                const peRes = await sb.from('project_events').delete().eq('project_id', delConfirm.id);
+                if (Sysbar.writeFailed(peRes, '주요공정 삭제')) return;
+                const pmDelRes = await sb.from('project_members').delete().eq('project_id', delConfirm.id);
+                if (Sysbar.writeFailed(pmDelRes, '팀원 배정 삭제')) return;
+                const clDelRes = await sb.from('change_logs').delete().eq('project_id', delConfirm.id);
+                if (Sysbar.writeFailed(clDelRes, '변경이력 삭제')) return;
+                // 프로젝트 본체는 반드시 존재하므로 0행이면 차단된 것이다.
+                const pjRes = await sb.from('projects').delete().eq('id', delConfirm.id).select();
+                if (Sysbar.writeFailed(pjRes, '프로젝트 삭제', { expectRows: true })) return;
                 setDelConfirm(null); setSelPid(''); setMembers([]);
                 onSaved();
               }}>삭제 확인</button>
@@ -3081,10 +3097,15 @@ function ChangePasswordModal({ user, onClose }) {
     const { error } = await sb.auth.updateUser({ password: next });
     if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
     // 비밀번호 변경 기록 (change_logs)
+    // 비밀번호 변경 자체는 이미 성공했다. 기록 실패로 사용자를 놀라게 하지 않고
+    // 콘솔에만 남긴다(1727행 change_logs 처리와 동일 방침).
     await sb.from('change_logs').insert({
       project_id: null, field_name: '비밀번호변경', old_value: '', new_value: '변경완료',
       changed_by: user.id, created_at: new Date().toISOString()
-    }).catch(() => {});
+    }).then(
+      (r) => { if (r && r.error) Sysbar.logError(r.error, '비밀번호 변경 기록'); },
+      (e) => { Sysbar.logError(e, '비밀번호 변경 기록'); }
+    );
     setOk(true); setLoading(false);
   };
 
@@ -3229,10 +3250,15 @@ function ProfileView({ user, onLogout }) {
     if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
     await authClient.auth.signOut();
     // 비밀번호 변경 기록 (change_logs)
+    // 비밀번호 변경 자체는 이미 성공했다. 기록 실패로 사용자를 놀라게 하지 않고
+    // 콘솔에만 남긴다(1727행 change_logs 처리와 동일 방침).
     await sb.from('change_logs').insert({
       project_id: null, field_name: '비밀번호변경', old_value: '', new_value: '변경완료',
       changed_by: user.id, created_at: new Date().toISOString()
-    }).catch(() => {});
+    }).then(
+      (r) => { if (r && r.error) Sysbar.logError(r.error, '비밀번호 변경 기록'); },
+      (e) => { Sysbar.logError(e, '비밀번호 변경 기록'); }
+    );
     setOk(true); setCurr(''); setNext(''); setConfirm('');
     setLoading(false);
   };

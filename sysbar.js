@@ -557,6 +557,111 @@
     };
   }
 
+  // ───────────────────────────────────────────────────────────────
+  //  쓰기 실패 알림 — showError / logError / writeFailed
+  //
+  //  배경: 이 앱의 쓰기 호출 상당수가 Supabase 응답의 error 를 확인하지 않아
+  //  RLS 로 막혀도 화면은 성공한 것처럼 보였다. 페이지마다 알림 UI 가 달라
+  //  여기에 공용 헬퍼를 둔다. 표시 문구는 config.js 의 ERROR_* 라벨을 쓴다.
+  //
+  //  ※ RLS 차단의 형태가 두 가지라는 점이 중요하다.
+  //     · INSERT  차단 → error.code '42501' 로 error 가 온다.
+  //     · UPDATE/DELETE 차단 → error 가 없고 "영향 행 0" 으로 조용히 끝난다.
+  //    두 번째는 error 검사만으로는 절대 잡히지 않는다. 호출부에 .select() 를
+  //    붙여 영향 행을 돌려받고 writeFailed(res, ctx, {expectRows:true}) 로 판정한다.
+  //    단, 원래 0행이 정상인 삭제(예: 하위 데이터가 없을 수 있는 일괄 삭제)에는
+  //    expectRows 를 쓰지 말 것 — 정상 동작을 실패로 오인한다.
+  // ───────────────────────────────────────────────────────────────
+  var ERR_BOX_ID = 'sys-err-box';
+  var _errTimer = null;
+
+  function _cfg() { return global.APP_CONFIG || {}; }
+
+  /** Supabase 오류를 사용자 문구로 바꾼다. */
+  function describeError(err) {
+    var cfg = _cfg();
+    var code = (err && (err.code || err.status)) || '';
+    var msg = (err && (err.message || err.msg)) || '';
+    var denied = String(code) === '42501' || String(code) === '401' || String(code) === '403'
+      || /row-level security|permission denied|not authorized|JWT/i.test(msg);
+    var base = denied
+      ? (cfg.ERROR_PERMISSION || '권한이 없습니다. 관리자에게 문의해 주세요.')
+      : (cfg.ERROR_GENERIC || '처리 중 오류가 발생했습니다.');
+    return msg ? base + ' (' + msg + ')' : base;
+  }
+
+  function hideErrBox() {
+    if (_errTimer) { clearTimeout(_errTimer); _errTimer = null; }
+    try {
+      var box = document.getElementById(ERR_BOX_ID);
+      if (box) box.style.display = 'none';
+    } catch (e) {}
+  }
+
+  /**
+   * 화면 상단 고정 박스에 표시한다. 성공하면 true.
+   * 인라인 style 만 쓰므로 injectCss() 호출 여부와 무관하게 동작한다.
+   */
+  function renderErrBox(text) {
+    try {
+      if (!global.document || !document.body) return false;
+      var box = document.getElementById(ERR_BOX_ID);
+      if (!box) {
+        box = document.createElement('div');
+        box.id = ERR_BOX_ID;
+        box.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);'
+          + 'z-index:99999;max-width:560px;width:calc(100vw - 32px);box-sizing:border-box;'
+          + 'padding:11px 14px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;'
+          + 'color:#991b1b;font-size:13px;line-height:1.55;white-space:pre-wrap;'
+          + 'word-break:break-word;box-shadow:0 4px 14px rgba(0,0,0,.14);cursor:pointer;';
+        box.title = '클릭하면 닫힙니다';
+        box.onclick = hideErrBox;
+        document.body.appendChild(box);
+      }
+      box.textContent = text;
+      box.style.display = 'block';
+      if (_errTimer) clearTimeout(_errTimer);
+      _errTimer = setTimeout(hideErrBox, 8000);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  /** 콘솔에만 남긴다. 사용자 흐름을 막으면 안 되는 부수기록(감사로그 등)용. */
+  function logError(err, context) {
+    try { console.error('[' + (context || 'error') + ']', err); } catch (e) {}
+  }
+
+  /** 사용자에게 알리고 콘솔에도 남긴다. 박스 생성 실패 시 alert 로 대체. */
+  function showError(err, context) {
+    logError(err, context);
+    var cfg = _cfg();
+    var text = (cfg.ERROR_TITLE || '처리하지 못했습니다')
+      + (context ? ' · ' + context : '') + '\n' + describeError(err);
+    if (!renderErrBox(text)) { try { global.alert(text); } catch (e) {} }
+  }
+
+  /**
+   * writeFailed(res, context, opts) → 실패면 알린 뒤 true
+   *  res      : supabase 쓰기 응답 ({ data, error })
+   *  context  : 사용자에게 보여줄 동작 이름 (예: '팀원 추가')
+   *  opts.expectRows : true 면 영향 행 0 건도 실패로 본다 (.select() 필요)
+   */
+  function writeFailed(res, context, opts) {
+    var o = opts || {};
+    if (!res) { showError(new Error('no response'), context); return true; }
+    if (res.error) { showError(res.error, context); return true; }
+    if (o.expectRows) {
+      var rows = res.data;
+      var n = (rows == null) ? 0 : (rows.length == null ? 1 : rows.length);
+      if (n === 0) {
+        showError({ code: '42501', message: _cfg().ERROR_NO_ROWS
+          || '대상을 찾을 수 없거나 권한이 없어 변경되지 않았습니다.' }, context);
+        return true;
+      }
+    }
+    return false;
+  }
+
   global.Sysbar = {
     SESSION_KEY: SESSION_KEY,
     SYS_MENUS:   SYS_MENUS,
@@ -565,6 +670,10 @@
     createLoginComponent: createLoginComponent,
     SessionManager:       SessionManager,
     Auth:                 Auth,
+    showError:    showError,
+    logError:     logError,
+    writeFailed:  writeFailed,
+    describeError: describeError,
   };
 
 })(window);

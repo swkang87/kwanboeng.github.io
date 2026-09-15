@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=20260530"></script>
+<script src="sysbar.js?v=20260915"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -711,7 +711,8 @@ function SalaryView({ user }) {
       var c = calcFromDetails(pDets);
       var salId;
       if (existing) {
-        await sb.from('salaries').update({ memo: ps.memo||'', total_income: c.inc, total_deduction: c.ded, net_pay: c.net }).eq('id', existing.id);
+        var cpRes = await sb.from('salaries').update({ memo: ps.memo||'', total_income: c.inc, total_deduction: c.ded, net_pay: c.net }).eq('id', existing.id).select();
+        if (Sysbar.writeFailed(cpRes, '급여 복사(수정)', { expectRows: true })) continue;
         salId = existing.id;
       } else {
         var r = await sb.from('salaries').insert({ user_id: ps.user_id, month: month, sal_type: salTab, memo: ps.memo||'', total_income: c.inc, total_deduction: c.ded, net_pay: c.net }).select();
@@ -720,7 +721,8 @@ function SalaryView({ user }) {
       }
       if (pDets.length > 0) {
         var newDets = pDets.map(function(d){ return { salary_id: salId, item_id: d.item_id, amount: d.amount||0 }; });
-        await sb.from('salary_details').upsert(newDets, { onConflict: 'salary_id,item_id' });
+        var cpDetRes = await sb.from('salary_details').upsert(newDets, { onConflict: 'salary_id,item_id' });
+        if (Sysbar.writeFailed(cpDetRes, '급여 상세 복사')) continue;
       }
     }
     setCopying(false);
@@ -793,7 +795,8 @@ function SalaryView({ user }) {
     var detailPayloads = salaryItems.map(function(item) {
       return { salary_id: salId, item_id: item.id, amount: numV(form[item.id])||0 };
     });
-    await sb.from('salary_details').upsert(detailPayloads, { onConflict: 'salary_id,item_id' });
+    var detRes = await sb.from('salary_details').upsert(detailPayloads, { onConflict: 'salary_id,item_id' });
+    if (Sysbar.writeFailed(detRes, '급여 상세 저장')) { setSaving(false); return; }
     setSaving(false);
     setModal(false);
     load();
@@ -805,8 +808,11 @@ function SalaryView({ user }) {
     var salIds = sals.map(function(s){ return s.id; });
     if (salIds.length > 0) {
       // salary_details 먼저 삭제 (CASCADE가 있지만 명시적으로)
-      await sb.from('salary_details').delete().in('salary_id', salIds);
-      await sb.from('salaries').delete().in('id', salIds);
+      // salary_details 는 항목이 없는 달이면 0행이 정상이라 expectRows 를 쓰지 않는다.
+      var mdRes = await sb.from('salary_details').delete().in('salary_id', salIds);
+      if (Sysbar.writeFailed(mdRes, '급여 상세 삭제')) { setDelMonthIng(false); return; }
+      var msRes = await sb.from('salaries').delete().in('id', salIds).select();
+      if (Sysbar.writeFailed(msRes, '급여 삭제', { expectRows: true })) { setDelMonthIng(false); return; }
     }
     setDelMonthIng(false);
     load();
@@ -814,8 +820,11 @@ function SalaryView({ user }) {
 
   async function deleteSalaryItem(item) {
     if (!window.confirm('[' + item.label + '] 항목을 삭제합니다.\n관련 급여 데이터도 모두 삭제됩니다. 계속할까요?')) return;
-    await sb.from('salary_details').delete().eq('item_id', item.id);
-    await sb.from('salary_items').delete().eq('id', item.id);
+    // 해당 항목을 쓴 급여가 없으면 0행이 정상이라 expectRows 를 쓰지 않는다.
+    var siDetRes = await sb.from('salary_details').delete().eq('item_id', item.id);
+    if (Sysbar.writeFailed(siDetRes, '급여 상세 삭제')) return;
+    var siRes = await sb.from('salary_items').delete().eq('id', item.id).select();
+    if (Sysbar.writeFailed(siRes, '급여 항목 삭제', { expectRows: true })) return;
     load();
   }
 
@@ -823,7 +832,8 @@ function SalaryView({ user }) {
     if (!itemForm.label) return;
     var maxOrder = salaryItems.filter(function(i){ return i.type===itemForm.type; })
       .reduce(function(m,i){ return Math.max(m, i.order_no); }, 0);
-    await sb.from('salary_items').insert({ label: itemForm.label, type: itemForm.type, order_no: maxOrder+1, active: true });
+    var addItemRes = await sb.from('salary_items').insert({ label: itemForm.label, type: itemForm.type, order_no: maxOrder+1, active: true });
+    if (Sysbar.writeFailed(addItemRes, '급여 항목 추가')) return;
     setItemForm({label:'',type:'income'});
     load();
   }
@@ -837,13 +847,16 @@ function SalaryView({ user }) {
     if (swapIdx < 0 || swapIdx >= sameType.length) return;
     var swapItem = sameType[swapIdx];
     // order_no 교환
-    await sb.from('salary_items').update({ order_no: swapItem.order_no }).eq('id', item.id);
-    await sb.from('salary_items').update({ order_no: item.order_no }).eq('id', swapItem.id);
+    var mv1 = await sb.from('salary_items').update({ order_no: swapItem.order_no }).eq('id', item.id).select();
+    if (Sysbar.writeFailed(mv1, '급여 항목 순서 변경', { expectRows: true })) return;
+    var mv2 = await sb.from('salary_items').update({ order_no: item.order_no }).eq('id', swapItem.id).select();
+    if (Sysbar.writeFailed(mv2, '급여 항목 순서 변경', { expectRows: true })) { load(); return; }
     load();
   }
 
   async function toggleItem(item) {
-    await sb.from('salary_items').update({ active: !item.active }).eq('id', item.id);
+    var tgRes = await sb.from('salary_items').update({ active: !item.active }).eq('id', item.id).select();
+    if (Sysbar.writeFailed(tgRes, '급여 항목 사용여부 변경', { expectRows: true })) return;
     load();
   }
 
