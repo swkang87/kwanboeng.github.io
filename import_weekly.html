@@ -196,6 +196,11 @@ function escapeHtml(str) {
 }
 
 // ─── Helpers ───
+// 로컬(KST) 기준 날짜 문자열. toISOString() 은 UTC 로 변환하므로 KST 오전 9시
+// 이전 시각이 전날로 밀린다. Date → 'YYYY-MM-DD' 변환은 반드시 이 함수를 쓸 것.
+// (leave.html:117 / project.html 의 동명 헬퍼와 같은 구현)
+function localDateStr(d){var y=d.getFullYear();var m=String(d.getMonth()+1).padStart(2,'0');var dd=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dd;}
+
 function parseXlDate(val) {
   if (val === null || val === undefined || val === '') return null;
   // Date object from xlsx with cellDates:false → number
@@ -214,7 +219,9 @@ function parseXlDate(val) {
     if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
   }
   if (val instanceof Date) {
-    return val.toISOString().split('T')[0];
+    // 엑셀 셀이 Date 객체로 들어오는 경우. toISOString() 을 쓰면 KST 기준
+    // 하루가 밀리므로 로컬 기준으로 변환한다.
+    return localDateStr(val);
   }
   return null;
 }
