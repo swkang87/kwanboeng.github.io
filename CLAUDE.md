@@ -13,6 +13,7 @@
 - admin + 관리팀: 장부(`account_book`) · 직원관리 · 업무일지 · 실적 등 나머지 관리 기능.
 - RLS 정책도 화면 권한(`canXxx`)과 **1:1로 대응**시킨다. 둘이 어긋나면 화면은 보이는데
   저장이 실패하는 상태가 되므로, 정책을 바꾸면 해당 화면의 권한 조건도 같이 확인할 것.
+- **급여 실데이터 등록 전** `security-fix\plan_next_bundles.md` 의 보류 항목을 **선행 확인**할 것.
 
 ### 화이트라벨 원칙
 **신규 코드에 회사명·팀명을 하드코딩하지 않는다.** 항상 `APP_CONFIG.*` 참조.
@@ -45,6 +46,9 @@
 ### 산출물 위치
 **보안 작업 산출물은 저장소 밖** `C:\Users\kwanb\Desktop\kbsys\security-fix\` 에 둔다.
 스냅샷·수정 SQL·롤백 SQL·검증 SQL·테스트 체크리스트 전부 해당. 저장소에는 커밋하지 않는다.
+- **CLAUDE.md는 공개될 수 있는 파일이다.** 미해결 보안 취약점의 위치·내용·공격 방법은
+  CLAUDE.md에 적지 않고 저장소 밖 `security-fix\` 문서에만 기록한다.
+  해결 완료된 항목도 **"보안 수정 N묶음 완료"** 수준으로만 요약한다.
 
 ### 묶음 진행 절차
 1. 조사 → **수정안 요약**(바뀌는 것 / 영향받는 화면 / 롤백 방법)을 보여주고 **멈춘다.**
@@ -142,7 +146,7 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 
 ### admin-staff.html 신규 등록 create-user 전환 (auth_id=null 로그인 불가 버그 수정)
 - 원인: `save()` 신규 분기가 `auth_id:null`로 raw insert만 하고 Auth 계정을 안 만듦 →
-  관리포털로 등록된 직원은 로그인·비번 초기화 불가 (예: 서영우).
+  관리포털로 등록된 직원은 로그인·비번 초기화 불가.
 - 수정: leave.html과 동일하게 `sb.functions.invoke('create-user', {...})` 호출로 전환.
   - body: `name/phone(숫자)/role/team_id/join_date(=hire_date||today())/total_days:15/init_pw:genTempPw()`
   - admin-staff 고유 필드(email/position/hire_date/leave_date)는 create-user 성공 후
@@ -151,7 +155,7 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   - dead code 제거: `phoneDigits`/`emailLocal`/`authId=null`.
   - **editU(기존 수정) 분기는 Auth 미관여로 그대로 유지** — 건드리지 말 것.
 - 검증: 브레이스/괄호 balance 0, Babel(preset-react+env) 트랜스파일 PASS.
-- 한계: **이미 깨진 서영우(auth_id=null) 1건은 미복구.** 소급 복구(smooth-function Fix B)는
+- 한계: **이미 깨진 대상 1명(auth_id=null)은 미복구.** 소급 복구(smooth-function Fix B)는
   Edge Function 소스가 레포에 없어 별도 처리 — 아래 미완료 항목 참조.
 
 ### admin-staff.html Edge Function 호출 JWT 명시 첨부 (invoke 401 해소)
@@ -361,20 +365,15 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 
 ## 🔲 미완료 — 대시보드 작업 필요
 
-### auth_id=null 기존 직원 소급 복구 (smooth-function Fix B) + 서영우 1건
-관리포털 신규 등록 버그(위 완료 항목)로 생긴 `auth_id=null` 직원들의 로그인·비번 초기화 복구.
-- 대상 예: 서영우(01028641014, contractor, auth_id=null).
-- 방법: `smooth-function`(비번 초기화) Edge Function에 caller `getUser()` UID 추출 →
-  대상 user의 `auth_id`가 null이면 `auth.admin.createUser()` 소급 생성 → `users.auth_id` UPDATE → 비번 설정.
-- ⚠️ **Edge Function 소스가 이 레포에 없음** (`supabase/functions/` 미존재, git 미추적).
-  소스 확보 후 작업 → `supabase functions deploy smooth-function` 으로 배포(승우님 직접).
-- 임시: 서영우 1건은 Supabase 대시보드/SQL로 Auth 계정 수동 생성 후 auth_id 연결 가능.
+### Edge Function 소스 저장소 편입
+`smooth-function` 등 배포본만 존재하고 저장소에 소스가 없는 함수들
+(`supabase/functions/` 에 `create-user` 만 있음, 나머지는 git 미추적).
+소스 확보 후 `supabase/functions/` 에 편입 → 배포는 승우님 직접.
+관련 보안 상세는 저장소 밖 `security-fix\` 문서 참조.
 
-### salaries·salary_slips·users.birth_date RLS 봉쇄
-`salaries`, `salary_slips`의 anon SELECT 차단 + `users.birth_date` anon 노출 차단이 남아있음.
-- `slip.html`(미사용)이 anon으로 급여+생년월일 전체 조회 가능한 상태.
-- `admin-salary.html`은 JWT(authenticated) 경로 — 봉쇄 후에도 정상 동작해야 함.
-- 순서: 현황 조회 SQL 실행 → 확인 후 봉쇄 SQL 실행 (승우님이 SQL Editor에서 직접).
+### 급여 테이블 RLS 봉쇄 (보안 항목)
+상세는 저장소 밖 `security-fix\` 문서 참조. 별도 묶음으로 처리 예정.
+「급여 관련만 admin 전용」 설계 원칙 적용 대상.
 
 ### SYS_MENUS 이중 관리 해소
 `sysbar.js`의 `SYS_MENUS`가 `config.js`의 `MENUS`와 별개로 하드코딩됨.
