@@ -329,6 +329,17 @@ const fs = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return
 const fmt = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${t.getMonth()+1}/${t.getDate()}`; };
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 function localDateStr(d){var y=d.getFullYear();var m=String(d.getMonth()+1).padStart(2,'0');var dd=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dd;}
+// 임시 비밀번호 생성 — 혼동 문자 제외(B/8, I/1, O/0, S/5, Z/2). 구두 전달을 전제로 한다.
+// H-2: 이전에는 초기 비밀번호를 전화번호로 뒀다. 전화번호는 로그인 ID이자 조회 가능한 값이라
+//      그 자체가 취약점이었다. 서버(create-user)도 같은 규칙으로 랜덤을 만든다.
+function genTempPw(len){
+  var alphabet = 'ACDEFGHJKLMNPQRTUVWXY34679';
+  var buf = new Uint32Array(len || 8);
+  crypto.getRandomValues(buf);
+  var out = '';
+  for (var i = 0; i < buf.length; i++) out += alphabet[buf[i] % alphabet.length];
+  return out;
+}
 const thisMonday = () => { const d = new Date(); d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1)); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const sixMonthsAgo = () => { const d = new Date(); d.setMonth(d.getMonth() - 6); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; };
 const thirtyDaysAgo = () => { const d = new Date(); d.setDate(d.getDate()-30); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -3098,16 +3109,12 @@ function ChangePasswordModal({ user, onClose }) {
     if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
     if (next.length < 6) { setErr('비밀번호는 6자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
-    // Verify current password via Auth re-login
-    const { data: uData } = await sb.from('users').select('phone').eq('id', user.id).single();
-    const phoneDigits = uData?.phone ? uData.phone.replace(/\D/g,'') : uData?.phone;
-    const emailLocal = phoneDigits && phoneDigits.length > 0 ? phoneDigits : uData?.phone;
-    const { error: signInErr } = await sb.auth.signInWithPassword({
-      email: (emailLocal || '') + '@' + (APP_CONFIG.AUTH_DOMAIN || 'kwanbo.internal'), password: curr
-    });
-    if (signInErr) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
-    const { error } = await sb.auth.updateUser({ password: next });
-    if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
+    // H-2: 비밀번호 변경을 change-own-password Edge Function 으로 위임한다.
+    // 서버가 현재 비밀번호를 재확인하고, 전화번호/아이디를 새 비밀번호로 쓰는 것을 거부하며,
+    // must_change_pw 플래그까지 같은 경로에서 내린다.
+    // (이전에는 여기서 sb.auth.signInWithPassword 를 호출해 현재 세션을 갈아치웠다)
+    const chg = await Sysbar.Auth.changeOwnPassword(sb, curr, next);
+    if (!chg.ok) { setErr(chg.reason); setLoading(false); return; }
     // 비밀번호 변경 기록 (change_logs)
     // 비밀번호 변경 자체는 이미 성공했다. 기록 실패로 사용자를 놀라게 하지 않고
     // 콘솔에만 남긴다(1727행 change_logs 처리와 동일 방침).
@@ -3170,6 +3177,8 @@ function UserList({ users, onSaved }) {
     const phoneDigits = (newUser.phone || '').replace(/\D/g, '');
     if (!phoneDigits) { setErr('전화번호에 숫자가 없습니다.'); return; }
     const addName = newUser.name;
+    // 미입력 시 쓸 임시 비밀번호. 완료 알림에서도 같은 값을 보여야 하므로 미리 만든다.
+    const tempPw = genTempPw();
     setLoading(true); setErr('');
     const { data: cuData, error: cuErr } = await Sysbar.invokeAuthed(sb, 'create-user', {
       name: addName,
@@ -3181,7 +3190,7 @@ function UserList({ users, onSaved }) {
       // 0 을 넘기는 것은 의도 표시이고, 실제 보정은 아래 UPDATE 에서 한다.
       total_days: 0,
       // 미입력이면 전화번호를 초기 비밀번호로 — 화면 안내 문구와 동일하다.
-      init_pw: newUser.password || phoneDigits,
+      init_pw: newUser.password || tempPw,
     });
     // Edge Function 은 실패를 data.error 로도 돌려주므로 둘 다 확인한다.
     const cuMsg = (cuData && cuData.error) || (cuErr && cuErr.message) || '';
@@ -3203,7 +3212,7 @@ function UserList({ users, onSaved }) {
     setNewUser({ name:'', phone:'', role:'employee', password:'' });
     onSaved();
     setLoading(false);
-    alert('✅ ' + addName + ' 등록 완료\n초기 비밀번호: ' + ((cuData && cuData.init_pw) || phoneDigits) + tdWarn);
+    alert('✅ ' + addName + ' 등록 완료\n초기 비밀번호: ' + ((cuData && cuData.init_pw) || tempPw) + '\n\n이 비밀번호를 직원에게 전달하세요. 첫 로그인 시 변경하게 됩니다.' + tdWarn);
   };
 
   const ROLE_ORDER = { 'admin': 0, 'manager': 1, 'employee': 2, 'contractor': 3 };
@@ -3249,8 +3258,8 @@ function UserList({ users, onSaved }) {
       </div>
       <div className="form-row">
         <div className="form-group">
-          <label className="form-label">초기 비밀번호 <span style={{color:'#94a3b8',fontWeight:400}}>(미입력시 전화번호로 설정)</span></label>
-          <input className="form-input" value={newUser.password} onChange={e => set('password',e.target.value)} placeholder="비워두면 전화번호로 자동설정" />
+          <label className="form-label">초기 비밀번호 <span style={{color:'#94a3b8',fontWeight:400}}>(미입력시 임시 비밀번호 자동생성)</span></label>
+          <input className="form-input" value={newUser.password} onChange={e => set('password',e.target.value)} placeholder="비워두면 임시 비밀번호 자동생성" />
         </div>
         <div className="form-group"><label className="form-label">권한</label>
           <select className="form-input" value={newUser.role} onChange={e => set('role',e.target.value)}>
@@ -3280,23 +3289,13 @@ function ProfileView({ user, onLogout }) {
     if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
     if (next.length < 6) { setErr('비밀번호는 6자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
-    // username 있으면 우선, 없으면 phone 사용
-    const loginId = user.username
-      ? (user.username.replace(/\D/g,'').length > 0 ? user.username.replace(/\D/g,'') : user.username)
-      : (user.phone ? user.phone.replace(/\D/g,'') : user.phone);
-    const { data: signInData, error: signInErr2 } = await sb.auth.signInWithPassword({
-      email: loginId + '@' + (APP_CONFIG.AUTH_DOMAIN || 'kwanbo.internal'), password: curr
-    });
-    if (signInErr2) { setErr('현재 비밀번호가 올바르지 않습니다.'); setLoading(false); return; }
-    // signInWithPassword로 얻은 세션으로 비밀번호 변경
-    const authClient = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
-    await authClient.auth.setSession({
-      access_token: signInData.session.access_token,
-      refresh_token: signInData.session.refresh_token,
-    });
-    const { error } = await authClient.auth.updateUser({ password: next });
-    if (error) { setErr('저장 중 오류가 발생했습니다.'); setLoading(false); return; }
-    await authClient.auth.signOut();
+    // H-2: 비밀번호 변경을 change-own-password Edge Function 으로 위임한다.
+    // 서버가 현재 비밀번호를 재확인하고, 전화번호/아이디를 새 비밀번호로 쓰는 것을 거부하며,
+    // must_change_pw 플래그까지 같은 경로에서 내린다.
+    // (이전에는 별도 authClient 로 재로그인해 비밀번호를 바꾸고 그 세션을 signOut 했다.
+    //  이제 현재 세션을 건드리지 않는다.)
+    const chg = await Sysbar.Auth.changeOwnPassword(sb, curr, next);
+    if (!chg.ok) { setErr(chg.reason); setLoading(false); return; }
     // 비밀번호 변경 기록 (change_logs)
     // 비밀번호 변경 자체는 이미 성공했다. 기록 실패로 사용자를 놀라게 하지 않고
     // 콘솔에만 남긴다(1727행 change_logs 처리와 동일 방침).

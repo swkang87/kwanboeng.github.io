@@ -288,9 +288,15 @@ function useCalWiden(){
 // ── 비밀번호 해싱 → sysbar.js Sysbar.Auth 에 위임 ─────────
 
 // ── 랜덤 초기 비밀번호 생성 (숫자 6자리) ──────────────────
-function genTempPw() {
-  return Array.from(crypto.getRandomValues(new Uint8Array(6)))
-    .map(b => b % 10).join('');
+// 임시 비밀번호 — 서버(create-user / smooth-function)와 동일한 규칙.
+// 혼동 문자 제외(B/8, I/1, O/0, S/5, Z/2). 숫자 6자리에서 8자 영숫자로 강화했다(H-2).
+function genTempPw(len) {
+  var alphabet = 'ACDEFGHJKLMNPQRTUVWXY34679';
+  var buf = new Uint32Array(len || 8);
+  crypto.getRandomValues(buf);
+  var out = '';
+  for (var i = 0; i < buf.length; i++) out += alphabet[buf[i] % alphabet.length];
+  return out;
 }
 
 const api={

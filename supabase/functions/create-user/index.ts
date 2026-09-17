@@ -2,12 +2,23 @@
 // 직원 추가 시 Auth 계정 + users 테이블 row 동시 생성
 // admin만 호출 가능
 // v2: caller UID를 getUser()로 추출 후 service role로 auth_id 조회 (RLS 우회)
+// v3 (H-2): init_pw 미전달 시 전화번호 대신 랜덤 임시 비밀번호 생성 + must_change_pw=true
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// 혼동 문자 제외(B/8, I/1, O/0, S/5, Z/2) — 구두·문자 전달을 전제로 한 임시 비밀번호
+function genTempPw(len = 8): string {
+  const alphabet = 'ACDEFGHJKLMNPQRTUVWXY34679'
+  const buf = new Uint32Array(len)
+  crypto.getRandomValues(buf)
+  let out = ''
+  for (let i = 0; i < len; i++) out += alphabet[buf[i] % alphabet.length]
+  return out
 }
 
 Deno.serve(async (req) => {
@@ -84,7 +95,8 @@ Deno.serve(async (req) => {
 
     const authDomain = Deno.env.get('AUTH_DOMAIN') ?? 'kwanbo.internal'
     const email = phone + '@' + authDomain
-    const password = init_pw || phone  // fallback: 전화번호
+    // H-2: 전화번호 fallback 제거. init_pw 가 없으면 서버가 랜덤 임시 비밀번호를 만든다.
+    const password = init_pw || genTempPw()
 
     // ── 중복 체크 ─────────────────────────────────────────────
     const { data: dupCheck } = await adminClient
@@ -125,6 +137,8 @@ Deno.serve(async (req) => {
         join_date:  join_date  || null,
         total_days: total_days || 15,
         auth_id:    authData.user.id,
+        // H-2: 첫 로그인 시 강제 변경. 관리자가 만든 초기 비밀번호를 그대로 쓰게 두지 않는다.
+        must_change_pw: true,
       })
       .select()
       .single()

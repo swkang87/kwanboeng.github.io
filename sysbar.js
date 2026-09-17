@@ -355,7 +355,7 @@
         // Auth 성공 → users 테이블에서 프로필 조회
         var profileRes = await sbClient
           .from('users')
-          .select('id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days')
+          .select('id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,must_change_pw')
           .eq('auth_id', authRes.data.user.id)
           .single();
 
@@ -374,8 +374,18 @@
           return { ok: false, reason: '이 시스템에 대한 접근 권한이 없습니다.' };
         }
 
-        // 로그인 성공
+        // 비밀번호는 맞았으므로 실패 카운터는 여기서 지운다.
         clearFailures();
+
+        // H-2: 초기 비밀번호(또는 관리자 초기화) 상태면 강제 변경 전까지 세션을 열지 않는다.
+        // sessionStorage 를 쓰지 않으므로 새로고침해도 다시 로그인 화면이다.
+        // (Auth JWT 자체는 살아 있다 — change-own-password 호출에 그 토큰이 필요하다.)
+        if (user.must_change_pw) {
+          return { ok: false, mustChangePw: true, user: user,
+            reason: '비밀번호를 변경한 뒤 이용할 수 있습니다.' };
+        }
+
+        // 로그인 성공
         sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
         sessionStorage.removeItem('kwanbo_uid');
 
@@ -460,8 +470,40 @@
       });
     }
 
+    /**
+     * changeOwnPassword(sbClient, currentPw, newPw)
+     * 본인 비밀번호 변경. change-own-password Edge Function 이
+     * Auth 비밀번호 변경과 must_change_pw 해제를 한 경로에서 처리한다.
+     * 클라이언트가 둘 중 하나만 하는 상태를 만들 수 없게 하려는 것이다(H-2).
+     *
+     * 성공 시 세션(sessionStorage)까지 열어 준다 — 강제 변경 직후 바로 진입하기 위함.
+     */
+    function changeOwnPassword(sbClient, currentPw, newPw, user) {
+      return invokeAuthed(sbClient, 'change-own-password',
+        { current_pw: currentPw, new_pw: newPw }
+      ).then(function(res) {
+        var data = res && res.data;
+        var msg  = (data && data.error) || (res && res.error && res.error.message) || '';
+        if (msg || !(data && data.ok)) {
+          return { ok: false, reason: msg || '비밀번호를 변경하지 못했습니다.' };
+        }
+        if (user) {
+          var fresh = {};
+          for (var k in user) { if (Object.prototype.hasOwnProperty.call(user, k)) fresh[k] = user[k]; }
+          fresh.must_change_pw = false;
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify(fresh));
+          sessionStorage.removeItem('kwanbo_uid');
+          return { ok: true, user: fresh, flagCleared: !!data.flag_cleared };
+        }
+        return { ok: true, flagCleared: !!data.flag_cleared };
+      }, function(e) {
+        return { ok: false, reason: '네트워크 오류: ' + ((e && e.message) || e) };
+      });
+    }
+
     return {
       doLogin:           doLogin,
+      changeOwnPassword: changeOwnPassword,
       getSession:        getSession,
       verifySession:     verifySession,
       clearSession:      clearSession,
@@ -529,6 +571,13 @@
       var locked   = _locked[0]; var setLocked = _locked[1];
       var _remain  = useState(0);
       var remain   = _remain[0]; var setRemain = _remain[1];
+      // H-2 강제 비밀번호 변경 단계. mustChange 에 프로필이 들어오면 변경 화면으로 전환된다.
+      var _mc      = useState(null);
+      var mustChange = _mc[0]; var setMustChange = _mc[1];
+      var _np      = useState('');
+      var npw      = _np[0];  var setNpw  = _np[1];
+      var _np2     = useState('');
+      var npw2     = _np2[0]; var setNpw2 = _np2[1];
 
       var e = React.createElement;
 
@@ -553,6 +602,10 @@
         }).then(function(result) {
           setLoading(false);
           if (result.ok) { onLogin(result.user); }
+          else if (result.mustChangePw) {
+            // 비밀번호는 맞았지만 강제 변경 대상이다. 세션은 아직 열리지 않았다.
+            setMustChange(result.user); setErr('');
+          }
           else {
             if (result.locked) { setLocked(true); setRemain(result.remainSec); }
             setErr(result.reason);
@@ -561,6 +614,46 @@
       };
 
       var onKey = function(ev) { if (ev.key === 'Enter') login(); };
+
+      // 강제 변경 제출. 현재 비밀번호는 방금 입력한 pw 를 그대로 쓴다.
+      var submitChange = function() {
+        if (!npw || !npw2) { setErr('새 비밀번호를 입력하세요.'); return; }
+        if (npw !== npw2)  { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
+        setLoading(true); setErr('');
+        Auth.changeOwnPassword(sb, pw, npw, mustChange).then(function(r) {
+          setLoading(false);
+          if (r.ok) { onLogin(r.user); }
+          else { setErr(r.reason); }
+        });
+      };
+      var onChgKey = function(ev) { if (ev.key === 'Enter') submitChange(); };
+
+      if (mustChange) {
+        return e('div', { className: 'sb-lwrap' },
+          e('div', { className: 'sb-lbox' },
+            e('div', { className: 'sb-lco'  }, cfg.COMPANY_SHORT || cfg.COMPANY_KO || ''),
+            e('div', { className: 'sb-lsub' }, '비밀번호 변경이 필요합니다'),
+            e('div', { style: { background:'#fffbeb', border:'1px solid #fde68a', color:'#92400e',
+                                borderRadius:6, padding:'10px 12px', fontSize:13, lineHeight:1.5,
+                                marginBottom:14 } },
+              '관리자가 지정한 초기 비밀번호로 로그인했습니다. 새 비밀번호를 설정하면 이용할 수 있습니다.'),
+            err ? e('div', { className: 'sb-lerr' }, err) : null,
+            e('div', { style: { marginBottom: 12 } },
+              e('label', { className: 'sb-lfl' }, '새 비밀번호 (6자 이상)'),
+              e('input', { className:'sb-lfi', type:'password', placeholder:'새 비밀번호', value:npw,
+                onChange: function(ev){ setNpw(ev.target.value); }, onKeyDown: onChgKey })
+            ),
+            e('div', { style: { marginBottom: 18 } },
+              e('label', { className: 'sb-lfl' }, '새 비밀번호 확인'),
+              e('input', { className:'sb-lfi', type:'password', placeholder:'새 비밀번호 확인', value:npw2,
+                onChange: function(ev){ setNpw2(ev.target.value); }, onKeyDown: onChgKey })
+            ),
+            e('button', { className:'sb-lbtn', onClick:submitChange, disabled: loading },
+              loading ? '변경 중...' : '비밀번호 변경하고 시작하기'
+            )
+          )
+        );
+      }
 
       return e('div', { className: 'sb-lwrap' },
         e('div', { className: 'sb-lbox' },

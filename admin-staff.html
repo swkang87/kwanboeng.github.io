@@ -413,9 +413,15 @@ function FI({ label, field, form, set }) {
 }
 
 // 초기 비밀번호: 랜덤 6자리 (leave.html과 동일)
-function genTempPw() {
-  return Array.from(crypto.getRandomValues(new Uint8Array(6)))
-    .map(b => b % 10).join('');
+// 임시 비밀번호 — 서버(create-user / smooth-function)와 동일한 규칙.
+// 혼동 문자 제외(B/8, I/1, O/0, S/5, Z/2). 숫자 6자리에서 8자 영숫자로 강화했다(H-2).
+function genTempPw(len) {
+  var alphabet = 'ACDEFGHJKLMNPQRTUVWXY34679';
+  var buf = new Uint32Array(len || 8);
+  crypto.getRandomValues(buf);
+  var out = '';
+  for (var i = 0; i < buf.length; i++) out += alphabet[buf[i] % alphabet.length];
+  return out;
 }
 // 로컬 날짜(KST) — toISOString().split('T')[0] 금지 (UTC+9에서 전날로 밀림)
 const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
@@ -545,6 +551,12 @@ function StaffView({ user }) {
       const { data, error } = await invokeAuthed('smooth-function', { user_id: pwResetTarget.id });
       if (error || data?.error) { setPwResetErr(error?.message || data?.error || '초기화 실패'); setPwResetSaving(false); return; }
       setPwResetModal(false);
+      // H-2: 초기화 결과가 전화번호가 아니라 랜덤 임시 비밀번호다.
+      // 이 값을 전달하지 않으면 직원이 로그인할 수 없으므로 반드시 표시한다.
+      var newPw = (data && data.init_pw) || '';
+      alert('✅ ' + ((pwResetTarget && pwResetTarget.name) || '') + ' 님 비밀번호 초기화 완료'
+        + '\n\n임시 비밀번호: ' + newPw
+        + '\n\n이 비밀번호를 직원에게 전달하세요. 첫 로그인 시 변경하게 됩니다.');
     } catch(e) {
       setPwResetErr('네트워크 오류: ' + e.message);
     }
@@ -823,10 +835,10 @@ function StaffView({ user }) {
               {pwResetErr && <div className="al al-e">{pwResetErr}</div>}
               <div style={{marginBottom:14,padding:'12px 14px',background:'#faf5ff',border:'1px solid #e9d5ff',borderRadius:8,fontSize:13,color:'#4c1d95',lineHeight:1.7}}>
                 <strong>{pwResetTarget && pwResetTarget.name}</strong> 님의 비밀번호를 초기화합니다.<br/>
-                초기화 후 비밀번호는 <strong>전화번호(숫자)</strong>로 설정됩니다.
+                초기화 후 <strong>임시 비밀번호가 새로 생성</strong>되며, 완료 창에 표시됩니다.
               </div>
               <div style={{padding:'8px 10px',background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:6,fontSize:11,color:'#92400e'}}>
-                ⚠️ 초기화 후 직원에게 반드시 비밀번호 변경을 안내해 주세요.
+                ⚠️ 표시된 임시 비밀번호를 직원에게 전달해야 로그인할 수 있습니다. 첫 로그인 시 변경 화면이 뜹니다.
               </div>
             </div>
             <div className="mf">

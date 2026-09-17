@@ -1504,6 +1504,65 @@ function renderLoginSection(user) {
     var loginBtn = document.getElementById('mLoginBtn');
     var errEl = document.getElementById('mErr');
 
+    // H-2 강제 비밀번호 변경 화면.
+    // 로그인 자체는 성공했지만 must_change_pw 가 true 라 세션을 열지 않은 상태다.
+    // change-own-password Edge Function 이 Auth 비밀번호 변경과 플래그 해제를 함께 처리한다.
+    function renderForceChange(sb, u, currentPw) {
+      sec.innerHTML =
+        '<div class="modal-form">' +
+          '<div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;' +
+          'border-radius:6px;padding:10px 12px;font-size:.78rem;line-height:1.5;">' +
+            '관리자가 지정한 초기 비밀번호로 로그인했습니다. 새 비밀번호를 설정하면 이용할 수 있습니다.' +
+          '</div>' +
+          '<input class="modal-input" id="mNpw" type="password" placeholder="새 비밀번호 (6자 이상)" autocomplete="new-password"/>' +
+          '<input class="modal-input" id="mNpw2" type="password" placeholder="새 비밀번호 확인" autocomplete="new-password"/>' +
+          '<div id="mCErr" style="font-size:.75rem;color:#e11d48;min-height:18px;"></div>' +
+          '<button class="modal-login-btn" id="mChgBtn">비밀번호 변경하고 시작하기</button>' +
+        '</div>';
+
+      var btn  = document.getElementById('mChgBtn');
+      var cErr = document.getElementById('mCErr');
+      var LABEL = '비밀번호 변경하고 시작하기';
+
+      async function submitChange() {
+        var n1 = document.getElementById('mNpw').value;
+        var n2 = document.getElementById('mNpw2').value;
+        if (!n1 || !n2) { cErr.textContent = '새 비밀번호를 입력하세요.'; return; }
+        if (n1 !== n2)  { cErr.textContent = '새 비밀번호가 일치하지 않습니다.'; return; }
+        btn.disabled = true; btn.textContent = '변경 중...'; cErr.textContent = '';
+        try {
+          // 세션 자동첨부에 의존하지 않고 토큰을 명시 첨부한다(admin-staff.html 과 동일 원칙).
+          var sess  = await sb.auth.getSession();
+          var token = (sess && sess.data && sess.data.session) ? sess.data.session.access_token : null;
+          if (!token) {
+            cErr.textContent = '세션이 만료되었습니다. 다시 로그인해 주세요.';
+            btn.disabled = false; btn.textContent = LABEL; return;
+          }
+          var res = await sb.functions.invoke('change-own-password', {
+            body: { current_pw: currentPw, new_pw: n1 },
+            headers: { Authorization: 'Bearer ' + token }
+          });
+          var msg = (res.data && res.data.error) || (res.error && res.error.message) || '';
+          if (msg || !(res.data && res.data.ok)) {
+            cErr.textContent = msg || '비밀번호를 변경하지 못했습니다.';
+            btn.disabled = false; btn.textContent = LABEL; return;
+          }
+          u.must_change_pw = false;
+          sessionStorage.setItem((APP_CONFIG.SESSION_PREFIX||'kwanbo')+'_session', JSON.stringify(u));
+          localStorage.removeItem('kwanbo_pm_user');
+          sessionStorage.removeItem('kwanbo_uid');
+          window.location.href = (u.role === 'contractor') ? 'project.html' : 'home.html';
+        } catch(e) {
+          cErr.textContent = '오류: ' + e.message;
+          btn.disabled = false; btn.textContent = LABEL;
+        }
+      }
+
+      btn.addEventListener('click', submitChange);
+      document.getElementById('mNpw').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('mNpw2').focus(); });
+      document.getElementById('mNpw2').addEventListener('keydown', function(e){ if(e.key==='Enter') submitChange(); });
+    }
+
     async function doLogin() {
       var phone = document.getElementById('mPhone').value.trim();
       var pw    = document.getElementById('mPw').value;
@@ -1534,7 +1593,7 @@ function renderLoginSection(user) {
 
         // users 테이블에서 프로필 조회
         var profileRes = await sb.from('users')
-          .select('id,name,phone,email,position,team_id,role,join_date,total_days,used_days')
+          .select('id,name,phone,email,position,team_id,role,join_date,total_days,used_days,must_change_pw')
           .eq('auth_id', authRes.data.user.id)
           .single();
 
@@ -1547,7 +1606,15 @@ function renderLoginSection(user) {
         }
 
         var u = profileRes.data;
+        // 비밀번호는 맞았으므로 실패 카운터를 지운다.
         _bfClear();
+
+        // H-2: 초기 비밀번호(또는 관리자 초기화) 상태면 강제 변경 전까지 세션을 열지 않는다.
+        if (u.must_change_pw) {
+          renderForceChange(sb, u, pw);
+          return;
+        }
+
         sessionStorage.setItem((APP_CONFIG.SESSION_PREFIX||'kwanbo')+'_session', JSON.stringify(u));
         localStorage.removeItem('kwanbo_pm_user');
         sessionStorage.removeItem('kwanbo_uid');
