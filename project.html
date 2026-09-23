@@ -329,6 +329,28 @@ const fs = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return
 const fmt = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${t.getMonth()+1}/${t.getDate()}`; };
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 function localDateStr(d){var y=d.getFullYear();var m=String(d.getMonth()+1).padStart(2,'0');var dd=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dd;}
+// PM 은 참여인원(project_members)에 자동으로 포함한다.
+// 이미 배정돼 있으면 역할(support/contractor 포함)을 바꾸지 않고 그대로 둔다 —
+// 기존 배정을 덮어쓰지 않는 것이 이 헬퍼의 전제다. 이전 PM 도 건드리지 않는다.
+// 반환값은 supabase 쓰기 응답 형태라 호출부에서 Sysbar.writeFailed 로 그대로 판정할 수 있다.
+// (건너뛴 경우 { skipped:true } 는 error 가 없어 writeFailed 가 false 를 돌려준다.)
+async function ensurePmMember(projectId, pmId) {
+  if (!projectId || !pmId) return { skipped: true };
+  const { data, error } = await sb.from('project_members')
+    .select('id').eq('project_id', projectId).eq('user_id', pmId).limit(1);
+  if (error) return { error: error };
+  if (data && data.length > 0) return { skipped: true };
+  return await sb.from('project_members').insert({ project_id: projectId, user_id: pmId, role: 'pm' });
+}
+// PM 을 교체하면 이전 PM 은 참여인원에서 제거한다.
+// role='pm' 행만 지운다 — 이전 PM 이 서포트/기술지원으로도 배정돼 있다면 그 배정은
+// PM 교체와 무관한 별개 참여이므로 남긴다.
+// 0행이 정상(이전 PM 이 참여인원에 없던 경우)이라 호출부에서 expectRows 를 쓰면 안 된다.
+async function removeOldPmMember(projectId, oldPmId, newPmId) {
+  if (!projectId || !oldPmId || oldPmId === newPmId) return { skipped: true };
+  return await sb.from('project_members').delete()
+    .eq('project_id', projectId).eq('user_id', oldPmId).eq('role', 'pm');
+}
 // 임시 비밀번호 생성 — 혼동 문자 제외(B/8, I/1, O/0, S/5, Z/2). 구두 전달을 전제로 한다.
 // H-2: 이전에는 초기 비밀번호를 전화번호로 뒀다. 전화번호는 로그인 ID이자 조회 가능한 값이라
 //      그 자체가 취약점이었다. 서버(create-user)도 같은 규칙으로 랜덤을 만든다.
@@ -2361,6 +2383,11 @@ function EditProjectModal({ project, userId, onClose, onSaved, users: editUsers 
     };
     const { error } = await sb.from('projects').update(updates).eq('id', project.id);
     if (error) { setErr('저장 중 오류: ' + error.message); setLoading(false); return; }
+    // 프로젝트 저장은 이미 끝났으므로 PM 배정만 실패해도 목록은 갱신한다.
+    const pmOldRes = await removeOldPmMember(project.id, project.pm_id, updates.pm_id);
+    if (Sysbar.writeFailed(pmOldRes, '이전 PM 참여인원 해제')) { onSaved(); setLoading(false); return; }
+    const pmMemRes = await ensurePmMember(project.id, updates.pm_id);
+    if (Sysbar.writeFailed(pmMemRes, 'PM 참여인원 등록')) { onSaved(); setLoading(false); return; }
     onSaved();
   };
 
@@ -2875,6 +2902,11 @@ function InlineProjectEdit({ project, users, userId, onSaved }) {
     };
     const { error } = await sb.from('projects').update(updates).eq('id', project.id);
     if (error) { setMsg('저장 오류: ' + error.message); setLoading(false); return; }
+    // 프로젝트 저장은 이미 끝났으므로 PM 배정만 실패해도 목록은 갱신한다.
+    const pmOldRes = await removeOldPmMember(project.id, project.pm_id, updates.pm_id);
+    if (Sysbar.writeFailed(pmOldRes, '이전 PM 참여인원 해제')) { onSaved(); setLoading(false); return; }
+    const pmMemRes = await ensurePmMember(project.id, updates.pm_id);
+    if (Sysbar.writeFailed(pmMemRes, 'PM 참여인원 등록')) { onSaved(); setLoading(false); return; }
     setMsg('저장됐습니다.');
     setTimeout(() => setMsg(''), 2000);
     onSaved();
@@ -3026,7 +3058,7 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 600, overflowY: 'auto' }}>
           {/* 인라인 수정 폼 */}
           <InlineProjectEdit project={selProject} users={users} userId={userId}
-            onSaved={() => { onSaved(); }} />
+            onSaved={() => { onSaved(); loadMembers(selPid); }} />
 
           {/* 참여인원 */}
           <div className="card card-p">

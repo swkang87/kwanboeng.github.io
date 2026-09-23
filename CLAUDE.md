@@ -351,6 +351,27 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   config.js 문법 OK. 팀 **색상** 매핑 잔여 0건. 백업 `backup/leave_20260804_2.html`(같은 날 2차라 `_2` 접미),
   `backup/home_20260804.html`, `backup/config_20260804.js`.
 
+### project.html PM 참여인원 자동 등록 + PM 교체 시 이전 PM 해제 (2026-09-23)
+- **규칙**: `projects.pm_id` 가 바뀌거나 저장될 때 PM 을 `project_members` 에 `role:'pm'` 으로 자동 등록한다.
+  **이미 배정돼 있으면 역할을 덮어쓰지 않는다**(서포트로 올라 있어도 그대로 — 승우님 지시).
+  PM 을 교체하면 **이전 PM 의 `role='pm'` 행만 삭제**한다(ⓒ 안). 이전 PM 이 서포트/기술지원으로도
+  배정돼 있으면 그 행은 PM 교체와 무관한 별개 참여이므로 남긴다.
+- **모듈 헬퍼 2개**(`localDateStr` 아래): `ensurePmMember(projectId, pmId)` / `removeOldPmMember(projectId, oldPmId, newPmId)`.
+  반환값이 supabase 쓰기 응답 형태라 호출부에서 `Sysbar.writeFailed` 로 그대로 판정된다
+  (건너뜀은 `{skipped:true}` — error 없음 → false). **둘 다 0행이 정상이라 `expectRows` 금지.**
+- **적용 2곳**: `InlineProjectEdit.save`(관리자메뉴 → 프로젝트 수정) · `EditProjectModal.save`(공정관리 본문 수정 모달).
+  같은 `pm_id` 필드를 고치는 화면이라 한쪽만 적용하면 다시 어긋난다. 호출 순서는 **이전 PM 해제 → 새 PM 등록**.
+  프로젝트 본체 저장은 이미 끝난 뒤이므로 멤버 쓰기 실패 시에도 `onSaved()` 를 부르고 빠진다(CreateProjectForm 기존 패턴).
+- `AdminProjectEdit` 의 `InlineProjectEdit onSaved` 에 `loadMembers(selPid)` 추가 — 없으면 👥참여인원 카드가
+  새로고침 전까지 옛 목록을 보여준다.
+- `CreateProjectForm`(새 프로젝트 등록)은 원래부터 PM 을 자동 배정 — **무변경**.
+- **기존 데이터 backfill 완료(56건)**: PM 이 참여인원에 없던 56건(완료 32/진행중 16/중지 8)에 `role:'pm'` INSERT.
+  적용 후 누락 0 / 중복 0 / 총 참여인원 행 133. PM 이 다른 역할로 올라 있던 2건은 **의도적으로 미변경**.
+  기존 `role='pm'` 인데 `pm_id` 와 불일치한 행은 **0건**이라 과거분 정리는 불필요했다.
+  SQL 은 저장소 밖 `security-fix/05~07_pm_member_backfill_*.sql`. 롤백용 id 는
+  **`backup` 스키마**(PostgREST 미노출, anon/authenticated USAGE 없음)의 `project_members_backfill_20260923` 에 보관.
+- 검증: 중괄호 2297/2297 balance(괄호 델타는 HEAD 와 동일), Babel(preset-react+env) 트랜스파일 PASS.
+
 ---
 
 ## ❕ 패턴·원칙
