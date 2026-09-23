@@ -288,7 +288,24 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 ### WeeklyReport 완료 용역 과거 주 표시 버그 수정
 `applyAppData`의 완료 제거 필터 + `loadAll`의 `.neq('status','완료')` + `sortedProjects`의 `if (p.status !== '완료')` 래핑 — 세 곳 제거.
 - WeeklyReport는 완료 용역 포함 전체 데이터를 받아야 `completed_at` 기반 과거 주 표시가 동작함.
-- 완료 용역의 표시/숨김은 `sortedProjects` 필터 하단 `p.status === '완료'` 분기에서 `completed_at >= selWeek` 조건으로 결정.
+- 완료 용역의 표시/숨김은 `sortedProjects` 필터 하단 `p.status === '완료'` 분기에서 결정.
+  ⚠️ **이 분기의 `completed_at >= selWeek` 조건은 2026-09-21 폐기됨** — 아래 항목 참조.
+
+### WeeklyReport 완료 용역 전면 숨김 (2026-09-21, 위 항목의 표시 조건 폐기)
+- **원칙 확정**: 완료 처리된 용역은 **과거 주를 포함해 주간보고 어느 주에도 표시하지 않는다.**
+  (승우님 확인 — "완료된 프로젝트는 주간보고에 올라오지 않는 게 원칙")
+- **증상**: 완료 저장한 당일~그 주 내내 주간보고에 계속 보임. 버그가 아니라 구 규칙
+  `return p.completed_at >= selWeek`("완료된 주는 표시, 다음 주부터 숨김")의 의도된 동작이었음.
+- **수정**(`project.html` 770행, `sortedProjects` 필터): 3줄 분기 → `if (p.status === '완료') return false;`
+- **데이터 실측(집계만 조회)**: 최신 주 2026-09-21 / `status='완료'` 44건 중 당시 표시되던 건 2건
+  (`completed_at` = 2026-09-21) / `completed_at` null 6건(컬럼 도입 전 완료분, 원래도 미표시 → **조치 안 함**).
+- **로드 필터는 복원하지 않음**: `loadAll`·`applyAppData`는 완료 포함 전체를 계속 받는다
+  (`projects` state는 ProjectList·MyProjects 등과 공유되는 appData 기반 — `.neq` 복원 시 다른 화면이 깨짐).
+  숨김은 **표시 단계에서만** 한다.
+- **잔존 방어 코드(무해, 제거 안 함)**: 808행 `activeProjects = sortedProjects.filter(p => p.status !== '완료')`는
+  이제 항상 `sortedProjects`와 동일. 857·952·1090·1117행의 `p.status !== '완료'` 조건도 항상 참.
+- 검증: 중괄호 balance 2284/2284(백업과 델타 동일), Babel(preset-react+env) 트랜스파일 PASS.
+  백업 `backup/project_20260921.html`.
 
 ### leave.html 캘린더 연차자 전원 표시 (+N 접기 제거, 칩 축소)
 - **문제**: 하루 3명 이상이면 `slice(0,2)` + `+N`으로 접혀 한눈에 안 들어옴.

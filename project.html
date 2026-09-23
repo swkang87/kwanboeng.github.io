@@ -767,11 +767,8 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
         }
         // 기술지원: 배정된 프로젝트만
         if (memberPids !== null && !memberPids.has(p.id)) return false;
-        // 완료 처리된 용역: 완료된 다음 주부터 숨김
-        if (p.status === '완료') {
-          if (!p.completed_at) return false;
-          return p.completed_at >= selWeek; // 완료된 주는 표시, 다음 주부터 숨김
-        }
+        // 완료 처리된 용역: 주간보고에 표시하지 않음 (과거 주 포함)
+        if (p.status === '완료') return false;
         // 중지 프로젝트는 무조건 표시
         if (p.status === '중지') return true;
         // 이전 최신 보고가 100%면 제외
