@@ -128,10 +128,4 @@ var APP_CONFIG = {
   HOME_URL: 'home.html',
   INDEX_URL: 'index.html',  // 회사 홈페이지
 
-  // ── EmailJS (급여명세서 발송용) ───────────────────────────────
-  // https://www.emailjs.com 에서 가입 후 설정값 입력
-  EMAILJS_SERVICE_ID:  'service_1cwama6',
-  EMAILJS_TEMPLATE_ID: 'template_358o2dn',
-  EMAILJS_PUBLIC_KEY:  'bjJqZiyA9due-lOAL',
-
 };

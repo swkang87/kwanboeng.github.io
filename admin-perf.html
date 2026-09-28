@@ -176,16 +176,12 @@ tr:hover td{background:#f8fafc;}
 .lsub{font-size:12px;color:#94a3b8;text-align:center;margin-bottom:24px;}
 @media(max-width:768px){.g2,.g3{grid-template-columns:1fr;}.sal-row{grid-template-columns:1fr;}.page{padding:12px;}.itabs{flex-wrap:wrap;}.btn{min-height:44px;}.btn-sm{min-height:36px;}.sh{flex-wrap:wrap;}.mbox{margin:12px;}}
 </style>
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
-if (window.emailjs && APP_CONFIG.EMAILJS_PUBLIC_KEY) {
-  window.emailjs.init({ publicKey: APP_CONFIG.EMAILJS_PUBLIC_KEY });
-}
 
 const VIEWS = { WL:'wl', PF:'pf', SL:'sl', AB:'ab', ST:'st' };
 const TODAY = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -3160,13 +3156,11 @@ const PageView = PerfView;
 // 각 페이지 파일은 상단에서 CURRENT_PAGE 를 지정한다.
 //   admin-worklog.html  → 'wl'
 //   admin-perf.html     → 'pf'
-//   admin-salary.html   → 'sl'
 //   admin-account.html  → 'ab'
 //   admin-staff.html    → 'st'
 const PORTAL_PAGES = [
   { key:'wl', label:'📝 업무일지', href:'admin-worklog.html', need:'access' },
   { key:'pf', label:'📊 수금관리', href:'admin-perf.html',    need:'access' },
-  { key:'sl', label:'💼 급여관리', href:'admin-salary.html',  need:'sal'    },
   { key:'ab', label:'🔑 계정관리', href:'admin-account.html', need:'ab'     },
   { key:'st', label:'👥 직원관리', href:'admin-staff.html',   need:'access' },
 ];
