@@ -421,6 +421,17 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 title / footer / 연락처 등이 하드코딩된 상태.
 `APP_CONFIG`에서 주입하도록 전환하면 납품 체크리스트 항목 단축 가능 — 미해결.
 
+### 관리포털 상단 탭(PORTAL_PAGES) 5개 파일 중복 해소
+관리포털 탭 목록 `PORTAL_PAGES` 가 admin-worklog / admin-perf / admin-account / admin-staff
+(+ 급여 재구축 후 admin-payroll) 각 파일에 **복사**되어 있다. `sysbar.js` 에는 없다.
+메뉴를 바꿀 때마다 전 파일을 똑같이 고쳐야 하는 구조 — 공통 소스(sysbar.js 또는 config.js)로 통합 필요.
+급여명세서 모듈 재구축(2026-09-28~)에서는 범위 제외, 5개 파일에 동일 반영으로만 처리.
+
+### outputs/ 예전 사본 정리 검토
+`outputs/` 폴더의 예전 작업 사본(admin-perf.html, worklog.html, task1_trigger.sql 등)이
+저장소에 커밋되어 있어 **GitHub Pages로 공개**된다. 현행 코드와 어긋난 옛 로직이 노출되는 상태라
+삭제 또는 저장소 밖 이동을 검토할 것. (admin-salary.html 사본은 2026-09-28 삭제 완료)
+
 ## [진행중] 사업분야 상세페이지 (2026-09-11 갱신 · 6개 전부 작성 완료, 미push)
 
 ### 상태
