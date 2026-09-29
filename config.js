@@ -128,4 +128,19 @@ var APP_CONFIG = {
   HOME_URL: 'home.html',
   INDEX_URL: 'index.html',  // 회사 홈페이지
 
+  // ── 급여명세서 (admin-payroll.html / payslip.html) ─────────────
+  // 회사명·연락처·주소는 위 회사 정보·연락처 값을 그대로 쓴다.
+  PAYROLL: {
+    PAY_DAY:          9,              // 급여 지급일(일)
+    PAY_MONTH_OFFSET: 1,              // 귀속월 기준 지급월 (1 = 다음 달 지급)
+    MAIL_FROM_NAME:    '',            // 알림 메일 발신자 이름 (5단계에서 설정)
+    MAIL_FROM_ADDRESS: '',            // 알림 메일 발신 주소 (5단계에서 설정)
+    SLIP_PAGE:        'payslip.html', // 직원용 명세서 페이지
+    TYPE_LABELS:      { pay: '지급용', report: '신고용' },
+    // 편집 표 참고 표시 대상 항목명 (payroll_items.name 과 일치해야 함)
+    REF_REPORT_ITEM:   '보고회수당',   // 보고회·위원회 횟수 표시 + '산출방법 채우기' 대상
+    REF_OVERTIME_ITEM: '연장근로수당', // 초과근무 시간 표시 (참고만, 자동 입력 없음)
+    ALLOWANCE_EVENT_TYPES: ['보고회', '위원회'], // 월별수당·보고회 횟수 집계 대상 일정 유형
+  },
+
 };

@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>급여관리</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
+<script src="config.js"></script>
+<script src="sysbar.js?v=20260915"></script>
+<script src="payslip-render.js?v=20260929"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
+.sys-bar{position:sticky;top:0;z-index:300;} /* → sysbar.js가 주입 */
+@media(max-width:640px){
+  .top-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .top-nav::-webkit-scrollbar{display:none;}
+}
+.top-nav{position:sticky;top:83px;z-index:200;background:#1e293b;height:36px;display:flex;align-items:center;padding:0 14px;gap:1px;border-bottom:1px solid var(--theme,#0f172a);}
+.nav-btn{display:flex;align-items:center;gap:4px;padding:5px 11px;height:26px;border:none;background:transparent;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-size:11px;font-weight:400;color:#94a3b8;cursor:pointer;white-space:nowrap;}
+.nav-btn.active{background:#7c3aed;color:#fff;font-weight:700;}
+.page{padding:24px;max-width:1400px;margin:0 auto;}
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:20px;margin-bottom:16px;}
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0;}
+table{width:100%;border-collapse:collapse;}
+thead{background:#f8fafc;}
+th{padding:8px 8px;text-align:left;font-size:10px;font-weight:700;color:#64748b;white-space:nowrap;border-bottom:1px solid #e2e8f0;}
+td{padding:9px 8px;font-size:13px;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+.tr{text-align:right;white-space:nowrap;}
+.tc{text-align:center;white-space:nowrap;}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;}
+.bg{background:#dcfce7;color:#166534;}
+.bb{background:#dbeafe;color:#1e40af;}
+.ba{background:#fef3c7;color:#92400e;}
+.br{background:#fee2e2;color:#991b1b;}
+.bgr{background:#f1f5f9;color:#64748b;}
+.bp{background:#f3e8ff;color:#6b21a8;}
+.fl{display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:5px;letter-spacing:.3px;}
+.fi{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#0f172a;outline:none;background:#fff;}
+.fi:focus{border-color:#7c3aed;}
+.fi:disabled{background:#f8fafc;color:#64748b;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;white-space:nowrap;}
+.btn-p{background:#7c3aed;color:#fff;}
+.btn-s{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;}
+.btn-d{background:#fee2e2;color:#991b1b;}
+.btn-sm{padding:5px 10px;font-size:11px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.sh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.st{font-size:14px;font-weight:700;color:#0f172a;}
+.itabs{display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:10px;width:fit-content;}
+.itab{padding:6px 14px;border:none;background:transparent;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:600;color:#64748b;cursor:pointer;white-space:nowrap;}
+.itab.active{background:#fff;color:#7c3aed;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;}
+.mbox{background:#fff;border-radius:16px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.3);}
+.mbox.wide{max-width:860px;background:#f1f5f9;}
+.mh{padding:18px 24px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;background:#fff;}
+.mht{font-size:15px;font-weight:800;color:#0f172a;}
+.mc{background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;}
+.mb{padding:20px 24px;}
+.mf{padding:14px 24px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px;background:#fff;}
+.al{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;line-height:1.6;}
+.al-e{background:#fee2e2;color:#991b1b;}
+.al-s{background:#dcfce7;color:#166534;}
+.al-i{background:#dbeafe;color:#1e40af;}
+.al-w{background:#fef3c7;color:#92400e;}
+.loading{text-align:center;padding:32px;color:#94a3b8;font-size:13px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+/* ── 급여 편집 표 ── */
+.pr-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.pr-title{font-size:20px;font-weight:800;margin-right:8px;}
+.pr-period{display:flex;align-items:center;gap:4px;}
+.pr-pbtn{background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:5px 10px;font-size:13px;cursor:pointer;color:#475569;}
+.pr-month{padding:5px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px;font-weight:700;color:#0f172a;}
+.pr-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.pr-bar .sep{flex:1;}
+.pr-grid{border-collapse:separate;border-spacing:0;width:auto;min-width:100%;}
+.pr-grid th,.pr-grid td{border-bottom:1px solid #eef2f7;border-right:1px solid #f1f5f9;padding:5px 6px;}
+.pr-grid th{font-size:10.5px;text-align:center;background:#f8fafc;position:sticky;top:0;z-index:2;}
+.pr-grid th.earn{color:#1e40af;}
+.pr-grid th.ded{color:#991b1b;}
+.pr-grid th.sum,.pr-grid td.sum{background:#f8fafc;font-weight:800;text-align:right;white-space:nowrap;}
+.pr-grid td.net{background:#f5f3ff;color:#6d28d9;font-weight:800;text-align:right;white-space:nowrap;}
+.pr-grid .nm{position:sticky;left:0;z-index:1;background:#fff;min-width:120px;max-width:160px;}
+.pr-grid th.nm{z-index:3;background:#f8fafc;text-align:left;}
+.pr-grid tfoot td{background:#f8fafc;font-weight:800;text-align:right;white-space:nowrap;border-top:2px solid #cbd5e1;}
+.pr-grid tfoot td.nm{background:#f8fafc;text-align:left;}
+.pr-in{width:92px;padding:5px 6px;border:1px solid #e2e8f0;border-radius:6px;font-size:12.5px;text-align:right;outline:none;background:#fff;}
+.pr-in:focus{border-color:#7c3aed;background:#faf5ff;}
+.pr-in:disabled{background:transparent;border-color:transparent;color:#0f172a;}
+.pr-ref{font-size:10px;color:#7c3aed;margin-top:2px;text-align:right;white-space:nowrap;}
+.pr-mth{font-size:10px;color:#94a3b8;margin-top:2px;text-align:right;max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pr-sub{font-size:10.5px;color:#94a3b8;font-weight:500;}
+.pr-lock{display:flex;gap:10px;align-items:flex-start;}
+.pr-acts{display:flex;gap:4px;justify-content:center;}
+.set-row td{padding:6px 8px;}
+.set-in{padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12.5px;width:100%;outline:none;}
+.set-in:focus{border-color:#7c3aed;}
+@media(max-width:768px){
+  .page{padding:12px;}
+  .g2{grid-template-columns:1fr;}
+  .btn{min-height:40px;}
+  .btn-sm{min-height:32px;}
+  .mbg{padding:8px;}
+  .mb{padding:16px;}
+  .pr-in{width:80px;}
+  .pr-grid .nm{min-width:88px;}
+}
+.lwrap{min-height:100vh;background:linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e1b4b 50%,#4c1d95 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
+.lbox{background:#fff;border-radius:20px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 32px 80px rgba(0,0,0,.5);}
+.llogo{width:56px;height:56px;background:linear-gradient(135deg,#7c3aed,#4c1d95);border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:26px;}
+.ltit{font-size:18px;font-weight:800;color:#0f172a;text-align:center;margin-bottom:4px;}
+.lsub{font-size:12px;color:#94a3b8;text-align:center;margin-bottom:24px;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// Supabase 클라이언트는 최초 사용 시점에 함수 안에서 생성한다.
+var _sb = null;
+function getSb() {
+  if (!_sb) _sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+  return _sb;
+}
+
+// ── 설정 (화이트라벨: config.js 의 PAYROLL) ─────────────────────────────
+var PCFG = (window.APP_CONFIG && APP_CONFIG.PAYROLL) || {};
+var PAY_DAY = PCFG.PAY_DAY || 9;
+var PAY_MONTH_OFFSET = (PCFG.PAY_MONTH_OFFSET == null) ? 1 : PCFG.PAY_MONTH_OFFSET;
+var TYPE_LABELS = PCFG.TYPE_LABELS || { pay:'지급용', report:'신고용' };
+var REF_REPORT_ITEM = PCFG.REF_REPORT_ITEM || '';
+var REF_OVERTIME_ITEM = PCFG.REF_OVERTIME_ITEM || '';
+var ALLOWANCE_EVENT_TYPES = PCFG.ALLOWANCE_EVENT_TYPES || (window.APP_CONFIG && APP_CONFIG.ALLOWANCE_EVENT_TYPES) || ['보고회','위원회'];
+var ADMIN_TEAM = (window.APP_CONFIG && APP_CONFIG.ADMIN_TEAM_NAME) || '';
+
+// ── 날짜·금액 헬퍼 (toISOString 날짜 변환 금지 — 로컬 기준) ─────────────
+function pad2(n) { return String(n).padStart(2, '0'); }
+function localDateStr(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function today() { return localDateStr(new Date()); }
+function periodOf(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1); }
+function shiftPeriod(p, n) {
+  var y = parseInt(p.slice(0, 4), 10), m = parseInt(p.slice(5, 7), 10);
+  return periodOf(new Date(y, m - 1 + n, 1));
+}
+function defaultPeriod() {
+  var d = new Date();
+  var p = periodOf(d);
+  // 다음 달 지급 구조면, 지급일 전까지는 전월 급여를 작업 중인 것으로 본다.
+  return (PAY_MONTH_OFFSET > 0 && d.getDate() <= PAY_DAY) ? shiftPeriod(p, -1) : p;
+}
+function defaultPayDate(p) {
+  var y = parseInt(p.slice(0, 4), 10), m = parseInt(p.slice(5, 7), 10);
+  var first = new Date(y, m - 1 + PAY_MONTH_OFFSET, 1);
+  var last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  return localDateStr(new Date(first.getFullYear(), first.getMonth(), Math.min(PAY_DAY, last)));
+}
+function fmtPeriodKo(p) { return p.slice(0, 4) + '년 ' + parseInt(p.slice(5, 7), 10) + '월'; }
+function fmtDateTime(ts) {
+  if (!ts) return '';
+  var d = new Date(ts);
+  return localDateStr(d) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+function won(n) { return (Number(n) || 0).toLocaleString('ko-KR'); }
+function amt(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
+function cleanAmt(raw) {
+  var s = String(raw || '').trim();
+  var neg = s.charAt(0) === '-';
+  var dg = s.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+  return (neg ? '-' : '') + dg;
+}
+function showAmt(v) {
+  if (v === '' || v == null) return '';
+  if (v === '-') return '-';
+  return amt(v).toLocaleString('ko-KR');
+}
+function fmtDur(min) {
+  var h = Math.floor(min / 60), m = min % 60;
+  if (h > 0 && m > 0) return h + '시간 ' + m + '분';
+  if (h > 0) return h + '시간';
+  return m + '분';
+}
+function parseMinutes(t) {
+  if (!t || t.indexOf(':') === -1) return null;
+  var parts = t.split(':');
+  var h = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+}
+function useIsMobile() {
+  const [m, setM] = useState(window.innerWidth <= ((window.APP_CONFIG && APP_CONFIG.MOBILE_MAX_WIDTH) || 768));
+  useEffect(function() {
+    function onR() { setM(window.innerWidth <= ((window.APP_CONFIG && APP_CONFIG.MOBILE_MAX_WIDTH) || 768)); }
+    window.addEventListener('resize', onR);
+    return function() { window.removeEventListener('resize', onR); };
+  }, []);
+  return m;
+}
+
+// ── 월별수당 집계 (구 admin-salary.html AllowanceView 로직 이전) ─────────
+// 참석 = 해당 프로젝트 PM 기준, 초과근무 = 업무일지 overtime_start~end 합계
+function loadAllowance(period) {
+  var sb = getSb();
+  var y = parseInt(period.slice(0, 4), 10), mo = parseInt(period.slice(5, 7), 10);
+  var start = localDateStr(new Date(y, mo - 1, 1));
+  var end = localDateStr(new Date(y, mo, 0));
+  return Promise.all([
+    sb.from('users').select('id,name,team_id').neq('role', 'contractor').order('name'),
+    sb.from('teams').select('id,name'),
+    sb.from('projects').select('id,pm_id'),
+    sb.from('project_events').select('id,type,event_date,project_id')
+      .in('type', ALLOWANCE_EVENT_TYPES).gte('event_date', start).lte('event_date', end),
+    sb.from('work_logs').select('user_id,log_date,overtime,overtime_start,overtime_end')
+      .eq('overtime', true).gte('log_date', start).lte('log_date', end),
+  ]).then(function(res) {
+    var pmMap = {};
+    (res[2].data || []).forEach(function(p) { pmMap[p.id] = p.pm_id; });
+    var att = {};
+    (res[3].data || []).forEach(function(e) {
+      var pm = pmMap[e.project_id];
+      if (!pm) return;
+      if (!att[pm]) att[pm] = {};
+      att[pm][e.type] = (att[pm][e.type] || 0) + 1;
+    });
+    var ot = {};
+    (res[4].data || []).forEach(function(l) {
+      var s = parseMinutes(l.overtime_start), en = parseMinutes(l.overtime_end);
+      if (s === null || en === null || en <= s) return;
+      if (!ot[l.user_id]) ot[l.user_id] = { days: 0, minutes: 0 };
+      ot[l.user_id].days += 1;
+      ot[l.user_id].minutes += (en - s);
+    });
+    return { users: res[0].data || [], teams: res[1].data || [], att: att, ot: ot };
+  });
+}
+function attText(a, sep) {
+  if (!a) return '';
+  return ALLOWANCE_EVENT_TYPES.filter(function(tp) { return a[tp]; })
+    .map(function(tp) { return tp + ' ' + a[tp] + '회'; }).join(sep || ', ');
+}
+
+// ── 대상자 표시 정보 (계정 연결 → users, 계정 없음 → payroll_employees) ─────
+function personOf(emp, usersMap) {
+  if (emp.user_id) {
+    var u = usersMap[emp.user_id] || {};
+    return { name: u.name || '(계정 없음)', birth_date: u.birth_date || null, hire_date: u.hire_date || null, linked: true, user: u };
+  }
+  return { name: emp.name || '', birth_date: emp.birth_date || null, hire_date: emp.hire_date || null, linked: false, user: null };
+}
+function sortEmployees(list, usersMap) {
+  return list.slice().sort(function(a, b) {
+    if ((a.sort_order || 0) !== (b.sort_order || 0)) return (a.sort_order || 0) - (b.sort_order || 0);
+    return personOf(a, usersMap).name.localeCompare(personOf(b, usersMap).name, 'ko');
+  });
+}
+function sortItems(items) {
+  return items.slice().sort(function(a, b) {
+    if (a.kind !== b.kind) return a.kind === 'earning' ? -1 : 1;
+    return (a.sort_order || 0) - (b.sort_order || 0);
+  });
+}
+
+// ── 명세서 모델 (payslip-render.js 입력) ─────────────────────────────
+function lineMethod(cell, item) {
+  var m = cell && cell.m ? String(cell.m).trim() : '';
+  if (m) return m;
+  return (cell && amt(cell.v) !== 0 && item.default_method) ? item.default_method : '';
+}
+function buildModel(opts) {
+  // opts: { period, runType, payDate, person:{name,birth_date,hire_date}, emp, cols, cellsRow, slip }
+  var earnings = [], deductions = [], te = 0, td = 0;
+  opts.cols.forEach(function(it) {
+    var c = opts.cellsRow[it.id];
+    var a = c ? amt(c.v) : 0;
+    if (a === 0) return;
+    var row = { name: (opts.locked && c && c.n) || it.name, amount: a, method: lineMethod(c, it) };
+    if (it.kind === 'earning') { earnings.push(row); te += a; } else { deductions.push(row); td += a; }
+  });
+  var s = opts.slip;
+  var useSnap = !!(s && opts.locked);
+  return {
+    period: opts.period, runType: opts.runType, payDate: opts.payDate,
+    name: useSnap ? s.name_snap : opts.person.name,
+    birthDate: useSnap ? s.birth_date_snap : opts.person.birth_date,
+    hireDate: useSnap ? s.hire_date_snap : opts.person.hire_date,
+    dept: useSnap ? s.dept_snap : opts.emp.dept_label,
+    position: useSnap ? s.position_snap : opts.emp.position_label,
+    employeeNo: useSnap ? s.employee_no_snap : opts.emp.employee_no,
+    earnings: earnings, deductions: deductions,
+    totalEarning: te, totalDeduction: td, netPay: te - td,
+  };
+}
+function rowTotals(cols, cellsRow) {
+  var te = 0, td = 0;
+  cols.forEach(function(it) {
+    var c = cellsRow[it.id];
+    var a = c ? amt(c.v) : 0;
+    if (it.kind === 'earning') te += a; else td += a;
+  });
+  return { te: te, td: td, net: te - td };
+}
+
+// 오류 전달용: then 체인 안에서 throw 하고 마지막 catch 에서 Sysbar.showError 로 알린다.
+function must(label, opts) {
+  return function(res) {
+    if (!res || res.error) throw { ctx: label, err: (res && res.error) || { message: 'no response' } };
+    if (opts && opts.expectRows) {
+      var d = res.data, n = d == null ? 0 : (d.length == null ? 1 : d.length);
+      if (n === 0) throw { ctx: label, err: { code: '42501', message: APP_CONFIG.ERROR_NO_ROWS || '변경되지 않았습니다.' } };
+    }
+    return res;
+  };
+}
+function reportErr(e) {
+  if (e && e.ctx) Sysbar.showError(e.err, e.ctx);
+  else Sysbar.showError(e, '급여관리');
+}
+
+// ── 저장 (작성중 묶음만) ───────────────────────────────────────────
+// 묶음 확보 → 제외 대상 명세서 삭제 → 대상자별 명세서 upsert → 항목 upsert → 빠진 항목 삭제
+function persistRun(ctx) {
+  var sb = getSb();
+  var nowIso = new Date().toISOString();
+  var runP = ctx.run
+    ? sb.from('payroll_runs').update({ pay_date: ctx.payDate || null, updated_at: nowIso }).eq('id', ctx.run.id).select().then(must('급여 묶음 저장', { expectRows: true }))
+    : sb.from('payroll_runs').insert({ period: ctx.period, run_type: ctx.runType, pay_date: ctx.payDate || null }).select().then(must('급여 묶음 생성', { expectRows: true }));
+  return runP.then(function(res) {
+    var run = res.data[0];
+    if (run.status !== 'draft') throw { ctx: '저장', err: { message: '확정된 묶음은 수정할 수 없습니다. 확정 취소 후 수정하세요.' } };
+    var p = Promise.resolve();
+    var delIds = Object.keys(ctx.excluded).filter(function(id) { return ctx.excluded[id] && ctx.slipByEmp[id]; })
+      .map(function(id) { return ctx.slipByEmp[id].id; });
+    if (delIds.length) {
+      p = p.then(function() { return sb.from('payroll_slips').delete().in('id', delIds).select('id').then(must('제외 대상 명세서 삭제')); });
+    }
+    ctx.rows.forEach(function(empId) {
+      if (ctx.excluded[empId]) return;
+      p = p.then(function() { return saveOneSlip(sb, ctx, run, empId, nowIso); });
+    });
+    return p.then(function() { return run; });
+  });
+}
+function saveOneSlip(sb, ctx, run, empId, nowIso) {
+  var emp = ctx.empMap[empId];
+  var per = personOf(emp, ctx.usersMap);
+  var cellsRow = ctx.cells[empId] || {};
+  var t = rowTotals(ctx.cols, cellsRow);
+  var slipPayload = {
+    run_id: run.id, employee_id: empId,
+    name_snap: per.name, birth_date_snap: per.birth_date, hire_date_snap: per.hire_date,
+    dept_snap: emp.dept_label || null, position_snap: emp.position_label || null, employee_no_snap: emp.employee_no || null,
+    total_earning: t.te, total_deduction: t.td, net_pay: t.net, updated_at: nowIso,
+  };
+  var who = per.name || '대상자';
+  return sb.from('payroll_slips').upsert(slipPayload, { onConflict: 'run_id,employee_id' }).select('id')
+    .then(must(who + ' 명세서 저장', { expectRows: true }))
+    .then(function(res) {
+      var slipId = res.data[0].id;
+      var lines = [];
+      ctx.cols.forEach(function(it) {
+        var c = cellsRow[it.id];
+        var a = c ? amt(c.v) : 0;
+        var m = c && c.m ? String(c.m).trim() : '';
+        if (a === 0 && !m) return;
+        lines.push({ slip_id: slipId, item_id: it.id, item_name: it.name, item_kind: it.kind,
+                     sort_order: it.sort_order || 0, amount: a, method: lineMethod(c, it) || null });
+      });
+      var keep = lines.map(function(l) { return l.item_id; });
+      var up = lines.length
+        ? sb.from('payroll_slip_lines').upsert(lines, { onConflict: 'slip_id,item_id' }).select('id').then(must(who + ' 항목 저장'))
+        : Promise.resolve();
+      return up.then(function() {
+        var q = sb.from('payroll_slip_lines').delete().eq('slip_id', slipId);
+        if (keep.length) q = q.not('item_id', 'in', '(' + keep.join(',') + ')');
+        return q.then(must(who + ' 빠진 항목 정리'));
+      });
+    });
+}
+
+// ── 명세서 미리보기 모달 ───────────────────────────────────────────
+var PayslipSheet = PayslipRender.createSheet(React);
+var PayslipPrintCopy = PayslipRender.createPrintCopy(React, ReactDOM);
+
+function PreviewModal({ model, onClose }) {
+  return (
+    <div className="mbg" onClick={onClose}>
+      <div className="mbox wide" onClick={function(e){ e.stopPropagation(); }}>
+        <div className="mh">
+          <span className="mht">명세서 미리보기 · {model.name}</span>
+          <button className="mc" onClick={onClose}>×</button>
+        </div>
+        <div className="mb"><PayslipSheet model={model} /></div>
+        <div className="mf">
+          <span style={{ fontSize: 11, color: '#94a3b8', marginRight: 'auto', alignSelf: 'center' }}>인쇄 창에서 "PDF로 저장"을 고르면 PDF 파일이 됩니다.</span>
+          <button className="btn btn-s" onClick={onClose}>닫기</button>
+          <button className="btn btn-p" onClick={function(){ window.print(); }}>🖨 인쇄 / PDF</button>
+        </div>
+        <PayslipPrintCopy model={model} />
+      </div>
+    </div>
+  );
+}
+
+// ── 산출방법 입력 모달 ────────────────────────────────────────────
+function MethodModal({ title, cols, cellsRow, locked, onSave, onClose }) {
+  var init = {};
+  cols.forEach(function(it) { var c = cellsRow[it.id]; init[it.id] = c && c.m ? c.m : ''; });
+  const [draft, setDraft] = useState(init);
+  var targets = cols.filter(function(it) {
+    var c = cellsRow[it.id];
+    return (c && amt(c.v) !== 0) || (draft[it.id] && draft[it.id].trim());
+  });
+  return (
+    <div className="mbg" onClick={onClose}>
+      <div className="mbox" onClick={function(e){ e.stopPropagation(); }}>
+        <div className="mh"><span className="mht">산출방법 · {title}</span><button className="mc" onClick={onClose}>×</button></div>
+        <div className="mb">
+          <div className="al al-i">금액이 입력된 항목만 표시됩니다. 비워 두면 항목의 기본 산출방법이 쓰입니다(설정 탭).</div>
+          {targets.length === 0 && <div className="loading">금액이 입력된 항목이 없습니다.</div>}
+          {targets.map(function(it) {
+            return (
+              <div key={it.id} style={{ marginBottom: 10 }}>
+                <label className="fl">{it.name} <span className="pr-sub">{won(amt((cellsRow[it.id] || {}).v))}원</span></label>
+                <input className="fi" value={draft[it.id] || ''} disabled={locked}
+                  placeholder={it.default_method || '예) 시간 × 단가'}
+                  onChange={function(e){ var v = e.target.value; setDraft(function(p){ var n = Object.assign({}, p); n[it.id] = v; return n; }); }} />
+              </div>
+            );
+          })}
+        </div>
+        <div className="mf">
+          <button className="btn btn-s" onClick={onClose}>닫기</button>
+          {!locked && <button className="btn btn-p" onClick={function(){ onSave(draft); }}>적용</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 확정 취소 경고 모달 ───────────────────────────────────────────
+function UnconfirmModal({ runType, mailSent, onOk, onClose, busy }) {
+  var warn = runType === 'pay' && mailSent > 0;
+  return (
+    <div className="mbg" onClick={onClose}>
+      <div className="mbox" onClick={function(e){ e.stopPropagation(); }} style={{ maxWidth: 440 }}>
+        <div className="mh"><span className="mht">{warn ? '⚠️ 알림 메일이 이미 발송된 명세서입니다' : '확정 취소'}</span><button className="mc" onClick={onClose}>×</button></div>
+        <div className="mb">
+          {warn ? (
+            <div className="al al-w">
+              이 지급용 명세서는 이미 <b>{mailSent}명</b>에게 알림 메일이 발송되었습니다.<br/>
+              확정을 취소하면 직원 화면에서 명세서가 <b>즉시 내려가고</b>, 메일 링크로 들어온 직원은 명세서를 볼 수 없습니다.<br/>
+              수정 후 다시 확정하면 <b>"수정된 명세서" 알림</b>을 보낼 수 있습니다.
+            </div>
+          ) : (
+            <div className="al al-i">
+              확정을 취소하면 편집 잠금이 풀립니다.
+              {runType === 'pay' && <span><br/>지급용은 직원 화면에서도 내려갑니다.</span>}
+            </div>
+          )}
+        </div>
+        <div className="mf">
+          <button className="btn btn-s" onClick={onClose}>닫기</button>
+          <button className={warn ? 'btn btn-d' : 'btn btn-p'} onClick={onOk} disabled={busy}>{busy ? '처리 중...' : '확정 취소'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 편집 탭 ────────────────────────────────────────────────────
+function EditTab({ user, period, runType, isMobile }) {
+  const [loading, setLoading] = useState(true);
+  const [run, setRun] = useState(null);
+  const [items, setItems] = useState([]);
+  const [empMap, setEmpMap] = useState({});
+  const [usersMap, setUsersMap] = useState({});
+  const [rows, setRows] = useState([]);           // 표에 올라간 대상자 id (순서)
+  const [excluded, setExcluded] = useState({});   // 이번 묶음에서 뺀 대상자
+  const [cells, setCells] = useState({});         // {empId:{itemId:{v, m, n}}}
+  const [slipByEmp, setSlipByEmp] = useState({}); // 저장된 명세서 {empId: slip}
+  const [payDate, setPayDate] = useState('');
+  const [allow, setAllow] = useState({ att: {}, ot: {} });
+  const [mailSent, setMailSent] = useState(0);
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [methodEmp, setMethodEmp] = useState(null);
+  const [askUnconfirm, setAskUnconfirm] = useState(false);
+
+  var locked = !!(run && run.status === 'confirmed');
+
+  function load() {
+    setLoading(true); setMsg(null);
+    var sb = getSb();
+    Promise.all([
+      sb.from('payroll_runs').select('*').eq('period', period).eq('run_type', runType).maybeSingle(),
+      sb.from('payroll_items').select('*'),
+      sb.from('payroll_employees').select('*'),
+      sb.from('users').select('id,name,birth_date,hire_date,role,team_id,email,position'),
+      loadAllowance(period),
+    ]).then(function(r) {
+      [0, 1, 2, 3].forEach(function(i) { if (r[i].error) throw { ctx: '급여 데이터 조회', err: r[i].error }; });
+      var theRun = r[0].data || null;
+      var um = {}; (r[3].data || []).forEach(function(u) { um[u.id] = u; });
+      var em = {}; (r[2].data || []).forEach(function(e) { em[e.id] = e; });
+      var its = sortItems(r[1].data || []);
+      var slipsP = theRun
+        ? sb.from('payroll_slips').select('*').eq('run_id', theRun.id).then(must('명세서 조회'))
+        : Promise.resolve({ data: [] });
+      return slipsP.then(function(sr) {
+        var slips = sr.data || [];
+        var ids = slips.map(function(s) { return s.id; });
+        var linesP = ids.length
+          ? sb.from('payroll_slip_lines').select('*').in('slip_id', ids).then(must('명세서 항목 조회'))
+          : Promise.resolve({ data: [] });
+        var mailP = (theRun && runType === 'pay')
+          ? sb.from('payroll_mail_logs').select('employee_id').eq('run_id', theRun.id).eq('status', 'sent').then(must('발송 이력 조회'))
+          : Promise.resolve({ data: [] });
+        return Promise.all([linesP, mailP]).then(function(lr) {
+          var sb2e = {}, sbe = {};
+          slips.forEach(function(s) { sb2e[s.id] = s.employee_id; sbe[s.employee_id] = s; });
+          var cs = {};
+          (lr[0].data || []).forEach(function(l) {
+            var eid = sb2e[l.slip_id];
+            if (!l.item_id || !eid) return;
+            if (!cs[eid]) cs[eid] = {};
+            cs[eid][l.item_id] = { v: String(l.amount || 0), m: l.method || '', n: l.item_name };
+          });
+          var sentSet = {};
+          (lr[1].data || []).forEach(function(x) { sentSet[x.employee_id] = true; });
+          // 행: 저장된 명세서가 있으면 그 대상자, 없으면(새 묶음) 사용 중인 대상자 전원
+          var baseList = slips.length
+            ? slips.map(function(s) { return em[s.employee_id]; }).filter(Boolean)
+            : (r[2].data || []).filter(function(e) { return e.active; });
+          setRun(theRun);
+          setItems(its);
+          setEmpMap(em);
+          setUsersMap(um);
+          setRows(sortEmployees(baseList, um).map(function(e) { return e.id; }));
+          setExcluded({});
+          setCells(cs);
+          setSlipByEmp(sbe);
+          setPayDate(theRun && theRun.pay_date ? theRun.pay_date : defaultPayDate(period));
+          setAllow({ att: r[4].att, ot: r[4].ot });
+          setMailSent(Object.keys(sentSet).length);
+          setDirty(false);
+          setLoading(false);
+        });
+      });
+    }).catch(function(e) { reportErr(e); setLoading(false); });
+  }
+
+  useEffect(function() { load(); }, [period, runType]);
+
+  // 표시 열: 사용 중 항목 + 이번 묶음에 값이 있는 비활성 항목
+  var used = {};
+  Object.keys(cells).forEach(function(eid) { Object.keys(cells[eid]).forEach(function(iid) { used[iid] = true; }); });
+  var cols = items.filter(function(it) { return it.active || used[it.id]; });
+  var earnCols = cols.filter(function(it) { return it.kind === 'earning'; });
+  var dedCols = cols.filter(function(it) { return it.kind === 'deduction'; });
+  var shownRows = rows.filter(function(id) { return !excluded[id] && empMap[id]; });
+  var reportItem = items.filter(function(it) { return it.name === REF_REPORT_ITEM; })[0] || null;
+  var otItem = items.filter(function(it) { return it.name === REF_OVERTIME_ITEM; })[0] || null;
+
+  // 표에 추가할 수 있는 대상자: 제외된 사람 + 아직 표에 없는 대상자
+  var addable = sortEmployees(Object.keys(empMap).map(function(id) { return empMap[id]; })
+    .filter(function(e) { return excluded[e.id] || rows.indexOf(e.id) === -1; }), usersMap);
+
+  function setCell(empId, itemId, patch) {
+    setCells(function(prev) {
+      var n = Object.assign({}, prev);
+      n[empId] = Object.assign({}, n[empId] || {});
+      n[empId][itemId] = Object.assign({ v: '', m: '' }, n[empId][itemId] || {}, patch);
+      return n;
+    });
+    setDirty(true);
+  }
+
+  function hasAnyData() {
+    return Object.keys(cells).some(function(eid) {
+      return Object.keys(cells[eid]).some(function(iid) { var c = cells[eid][iid]; return amt(c.v) !== 0 || (c.m && c.m.trim()); });
+    });
+  }
+
+  function copyFrom(srcPeriod, srcType) {
+    if (locked) return;
+    var label = fmtPeriodKo(srcPeriod) + ' ' + TYPE_LABELS[srcType];
+    if (hasAnyData() && !window.confirm('현재 표에 입력된 값을 [' + label + '] 데이터로 덮어씁니다. 계속할까요?\n(저장 버튼을 누르기 전까지는 DB에 반영되지 않습니다)')) return;
+    setBusy(true); setMsg(null);
+    var sb = getSb();
+    sb.from('payroll_runs').select('*').eq('period', srcPeriod).eq('run_type', srcType).maybeSingle()
+      .then(must('원본 묶음 조회'))
+      .then(function(rr) {
+        if (!rr.data) { setMsg({ t: 'e', s: '[' + label + '] 에 저장된 데이터가 없습니다.' }); setBusy(false); return null; }
+        return sb.from('payroll_slips').select('id,employee_id').eq('run_id', rr.data.id).then(must('원본 명세서 조회'))
+          .then(function(sr) {
+            var slips = sr.data || [];
+            var ids = slips.map(function(s) { return s.id; });
+            if (!ids.length) { setMsg({ t: 'e', s: '[' + label + '] 에 명세서가 없습니다.' }); setBusy(false); return null; }
+            return sb.from('payroll_slip_lines').select('*').in('slip_id', ids).then(must('원본 항목 조회'))
+              .then(function(lr) {
+                var s2e = {}; slips.forEach(function(s) { s2e[s.id] = s.employee_id; });
+                var cs = {};
+                (lr.data || []).forEach(function(l) {
+                  var eid = s2e[l.slip_id];
+                  if (!l.item_id || !eid) return;
+                  if (!cs[eid]) cs[eid] = {};
+                  cs[eid][l.item_id] = { v: String(l.amount || 0), m: l.method || '' };
+                });
+                var srcEmp = slips.map(function(s) { return s.employee_id; }).filter(function(id) { return empMap[id]; });
+                var merged = rows.slice();
+                srcEmp.forEach(function(id) { if (merged.indexOf(id) === -1) merged.push(id); });
+                var list = sortEmployees(merged.map(function(id) { return empMap[id]; }).filter(Boolean), usersMap);
+                setRows(list.map(function(e) { return e.id; }));
+                var ex = {}; Object.keys(excluded).forEach(function(id) { if (srcEmp.indexOf(id) === -1) ex[id] = excluded[id]; });
+                setExcluded(ex);
+                setCells(cs);
+                setDirty(true);
+                setMsg({ t: 's', s: '[' + label + '] 데이터를 가져왔습니다. 확인 후 저장하세요.' });
+                setBusy(false);
+                return null;
+              });
+          });
+      })
+      .catch(function(e) { reportErr(e); setBusy(false); });
+  }
+
+  function fillReportMethods() {
+    if (locked || !reportItem) return;
+    var targets = shownRows.filter(function(id) {
+      var e = empMap[id];
+      return e.user_id && allow.att[e.user_id];
+    });
+    if (!targets.length) { setMsg({ t: 'i', s: fmtPeriodKo(period) + ' 에 ' + ALLOWANCE_EVENT_TYPES.join('·') + ' 참석 기록이 있는 대상자가 없습니다.' }); return; }
+    var overwrite = targets.filter(function(id) {
+      var c = (cells[id] || {})[reportItem.id];
+      return c && c.m && c.m.trim() && c.m.trim() !== attText(allow.att[empMap[id].user_id]);
+    }).length;
+    if (overwrite && !window.confirm('이미 산출방법이 적힌 ' + overwrite + '명의 [' + reportItem.name + '] 문구를 덮어씁니다. 계속할까요?')) return;
+    setCells(function(prev) {
+      var n = Object.assign({}, prev);
+      targets.forEach(function(id) {
+        n[id] = Object.assign({}, n[id] || {});
+        n[id][reportItem.id] = Object.assign({ v: '', m: '' }, n[id][reportItem.id] || {}, { m: attText(allow.att[empMap[id].user_id]) });
+      });
+      return n;
+    });
+    setDirty(true);
+    setMsg({ t: 's', s: targets.length + '명의 [' + reportItem.name + '] 산출방법을 채웠습니다. 금액은 직접 입력하고 저장하세요.' });
+  }
+
+  function save() {
+    if (locked || busy) return;
+    setBusy(true); setMsg(null);
+    persistRun({ period: period, runType: runType, run: run, payDate: payDate, rows: rows, excluded: excluded,
+                 cells: cells, cols: cols, empMap: empMap, usersMap: usersMap, slipByEmp: slipByEmp })
+      .then(function() { setBusy(false); load(); setMsg({ t: 's', s: '저장했습니다.' }); })
+      .catch(function(e) { reportErr(e); setBusy(false); });
+  }
+
+  function confirmRun() {
+    if (!run || locked) return;
+    if (dirty) { setMsg({ t: 'e', s: '저장하지 않은 변경이 있습니다. 먼저 저장하세요.' }); return; }
+    if (!Object.keys(slipByEmp).length) { setMsg({ t: 'e', s: '저장된 명세서가 없습니다.' }); return; }
+    var note = runType === 'pay'
+      ? '지급용을 확정하면 직원 화면에 공개되고 편집이 잠깁니다. 확정할까요?'
+      : '신고용을 확정하면 편집이 잠깁니다. 확정할까요?';
+    if (!window.confirm(note)) return;
+    setBusy(true);
+    getSb().from('payroll_runs').update({
+      status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: user.id,
+      revision: (run.revision || 0) + 1, updated_at: new Date().toISOString(),
+    }).eq('id', run.id).eq('status', 'draft').select()
+      .then(function(res) {
+        setBusy(false);
+        if (Sysbar.writeFailed(res, '확정', { expectRows: true })) return;
+        load();
+      });
+  }
+
+  function unconfirmRun() {
+    setBusy(true);
+    getSb().from('payroll_runs').update({ status: 'draft', confirmed_at: null, confirmed_by: null, updated_at: new Date().toISOString() })
+      .eq('id', run.id).eq('status', 'confirmed').select()
+      .then(function(res) {
+        setBusy(false);
+        setAskUnconfirm(false);
+        if (Sysbar.writeFailed(res, '확정 취소', { expectRows: true })) return;
+        load();
+      });
+  }
+
+  function openPreview(empId) {
+    var emp = empMap[empId];
+    setPreview(buildModel({ period: period, runType: runType, payDate: payDate, person: personOf(emp, usersMap), emp: emp,
+                            cols: cols, cellsRow: cells[empId] || {}, slip: slipByEmp[empId], locked: locked }));
+  }
+
+  if (loading) return <div className="card"><div className="loading">불러오는 중...</div></div>;
+
+  var otherType = runType === 'pay' ? 'report' : 'pay';
+  var sums = { e: {}, te: 0, td: 0, net: 0 };
+  shownRows.forEach(function(id) {
+    var row = cells[id] || {};
+    cols.forEach(function(it) { sums.e[it.id] = (sums.e[it.id] || 0) + amt((row[it.id] || {}).v); });
+    var t = rowTotals(cols, row);
+    sums.te += t.te; sums.td += t.td; sums.net += t.net;
+  });
+
+  function renderCell(empId, it) {
+    var emp = empMap[empId];
+    var c = (cells[empId] || {})[it.id] || {};
+    var ref = null;
+    if (emp.user_id && reportItem && it.id === reportItem.id && allow.att[emp.user_id]) {
+      ref = attText(allow.att[emp.user_id], ' · ');
+    }
+    if (emp.user_id && otItem && it.id === otItem.id && allow.ot[emp.user_id]) {
+      var o = allow.ot[emp.user_id];
+      ref = '연장 ' + o.days + '일 ' + fmtDur(o.minutes);
+    }
+    var mth = c.m && c.m.trim() ? c.m : '';
+    return (
+      <td key={it.id}>
+        <input className="pr-in" value={showAmt(c.v)} disabled={locked} inputMode="numeric"
+          onChange={function(e){ setCell(empId, it.id, { v: cleanAmt(e.target.value) }); }} />
+        {ref && <div className="pr-ref" title="참고: 관리자 화면에만 표시">{ref}</div>}
+        {mth && <div className="pr-mth" title={mth}>{mth}</div>}
+      </td>
+    );
+  }
+
+  var statusBadge = !run
+    ? <span className="badge bgr">미작성</span>
+    : (locked ? <span className="badge bg">확정 {run.revision > 1 ? '(' + run.revision + '차)' : ''}</span> : <span className="badge ba">작성중</span>);
+
+  return (
+    <div>
+      <div className="card">
+        <div className="pr-bar">
+          {statusBadge}
+          {runType === 'pay' && run && mailSent > 0 && <span className="badge bb">알림 발송 {mailSent}명</span>}
+          <span style={{ fontSize: 12, color: '#64748b' }}>지급일</span>
+          <input type="date" className="fi" style={{ width: 150, padding: '5px 8px' }} value={payDate} disabled={locked}
+            onChange={function(e){ setPayDate(e.target.value); setDirty(true); }} />
+          <span className="sep" />
+          {!locked && <button className="btn btn-s btn-sm" disabled={busy} onClick={function(){ copyFrom(shiftPeriod(period, -1), runType); }}>⤵ 전월 {TYPE_LABELS[runType]} 복사</button>}
+          {!locked && <button className="btn btn-s btn-sm" disabled={busy} onClick={function(){ copyFrom(period, otherType); }}>⇄ 같은 달 {TYPE_LABELS[otherType]}에서 복사</button>}
+          {!locked && reportItem && <button className="btn btn-s btn-sm" disabled={busy} onClick={fillReportMethods}>✎ {reportItem.name} 산출방법 채우기</button>}
+          {!locked && <button className="btn btn-p btn-sm" disabled={busy || !dirty} onClick={save}>{busy ? '처리 중...' : (dirty ? '💾 저장' : '저장됨')}</button>}
+          {!locked && run && <button className="btn btn-s btn-sm" disabled={busy || dirty} onClick={confirmRun} style={{ borderColor: '#7c3aed', color: '#7c3aed' }}>✔ 확정</button>}
+          {locked && <button className="btn btn-d btn-sm" disabled={busy} onClick={function(){ setAskUnconfirm(true); }}>확정 취소</button>}
+        </div>
+
+        {locked && (
+          <div className="al al-i pr-lock">
+            <span>🔒</span>
+            <span>
+              <b>확정된 명세서라 편집이 잠겨 있습니다.</b> ({fmtDateTime(run.confirmed_at)} 확정)<br/>
+              {runType === 'pay' ? '직원 화면에 공개된 상태입니다. ' : ''}수정하려면 [확정 취소]를 누르세요.
+            </span>
+          </div>
+        )}
+        {!locked && dirty && <div className="al al-w">저장하지 않은 변경이 있습니다.</div>}
+        {msg && <div className={'al ' + (msg.t === 'e' ? 'al-e' : (msg.t === 's' ? 'al-s' : 'al-i'))}>{msg.s}</div>}
+
+        {shownRows.length === 0 ? (
+          <div className="loading">
+            표에 올릴 대상자가 없습니다. [설정] 탭 → 대상자 관리에서 먼저 등록하세요.
+          </div>
+        ) : (
+          <div className="tbl-wrap" style={{ maxHeight: isMobile ? 'none' : '70vh', overflow: 'auto' }}>
+            <table className="pr-grid">
+              <thead>
+                <tr>
+                  <th className="nm">대상자</th>
+                  {earnCols.map(function(it) { return <th key={it.id} className="earn">{it.name}{!it.active && <div className="pr-sub">(사용중지)</div>}</th>; })}
+                  <th className="sum">지급 합계</th>
+                  {dedCols.map(function(it) { return <th key={it.id} className="ded">{it.name}{!it.active && <div className="pr-sub">(사용중지)</div>}</th>; })}
+                  <th className="sum">공제 합계</th>
+                  <th className="sum">실지급액</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shownRows.map(function(id) {
+                  var emp = empMap[id];
+                  var per = personOf(emp, usersMap);
+                  var t = rowTotals(cols, cells[id] || {});
+                  return (
+                    <tr key={id}>
+                      <td className="nm">
+                        <div style={{ fontWeight: 700 }}>{per.name}</div>
+                        <div className="pr-sub">{[emp.dept_label, emp.position_label].filter(Boolean).join(' · ') || (per.linked ? '' : '계정 없음')}</div>
+                      </td>
+                      {earnCols.map(function(it) { return renderCell(id, it); })}
+                      <td className="sum">{won(t.te)}</td>
+                      {dedCols.map(function(it) { return renderCell(id, it); })}
+                      <td className="sum">{won(t.td)}</td>
+                      <td className="net">{won(t.net)}</td>
+                      <td>
+                        <div className="pr-acts">
+                          <button className="btn btn-s btn-sm" onClick={function(){ setMethodEmp(id); }}>산출방법</button>
+                          <button className="btn btn-s btn-sm" onClick={function(){ openPreview(id); }}>명세서</button>
+                          {!locked && <button className="btn btn-sm" style={{ color: '#991b1b', background: 'transparent', border: '1px solid #fecaca' }}
+                            onClick={function(){ setExcluded(function(p){ var n = Object.assign({}, p); n[id] = true; return n; }); setDirty(true); }}>제외</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className="nm">합계 ({shownRows.length}명)</td>
+                  {earnCols.map(function(it) { return <td key={it.id}>{won(sums.e[it.id])}</td>; })}
+                  <td>{won(sums.te)}</td>
+                  {dedCols.map(function(it) { return <td key={it.id}>{won(sums.e[it.id])}</td>; })}
+                  <td>{won(sums.td)}</td>
+                  <td style={{ color: '#6d28d9' }}>{won(sums.net)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {!locked && addable.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: '#64748b' }}>대상자 추가</span>
+            <select className="fi" style={{ width: 220, padding: '5px 8px' }} value=""
+              onChange={function(e){
+                var id = e.target.value; if (!id) return;
+                setExcluded(function(p){ var n = Object.assign({}, p); delete n[id]; return n; });
+                setRows(function(p){ return p.indexOf(id) === -1 ? p.concat([id]) : p; });
+                setDirty(true);
+              }}>
+              <option value="">선택...</option>
+              {addable.map(function(e) { var per = personOf(e, usersMap); return <option key={e.id} value={e.id}>{per.name}{e.active ? '' : ' (사용중지)'}</option>; })}
+            </select>
+          </div>
+        )}
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 10, lineHeight: 1.6 }}>
+          · 금액 아래 보라색 글씨는 {fmtPeriodKo(period)} 참고 정보입니다(보고회·위원회 참석 횟수, 초과근무 시간). 관리자 화면에만 보이고 명세서에는 나오지 않습니다.<br/>
+          · 합계는 자동으로 계산되며, 세금·보험료는 계산하지 않습니다. 0원 항목은 명세서에 나오지 않습니다.
+        </div>
+      </div>
+
+      {preview && <PreviewModal model={preview} onClose={function(){ setPreview(null); }} />}
+      {methodEmp && (
+        <MethodModal title={personOf(empMap[methodEmp], usersMap).name} cols={cols} cellsRow={cells[methodEmp] || {}} locked={locked}
+          onClose={function(){ setMethodEmp(null); }}
+          onSave={function(draft){
+            var id = methodEmp;
+            setCells(function(prev) {
+              var n = Object.assign({}, prev);
+              n[id] = Object.assign({}, n[id] || {});
+              Object.keys(draft).forEach(function(iid) {
+                var cur = n[id][iid];
+                if (!cur && !draft[iid]) return;
+                n[id][iid] = Object.assign({ v: '', m: '' }, cur || {}, { m: draft[iid] });
+              });
+              return n;
+            });
+            setDirty(true);
+            setMethodEmp(null);
+          }} />
+      )}
+      {askUnconfirm && <UnconfirmModal runType={runType} mailSent={mailSent} busy={busy} onOk={unconfirmRun} onClose={function(){ setAskUnconfirm(false); }} />}
+    </div>
+  );
+}
+
+// ── 월별수당 탭 (조회 전용, 선택한 귀속연월 연동) ─────────────────────
+function AllowanceTab({ period, isMobile }) {
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState([]);
+  const [otRows, setOtRows] = useState([]);
+
+  useEffect(function() {
+    setLoading(true);
+    loadAllowance(period).then(function(d) {
+      var tmap = {}; d.teams.forEach(function(t) { tmap[t.id] = t.name; });
+      var attRows = [], otR = [];
+      d.users.forEach(function(u) {
+        var a = d.att[u.id];
+        if (a) {
+          var types = ALLOWANCE_EVENT_TYPES.map(function(tp) { return { type: tp, cnt: a[tp] || 0 }; });
+          var total = types.reduce(function(acc, x) { return acc + x.cnt; }, 0);
+          if (total > 0) attRows.push({ id: u.id, name: u.name, team: tmap[u.team_id] || '-', types: types, total: total });
+        }
+        var o = d.ot[u.id];
+        if (o && o.minutes > 0) otR.push({ id: u.id, name: u.name, team: tmap[u.team_id] || '-', days: o.days, minutes: o.minutes });
+      });
+      attRows.sort(function(a, b) { return b.total - a.total || a.name.localeCompare(b.name, 'ko'); });
+      otR.sort(function(a, b) { return b.minutes - a.minutes || a.name.localeCompare(b.name, 'ko'); });
+      setRows(attRows); setOtRows(otR); setLoading(false);
+    }).catch(function(e) { reportErr(e); setLoading(false); });
+  }, [period]);
+
+  if (loading) return <div className="card"><div className="loading">불러오는 중...</div></div>;
+  var totalAtt = rows.reduce(function(acc, r) { return acc + r.total; }, 0);
+  var totalOtMin = otRows.reduce(function(acc, r) { return acc + r.minutes; }, 0);
+
+  return (
+    <div>
+      <div className="al al-i">{fmtPeriodKo(period)} 기준 조회 전용 화면입니다. 금액은 [급여 편집] 탭에서 직접 입력합니다.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
+        <div className="card">
+          <div className="sh">
+            <div className="st">🏛 {ALLOWANCE_EVENT_TYPES.join(' / ')} 참석</div>
+            <div style={{ fontSize: 12, color: '#7c3aed', fontWeight: 700 }}>총 {totalAtt}건</div>
+          </div>
+          {rows.length === 0 ? <div className="loading">해당 월 참석 내역이 없습니다.</div> : (
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th>직원</th><th>팀</th>{ALLOWANCE_EVENT_TYPES.map(function(tp) { return <th key={tp} className="tr">{tp}</th>; })}<th className="tr">합계</th></tr></thead>
+                <tbody>
+                  {rows.map(function(r) {
+                    return (
+                      <tr key={r.id}>
+                        <td style={{ fontWeight: 600 }}>{r.name}</td>
+                        <td style={{ color: '#64748b' }}>{r.team}</td>
+                        {r.types.map(function(x) { return <td key={x.type} className="tr">{x.cnt || '-'}</td>; })}
+                        <td className="tr" style={{ fontWeight: 700, color: '#7c3aed' }}>{r.total}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>프로젝트 일정 중 해당 유형을 그 프로젝트 PM 의 참석으로 집계합니다.</div>
+        </div>
+        <div className="card">
+          <div className="sh">
+            <div className="st">⏰ 초과근무 시간</div>
+            <div style={{ fontSize: 12, color: '#7c3aed', fontWeight: 700 }}>총 {fmtDur(totalOtMin)}</div>
+          </div>
+          {otRows.length === 0 ? <div className="loading">해당 월 초과근무 내역이 없습니다.</div> : (
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr><th>직원</th><th>팀</th><th className="tr">초과근무일</th><th className="tr">총 시간</th></tr></thead>
+                <tbody>
+                  {otRows.map(function(r) {
+                    return (
+                      <tr key={r.id}>
+                        <td style={{ fontWeight: 600 }}>{r.name}</td>
+                        <td style={{ color: '#64748b' }}>{r.team}</td>
+                        <td className="tr">{r.days}일</td>
+                        <td className="tr" style={{ fontWeight: 700, color: '#7c3aed' }}>{fmtDur(r.minutes)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>업무일지의 초과근무 시작·종료 시각 기준입니다.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 설정 탭: 항목 관리 ────────────────────────────────────────────
+function ItemsSettings() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ kind: 'earning', name: '', default_method: '' });
+  const [busy, setBusy] = useState(false);
+
+  function load() {
+    getSb().from('payroll_items').select('*').then(function(r) {
+      if (r.error) { Sysbar.showError(r.error, '항목 조회'); }
+      setItems(sortItems(r.data || []));
+      setLoading(false);
+    });
+  }
+  useEffect(function() { load(); }, []);
+
+  function update(it, patch, label) {
+    setBusy(true);
+    getSb().from('payroll_items').update(Object.assign({ updated_at: new Date().toISOString() }, patch)).eq('id', it.id).select()
+      .then(function(r) { setBusy(false); Sysbar.writeFailed(r, label || '항목 수정', { expectRows: true }); load(); });
+  }
+  function add() {
+    var name = form.name.trim();
+    if (!name) return;
+    var same = items.filter(function(x) { return x.kind === form.kind; });
+    var maxO = same.reduce(function(m, x) { return Math.max(m, x.sort_order || 0); }, 0);
+    setBusy(true);
+    getSb().from('payroll_items').insert({ kind: form.kind, name: name, sort_order: maxO + 1, default_method: form.default_method.trim() || null }).select()
+      .then(function(r) {
+        setBusy(false);
+        if (Sysbar.writeFailed(r, '항목 추가', { expectRows: true })) return;
+        setForm({ kind: form.kind, name: '', default_method: '' });
+        load();
+      });
+  }
+  function move(it, dir) {
+    var same = items.filter(function(x) { return x.kind === it.kind; });
+    var idx = same.indexOf(it), j = idx + dir;
+    if (j < 0 || j >= same.length) return;
+    var other = same[j];
+    var a = it.sort_order || 0, b = other.sort_order || 0;
+    if (a === b) { a = idx + 1; b = j + 1; }
+    setBusy(true);
+    var sb = getSb();
+    sb.from('payroll_items').update({ sort_order: b }).eq('id', it.id).select().then(must('순서 변경', { expectRows: true }))
+      .then(function() { return sb.from('payroll_items').update({ sort_order: a }).eq('id', other.id).select().then(must('순서 변경', { expectRows: true })); })
+      .then(function() { setBusy(false); load(); })
+      .catch(function(e) { reportErr(e); setBusy(false); load(); });
+  }
+
+  if (loading) return <div className="loading">불러오는 중...</div>;
+
+  function section(kind, title) {
+    var list = items.filter(function(x) { return x.kind === kind; });
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <div className="st" style={{ marginBottom: 8, color: kind === 'earning' ? '#1e40af' : '#991b1b' }}>{title} ({list.length})</div>
+        <div className="tbl-wrap">
+          <table>
+            <thead><tr><th className="tc">순서</th><th>항목명</th><th>기본 산출방법</th><th className="tc">사용</th></tr></thead>
+            <tbody>
+              {list.map(function(it, i) {
+                return (
+                  <tr key={it.id} className="set-row" style={{ opacity: it.active ? 1 : 0.5 }}>
+                    <td className="tc">
+                      <button className="btn btn-s btn-sm" disabled={busy || i === 0} onClick={function(){ move(it, -1); }}>▲</button>{' '}
+                      <button className="btn btn-s btn-sm" disabled={busy || i === list.length - 1} onClick={function(){ move(it, 1); }}>▼</button>
+                    </td>
+                    <td><input className="set-in" defaultValue={it.name} key={it.id + it.name}
+                      onBlur={function(e){ var v = e.target.value.trim(); if (v && v !== it.name) update(it, { name: v }, '항목명 변경'); }} /></td>
+                    <td><input className="set-in" defaultValue={it.default_method || ''} key={it.id + (it.default_method || '')} placeholder="없음"
+                      onBlur={function(e){ var v = e.target.value.trim(); if (v !== (it.default_method || '')) update(it, { default_method: v || null }, '기본 산출방법 변경'); }} /></td>
+                    <td className="tc">
+                      <button className={it.active ? 'btn btn-s btn-sm' : 'btn btn-d btn-sm'} disabled={busy}
+                        onClick={function(){ update(it, { active: !it.active }, it.active ? '사용 중지' : '다시 사용'); }}>
+                        {it.active ? '사용중' : '사용중지'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="al al-i">항목은 삭제하지 않고 [사용중지]로 숨깁니다. 이미 발행된 명세서는 발행 당시 항목명으로 유지됩니다.</div>
+      {section('earning', '지급 항목')}
+      {section('deduction', '공제 항목')}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select className="fi" style={{ width: 100 }} value={form.kind} onChange={function(e){ setForm(Object.assign({}, form, { kind: e.target.value })); }}>
+          <option value="earning">지급</option><option value="deduction">공제</option>
+        </select>
+        <input className="fi" style={{ width: 180 }} placeholder="새 항목명" value={form.name} onChange={function(e){ setForm(Object.assign({}, form, { name: e.target.value })); }} />
+        <input className="fi" style={{ width: 220 }} placeholder="기본 산출방법 (선택)" value={form.default_method} onChange={function(e){ setForm(Object.assign({}, form, { default_method: e.target.value })); }} />
+        <button className="btn btn-p btn-sm" disabled={busy || !form.name.trim()} onClick={add}>+ 항목 추가</button>
+      </div>
+    </div>
+  );
+}
+
+// ── 설정 탭: 대상자 관리 ───────────────────────────────────────────
+function EmployeeModal({ emp, employees, users, teams, onClose, onSaved }) {
+  var isNew = !emp;
+  var tmap = {}; teams.forEach(function(t) { tmap[t.id] = t.name; });
+  var umap = {}; users.forEach(function(u) { umap[u.id] = u; });
+  const [mode, setMode] = useState(emp ? (emp.user_id ? 'account' : 'none') : 'account');
+  const [showAll, setShowAll] = useState(false);
+  const [f, setF] = useState({
+    user_id: emp ? (emp.user_id || '') : '',
+    name: emp ? (emp.name || '') : '', birth_date: emp ? (emp.birth_date || '') : '', hire_date: emp ? (emp.hire_date || '') : '',
+    dept_label: emp ? (emp.dept_label || '') : '', position_label: emp ? (emp.position_label || '') : '',
+    employee_no: emp ? (emp.employee_no || '') : '', notify_email: emp ? (emp.notify_email || '') : '',
+    sort_order: emp ? (emp.sort_order || 0) : 0, active: emp ? emp.active : true,
+  });
+  const [userHire, setUserHire] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  function set(k, v) { setF(function(p) { var n = Object.assign({}, p); n[k] = v; return n; }); }
+
+  // 다른 대상자에 이미 연결된 계정은 제외. 기본 목록은 contractor·공용 관리자 계정(팀 없는 admin) 제외.
+  var linkedElsewhere = {};
+  employees.forEach(function(e) { if (e.user_id && (!emp || e.id !== emp.id)) linkedElsewhere[e.user_id] = true; });
+  var isShared = function(u) { return u.role === 'admin' && !u.team_id; };
+  var candidates = users.filter(function(u) {
+    if (linkedElsewhere[u.id]) return false;
+    if (u.id === f.user_id) return true;
+    if (showAll) return true;
+    return u.role !== 'contractor' && !isShared(u);
+  }).sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'ko'); });
+  var selU = f.user_id ? umap[f.user_id] : null;
+
+  function pickUser(id) {
+    var u = umap[id];
+    setF(function(p) {
+      var n = Object.assign({}, p, { user_id: id });
+      if (u) {
+        if (!n.dept_label) n.dept_label = tmap[u.team_id] || '';
+        if (!n.position_label) n.position_label = u.position || '';
+        if (!n.notify_email) n.notify_email = u.email || '';
+      }
+      return n;
+    });
+    setUserHire('');
+  }
+
+  function save() {
+    setErr('');
+    if (mode === 'account' && !f.user_id) { setErr('연결할 계정을 선택하세요.'); return; }
+    if (mode === 'none' && !f.name.trim()) { setErr('이름을 입력하세요.'); return; }
+    if (f.notify_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.notify_email.trim())) { setErr('수신 이메일 형식이 올바르지 않습니다.'); return; }
+    if (emp && !emp.user_id && mode === 'account' &&
+        !window.confirm('계정을 연결하면 여기 저장된 이름·생년월일·입사일은 지워지고, 계정(직원 정보)의 값을 쓰게 됩니다. 계속할까요?')) return;
+    var payload = {
+      user_id: mode === 'account' ? f.user_id : null,
+      name: mode === 'none' ? f.name.trim() : null,
+      birth_date: mode === 'none' ? (f.birth_date || null) : null,
+      hire_date: mode === 'none' ? (f.hire_date || null) : null,
+      dept_label: f.dept_label.trim() || null, position_label: f.position_label.trim() || null,
+      employee_no: f.employee_no.trim() || null, notify_email: f.notify_email.trim() || null,
+      sort_order: parseInt(f.sort_order, 10) || 0, active: !!f.active, updated_at: new Date().toISOString(),
+    };
+    setBusy(true);
+    var sb = getSb();
+    var q = isNew ? sb.from('payroll_employees').insert(payload).select() : sb.from('payroll_employees').update(payload).eq('id', emp.id).select();
+    q.then(must('대상자 저장', { expectRows: true }))
+      .then(function() {
+        // 계정 연결 대상자의 비어 있는 입사일은 직원 정보(users.hire_date)에 저장한다.
+        if (mode === 'account' && selU && !selU.hire_date && userHire) {
+          return sb.from('users').update({ hire_date: userHire }).eq('id', selU.id).select().then(must('입사일 저장', { expectRows: true }));
+        }
+        return null;
+      })
+      .then(function() { setBusy(false); onSaved(); })
+      .catch(function(e) { reportErr(e); setBusy(false); });
+  }
+
+  return (
+    <div className="mbg" onClick={onClose}>
+      <div className="mbox" onClick={function(e){ e.stopPropagation(); }}>
+        <div className="mh"><span className="mht">{isNew ? '급여 대상자 등록' : '급여 대상자 수정'}</span><button className="mc" onClick={onClose}>×</button></div>
+        <div className="mb">
+          {err && <div className="al al-e">{err}</div>}
+          <div className="itabs" style={{ marginBottom: 14 }}>
+            <button className={mode === 'account' ? 'itab active' : 'itab'} onClick={function(){ setMode('account'); }}>계정 연결</button>
+            <button className={mode === 'none' ? 'itab active' : 'itab'} onClick={function(){ setMode('none'); }} disabled={!!(emp && emp.user_id)}>계정 없음</button>
+          </div>
+
+          {mode === 'account' ? (
+            <div>
+              <label className="fl">연결할 계정 *</label>
+              <select className="fi" value={f.user_id} onChange={function(e){ pickUser(e.target.value); }}>
+                <option value="">선택...</option>
+                {candidates.map(function(u) {
+                  return <option key={u.id} value={u.id}>{u.name}{u.team_id ? ' · ' + (tmap[u.team_id] || '') : ''}{u.role === 'contractor' ? ' (기술지원)' : ''}{isShared(u) ? ' (공용 관리자)' : ''}</option>;
+                })}
+              </select>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, color: '#64748b', margin: '6px 0 12px' }}>
+                <input type="checkbox" checked={showAll} onChange={function(e){ setShowAll(e.target.checked); }} />
+                기술지원·공용 관리자 계정도 목록에 표시
+              </label>
+              {selU && (
+                <div className="al al-i" style={{ fontSize: 12 }}>
+                  이름·생년월일·입사일은 직원 정보에서 읽습니다.<br/>
+                  이름 <b>{selU.name}</b> · 생년월일 <b>{selU.birth_date || '미입력'}</b> · 입사일 <b>{selU.hire_date || '미입력'}</b>
+                </div>
+              )}
+              {selU && !selU.hire_date && (
+                <div style={{ marginBottom: 12 }}>
+                  <label className="fl">입사일 입력 (직원 정보에 저장됩니다)</label>
+                  <input type="date" className="fi" value={userHire} onChange={function(e){ setUserHire(e.target.value); }} />
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <div className="al al-w" style={{ fontSize: 12 }}>계정 없는 대상자는 관리자 미리보기·인쇄·PDF 로만 명세서를 제공하며, 알림 메일 대상에서 빠집니다.</div>
+              <div style={{ marginBottom: 12 }}><label className="fl">이름 *</label><input className="fi" value={f.name} onChange={function(e){ set('name', e.target.value); }} /></div>
+              <div className="g2">
+                <div><label className="fl">생년월일</label><input type="date" className="fi" value={f.birth_date} onChange={function(e){ set('birth_date', e.target.value); }} /></div>
+                <div><label className="fl">입사일</label><input type="date" className="fi" value={f.hire_date} onChange={function(e){ set('hire_date', e.target.value); }} /></div>
+              </div>
+            </div>
+          )}
+
+          <div className="g2">
+            <div><label className="fl">명세서용 부서</label><input className="fi" value={f.dept_label} onChange={function(e){ set('dept_label', e.target.value); }} /></div>
+            <div><label className="fl">명세서용 직급</label><input className="fi" value={f.position_label} onChange={function(e){ set('position_label', e.target.value); }} /></div>
+          </div>
+          <div className="g2">
+            <div><label className="fl">사원번호 (선택)</label><input className="fi" value={f.employee_no} onChange={function(e){ set('employee_no', e.target.value); }} /></div>
+            <div><label className="fl">표시 순서</label><input className="fi" inputMode="numeric" value={f.sort_order} onChange={function(e){ set('sort_order', e.target.value.replace(/[^0-9]/g, '')); }} /></div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label className="fl">알림 수신 이메일</label>
+            <input className="fi" type="email" value={f.notify_email} placeholder="name@example.com" onChange={function(e){ set('notify_email', e.target.value); }} />
+          </div>
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+            <input type="checkbox" checked={!!f.active} onChange={function(e){ set('active', e.target.checked); }} />
+            사용 (해제하면 새 달 급여 표에 자동으로 올라오지 않습니다)
+          </label>
+        </div>
+        <div className="mf">
+          <button className="btn btn-s" onClick={onClose}>취소</button>
+          <button className="btn btn-p" onClick={save} disabled={busy}>{busy ? '저장 중...' : '저장'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmployeesSettings() {
+  const [loading, setLoading] = useState(true);
+  const [employees, setEmployees] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [modal, setModal] = useState(null); // {emp} | {emp:null}
+
+  function load() {
+    var sb = getSb();
+    Promise.all([
+      sb.from('payroll_employees').select('*'),
+      sb.from('users').select('id,name,birth_date,hire_date,role,team_id,email,position'),
+      sb.from('teams').select('id,name'),
+    ]).then(function(r) {
+      [0, 1, 2].forEach(function(i) { if (r[i].error) Sysbar.showError(r[i].error, '대상자 조회'); });
+      setEmployees(r[0].data || []); setUsers(r[1].data || []); setTeams(r[2].data || []);
+      setLoading(false);
+    });
+  }
+  useEffect(function() { load(); }, []);
+
+  if (loading) return <div className="loading">불러오는 중...</div>;
+  var umap = {}; users.forEach(function(u) { umap[u.id] = u; });
+  var list = sortEmployees(employees, umap);
+
+  return (
+    <div>
+      <div className="sh">
+        <div className="st">급여 대상자 ({list.filter(function(e){ return e.active; }).length}명 사용중)</div>
+        <button className="btn btn-p btn-sm" onClick={function(){ setModal({ emp: null }); }}>+ 대상자 등록</button>
+      </div>
+      {list.length === 0 ? <div className="loading">등록된 대상자가 없습니다.</div> : (
+        <div className="tbl-wrap">
+          <table>
+            <thead><tr><th>이름</th><th>계정</th><th>부서</th><th>직급</th><th>입사일</th><th>수신 이메일</th><th className="tc">상태</th><th className="tc">관리</th></tr></thead>
+            <tbody>
+              {list.map(function(e) {
+                var per = personOf(e, umap);
+                return (
+                  <tr key={e.id} style={{ opacity: e.active ? 1 : 0.5 }}>
+                    <td style={{ fontWeight: 700 }}>{per.name}</td>
+                    <td>{per.linked ? <span className="badge bb">연결</span> : <span className="badge bgr">계정 없음</span>}</td>
+                    <td>{e.dept_label || '-'}</td>
+                    <td>{e.position_label || '-'}</td>
+                    <td style={{ color: per.hire_date ? '#1e293b' : '#dc2626' }}>{per.hire_date || '미입력'}</td>
+                    <td style={{ fontSize: 12 }}>{e.notify_email || (per.linked ? <span style={{ color: '#dc2626' }}>미입력</span> : '-')}</td>
+                    <td className="tc">{e.active ? <span className="badge bg">사용</span> : <span className="badge bgr">중지</span>}</td>
+                    <td className="tc"><button className="btn btn-s btn-sm" onClick={function(){ setModal({ emp: e }); }}>수정</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {modal && <EmployeeModal emp={modal.emp} employees={employees} users={users} teams={teams}
+        onClose={function(){ setModal(null); }} onSaved={function(){ setModal(null); load(); }} />}
+    </div>
+  );
+}
+
+function SettingsTab() {
+  const [sub, setSub] = useState('emp');
+  return (
+    <div className="card">
+      <div className="itabs" style={{ marginBottom: 16 }}>
+        <button className={sub === 'emp' ? 'itab active' : 'itab'} onClick={function(){ setSub('emp'); }}>👥 대상자 관리</button>
+        <button className={sub === 'item' ? 'itab active' : 'itab'} onClick={function(){ setSub('item'); }}>🧾 항목 관리</button>
+      </div>
+      {sub === 'emp' ? <EmployeesSettings /> : <ItemsSettings />}
+    </div>
+  );
+}
+
+// ── 급여관리 본문 ────────────────────────────────────────────────
+function PayrollView({ user }) {
+  const [tab, setTab] = useState('edit');
+  const [period, setPeriod] = useState(defaultPeriod());
+  const [runType, setRunType] = useState('pay');
+  var isMobile = useIsMobile();
+
+  return (
+    <div className="page">
+      <div className="pr-head">
+        <span className="pr-title">💼 급여관리</span>
+        {tab !== 'settings' && (
+          <div className="pr-period">
+            <button className="pr-pbtn" onClick={function(){ setPeriod(shiftPeriod(period, -1)); }}>◀</button>
+            <input type="month" className="pr-month" value={period}
+              onChange={function(e){ if (/^\d{4}-\d{2}$/.test(e.target.value)) setPeriod(e.target.value); }} />
+            <button className="pr-pbtn" onClick={function(){ setPeriod(shiftPeriod(period, 1)); }}>▶</button>
+            <span style={{ fontSize: 12, color: '#64748b', marginLeft: 4 }}>귀속연월</span>
+          </div>
+        )}
+        <div className="itabs" style={{ marginLeft: isMobile ? 0 : 'auto' }}>
+          <button className={tab === 'edit' ? 'itab active' : 'itab'} onClick={function(){ setTab('edit'); }}>✎ 급여 편집</button>
+          <button className={tab === 'allowance' ? 'itab active' : 'itab'} onClick={function(){ setTab('allowance'); }}>📊 월별수당</button>
+          <button className={tab === 'settings' ? 'itab active' : 'itab'} onClick={function(){ setTab('settings'); }}>⚙ 설정</button>
+        </div>
+      </div>
+      {tab === 'edit' && (
+        <div className="itabs" style={{ marginBottom: 12 }}>
+          <button className={runType === 'pay' ? 'itab active' : 'itab'} onClick={function(){ setRunType('pay'); }}>💵 {TYPE_LABELS.pay}</button>
+          <button className={runType === 'report' ? 'itab active' : 'itab'} onClick={function(){ setRunType('report'); }}>🏛 {TYPE_LABELS.report}</button>
+        </div>
+      )}
+      {tab === 'edit' && <EditTab key={period + runType} user={user} period={period} runType={runType} isMobile={isMobile} />}
+      {tab === 'allowance' && <AllowanceTab period={period} isMobile={isMobile} />}
+      {tab === 'settings' && <SettingsTab />}
+    </div>
+  );
+}
+
+// ── 로그인 ───────────────────────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [phone, setPhone] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [remain, setRemain] = useState(0);
+
+  useEffect(function() {
+    var bf = Sysbar.Auth.checkBruteForce();
+    if (bf.locked) { setLocked(true); setRemain(bf.remainSec); }
+    var timer = setInterval(function() {
+      var bf2 = Sysbar.Auth.checkBruteForce();
+      if (bf2.locked) { setLocked(true); setRemain(bf2.remainSec); }
+      else { setLocked(false); setRemain(0); }
+    }, 1000);
+    return function() { clearInterval(timer); };
+  }, []);
+
+  function doLogin() {
+    if (locked) return;
+    if (!phone.trim() || !pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
+    setLoading(true); setErr('');
+    Sysbar.Auth.doLogin(getSb(), phone, pw, { allowedRoles: ['admin', 'manager', 'staff', 'employee'] })
+      .then(function(result) {
+        setLoading(false);
+        if (result.ok) { onLogin(result.user); return; }
+        if (result.locked) { setLocked(true); setRemain(result.remainSec); }
+        setErr(result.reason);
+      });
+  }
+
+  return (
+    <div className="lwrap">
+      <div className="lbox">
+        <div className="llogo">🏢</div>
+        <div className="ltit">{APP_CONFIG.COMPANY_SHORT}</div>
+        <div className="lsub">관리포털 · 급여관리 (관리자 전용)</div>
+        {err && <div className="al al-e">{err}</div>}
+        <div style={{ marginBottom: 12 }}>
+          <label className="fl">아이디 (전화번호)</label>
+          <input className="fi" value={phone} placeholder="전화번호 입력" disabled={locked}
+            onChange={function(e){ setPhone(e.target.value); }}
+            onKeyDown={function(e){ if (e.key === 'Enter') document.getElementById('ap-pw').focus(); }} />
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <label className="fl">비밀번호</label>
+          <input id="ap-pw" type="password" className="fi" value={pw} placeholder="비밀번호 입력" disabled={locked}
+            onChange={function(e){ setPw(e.target.value); }}
+            onKeyDown={function(e){ if (e.key === 'Enter') doLogin(); }} />
+        </div>
+        <button className="btn btn-p" onClick={doLogin} disabled={loading || locked} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
+          {locked ? ('잠금 ' + remain + '초') : (loading ? '로그인 중...' : '로그인')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────
+const SysBar = Sysbar.createComponent(React);
+
+const CURRENT_PAGE = 'py';
+const PageView = PayrollView;
+
+// ── 관리포털 페이지 정의 (네비게이션) ──────────────────────────────────────
+// 각 페이지 파일은 상단에서 CURRENT_PAGE 를 지정한다.
+//   admin-worklog.html  → 'wl'
+//   admin-perf.html     → 'pf'
+//   admin-payroll.html  → 'py'
+//   admin-account.html  → 'ab'
+//   admin-staff.html    → 'st'
+const PORTAL_PAGES = [
+  { key:'wl', label:'📝 업무일지', href:'admin-worklog.html', need:'access' },
+  { key:'pf', label:'📊 수금관리', href:'admin-perf.html',    need:'access' },
+  { key:'py', label:'💼 급여관리', href:'admin-payroll.html', need:'sal'    },
+  { key:'ab', label:'🔑 계정관리', href:'admin-account.html', need:'ab'     },
+  { key:'st', label:'👥 직원관리', href:'admin-staff.html',   need:'access' },
+];
+
+function App() {
+  var initialUser = (function() {
+    var v = Sysbar.Auth.getSession();
+    if (v && v.id && v.role) return v;
+    return null;
+  })();
+  const [user, setUser] = useState(initialUser);
+  const [ssoChecked, setSsoChecked] = useState(!!initialUser);
+  const [teamName, setTeamName] = useState('');
+  const [hasAccess, setHasAccess] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+
+  useEffect(function() {
+    if (initialUser) return;
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { setUser(null); return; }
+    setSsoChecked(true);
+  }, []);
+
+  useEffect(function() {
+    if (!initialUser) return;
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { logout(); return; }
+    if (ssoChecked) { Sysbar.SessionManager.onLogin(function() { logout(); }); }
+  }, []);
+
+  useEffect(function() {
+    if (!user) return;
+    if (user.role === 'admin') { setTeamName('관리자'); setHasAccess(true); setAccessChecked(true); return; }
+    if (!user.team_id) { setHasAccess(false); setAccessChecked(true); return; }
+    getSb().from('teams').select('name').eq('id', user.team_id).single().then(function(r) {
+      var name = r.data ? r.data.name : '';
+      setTeamName(name);
+      setHasAccess(!!ADMIN_TEAM && name === ADMIN_TEAM);
+      setAccessChecked(true);
+    });
+  }, [user ? user.id : null]);
+
+  function handleLogin(u) {
+    setUser(u);
+    Sysbar.SessionManager.onLogin(function() { logout(); });
+  }
+
+  function logout() {
+    Sysbar.Auth.logout(getSb());
+    setUser(null); setTeamName(''); setHasAccess(false);
+  }
+
+  if (!ssoChecked || (user && !accessChecked)) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--theme,#0f172a)', color: '#94a3b8', fontSize: 14 }}>
+      로딩 중...
+    </div>
+  );
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
+
+  // 급여관리는 admin 전용 — 관리팀이라도 admin 이 아니면 업무일지로 보낸다.
+  var canSal = user.role === 'admin';
+  var canAb  = user.role === 'admin' || (!!ADMIN_TEAM && teamName === ADMIN_TEAM);
+  if (!canSal) { location.replace('admin-worklog.html'); return null; }
+
+  function canShow(need) {
+    if (need === 'sal') return canSal;
+    if (need === 'ab')  return canAb;
+    return true;
+  }
+
+  return (
+    <div>
+      <SysBar activeKey="admin" user={user} teamName={teamName} onLogout={logout} />
+      <div style={{ background: 'var(--theme,#0f172a)', padding: '6px 18px 8px', flexShrink: 0, borderBottom: '2px solid #7c3aed', position: 'sticky', top: 38, zIndex: 250 }}>
+        <p style={{ margin: 0, fontSize: 9, lineHeight: '1.2', color: '#475569', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600 }}>{APP_CONFIG.COMPANY_EN}</p>
+        <p style={{ margin: 0, fontSize: 14, lineHeight: '1.3', fontWeight: 800, color: 'white', letterSpacing: -0.3 }}>관리 포털</p>
+      </div>
+      <div className="top-nav">
+        {PORTAL_PAGES.filter(function(pg){ return canShow(pg.need); }).map(function(pg) {
+          return (
+            <button key={pg.key}
+              className={CURRENT_PAGE === pg.key ? 'nav-btn active' : 'nav-btn'}
+              onClick={function(){ if (CURRENT_PAGE !== pg.key) location.href = pg.href; }}>
+              {pg.label}
+            </button>
+          );
+        })}
+      </div>
+      <PageView user={user} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
