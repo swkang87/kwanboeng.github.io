@@ -26,6 +26,8 @@
     { key:'project', icon:'📊', label:'공정관리', url:'project.html' },
     { key:'leave',   icon:'📅', label:'연차관리', url:'leave.html'   },
     { key:'worklog', icon:'📝', label:'업무일지', url:'worklog.html' },
+    { key:'payslip', icon:'💰', label:'급여명세서',
+      url:(global.APP_CONFIG && global.APP_CONFIG.PAYROLL && global.APP_CONFIG.PAYROLL.SLIP_PAGE) || 'payslip.html' },
     { key:'admin',   icon:'🏢', label:'관리포털', url:'admin-worklog.html', adminOnly:true },
   ];
 

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="robots" content="noindex,nofollow"/>
+<title>급여명세서</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #root, button, input, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
+<script src="config.js"></script>
+<script src="sysbar.js?v=20260929"></script>
+<script src="payslip-render.js?v=20260929"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f1f5f9;color:#0f172a;font-size:14px;overflow-x:hidden;}
+.sys-bar{position:sticky;top:0;z-index:300;}
+.ps-page{max-width:1100px;margin:0 auto;padding:24px 16px 48px;}
+.ps-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+.ps-title{font-size:20px;font-weight:800;}
+.ps-sub{font-size:12px;color:#64748b;margin-top:2px;}
+.ps-body{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;align-items:start;}
+.ps-list{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;position:sticky;top:56px;}
+.ps-list-h{font-size:11px;font-weight:700;color:#64748b;padding:10px 14px;border-bottom:1px solid #e2e8f0;background:#f8fafc;}
+.ps-item{display:block;width:100%;text-align:left;padding:10px 14px;border:none;border-bottom:1px solid #f1f5f9;background:#fff;cursor:pointer;font-size:13px;color:#0f172a;}
+.ps-item:last-child{border-bottom:none;}
+.ps-item:hover{background:#f8fafc;}
+.ps-item.on{background:#f5f3ff;box-shadow:inset 3px 0 0 #7c3aed;font-weight:700;}
+.ps-item small{display:block;font-size:11px;color:#94a3b8;font-weight:400;margin-top:2px;}
+.ps-tag{display:inline-block;font-size:10px;font-weight:700;color:#92400e;background:#fef3c7;border-radius:10px;padding:0 6px;margin-left:4px;vertical-align:1px;}
+.ps-sel{display:none;width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;font-weight:700;background:#fff;margin-bottom:12px;}
+.ps-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.ps-btn.s{background:#fff;color:#475569;border:1px solid #e2e8f0;}
+.ps-box{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:48px 20px;text-align:center;color:#64748b;font-size:14px;line-height:1.7;}
+.ps-box b{color:#0f172a;}
+.ps-note{font-size:11px;color:#94a3b8;margin-top:10px;text-align:center;}
+@media(max-width:768px){
+  .ps-page{padding:14px 10px 40px;}
+  .ps-body{grid-template-columns:1fr;}
+  .ps-list{display:none;}
+  .ps-sel{display:block;}
+  .ps-title{font-size:18px;}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// Supabase 클라이언트는 최초 사용 시점에 함수 안에서 생성한다.
+var _sb = null;
+function getSb() {
+  if (!_sb) _sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+  return _sb;
+}
+
+var PCFG = (window.APP_CONFIG && APP_CONFIG.PAYROLL) || {};
+var PayslipSheet = PayslipRender.createSheet(React);
+var PayslipPrintCopy = PayslipRender.createPrintCopy(React, ReactDOM);
+var SysBar = Sysbar.createComponent(React);
+var LoginScreen = Sysbar.createLoginComponent(React, { subtitle: '급여명세서', blockedRoles: ['contractor'] });
+
+function periodKo(p) { return p.slice(0, 4) + '년 ' + parseInt(p.slice(5, 7), 10) + '월'; }
+function queryPeriod() {
+  var m = /[?&]period=(\d{4}-\d{2})(?:&|$)/.exec(window.location.search || '');
+  return m ? m[1] : '';
+}
+
+// DB 는 RLS 로 "본인 + 지급용 + 확정" 명세서만 돌려준다. 화면에서도 같은 조건을 한 번 더 건다.
+function loadMySlips() {
+  var sb = getSb();
+  return sb.from('payroll_runs').select('id,period,run_type,pay_date,status,revision')
+    .eq('run_type', 'pay').eq('status', 'confirmed').order('period', { ascending: false })
+    .then(function(rr) {
+      if (rr.error) throw rr.error;
+      var runs = rr.data || [];
+      if (!runs.length) return [];
+      return sb.from('payroll_slips').select('*').in('run_id', runs.map(function(r) { return r.id; }))
+        .then(function(sr) {
+          if (sr.error) throw sr.error;
+          var byRun = {};
+          (sr.data || []).forEach(function(s) { byRun[s.run_id] = s; });
+          return runs.filter(function(r) { return byRun[r.id]; })
+            .map(function(r) { return { run: r, slip: byRun[r.id] }; });
+        });
+    });
+}
+
+function loadLines(slipId) {
+  return getSb().from('payroll_slip_lines').select('item_name,item_kind,sort_order,amount,method')
+    .eq('slip_id', slipId).order('sort_order')
+    .then(function(r) { if (r.error) throw r.error; return r.data || []; });
+}
+
+function toModel(entry, lines) {
+  var s = entry.slip, r = entry.run;
+  function pick(kind) {
+    return lines.filter(function(l) { return l.item_kind === kind; })
+      .map(function(l) { return { name: l.item_name, amount: l.amount, method: l.method || '' }; });
+  }
+  return {
+    period: r.period, runType: r.run_type, payDate: r.pay_date,
+    name: s.name_snap, birthDate: s.birth_date_snap, hireDate: s.hire_date_snap,
+    dept: s.dept_snap, position: s.position_snap, employeeNo: s.employee_no_snap,
+    earnings: pick('earning'), deductions: pick('deduction'),
+    totalEarning: s.total_earning, totalDeduction: s.total_deduction, netPay: s.net_pay,
+  };
+}
+
+function PayslipPage({ user }) {
+  const [loading, setLoading] = useState(true);
+  const [entries, setEntries] = useState([]);
+  const [selId, setSelId] = useState('');
+  const [model, setModel] = useState(null);
+  const [lineLoading, setLineLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(function() {
+    loadMySlips().then(function(list) {
+      setEntries(list);
+      var want = queryPeriod();
+      var hit = want ? list.filter(function(e) { return e.run.period === want; })[0] : null;
+      if (want && !hit) setErr(periodKo(want) + ' 명세서는 아직 공개되지 않았거나 조회할 수 없습니다.');
+      var first = hit || list[0];
+      if (first) setSelId(first.slip.id);
+      setLoading(false);
+    }).catch(function(e) {
+      Sysbar.showError(e, '급여명세서 조회');
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(function() {
+    if (!selId) { setModel(null); return; }
+    var entry = entries.filter(function(e) { return e.slip.id === selId; })[0];
+    if (!entry) return;
+    setLineLoading(true);
+    loadLines(selId).then(function(lines) {
+      setModel(toModel(entry, lines));
+      setLineLoading(false);
+    }).catch(function(e) {
+      Sysbar.showError(e, '명세서 항목 조회');
+      setLineLoading(false);
+    });
+  }, [selId]);
+
+  if (loading) return <div className="ps-page"><div className="ps-box">불러오는 중...</div></div>;
+
+  var cur = entries.filter(function(e) { return e.slip.id === selId; })[0];
+
+  return (
+    <div className="ps-page">
+      <div className="ps-head">
+        <div>
+          <div className="ps-title">💰 급여명세서</div>
+          <div className="ps-sub">{user.name} 님 · 확정된 지급 명세서만 표시됩니다</div>
+        </div>
+        {model && <button className="ps-btn" onClick={function(){ window.print(); }}>🖨 인쇄 / PDF 저장</button>}
+      </div>
+      {err && <div className="ps-box" style={{ padding: '14px 20px', marginBottom: 12, background: '#fef3c7', color: '#92400e', borderColor: '#fde68a' }}>{err}</div>}
+
+      {entries.length === 0 ? (
+        <div className="ps-box">
+          아직 조회할 수 있는 급여명세서가 없습니다.<br/>
+          명세서가 등록·확정되면 이 화면에서 확인할 수 있습니다.
+        </div>
+      ) : (
+        <div className="ps-body">
+          <div className="ps-list">
+            <div className="ps-list-h">지급월 선택</div>
+            {entries.map(function(e) {
+              return (
+                <button key={e.slip.id} className={e.slip.id === selId ? 'ps-item on' : 'ps-item'}
+                  onClick={function(){ setSelId(e.slip.id); }}>
+                  {periodKo(e.run.period)}{e.run.revision > 1 && <span className="ps-tag">수정</span>}
+                  <small>지급일 {PayslipRender.fmtDate(e.run.pay_date)} · 실지급 {PayslipRender.won(e.slip.net_pay)}원</small>
+                </button>
+              );
+            })}
+          </div>
+          <div>
+            <select className="ps-sel" value={selId} onChange={function(ev){ setSelId(ev.target.value); }}>
+              {entries.map(function(e) {
+                return <option key={e.slip.id} value={e.slip.id}>{periodKo(e.run.period)} 급여명세서{e.run.revision > 1 ? ' (수정)' : ''}</option>;
+              })}
+            </select>
+            {lineLoading || !model ? <div className="ps-box">불러오는 중...</div> : <PayslipSheet model={model} />}
+            {model && cur && cur.run.revision > 1 && <div className="ps-note">관리자가 수정해 다시 확정한 명세서입니다.</div>}
+            {model && <PayslipPrintCopy model={model} />}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  var initialUser = (function() {
+    var v = Sysbar.Auth.getSession();
+    return (v && v.id && v.role) ? v : null;
+  })();
+  const [user, setUser] = useState(initialUser);
+  const [checked, setChecked] = useState(false);
+
+  // 캐시된 세션의 role 은 믿지 않고 서버 값으로 다시 확인한다 (contractor 차단 포함).
+  useEffect(function() {
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated || !initialUser) { if (wasInvalidated) setUser(null); setChecked(true); return; }
+    Sysbar.Auth.verifySession(getSb()).then(function(res) {
+      if (res && res.ok && res.user) setUser(res.user);
+      else if (res && res.reason !== 'auth-error') { Sysbar.Auth.logout(getSb()); setUser(null); }
+      setChecked(true);
+    });
+    Sysbar.SessionManager.onLogin(function() { logout(); });
+  }, []);
+
+  function handleLogin(u) {
+    setUser(u);
+    setChecked(true);
+    Sysbar.SessionManager.onLogin(function() { logout(); });
+  }
+  function logout() {
+    Sysbar.Auth.logout(getSb());
+    setUser(null);
+  }
+
+  if (!user) return <LoginScreen supabaseClient={getSb()} onLogin={handleLogin} />;
+  if (!checked) return <div className="ps-page"><div className="ps-box">확인 중...</div></div>;
+
+  if (user.role === 'contractor') return (
+    <div>
+      <SysBar activeKey="payslip" user={user} onLogout={logout} />
+      <div className="ps-page"><div className="ps-box">🚫 <b>급여명세서</b>는 임직원 전용 메뉴입니다.</div></div>
+    </div>
+  );
+
+  return (
+    <div>
+      <SysBar activeKey="payslip" user={user} onLogout={logout} />
+      <PayslipPage user={user} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
