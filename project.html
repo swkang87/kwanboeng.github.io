@@ -329,6 +329,8 @@ const fs = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return
 const fmt = (d) => { if (!d) return ''; const t = new Date(d+'T00:00:00'); return `${t.getMonth()+1}/${t.getDate()}`; };
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 function localDateStr(d){var y=d.getFullYear();var m=String(d.getMonth()+1).padStart(2,'0');var dd=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dd;}
+// 비밀번호 최소 길이 (config.js AUTH_POLICY — 서버 함수·Supabase Auth 설정과 같은 값)
+const PW_MIN = (window.APP_CONFIG && APP_CONFIG.AUTH_POLICY && APP_CONFIG.AUTH_POLICY.PASSWORD_MIN_LENGTH) || 8;
 // PM 은 참여인원(project_members)에 자동으로 포함한다.
 // 이미 배정돼 있으면 역할(support/contractor 포함)을 바꾸지 않고 그대로 둔다 —
 // 기존 배정을 덮어쓰지 않는 것이 이 헬퍼의 전제다. 이전 PM 도 건드리지 않는다.
@@ -3137,7 +3139,7 @@ function ChangePasswordModal({ user, onClose }) {
   const save = async () => {
     if (!curr || !next || !confirm) { setErr('모든 항목을 입력해주세요.'); return; }
     if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
-    if (next.length < 6) { setErr('비밀번호는 6자 이상이어야 합니다.'); return; }
+    if (next.length < PW_MIN) { setErr('비밀번호는 ' + PW_MIN + '자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
     // H-2: 비밀번호 변경을 change-own-password Edge Function 으로 위임한다.
     // 서버가 현재 비밀번호를 재확인하고, 전화번호/아이디를 새 비밀번호로 쓰는 것을 거부하며,
@@ -3174,7 +3176,7 @@ function ChangePasswordModal({ user, onClose }) {
           </div>
           <div className="form-group">
             <label className="form-label">새 비밀번호</label>
-            <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder="새 비밀번호 (6자 이상)" />
+            <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder={'새 비밀번호 (' + PW_MIN + '자 이상)'} />
           </div>
           <div className="form-group">
             <label className="form-label">새 비밀번호 확인</label>
@@ -3318,7 +3320,7 @@ function ProfileView({ user, onLogout }) {
   const savePw = async () => {
     if (!curr || !next || !confirm) { setErr('모든 항목을 입력해주세요.'); return; }
     if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
-    if (next.length < 6) { setErr('비밀번호는 6자 이상이어야 합니다.'); return; }
+    if (next.length < PW_MIN) { setErr('비밀번호는 ' + PW_MIN + '자 이상이어야 합니다.'); return; }
     setLoading(true); setErr('');
     // H-2: 비밀번호 변경을 change-own-password Edge Function 으로 위임한다.
     // 서버가 현재 비밀번호를 재확인하고, 전화번호/아이디를 새 비밀번호로 쓰는 것을 거부하며,
@@ -3367,7 +3369,7 @@ function ProfileView({ user, onLogout }) {
         </div>
         <div className="form-group">
           <label className="form-label">새 비밀번호</label>
-          <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder="새 비밀번호 (6자 이상)" />
+          <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder={'새 비밀번호 (' + PW_MIN + '자 이상)'} />
         </div>
         <div className="form-group">
           <label className="form-label">새 비밀번호 확인</label>

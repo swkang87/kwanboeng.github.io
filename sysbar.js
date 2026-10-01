@@ -615,6 +615,8 @@
       var submitChange = function() {
         if (!npw || !npw2) { setErr('새 비밀번호를 입력하세요.'); return; }
         if (npw !== npw2)  { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
+        var pwMin = (cfg.AUTH_POLICY && cfg.AUTH_POLICY.PASSWORD_MIN_LENGTH) || 8;
+        if (npw.length < pwMin) { setErr('새 비밀번호는 ' + pwMin + '자 이상이어야 합니다.'); return; }
         setLoading(true); setErr('');
         Auth.changeOwnPassword(sb, pw, npw, mustChange).then(function(r) {
           setLoading(false);
@@ -635,7 +637,7 @@
               '관리자가 지정한 초기 비밀번호로 로그인했습니다. 새 비밀번호를 설정하면 이용할 수 있습니다.'),
             err ? e('div', { className: 'sb-lerr' }, err) : null,
             e('div', { style: { marginBottom: 12 } },
-              e('label', { className: 'sb-lfl' }, '새 비밀번호 (6자 이상)'),
+              e('label', { className: 'sb-lfl' }, '새 비밀번호 (' + ((cfg.AUTH_POLICY && cfg.AUTH_POLICY.PASSWORD_MIN_LENGTH) || 8) + '자 이상)'),
               e('input', { className:'sb-lfi', type:'password', placeholder:'새 비밀번호', value:npw,
                 onChange: function(ev){ setNpw(ev.target.value); }, onKeyDown: onChgKey })
             ),

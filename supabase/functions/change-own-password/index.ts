@@ -79,9 +79,11 @@ Deno.serve(async (req) => {
       return json({ error: '현재 비밀번호와 새 비밀번호를 모두 입력하세요.' })
     }
 
-    // 새 비밀번호 검증. 길이는 기존 화면 안내(6자 이상)와 맞춘다.
-    if (newPw.length < 6) {
-      return json({ error: '새 비밀번호는 6자 이상이어야 합니다.' })
+    // 새 비밀번호 검증. 최소 길이는 config.js AUTH_POLICY.PASSWORD_MIN_LENGTH 와
+    // Supabase Auth 설정(Minimum password length)에 맞춘다 (2026-10-01: 8자).
+    const pwMin = Math.max(8, Number(Deno.env.get('PASSWORD_MIN_LENGTH') ?? 8) || 8)
+    if (newPw.length < pwMin) {
+      return json({ error: '새 비밀번호는 ' + pwMin + '자 이상이어야 합니다.' })
     }
     if (newPw === currentPw) {
       return json({ error: '현재 비밀번호와 다른 값을 입력하세요.' })

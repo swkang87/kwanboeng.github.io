@@ -48,6 +48,11 @@ var APP_CONFIG = {
   ADMIN_TEAM_NAME: '관리팀',          // 관리포털 접근 팀명
   SESSION_PREFIX:  'kwanbo',          // 스토리지 키 prefix
   AUTH_DOMAIN:     'kwanbo.internal', // 로그인 이메일 도메인
+
+  // ── 로그인 정책 (화면 안내·검사 기준. 서버 함수와 Supabase Auth 최소 길이도 같은 값으로 맞춘다) ──
+  AUTH_POLICY: {
+    PASSWORD_MIN_LENGTH: 8,            // 비밀번호 최소 길이
+  },
   MOBILE_MAX_WIDTH: 768,              // 모바일 판별 기준 폭(px) — 이하일 때 모바일 처리
 
   // ── 오류 안내 문구 ────────────────────────────────────────────

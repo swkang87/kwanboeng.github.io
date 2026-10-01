@@ -11,6 +11,9 @@
 - 급여 전용: `salaries` · `salary_slips` · `salary_details` · `salary_items` · `salary_members`,
   `admin-salary.html`, `admin-account.html` 의 급여 탭(`canSal`).
 - admin + 관리팀: 장부(`account_book`) · 직원관리 · 업무일지 · 실적 등 나머지 관리 기능.
+- **계정 아이디·비밀번호 초기화는 admin 전용**(관리팀 불가). 초기화할 수 있으면 그 직원 계정으로
+  로그인해 본인 급여명세서를 볼 수 있으므로, 관리팀에 허용하면 "급여는 admin 전용" 원칙이 무너진다.
+  직원 정보 조회·수정(직원관리)은 admin + 관리팀 그대로. (2026-10-01 승우님 결정)
 - RLS 정책도 화면 권한(`canXxx`)과 **1:1로 대응**시킨다. 둘이 어긋나면 화면은 보이는데
   저장이 실패하는 상태가 되므로, 정책을 바꾸면 해당 화면의 권한 조건도 같이 확인할 것.
 - **급여 명세서 확정·공개 전 필수:** `security-fix\plan_next_bundles.md` 의 보류 항목(기존 계정 비밀번호 강제 변경)을
