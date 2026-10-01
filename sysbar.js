@@ -334,10 +334,8 @@
       }
 
       try {
-        var loginIdRaw = String(loginId).trim();
-        // 숫자만이면 전화번호 digits로, 아니면 그대로
-        var digits = loginIdRaw.replace(/\D/g, '');
-        var emailLocal = digits.length > 0 ? digits : loginIdRaw;
+        // 전화번호 형태(숫자·하이픈 등)면 숫자만, 그 외(아이디)는 소문자 그대로 — loginLocalFromInput
+        var emailLocal = loginLocalFromInput(loginId);
         var domain = (global.APP_CONFIG && global.APP_CONFIG.AUTH_DOMAIN) ? global.APP_CONFIG.AUTH_DOMAIN : 'kwanbo.internal';
         var email = emailLocal + '@' + domain;
 
@@ -356,7 +354,7 @@
 
         // Auth 성공 → 본인 프로필 조회 (H-1: 민감 컬럼은 본인 조회 함수로만 받는다)
         var profileRes = await loadMyProfile(sbClient,
-          'id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,must_change_pw');
+          'id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,must_change_pw,must_change_id');
 
         if (profileRes.error || !profileRes.data) {
           await sbClient.auth.signOut();
@@ -379,9 +377,10 @@
         // H-2: 초기 비밀번호(또는 관리자 초기화) 상태면 강제 변경 전까지 세션을 열지 않는다.
         // sessionStorage 를 쓰지 않으므로 새로고침해도 다시 로그인 화면이다.
         // (Auth JWT 자체는 살아 있다 — change-own-password 호출에 그 토큰이 필요하다.)
-        if (user.must_change_pw) {
+        // 아이디 변경 플래그(must_change_id)도 같은 화면에서 처리한다.
+        if (user.must_change_pw || user.must_change_id) {
           return { ok: false, mustChangePw: true, user: user,
-            reason: '비밀번호를 변경한 뒤 이용할 수 있습니다.' };
+            reason: '아이디·비밀번호를 변경한 뒤 이용할 수 있습니다.' };
         }
 
         // 로그인 성공
@@ -474,9 +473,12 @@
      *
      * 성공 시 세션(sessionStorage)까지 열어 준다 — 강제 변경 직후 바로 진입하기 위함.
      */
-    function changeOwnPassword(sbClient, currentPw, newPw, user) {
-      return invokeAuthed(sbClient, 'change-own-password',
-        { current_pw: currentPw, new_pw: newPw }
+    // newLoginId: 새 로그인 아이디(선택). 주면 인증 계정 이메일과 users.username 을 함께 바꾼다.
+    function changeOwnPassword(sbClient, currentPw, newPw, user, newLoginId) {
+      var body = { current_pw: currentPw };
+      if (newPw) body.new_pw = newPw;
+      if (newLoginId) body.new_login_id = newLoginId;
+      return invokeAuthed(sbClient, 'change-own-password', body
       ).then(function(res) {
         var data = res && res.data;
         var msg  = (data && data.error) || (res && res.error && res.error.message) || '';
@@ -486,12 +488,13 @@
         if (user) {
           var fresh = {};
           for (var k in user) { if (Object.prototype.hasOwnProperty.call(user, k)) fresh[k] = user[k]; }
-          fresh.must_change_pw = false;
+          if (newPw) fresh.must_change_pw = false;
+          if (newLoginId) { fresh.must_change_id = false; fresh.username = data.login_id || newLoginId; }
           sessionStorage.setItem(SESSION_KEY, JSON.stringify(fresh));
           sessionStorage.removeItem('kwanbo_uid');
-          return { ok: true, user: fresh, flagCleared: !!data.flag_cleared };
+          return { ok: true, user: fresh, loginId: data.login_id || null, flagCleared: !!data.flag_cleared };
         }
-        return { ok: true, flagCleared: !!data.flag_cleared };
+        return { ok: true, loginId: data.login_id || null, flagCleared: !!data.flag_cleared };
       }, function(e) {
         return { ok: false, reason: '네트워크 오류: ' + ((e && e.message) || e) };
       });
@@ -574,6 +577,8 @@
       var npw      = _np[0];  var setNpw  = _np[1];
       var _np2     = useState('');
       var npw2     = _np2[0]; var setNpw2 = _np2[1];
+      var _nid     = useState('');
+      var nid      = _nid[0]; var setNid  = _nid[1];
 
       var e = React.createElement;
 
@@ -612,16 +617,32 @@
       var onKey = function(ev) { if (ev.key === 'Enter') login(); };
 
       // 강제 변경 제출. 현재 비밀번호는 방금 입력한 pw 를 그대로 쓴다.
+      // 아이디(must_change_id)·비밀번호(must_change_pw) 중 켜진 것만 입력받아 한 번에 보낸다.
+      var needId = !!(mustChange && mustChange.must_change_id);
+      var needPw = !!(mustChange && mustChange.must_change_pw);
+      var idMsg  = needId && nid ? checkLoginId(nid, { phone: mustChange.phone }) : '';
       var submitChange = function() {
-        if (!npw || !npw2) { setErr('새 비밀번호를 입력하세요.'); return; }
-        if (npw !== npw2)  { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
-        var pwMin = (cfg.AUTH_POLICY && cfg.AUTH_POLICY.PASSWORD_MIN_LENGTH) || 8;
-        if (npw.length < pwMin) { setErr('새 비밀번호는 ' + pwMin + '자 이상이어야 합니다.'); return; }
+        var newId = needId ? nid.trim().toLowerCase() : '';
+        if (needId) {
+          if (!newId) { setErr('새 아이디를 입력하세요.'); return; }
+          var m = checkLoginId(newId, { phone: mustChange.phone });
+          if (m) { setErr(m); return; }
+        }
+        if (needPw) {
+          if (!npw || !npw2) { setErr('새 비밀번호를 입력하세요.'); return; }
+          if (npw !== npw2)  { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
+          var pwMin = authPolicy().pwMin;
+          if (npw.length < pwMin) { setErr('새 비밀번호는 ' + pwMin + '자 이상이어야 합니다.'); return; }
+          if (newId && npw.toLowerCase() === newId) { setErr('아이디를 비밀번호로 사용할 수 없습니다.'); return; }
+        }
         setLoading(true); setErr('');
-        Auth.changeOwnPassword(sb, pw, npw, mustChange).then(function(r) {
+        Auth.changeOwnPassword(sb, pw, needPw ? npw : '', mustChange, newId).then(function(r) {
           setLoading(false);
-          if (r.ok) { onLogin(r.user); }
-          else { setErr(r.reason); }
+          if (!r.ok) { setErr(r.reason); return; }
+          if (r.loginId) {
+            try { global.alert('아이디가 "' + r.loginId + '"(으)로 바뀌었습니다.\n다음부터는 새 아이디로 로그인하세요.'); } catch (x) {}
+          }
+          onLogin(r.user);
         });
       };
       var onChgKey = function(ev) { if (ev.key === 'Enter') submitChange(); };
@@ -630,24 +651,34 @@
         return e('div', { className: 'sb-lwrap' },
           e('div', { className: 'sb-lbox' },
             e('div', { className: 'sb-lco'  }, cfg.COMPANY_SHORT || cfg.COMPANY_KO || ''),
-            e('div', { className: 'sb-lsub' }, '비밀번호 변경이 필요합니다'),
+            e('div', { className: 'sb-lsub' },
+              needId && needPw ? '아이디·비밀번호 변경이 필요합니다' : (needId ? '아이디 변경이 필요합니다' : '비밀번호 변경이 필요합니다')),
             e('div', { style: { background:'#fffbeb', border:'1px solid #fde68a', color:'#92400e',
                                 borderRadius:6, padding:'10px 12px', fontSize:13, lineHeight:1.5,
                                 marginBottom:14 } },
-              '관리자가 지정한 초기 비밀번호로 로그인했습니다. 새 비밀번호를 설정하면 이용할 수 있습니다.'),
+              '보안 강화를 위해 ' + (needId && needPw ? '새 아이디와 새 비밀번호를' : (needId ? '새 아이디를' : '새 비밀번호를'))
+                + ' 정하면 이용할 수 있습니다.'),
             err ? e('div', { className: 'sb-lerr' }, err) : null,
-            e('div', { style: { marginBottom: 12 } },
-              e('label', { className: 'sb-lfl' }, '새 비밀번호 (' + ((cfg.AUTH_POLICY && cfg.AUTH_POLICY.PASSWORD_MIN_LENGTH) || 8) + '자 이상)'),
-              e('input', { className:'sb-lfi', type:'password', placeholder:'새 비밀번호', value:npw,
+            needId ? e('div', { style: { marginBottom: 12 } },
+              e('label', { className: 'sb-lfl' }, '새 아이디'),
+              e('input', { className:'sb-lfi', type:'text', placeholder:'새 아이디', value:nid, autoComplete:'username',
+                autoCapitalize:'none', spellCheck:false,
+                onChange: function(ev){ setNid(ev.target.value.toLowerCase()); }, onKeyDown: onChgKey }),
+              e('div', { style: { fontSize:11, marginTop:4, lineHeight:1.5, color: idMsg ? '#dc2626' : '#64748b' } },
+                idMsg || loginIdRuleText())
+            ) : null,
+            needPw ? e('div', { style: { marginBottom: 12 } },
+              e('label', { className: 'sb-lfl' }, '새 비밀번호 (' + authPolicy().pwMin + '자 이상)'),
+              e('input', { className:'sb-lfi', type:'password', placeholder:'새 비밀번호', value:npw, autoComplete:'new-password',
                 onChange: function(ev){ setNpw(ev.target.value); }, onKeyDown: onChgKey })
-            ),
-            e('div', { style: { marginBottom: 18 } },
+            ) : null,
+            needPw ? e('div', { style: { marginBottom: 18 } },
               e('label', { className: 'sb-lfl' }, '새 비밀번호 확인'),
-              e('input', { className:'sb-lfi', type:'password', placeholder:'새 비밀번호 확인', value:npw2,
+              e('input', { className:'sb-lfi', type:'password', placeholder:'새 비밀번호 확인', value:npw2, autoComplete:'new-password',
                 onChange: function(ev){ setNpw2(ev.target.value); }, onKeyDown: onChgKey })
-            ),
+            ) : null,
             e('button', { className:'sb-lbtn', onClick:submitChange, disabled: loading },
-              loading ? '변경 중...' : '비밀번호 변경하고 시작하기'
+              loading ? '변경 중...' : '변경하고 시작하기'
             )
           )
         );
@@ -660,7 +691,8 @@
           err ? e('div', { className: 'sb-lerr' }, err) : null,
           e('div', { style: { marginBottom: 12 } },
             e('label', { className: 'sb-lfl' }, '로그인 아이디'),
-            e('input', { className:'sb-lfi', type:'text', placeholder:'아이디 (전화번호)', value:phone,
+            e('input', { className:'sb-lfi', type:'text', placeholder:'아이디 (처음이면 휴대폰 번호)', value:phone,
+              autoCapitalize:'none', spellCheck:false,
               onChange: function(ev){ setPhone(ev.target.value); }, onKeyDown: onKey, disabled: locked })
           ),
           e('div', { style: { marginBottom: 18 } },
@@ -863,6 +895,73 @@
     });
   }
 
+  // ── 로그인 아이디 규칙 (config.js AUTH_POLICY) ───────────────────
+  // 서버(change-own-password)도 같은 규칙·같은 문구로 다시 검사한다. 여기는 입력 중 안내용.
+  function authPolicy() {
+    var p = (global.APP_CONFIG && global.APP_CONFIG.AUTH_POLICY) || {};
+    return {
+      min: p.LOGIN_ID_MIN || 4,
+      max: p.LOGIN_ID_MAX || 20,
+      requireLetter: p.LOGIN_ID_REQUIRE_LETTER !== false,
+      reserved: (p.LOGIN_ID_RESERVED || []).map(function(x) { return String(x).toLowerCase(); }),
+      pwMin: Math.max(8, p.PASSWORD_MIN_LENGTH || 8),
+    };
+  }
+
+  // 로그인 입력 → 인증 이메일 앞부분.
+  // 숫자·하이픈·공백·괄호·점만 있으면 휴대폰 번호로 보고 숫자만 남긴다(기존 계정 호환).
+  // 그 외(영문이 섞인 아이디)는 소문자 그대로. (예전에는 숫자가 하나라도 있으면 숫자만 남겨 kim2024 → 2024 가 됐다)
+  function loginLocalFromInput(raw) {
+    var s = String(raw == null ? '' : raw).trim();
+    if (/^[0-9\-\s().+]+$/.test(s)) return s.replace(/\D/g, '');
+    return s.toLowerCase();
+  }
+
+  // 반환: 문제 없으면 '' , 있으면 화면에 보여줄 이유
+  function checkLoginId(id, ctx) {
+    var p = authPolicy();
+    var v = String(id || '').trim().toLowerCase();
+    var phone = ctx && ctx.phone ? String(ctx.phone).replace(/\D/g, '') : '';
+    if (v.length < p.min || v.length > p.max) return '아이디는 ' + p.min + '~' + p.max + '자로 정해 주세요.';
+    if (!/^[a-z0-9]+$/.test(v)) return '아이디는 영문 소문자와 숫자만 쓸 수 있습니다.';
+    if (p.requireLetter && !/[a-z]/.test(v)) return '아이디에 영문을 1자 이상 넣어 주세요.';
+    if (p.reserved.indexOf(v) !== -1) return '사용할 수 없는 아이디입니다.';
+    if (phone && v === phone) return '휴대폰 번호는 아이디로 쓸 수 없습니다.';
+    return '';
+  }
+
+  // 아이디 규칙 한 줄 안내 (화면 표시용)
+  function loginIdRuleText() {
+    var p = authPolicy();
+    return '영문 소문자·숫자 ' + p.min + '~' + p.max + '자' + (p.requireLetter ? ', 영문 1자 이상' : '')
+         + ', 휴대폰 번호·생년월일 불가';
+  }
+
+  // config.js AUTH_POLICY 를 DB(auth_policy)로 복사 — 서버 함수가 같은 규칙을 쓰도록.
+  // admin 만 저장된다(RLS). 그 외 역할이면 조용히 건너뛴다. 반환: Promise<{ synced, changed, error }>
+  function syncAuthPolicy(sbClient, userId) {
+    var p = authPolicy();
+    var row = {
+      id: 1, login_id_min: p.min, login_id_max: p.max, login_id_require_letter: p.requireLetter,
+      login_id_reserved: p.reserved, password_min_length: p.pwMin,
+      synced_at: new Date().toISOString(), synced_by: userId || null,
+    };
+    return sbClient.from('auth_policy').select('*').eq('id', 1).maybeSingle().then(function(r) {
+      if (r.error) return { synced: false, changed: false, error: r.error };
+      var cur = r.data;
+      var same = cur && cur.login_id_min === row.login_id_min && cur.login_id_max === row.login_id_max
+        && cur.login_id_require_letter === row.login_id_require_letter
+        && cur.password_min_length === row.password_min_length
+        && JSON.stringify(cur.login_id_reserved || []) === JSON.stringify(row.login_id_reserved);
+      if (same) return { synced: true, changed: false, error: null };
+      var q = cur ? sbClient.from('auth_policy').update(row).eq('id', 1).select('id')
+                  : sbClient.from('auth_policy').insert(row).select('id');
+      return q.then(function(w) {
+        return { synced: !w.error && !!(w.data && w.data.length), changed: true, error: w.error || null };
+      });
+    });
+  }
+
   // ── 직원 정보 조회 (H-1) ──────────────────────────────────────
   // users 의 민감 컬럼(phone · email · birth_date · username)은 일반 조회 권한에서 빠진다.
   //   · 본인 정보   → loadMyProfile()      (DB 함수 get_my_profile)
@@ -870,7 +969,7 @@
   //                    (DB 함수 users_private_list — admin·관리팀만. 그 외에는 민감 컬럼 없이 그대로)
   // select('*') 나 민감 컬럼 직접 지정은 권한 회수 후 42501 로 실패하므로 쓰지 않는다.
   var USER_PUBLIC_COLS = 'id,name,role,team_id,join_date,total_days,used_days,created_at,position,'
-                       + 'auth_id,hire_date,leave_date,must_change_pw';
+                       + 'auth_id,hire_date,leave_date,must_change_pw,must_change_id';
   var USER_PRIVATE_COLS = ['phone', 'email', 'birth_date', 'username'];
 
   // 반환: Promise<{ data: 프로필|null, error }>
@@ -910,6 +1009,11 @@
   }
 
   global.Sysbar = {
+    authPolicy:          authPolicy,
+    loginLocalFromInput: loginLocalFromInput,
+    checkLoginId:        checkLoginId,
+    loginIdRuleText:     loginIdRuleText,
+    syncAuthPolicy:      syncAuthPolicy,
     USER_PUBLIC_COLS: USER_PUBLIC_COLS,
     loadMyProfile:    loadMyProfile,
     mergeUserPrivate: mergeUserPrivate,

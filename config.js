@@ -50,8 +50,13 @@ var APP_CONFIG = {
   AUTH_DOMAIN:     'kwanbo.internal', // 로그인 이메일 도메인
 
   // ── 로그인 정책 (화면 안내·검사 기준. 서버 함수와 Supabase Auth 최소 길이도 같은 값으로 맞춘다) ──
+  // 직원관리 화면(admin)을 열 때 DB(auth_policy)로 복사되어 서버 함수도 같은 규칙을 쓴다.
   AUTH_POLICY: {
-    PASSWORD_MIN_LENGTH: 8,            // 비밀번호 최소 길이
+    PASSWORD_MIN_LENGTH: 8,            // 비밀번호 최소 길이 (8 미만으로 내려도 서버는 8을 지킨다)
+    LOGIN_ID_MIN: 4,                   // 로그인 아이디 길이 (영문 소문자·숫자)
+    LOGIN_ID_MAX: 20,
+    LOGIN_ID_REQUIRE_LETTER: true,     // 영문 1자 이상 필수 (숫자만 쓰면 휴대폰 번호와 구분이 안 됨)
+    LOGIN_ID_RESERVED: ['admin', 'root', 'test', 'manager', 'payroll'], // 쓸 수 없는 아이디
   },
   MOBILE_MAX_WIDTH: 768,              // 모바일 판별 기준 폭(px) — 이하일 때 모바일 처리
 

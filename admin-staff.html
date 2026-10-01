@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=20261001"></script>
+<script src="sysbar.js?v=2026100102"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -472,7 +472,15 @@ function StaffView({ user }) {
     });
   }
 
-  useEffect(function() { load(); }, []);
+  useEffect(function() {
+    load();
+    // config.js AUTH_POLICY(아이디 규칙·비밀번호 길이)를 DB 로 복사 — 서버 함수가 같은 규칙을 쓴다. admin 만 저장됨.
+    if (user.role === 'admin') {
+      Sysbar.syncAuthPolicy(sb, user.id).then(function(r) {
+        if (r.error) Sysbar.showError(r.error, '로그인 정책 동기화');
+      });
+    }
+  }, []);
 
   const TEAM_ORDER = {'관리팀':0,'설계1팀':1,'설계2팀':2,'지반팀':3,'기술지원':4};
   const ROLE_ORDER2 = {admin:0, manager:1, employee:2, staff:2, contractor:3};
@@ -519,27 +527,52 @@ function StaffView({ user }) {
     setPwResetSaving(false);
   }
 
+  // 아이디·비밀번호 초기화 (admin 전용, reset-user-login).
+  // 기존 [아이디변경](update-user-phone)은 호출자 확인 결함으로 동작하지 않아 화면에서 끊었다(함수는 배포 유지).
   function openPhoneChange(u) {
     setPhoneTarget(u);
-    setNewPhone(u.username || '');  // username이 있으면 표시, 없으면 빈칸
     setPhoneErr('');
     setPhoneModal(true);
   }
 
   async function savePhone() {
-    var trimmed = newPhone.trim();
-    var currentId = phoneTarget.username || phoneTarget.phone || '';
-    if (trimmed === currentId) { setPhoneErr('현재 아이디와 동일합니다.'); return; }
     setPhoneSaving(true); setPhoneErr('');
     try {
-      const { data, error } = await invokeAuthed('update-user-phone', { user_id: phoneTarget.id, new_username: trimmed || null });
-      if (error || data?.error) { setPhoneErr(error?.message || data?.error || '변경 실패'); setPhoneSaving(false); return; }
+      const { data, error } = await invokeAuthed('reset-user-login', { user_id: phoneTarget.id });
+      if (error || data?.error) { setPhoneErr(data?.error || error?.message || '초기화 실패'); setPhoneSaving(false); return; }
       setPhoneModal(false);
       load();
+      // 임시값은 이 응답에서 한 번만 받는다. 직원에게 전달해야 로그인할 수 있다.
+      alert('✅ ' + ((phoneTarget && phoneTarget.name) || '') + ' 님 아이디·비밀번호 초기화 완료'
+        + '\n\n임시 아이디: ' + (data && data.login_id || '')
+        + '\n임시 비밀번호: ' + (data && data.init_pw || '')
+        + '\n\n이 값을 직원에게 전달하세요. 첫 로그인 때 아이디와 비밀번호를 새로 정하게 됩니다.');
     } catch(e) {
       setPhoneErr('네트워크 오류: ' + e.message);
     }
     setPhoneSaving(false);
+  }
+
+  // 로그인 아이디 표시: 지정 아이디가 있으면 그 값, 없으면 휴대폰 번호(숫자)가 아이디다.
+  function loginIdOf(u) {
+    if (u.username) return { id: u.username, kind: 'set' };
+    var d = String(u.phone || '').replace(/\D/g, '');
+    return { id: d || '-', kind: 'phone' };
+  }
+  function loginIdCell(u) {
+    var li = loginIdOf(u);
+    return (
+      <span style={{display:'inline-flex',alignItems:'center',gap:4,flexWrap:'wrap'}}>
+        {li.kind === 'phone'
+          ? <span style={{fontSize:10,background:'#f1f5f9',color:'#64748b',padding:'1px 5px',borderRadius:3,fontWeight:700}}>휴대폰</span>
+          : <span style={{fontSize:10,background:'#dbeafe',color:'#1d4ed8',padding:'1px 5px',borderRadius:3,fontWeight:700}}>지정</span>}
+        {li.id}
+        {(u.must_change_id || u.must_change_pw) &&
+          <span style={{fontSize:10,background:'#fef3c7',color:'#92400e',padding:'1px 5px',borderRadius:3,fontWeight:700}}>
+            {u.must_change_id && u.must_change_pw ? '아이디·비번 변경 대기' : (u.must_change_id ? '아이디 변경 대기' : '비번 변경 대기')}
+          </span>}
+      </span>
+    );
   }
 
   async function save() {
@@ -665,6 +698,7 @@ function StaffView({ user }) {
                   </div>
                   <div style={{fontSize:12,color:'#64748b',marginBottom:8,display:'flex',flexDirection:'column',gap:3}}>
                     <div><span style={{color:'#94a3b8',marginRight:4}}>전화</span>{u.phone||'-'}</div>
+                    <div><span style={{color:'#94a3b8',marginRight:4}}>아이디</span>{loginIdCell(u)}</div>
                     <div><span style={{color:'#94a3b8',marginRight:4}}>이메일</span>{u.email||'-'}</div>
                     <div><span style={{color:'#94a3b8',marginRight:4}}>입사</span>{u.hire_date||'-'}{u.leave_date && <span style={{marginLeft:8,color:'#dc2626'}}>퇴사 {u.leave_date}</span>}</div>
                   </div>
@@ -673,11 +707,11 @@ function StaffView({ user }) {
                       <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>수정</button>
                       <button className="btn btn-sm" onClick={function(){openPhoneChange(u);}}
                         style={{background:'transparent',color:'#2563eb',border:'1px solid #2563eb',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
-                        아이디변경
+                        아이디·비번초기화
                       </button>
                       <button className="btn btn-sm" onClick={function(){openPwReset(u);}}
                         style={{background:'transparent',color:'#7c3aed',border:'1px solid #7c3aed',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
-                        비밀번호초기화
+                        비번만초기화
                       </button>
                       <button className="btn btn-sm" onClick={function(){deleteUser(u);}}
                         style={{background: delConfirm&&delConfirm.id===u.id ? '#ef4444':'transparent', color: delConfirm&&delConfirm.id===u.id ? '#fff':'#ef4444', border:'1px solid #ef4444', borderRadius:4, padding:'3px 8px', fontSize:11, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif", fontWeight:600}}>
@@ -713,11 +747,7 @@ function StaffView({ user }) {
                       <td style={{color:'#475569'}}>{u.position||'-'}</td>
                       <td><span className={'badge ' + roleCls(u.role)}>{roleL(u.role)}</span></td>
                       <td style={{color:'#64748b'}}>{u.phone}</td>
-                      <td style={{color:'#64748b',fontSize:12}}>
-                        {u.username
-                          ? <span style={{display:'inline-flex',alignItems:'center',gap:4}}><span style={{fontSize:10,background:'#dbeafe',color:'#1d4ed8',padding:'1px 5px',borderRadius:3,fontWeight:700}}>변경됨</span>{u.username}</span>
-                          : <span style={{color:'#94a3b8'}}>-</span>}
-                      </td>
+                      <td style={{color:'#64748b',fontSize:12}}>{loginIdCell(u)}</td>
                       <td style={{color:'#64748b',fontSize:12}}>{u.email||'-'}</td>
                       <td style={{color:'#64748b',fontSize:12}}>{u.hire_date||'-'}</td>
                       <td style={{color:'#dc2626',fontSize:12}}>{u.leave_date||'-'}</td>
@@ -726,12 +756,12 @@ function StaffView({ user }) {
                         {' '}
                         <button className="btn btn-sm" onClick={function(){openPhoneChange(u);}}
                           style={{background:'transparent',color:'#2563eb',border:'1px solid #2563eb',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
-                          아이디변경
+                          아이디·비번초기화
                         </button>
                         {' '}
                         <button className="btn btn-sm" onClick={function(){openPwReset(u);}}
                           style={{background:'transparent',color:'#7c3aed',border:'1px solid #7c3aed',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
-                          비밀번호초기화
+                          비번만초기화
                         </button>
                         {' '}
                         <button className="btn btn-sm" onClick={function(){deleteUser(u);}}
@@ -779,34 +809,29 @@ function StaffView({ user }) {
         <div className="mbg" onClick={function(){setPhoneModal(false);}}>
           <div className="mbox" onClick={function(e){e.stopPropagation();}} style={{maxWidth:420}}>
             <div className="mh">
-              <span className="mht">🔑 로그인 아이디 변경</span>
+              <span className="mht">🔑 아이디·비밀번호 초기화</span>
               <button className="mc" onClick={function(){setPhoneModal(false);}}>×</button>
             </div>
             <div className="mb">
               {phoneErr && <div className="al al-e">{phoneErr}</div>}
               <div style={{marginBottom:14,padding:'10px 12px',background:'#f8fafc',borderRadius:8,fontSize:12,color:'#64748b',lineHeight:1.7}}>
-                <strong style={{color:'#1e293b'}}>{phoneTarget && phoneTarget.name}</strong> 님의 로그인 아이디를 변경합니다.<br/>
-                전화번호는 그대로 유지되며, 변경 후 새 아이디로 로그인해야 합니다.
+                <strong style={{color:'#1e293b'}}>{phoneTarget && phoneTarget.name}</strong> 님의 로그인 아이디와 비밀번호를
+                <strong> 임시 아이디·임시 비밀번호</strong>로 바꿉니다.<br/>
+                완료 창에 임시값이 <strong>한 번만</strong> 표시됩니다. 직원에게 전달하면 첫 로그인 때 아이디와 비밀번호를 새로 정하게 됩니다.
               </div>
               <div style={{marginBottom:10}}>
                 <label className="fl">현재 아이디</label>
-                <input className="fi" value={phoneTarget ? (phoneTarget.username || phoneTarget.phone || '') : ''} disabled
+                <input className="fi" value={phoneTarget ? loginIdOf(phoneTarget).id : ''} disabled
                   style={{background:'#f1f5f9',color:'#94a3b8',cursor:'not-allowed'}} />
               </div>
-              <div style={{marginBottom:10}}>
-                <label className="fl">새 아이디 *</label>
-                <input className="fi" value={newPhone} placeholder="새 로그인 아이디 입력"
-                  onChange={function(e){setNewPhone(e.target.value);}}
-                  onKeyDown={function(e){if(e.key==='Enter')savePhone();}} />
-              </div>
               <div style={{padding:'8px 10px',background:'#fffbeb',border:'1px solid #fcd34d',borderRadius:6,fontSize:11,color:'#92400e'}}>
-                💡 아이디를 초기화(전화번호로 되돌리기)하려면 빈칸으로 저장하세요.
+                ⚠️ 초기화하면 지금 아이디·비밀번호로는 로그인할 수 없습니다. 비밀번호만 잊었다면 [비번만초기화]를 쓰세요.
               </div>
             </div>
             <div className="mf">
               <button className="btn btn-s" onClick={function(){setPhoneModal(false);}}>취소</button>
               <button className="btn btn-p" onClick={savePhone} disabled={phoneSaving}>
-                {phoneSaving ? '변경 중...' : '변경'}
+                {phoneSaving ? '초기화 중...' : '초기화'}
               </button>
             </div>
           </div>

@@ -1495,7 +1495,7 @@ function renderLoginSection(user) {
     // 미로그인 → 로그인 폼
     sec.innerHTML =
       '<div class="modal-form">' +
-        '<input class="modal-input" id="mPhone" type="text" placeholder="아이디 (전화번호)" autocomplete="username"/>' +
+        '<input class="modal-input" id="mPhone" type="text" placeholder="아이디 (처음이면 휴대폰 번호)" autocomplete="username" autocapitalize="none" spellcheck="false"/>' +
         '<input class="modal-input" id="mPw" type="password" placeholder="비밀번호" autocomplete="current-password"/>' +
         '<div id="mErr" style="font-size:.75rem;color:#e11d48;min-height:18px;"></div>' +
         '<button class="modal-login-btn" id="mLoginBtn">로그인</button>' +
@@ -1504,32 +1504,79 @@ function renderLoginSection(user) {
     var loginBtn = document.getElementById('mLoginBtn');
     var errEl = document.getElementById('mErr');
 
-    // H-2 강제 비밀번호 변경 화면.
-    // 로그인 자체는 성공했지만 must_change_pw 가 true 라 세션을 열지 않은 상태다.
-    // change-own-password Edge Function 이 Auth 비밀번호 변경과 플래그 해제를 함께 처리한다.
+    // H-2 강제 변경 화면 (아이디·비밀번호).
+    // 로그인 자체는 성공했지만 must_change_pw / must_change_id 가 true 라 세션을 열지 않은 상태다.
+    // change-own-password Edge Function 이 인증 계정(아이디=로그인 이메일·비밀번호)과 플래그 해제를 함께 처리한다.
+    // 아이디 규칙·문구는 sysbar.js checkLoginId 와 같다(이 페이지는 sysbar.js 를 로드하지 않는다).
+    function _authPolicy() {
+      var p = (window.APP_CONFIG && APP_CONFIG.AUTH_POLICY) || {};
+      return {
+        min: p.LOGIN_ID_MIN || 4, max: p.LOGIN_ID_MAX || 20,
+        requireLetter: p.LOGIN_ID_REQUIRE_LETTER !== false,
+        reserved: (p.LOGIN_ID_RESERVED || []).map(function(x){ return String(x).toLowerCase(); }),
+        pwMin: Math.max(8, p.PASSWORD_MIN_LENGTH || 8)
+      };
+    }
+    function _checkLoginId(id, phone) {
+      var p = _authPolicy(), v = String(id || '').trim().toLowerCase(), ph = String(phone || '').replace(/\D/g, '');
+      if (v.length < p.min || v.length > p.max) return '아이디는 ' + p.min + '~' + p.max + '자로 정해 주세요.';
+      if (!/^[a-z0-9]+$/.test(v)) return '아이디는 영문 소문자와 숫자만 쓸 수 있습니다.';
+      if (p.requireLetter && !/[a-z]/.test(v)) return '아이디에 영문을 1자 이상 넣어 주세요.';
+      if (p.reserved.indexOf(v) !== -1) return '사용할 수 없는 아이디입니다.';
+      if (ph && v === ph) return '휴대폰 번호는 아이디로 쓸 수 없습니다.';
+      return '';
+    }
     function renderForceChange(sb, u, currentPw) {
+      var P = _authPolicy();
+      var needId = !!u.must_change_id, needPw = !!u.must_change_pw;
+      var what = needId && needPw ? '새 아이디와 새 비밀번호를' : (needId ? '새 아이디를' : '새 비밀번호를');
+      var rule = '영문 소문자·숫자 ' + P.min + '~' + P.max + '자' + (P.requireLetter ? ', 영문 1자 이상' : '') + ', 휴대폰 번호·생년월일 불가';
       sec.innerHTML =
         '<div class="modal-form">' +
           '<div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;' +
           'border-radius:6px;padding:10px 12px;font-size:.78rem;line-height:1.5;">' +
-            '관리자가 지정한 초기 비밀번호로 로그인했습니다. 새 비밀번호를 설정하면 이용할 수 있습니다.' +
+            '보안 강화를 위해 ' + what + ' 정하면 이용할 수 있습니다.' +
           '</div>' +
-          '<input class="modal-input" id="mNpw" type="password" placeholder="새 비밀번호 (' + ((window.APP_CONFIG && APP_CONFIG.AUTH_POLICY && APP_CONFIG.AUTH_POLICY.PASSWORD_MIN_LENGTH) || 8) + '자 이상)" autocomplete="new-password"/>' +
-          '<input class="modal-input" id="mNpw2" type="password" placeholder="새 비밀번호 확인" autocomplete="new-password"/>' +
+          (needId
+            ? '<input class="modal-input" id="mNid" type="text" placeholder="새 아이디" autocomplete="username" autocapitalize="none" spellcheck="false"/>' +
+              '<div id="mNidHint" style="font-size:.72rem;color:#64748b;line-height:1.5;margin-top:-4px;">' + rule + '</div>'
+            : '') +
+          (needPw
+            ? '<input class="modal-input" id="mNpw" type="password" placeholder="새 비밀번호 (' + P.pwMin + '자 이상)" autocomplete="new-password"/>' +
+              '<input class="modal-input" id="mNpw2" type="password" placeholder="새 비밀번호 확인" autocomplete="new-password"/>'
+            : '') +
           '<div id="mCErr" style="font-size:.75rem;color:#e11d48;min-height:18px;"></div>' +
-          '<button class="modal-login-btn" id="mChgBtn">비밀번호 변경하고 시작하기</button>' +
+          '<button class="modal-login-btn" id="mChgBtn">변경하고 시작하기</button>' +
         '</div>';
 
       var btn  = document.getElementById('mChgBtn');
       var cErr = document.getElementById('mCErr');
-      var LABEL = '비밀번호 변경하고 시작하기';
+      var nidEl = document.getElementById('mNid');
+      var hint  = document.getElementById('mNidHint');
+      var LABEL = '변경하고 시작하기';
+
+      if (nidEl) nidEl.addEventListener('input', function() {
+        nidEl.value = nidEl.value.toLowerCase();
+        var m = nidEl.value ? _checkLoginId(nidEl.value, u.phone) : '';
+        hint.textContent = m || rule;
+        hint.style.color = m ? '#dc2626' : '#64748b';
+      });
 
       async function submitChange() {
-        var n1 = document.getElementById('mNpw').value;
-        var n2 = document.getElementById('mNpw2').value;
-        if (!n1 || !n2) { cErr.textContent = '새 비밀번호를 입력하세요.'; return; }
-        if (n1 !== n2)  { cErr.textContent = '새 비밀번호가 일치하지 않습니다.'; return; }
-        if (n1.length < ((window.APP_CONFIG && APP_CONFIG.AUTH_POLICY && APP_CONFIG.AUTH_POLICY.PASSWORD_MIN_LENGTH) || 8)) { cErr.textContent = '새 비밀번호는 ' + ((window.APP_CONFIG && APP_CONFIG.AUTH_POLICY && APP_CONFIG.AUTH_POLICY.PASSWORD_MIN_LENGTH) || 8) + '자 이상이어야 합니다.'; return; }
+        var newId = nidEl ? nidEl.value.trim().toLowerCase() : '';
+        var n1 = needPw ? document.getElementById('mNpw').value : '';
+        var n2 = needPw ? document.getElementById('mNpw2').value : '';
+        if (needId) {
+          if (!newId) { cErr.textContent = '새 아이디를 입력하세요.'; return; }
+          var im = _checkLoginId(newId, u.phone);
+          if (im) { cErr.textContent = im; return; }
+        }
+        if (needPw) {
+          if (!n1 || !n2) { cErr.textContent = '새 비밀번호를 입력하세요.'; return; }
+          if (n1 !== n2)  { cErr.textContent = '새 비밀번호가 일치하지 않습니다.'; return; }
+          if (n1.length < P.pwMin) { cErr.textContent = '새 비밀번호는 ' + P.pwMin + '자 이상이어야 합니다.'; return; }
+          if (newId && n1.toLowerCase() === newId) { cErr.textContent = '아이디를 비밀번호로 사용할 수 없습니다.'; return; }
+        }
         btn.disabled = true; btn.textContent = '변경 중...'; cErr.textContent = '';
         try {
           // 세션 자동첨부에 의존하지 않고 토큰을 명시 첨부한다(admin-staff.html 과 동일 원칙).
@@ -1539,16 +1586,23 @@ function renderLoginSection(user) {
             cErr.textContent = '세션이 만료되었습니다. 다시 로그인해 주세요.';
             btn.disabled = false; btn.textContent = LABEL; return;
           }
+          var body = { current_pw: currentPw };
+          if (needPw) body.new_pw = n1;
+          if (needId) body.new_login_id = newId;
           var res = await sb.functions.invoke('change-own-password', {
-            body: { current_pw: currentPw, new_pw: n1 },
+            body: body,
             headers: { Authorization: 'Bearer ' + token }
           });
           var msg = (res.data && res.data.error) || (res.error && res.error.message) || '';
           if (msg || !(res.data && res.data.ok)) {
-            cErr.textContent = msg || '비밀번호를 변경하지 못했습니다.';
+            cErr.textContent = msg || '변경하지 못했습니다.';
             btn.disabled = false; btn.textContent = LABEL; return;
           }
-          u.must_change_pw = false;
+          if (needPw) u.must_change_pw = false;
+          if (needId) {
+            u.must_change_id = false; u.username = res.data.login_id || newId;
+            alert('아이디가 "' + u.username + '"(으)로 바뀌었습니다.\n다음부터는 새 아이디로 로그인하세요.');
+          }
           sessionStorage.setItem((APP_CONFIG.SESSION_PREFIX||'kwanbo')+'_session', JSON.stringify(u));
           localStorage.removeItem('kwanbo_pm_user');
           sessionStorage.removeItem('kwanbo_uid');
@@ -1560,8 +1614,11 @@ function renderLoginSection(user) {
       }
 
       btn.addEventListener('click', submitChange);
-      document.getElementById('mNpw').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('mNpw2').focus(); });
-      document.getElementById('mNpw2').addEventListener('keydown', function(e){ if(e.key==='Enter') submitChange(); });
+      if (nidEl) nidEl.addEventListener('keydown', function(e){ if(e.key==='Enter') { var p1 = document.getElementById('mNpw'); if (p1) p1.focus(); else submitChange(); } });
+      if (needPw) {
+        document.getElementById('mNpw').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('mNpw2').focus(); });
+        document.getElementById('mNpw2').addEventListener('keydown', function(e){ if(e.key==='Enter') submitChange(); });
+      }
     }
 
     async function doLogin() {
@@ -1576,8 +1633,8 @@ function renderLoginSection(user) {
 
       try {
         var sb = getSb();
-        var phoneDigits = phone.replace(/\D/g, '');
-        var emailLocal = phoneDigits.length > 0 ? phoneDigits : phone;
+        // 전화번호 형태(숫자·하이픈 등)면 숫자만, 그 외(아이디)는 소문자 그대로 (sysbar.js loginLocalFromInput 과 동일)
+        var emailLocal = /^[0-9\-\s().+]+$/.test(phone) ? phone.replace(/\D/g, '') : phone.toLowerCase();
         var email = emailLocal + '@' + (APP_CONFIG.AUTH_DOMAIN || 'kwanbo.internal');
 
         // Supabase Auth 로그인
@@ -1594,7 +1651,7 @@ function renderLoginSection(user) {
 
         // 본인 프로필 조회 (H-1: 민감 컬럼은 본인 조회 함수 get_my_profile 로만 받는다)
         var profileRes = await sb.rpc('get_my_profile')
-          .select('id,name,phone,email,position,team_id,role,join_date,total_days,used_days,must_change_pw')
+          .select('id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,must_change_pw,must_change_id')
           .maybeSingle();
 
         if (profileRes.error || !profileRes.data) {
@@ -1610,7 +1667,7 @@ function renderLoginSection(user) {
         _bfClear();
 
         // H-2: 초기 비밀번호(또는 관리자 초기화) 상태면 강제 변경 전까지 세션을 열지 않는다.
-        if (u.must_change_pw) {
+        if (u.must_change_pw || u.must_change_id) {
           renderForceChange(sb, u, pw);
           return;
         }
