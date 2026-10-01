@@ -325,6 +325,109 @@ function reportErr(e) {
   else Sysbar.showError(e, '급여관리');
 }
 
+// ── 알림 메일 (5단계) ─────────────────────────────────────────────
+// 자동 발송(서버 예약 작업)은 config.js 를 읽을 수 없으므로, 급여 화면이 열릴 때
+// config.js 값을 payroll_mail_settings 로 복사해 둔다. 기준은 항상 config.js 다.
+var MAIL_FIELDS = [
+  { k: 'from_name',    label: '발신자 이름' },
+  { k: 'from_address', label: '발신 주소' },
+  { k: 'reply_to',     label: '회신 주소' },
+  { k: 'site_url',     label: '사이트 주소' },
+  { k: 'slip_page',    label: '명세서 화면' },
+];
+var MAIL_EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+var MAIL_FN = 'payroll-mail';
+
+function mailConfig() {
+  var C = window.APP_CONFIG || {};
+  var company = (C.COMPANY_SHORT || '').trim();
+  return {
+    from_name: (PCFG.MAIL_FROM_NAME || '').trim() || (company ? company + ' 급여' : ''),
+    from_address: (PCFG.MAIL_FROM_ADDRESS || '').trim(),
+    reply_to: (C.EMAIL_CONTRACT || '').trim() || null,
+    // 이 화면이 열린 주소의 폴더 = 명세서 화면이 있는 곳
+    site_url: window.location.href.split(/[?#]/)[0].replace(/[^/]*$/, '').replace(/\/+$/, ''),
+    slip_page: PCFG.SLIP_PAGE || 'payslip.html',
+  };
+}
+
+// 반환: { row, changes:[{label,before,after}], created, problems:[], synced }
+function syncMailSettings(userId) {
+  var cfg = mailConfig();
+  var sb = getSb();
+  return sb.from('payroll_mail_settings').select('*').eq('id', 1).maybeSingle().then(must('메일 설정 조회')).then(function(r) {
+    var cur = r.data || null;
+    var problems = [];
+    if (!cfg.from_name) problems.push('발신자 이름이 비어 있습니다 (config.js COMPANY_SHORT).');
+    if (!MAIL_EMAIL_RE.test(cfg.from_address)) problems.push('발신 주소가 올바르지 않습니다 (config.js PAYROLL.MAIL_FROM_ADDRESS).');
+    if (cfg.reply_to && !MAIL_EMAIL_RE.test(cfg.reply_to)) problems.push('회신 주소가 올바르지 않습니다 (config.js EMAIL_CONTRACT).');
+    if (!/^https:\/\//.test(cfg.site_url)) problems.push('https 주소로 연 화면이 아니라 동기화하지 않았습니다 (로컬 실행 등).');
+    if (problems.length) return { row: cur, changes: [], created: false, problems: problems, synced: false };
+    var changes = [];
+    if (cur) MAIL_FIELDS.forEach(function(f) {
+      var before = cur[f.k] || '', after = cfg[f.k] || '';
+      if (before !== after) changes.push({ label: f.label, before: before, after: after });
+    });
+    var payload = Object.assign({ id: 1, synced_at: new Date().toISOString(), synced_by: userId || null }, cfg);
+    var q = cur ? sb.from('payroll_mail_settings').update(payload).eq('id', 1).select()
+                : sb.from('payroll_mail_settings').insert(payload).select();
+    return q.then(must('메일 설정 동기화', { expectRows: true })).then(function(w) {
+      return { row: w.data[0], changes: changes, created: !cur, problems: [], synced: true };
+    });
+  });
+}
+
+function maskEmail(e) {
+  var at = (e || '').indexOf('@');
+  if (at < 1) return '-';
+  return e.slice(0, Math.min(2, at)) + '***' + e.slice(at);
+}
+function payDateKo(d) {
+  return d ? d.slice(0, 4) + '년 ' + parseInt(d.slice(5, 7), 10) + '월 ' + parseInt(d.slice(8, 10), 10) + '일' : '';
+}
+// 지급일 09:00 KST = 지급일 00:00 UTC (서버 예약 작업 기준과 동일)
+function autoSendCutoff(payDate) { return payDate ? new Date(payDate + 'T00:00:00Z').getTime() : null; }
+
+// 자동 발송 안내 문구 { t: 'i'|'w', s }
+function autoSendInfo(run) {
+  var cutoff = autoSendCutoff(run.pay_date);
+  if (!cutoff) return { t: 'w', s: '지급일이 없어 자동 발송되지 않습니다.' };
+  var when = payDateKo(run.pay_date) + ' 오전 9시';
+  if (run.status !== 'confirmed') {
+    return Date.now() < cutoff
+      ? { t: 'i', s: '확정하면 ' + when + '에 자동 발송됩니다.' }
+      : { t: 'w', s: '지급일 오전 9시가 지나 확정해도 자동 발송되지 않습니다. 확정 후 [알림 메일 발송] 버튼으로 보내세요.' };
+  }
+  if (new Date(run.confirmed_at).getTime() >= cutoff) {
+    return { t: 'w', s: '지급일 오전 9시 이후에 확정되어 자동 발송 대상이 아닙니다. [알림 메일 발송] 버튼으로 보내세요.' };
+  }
+  return Date.now() < cutoff
+    ? { t: 'i', s: when + '에 미발송 대상자에게 자동 발송됩니다.' }
+    : { t: 'i', s: when + ' 자동 발송 시각이 지났습니다. 결과는 아래 표에서 확인하고, 실패·미발송자는 버튼으로 보내세요.' };
+}
+
+// 대상자별 발송 상태. 서버(payroll-mail)의 대상 판정과 같은 규칙.
+//   nolink 계정 없음 · contractor 용역직 · noemail 이메일 없음 → 대상 아님
+//   sent 현재 확정본 발송됨 · old 이전 확정본만 발송됨(수정본 대상) · failed 실패 · pending 미발송
+function mailRecipients(run, empIds, empMap, usersMap, logs) {
+  return empIds.map(function(id) {
+    var emp = empMap[id] || {};
+    var u = emp.user_id ? usersMap[emp.user_id] : null;
+    var email = (emp.notify_email || '').trim();
+    var mine = logs.filter(function(l) { return l.employee_id === id; });
+    var sent = mine.filter(function(l) { return l.status === 'sent'; });
+    var last = mine.length ? mine[mine.length - 1] : null;
+    var st;
+    if (!u) st = 'nolink';
+    else if (u.role === 'contractor') st = 'contractor';
+    else if (!MAIL_EMAIL_RE.test(email)) st = 'noemail';
+    else if (sent.length) st = sent.some(function(l) { return l.revision >= run.revision; }) ? 'sent' : 'old';
+    else st = (last && last.status === 'failed') ? 'failed' : 'pending';
+    return { id: id, name: personOf(emp, usersMap).name, masked: maskEmail(email), st: st, last: last,
+             lastSent: sent.length ? sent[sent.length - 1] : null };
+  });
+}
+
 // ── 저장 (작성중 묶음만) ───────────────────────────────────────────
 // 묶음 확보 → 제외 대상 명세서 삭제 → 대상자별 명세서 upsert → 항목 upsert → 빠진 항목 삭제
 function persistRun(ctx) {
@@ -472,6 +575,198 @@ function UnconfirmModal({ runType, mailSent, onOk, onClose, busy }) {
           <button className={warn ? 'btn btn-d' : 'btn btn-p'} onClick={onOk} disabled={busy}>{busy ? '처리 중...' : '확정 취소'}</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── 알림 메일: 테스트 발송 모달 (정확히 1명, 발송 기록 없음) ─────────────
+function MailTestModal({ run, recips, onClose }) {
+  const [sel, setSel] = useState('');
+  const [ok, setOk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState(null);
+  var cands = recips.filter(function(r) { return r.st !== 'nolink' && r.st !== 'contractor' && r.st !== 'noemail'; });
+  var cur = cands.filter(function(r) { return r.id === sel; })[0] || null;
+
+  function send() {
+    if (!cur || !ok || busy) return;
+    setBusy(true); setRes(null);
+    Sysbar.invokeAuthed(getSb(), MAIL_FN, { mode: 'test', run_id: run.id, employee_id: cur.id }).then(function(r) {
+      setBusy(false);
+      var d = r && r.data;
+      var err = (d && d.error) || (r && r.error && r.error.message);
+      if (err || !d || !d.ok) { setRes({ t: 'e', s: '테스트 발송 실패: ' + (err || '응답 없음') }); return; }
+      setRes({ t: 's', s: d.email_masked + ' 로 테스트 메일 1통을 보냈습니다. 받은편지함(없으면 스팸함)을 확인하세요.' });
+    });
+  }
+
+  return (
+    <div className="mbg" onClick={onClose}>
+      <div className="mbox" onClick={function(e){ e.stopPropagation(); }} style={{ maxWidth: 460 }}>
+        <div className="mh"><span className="mht">🧪 알림 메일 테스트 발송</span><button className="mc" onClick={onClose}>×</button></div>
+        <div className="mb">
+          <div className="al al-i">
+            고른 <b>1명</b>에게만 제목에 [테스트]가 붙은 메일을 보냅니다. 발송 기록에 남지 않아 실제 발송(자동·수동)에는 영향이 없습니다.
+            {run.status !== 'confirmed' && <span><br/>작성중 명세서라 메일 링크로 들어가면 명세서가 보이지 않는 것이 정상입니다.</span>}
+          </div>
+          <label className="fl">받는 사람</label>
+          <select className="fi" value={sel} disabled={busy} onChange={function(e){ setSel(e.target.value); setOk(false); setRes(null); }}>
+            <option value="">선택...</option>
+            {cands.map(function(r) { return <option key={r.id} value={r.id}>{r.name}</option>; })}
+          </select>
+          {cur && (
+            <div style={{ marginTop: 12, fontSize: 13 }}>
+              받는 주소: <b>{cur.masked}</b>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, color: '#475569', cursor: 'pointer' }}>
+                <input type="checkbox" checked={ok} disabled={busy} onChange={function(e){ setOk(e.target.checked); }} />
+                받는 주소가 맞습니다
+              </label>
+            </div>
+          )}
+          {res && <div className={'al ' + (res.t === 'e' ? 'al-e' : 'al-s')} style={{ marginTop: 12, marginBottom: 0 }}>{res.s}</div>}
+        </div>
+        <div className="mf">
+          <button className="btn btn-s" onClick={onClose}>닫기</button>
+          <button className="btn btn-p" disabled={!cur || !ok || busy} onClick={send}>{busy ? '보내는 중...' : '테스트 1통 보내기'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 알림 메일 패널 (지급용 묶음) ──────────────────────────────────
+function MailPanel({ run, empIds, empMap, usersMap, onSentCount }) {
+  const [logs, setLogs] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [testOpen, setTestOpen] = useState(false);
+
+  function loadLogs() {
+    return getSb().from('payroll_mail_logs').select('employee_id,status,revision,kind,error,sent_at')
+      .eq('run_id', run.id).order('sent_at', { ascending: true })
+      .then(must('발송 이력 조회'))
+      .then(function(r) {
+        var list = r.data || [];
+        setLogs(list);
+        var s = {}; list.forEach(function(l) { if (l.status === 'sent') s[l.employee_id] = true; });
+        if (onSentCount) onSentCount(Object.keys(s).length);
+      })
+      .catch(function(e) { reportErr(e); setLogs([]); });
+  }
+  useEffect(function() { loadLogs(); }, [run.id, run.revision, run.status]);
+
+  if (!logs) return <div className="card"><div className="loading">알림 메일 상태 불러오는 중...</div></div>;
+
+  var confirmed = run.status === 'confirmed';
+  var recips = mailRecipients(run, empIds, empMap, usersMap, logs);
+  var cnt = function(st) { return recips.filter(function(r) { return r.st === st; }).length; };
+  var pendingN = cnt('pending') + cnt('failed');
+  var oldN = cnt('old');
+  var outN = cnt('nolink') + cnt('contractor') + cnt('noemail');
+  var info = autoSendInfo(run);
+
+  function send(revised) {
+    var n = revised ? oldN : pendingN;
+    var what = revised ? '수정된 명세서 안내 메일' : '알림 메일';
+    if (!window.confirm(what + '을 ' + n + '명에게 지금 보냅니다. 계속할까요?')) return;
+    setBusy(true); setMsg(null);
+    Sysbar.invokeAuthed(getSb(), MAIL_FN, { mode: 'send', run_id: run.id, revised: !!revised }).then(function(r) {
+      setBusy(false);
+      var d = r && r.data;
+      var err = (d && d.error) || (r && r.error && r.error.message);
+      if (err || !d || !d.ok) { setMsg({ t: 'e', s: '발송하지 못했습니다: ' + (err || '응답 없음') }); loadLogs(); return; }
+      setMsg({ t: d.failed ? 'w' : 's',
+               s: d.note ? d.note : ('발송 ' + d.sent + '명' + (d.failed ? ' · 실패 ' + d.failed + '명 — 아래 표에서 사유를 확인한 뒤 다시 보내세요.' : ' 완료')) });
+      loadLogs();
+    });
+  }
+
+  function stBadge(r) {
+    if (r.st === 'sent')       return <span className="badge bg">발송됨</span>;
+    if (r.st === 'old')        return <span className="badge ba">이전 확정본 발송</span>;
+    if (r.st === 'failed')     return <span className="badge br">실패</span>;
+    if (r.st === 'pending')    return <span className="badge bgr">미발송</span>;
+    if (r.st === 'noemail')    return <span className="badge br">이메일 없음</span>;
+    return <span className="badge bgr">대상 아님</span>;
+  }
+  function stNote(r) {
+    if (r.st === 'failed' && r.last) return r.last.error || '';
+    if ((r.st === 'sent' || r.st === 'old') && r.lastSent) return fmtDateTime(r.lastSent.sent_at) + (r.lastSent.kind === 'revised' ? ' (수정본)' : '');
+    if (r.st === 'nolink') return '계정 없는 대상자 — 인쇄·PDF 로 전달';
+    if (r.st === 'contractor') return '용역직 계정 — 명세서 화면 접근 불가';
+    if (r.st === 'noemail') return '[설정] 탭 → 대상자 관리에서 수신 이메일 입력';
+    return '';
+  }
+
+  return (
+    <div className="card">
+      <div className="pr-bar">
+        <span style={{ fontWeight: 700 }}>📧 알림 메일</span>
+        <span className="badge bg">발송 {cnt('sent')}</span>
+        {pendingN > 0 && <span className="badge bgr">미발송·실패 {pendingN}</span>}
+        {oldN > 0 && <span className="badge ba">수정본 대상 {oldN}</span>}
+        {outN > 0 && <span className="badge br">대상 아님·이메일 없음 {outN}</span>}
+        <span className="sep" />
+        <button className="btn btn-s btn-sm" disabled={busy} onClick={function(){ setTestOpen(true); }}>🧪 테스트 발송</button>
+        {confirmed && pendingN > 0 && <button className="btn btn-p btn-sm" disabled={busy} onClick={function(){ send(false); }}>{busy ? '보내는 중...' : '📧 알림 메일 발송 (' + pendingN + '명)'}</button>}
+        {confirmed && oldN > 0 && <button className="btn btn-s btn-sm" disabled={busy} onClick={function(){ send(true); }} style={{ borderColor: '#d97706', color: '#92400e' }}>✉ 수정본 안내 발송 ({oldN}명)</button>}
+      </div>
+      <div className={'al ' + (info.t === 'w' ? 'al-w' : 'al-i')}>{info.s}</div>
+      {msg && <div className={'al ' + (msg.t === 'e' ? 'al-e' : (msg.t === 'w' ? 'al-w' : 'al-s'))}>{msg.s}</div>}
+      <div className="tbl-wrap">
+        <table>
+          <thead><tr><th>대상자</th><th>수신 이메일</th><th className="tc">상태</th><th>기록</th></tr></thead>
+          <tbody>
+            {recips.map(function(r) {
+              return (
+                <tr key={r.id}>
+                  <td style={{ fontWeight: 600 }}>{r.name}</td>
+                  <td style={{ fontSize: 12 }}>{r.masked}</td>
+                  <td className="tc">{stBadge(r)}</td>
+                  <td style={{ fontSize: 11, color: r.st === 'failed' ? '#991b1b' : '#64748b' }}>{stNote(r)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {testOpen && <MailTestModal run={run} recips={recips} onClose={function(){ setTestOpen(false); }} />}
+    </div>
+  );
+}
+
+// ── 메일 설정 동기화 표시 (급여 화면 열 때 1회) ──────────────────────
+function MailSyncNote({ user }) {
+  const [st, setSt] = useState(null);
+  const [hideChanges, setHideChanges] = useState(false);
+  useEffect(function() {
+    syncMailSettings(user && user.id).then(setSt).catch(function(e) {
+      setSt({ error: (e && e.err && e.err.message) || (e && e.message) || String(e) });
+    });
+  }, []);
+  if (!st) return null;
+  var row = st.row;
+  return (
+    <div style={{ marginBottom: 10 }}>
+      {st.error && <div className="al al-e">메일 설정 동기화 실패: {st.error}</div>}
+      {st.problems && st.problems.length > 0 && (
+        <div className="al al-w">메일 설정을 동기화하지 않았습니다.<br/>{st.problems.map(function(p, i) { return <span key={i}>· {p}<br/></span>; })}</div>
+      )}
+      {st.created && <div className="al al-i">메일 설정을 config.js 값으로 처음 저장했습니다.</div>}
+      {!hideChanges && st.changes && st.changes.length > 0 && (
+        <div className="al al-w" style={{ position: 'relative' }}>
+          <button className="mc" style={{ position: 'absolute', top: 4, right: 8, fontSize: 16 }} onClick={function(){ setHideChanges(true); }}>×</button>
+          <b>메일 설정이 config.js 기준으로 바뀌었습니다.</b><br/>
+          {st.changes.map(function(c, i) {
+            return <span key={i}>· {c.label}: {c.before || '(없음)'} → <b>{c.after || '(없음)'}</b><br/></span>;
+          })}
+        </div>
+      )}
+      {row && (
+        <div style={{ fontSize: 11, color: '#94a3b8' }}>
+          메일 설정 마지막 동기화: {fmtDateTime(row.synced_at)} · 발신 {row.from_name} &lt;{row.from_address}&gt; · 회신 {row.reply_to || '없음'}
+        </div>
+      )}
     </div>
   );
 }
@@ -673,7 +968,11 @@ function EditTab({ user, period, runType, isMobile }) {
     if (dirty) { setMsg({ t: 'e', s: '저장하지 않은 변경이 있습니다. 먼저 저장하세요.' }); return; }
     if (!Object.keys(slipByEmp).length) { setMsg({ t: 'e', s: '저장된 명세서가 없습니다.' }); return; }
     var note = runType === 'pay'
-      ? '지급용을 확정하면 직원 화면에 공개되고 편집이 잠깁니다. 확정할까요?'
+      ? '지급용을 확정하면 직원 화면에 공개되고 편집이 잠깁니다.\n\n'
+        + (run.pay_date && Date.now() < autoSendCutoff(run.pay_date)
+            ? '알림 메일은 지급일 ' + payDateKo(run.pay_date) + ' 오전 9시에 자동 발송됩니다.'
+            : '지급일 오전 9시가 지나 알림 메일은 자동 발송되지 않습니다. 확정 후 [알림 메일 발송] 버튼으로 보내세요.')
+        + '\n\n확정할까요?'
       : '신고용을 확정하면 편집이 잠깁니다. 확정할까요?';
     if (!window.confirm(note)) return;
     setBusy(true);
@@ -854,6 +1153,11 @@ function EditTab({ user, period, runType, isMobile }) {
           · 합계는 자동으로 계산되며, 세금·보험료는 계산하지 않습니다. 0원 항목은 명세서에 나오지 않습니다.
         </div>
       </div>
+
+      {runType === 'pay' && run && Object.keys(slipByEmp).length > 0 && (
+        <MailPanel run={run} empIds={rows.filter(function(id) { return slipByEmp[id]; })}
+          empMap={empMap} usersMap={usersMap} onSentCount={setMailSent} />
+      )}
 
       {preview && <PreviewModal model={preview} onClose={function(){ setPreview(null); }} />}
       {methodEmp && (
@@ -1328,6 +1632,7 @@ function PayrollView({ user }) {
           <button className={tab === 'settings' ? 'itab active' : 'itab'} onClick={function(){ setTab('settings'); }}>⚙ 설정</button>
         </div>
       </div>
+      <MailSyncNote user={user} />
       {tab === 'edit' && (
         <div className="itabs" style={{ marginBottom: 12 }}>
           <button className={runType === 'pay' ? 'itab active' : 'itab'} onClick={function(){ setRunType('pay'); }}>💵 {TYPE_LABELS.pay}</button>

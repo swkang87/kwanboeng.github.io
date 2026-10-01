@@ -133,8 +133,9 @@ var APP_CONFIG = {
   PAYROLL: {
     PAY_DAY:          9,              // 급여 지급일(일)
     PAY_MONTH_OFFSET: 1,              // 귀속월 기준 지급월 (1 = 다음 달 지급)
-    MAIL_FROM_NAME:    '',            // 알림 메일 발신자 이름 (5단계에서 설정)
-    MAIL_FROM_ADDRESS: '',            // 알림 메일 발신 주소 (5단계에서 설정)
+    MAIL_FROM_NAME:    '',            // 알림 메일 발신자 이름. 비우면 COMPANY_SHORT + ' 급여'
+    MAIL_FROM_ADDRESS: 'payroll@kwanboeng.com', // 알림 메일 발신 주소 (Resend 인증 도메인이어야 함)
+                                      // 회신 주소는 EMAIL_CONTRACT 를 쓴다. 급여 화면을 열 때 이 값들이 DB(payroll_mail_settings)로 복사된다.
     SLIP_PAGE:        'payslip.html', // 직원용 명세서 페이지
     TYPE_LABELS:      { pay: '지급용', report: '신고용' },
     // 편집 표 참고 표시 대상 항목명 (payroll_items.name 과 일치해야 함)
