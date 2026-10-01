@@ -354,12 +354,9 @@
           return { ok: false, reason: '아이디 또는 비밀번호가 올바르지 않습니다.' };
         }
 
-        // Auth 성공 → users 테이블에서 프로필 조회
-        var profileRes = await sbClient
-          .from('users')
-          .select('id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,must_change_pw')
-          .eq('auth_id', authRes.data.user.id)
-          .single();
+        // Auth 성공 → 본인 프로필 조회 (H-1: 민감 컬럼은 본인 조회 함수로만 받는다)
+        var profileRes = await loadMyProfile(sbClient,
+          'id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,must_change_pw');
 
         if (profileRes.error || !profileRes.data) {
           await sbClient.auth.signOut();
@@ -437,11 +434,8 @@
           return { ok: false, reason: 'no-session' };
         }
 
-        return sbClient
-          .from('users')
-          .select('id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days')
-          .eq('auth_id', session.user.id)
-          .maybeSingle()
+        return loadMyProfile(sbClient,
+            'id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days')
           .then(function(pr) {
             if (pr.error || !pr.data) {
               clearSession();
@@ -867,7 +861,57 @@
     });
   }
 
+  // ── 직원 정보 조회 (H-1) ──────────────────────────────────────
+  // users 의 민감 컬럼(phone · email · birth_date · username)은 일반 조회 권한에서 빠진다.
+  //   · 본인 정보   → loadMyProfile()      (DB 함수 get_my_profile)
+  //   · 전 직원 목록 → USER_PUBLIC_COLS 로 조회 후 mergeUserPrivate()
+  //                    (DB 함수 users_private_list — admin·관리팀만. 그 외에는 민감 컬럼 없이 그대로)
+  // select('*') 나 민감 컬럼 직접 지정은 권한 회수 후 42501 로 실패하므로 쓰지 않는다.
+  var USER_PUBLIC_COLS = 'id,name,role,team_id,join_date,total_days,used_days,created_at,position,'
+                       + 'auth_id,hire_date,leave_date,must_change_pw';
+  var USER_PRIVATE_COLS = ['phone', 'email', 'birth_date', 'username'];
+
+  // 반환: Promise<{ data: 프로필|null, error }>
+  function loadMyProfile(sbClient, cols) {
+    return sbClient.rpc('get_my_profile').select(cols || '*').maybeSingle();
+  }
+
+  // rows 에 민감 컬럼을 id 기준으로 붙인다. 반환: Promise<{ data, error, privateOk }>
+  // 권한이 없으면(42501) 오류로 보지 않고 rows 를 그대로 돌려준다(privateOk=false).
+  function mergeUserPrivate(sbClient, rows) {
+    return sbClient.rpc('users_private_list').then(function(r) {
+      if (r.error) {
+        var denied = r.error.code === '42501';
+        if (!denied) logError(r.error, '직원 개인정보 조회');
+        return { data: rows || [], error: denied ? null : r.error, privateOk: false };
+      }
+      var byId = {};
+      (r.data || []).forEach(function(p) { byId[p.id] = p; });
+      var out = (rows || []).map(function(u) {
+        var p = byId[u.id];
+        if (!p) return u;
+        var n = {};
+        for (var k in u) { if (Object.prototype.hasOwnProperty.call(u, k)) n[k] = u[k]; }
+        USER_PRIVATE_COLS.forEach(function(c) { n[c] = p[c]; });
+        return n;
+      });
+      return { data: out, error: null, privateOk: true };
+    });
+  }
+
+  // 전 직원(이름순) + 권한이 있으면 민감 컬럼. 반환: Promise<{ data, error, privateOk }>
+  function loadUsersFull(sbClient) {
+    return sbClient.from('users').select(USER_PUBLIC_COLS).order('name').then(function(r) {
+      if (r.error) return { data: [], error: r.error, privateOk: false };
+      return mergeUserPrivate(sbClient, r.data || []);
+    });
+  }
+
   global.Sysbar = {
+    USER_PUBLIC_COLS: USER_PUBLIC_COLS,
+    loadMyProfile:    loadMyProfile,
+    mergeUserPrivate: mergeUserPrivate,
+    loadUsersFull:    loadUsersFull,
     SESSION_KEY: SESSION_KEY,
     SYS_MENUS:   SYS_MENUS,
     injectCss:   injectCss,

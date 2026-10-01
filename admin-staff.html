@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=20260915"></script>
+<script src="sysbar.js?v=20261001"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -462,9 +462,10 @@ function StaffView({ user }) {
   function load() {
     setLoading(true);
     Promise.all([
-      sb.from('users').select('*').order('name'),
+      Sysbar.loadUsersFull(sb),   // H-1: 일반 컬럼 + (admin·관리팀이면) 전화·이메일·생년월일·아이디
       sb.from('teams').select('*').order('name'),
     ]).then(function(r) {
+      if (r[0].error) Sysbar.showError(r[0].error, '직원 목록 조회');
       setUsers(r[0].data||[]);
       setTeams(r[1].data||[]);
       setLoading(false);
@@ -571,14 +572,20 @@ function StaffView({ user }) {
           return;
         }
         // admin-staff 고유 필드(email/position/hire_date/leave_date)는 create-user 스펙과
-        // 무관하게 phone 기준 별도 UPDATE로 보강 — 필드 유실 방지
-        await sb.from('users').update({
-          email: form.email||null, position: form.position||null,
-          hire_date: formWithoutMemo.hire_date, leave_date: formWithoutMemo.leave_date
-        }).eq('phone', ph);
+        // 무관하게 별도 UPDATE로 보강 — 필드 유실 방지.
+        // H-1: phone 은 조회 권한이 없어 조건으로 쓸 수 없으므로 create-user 가 돌려준 id 로 찾는다.
+        var newId = cuData && cuData.user ? cuData.user.id : null;
+        var upRes = newId
+          ? await sb.from('users').update({
+              email: form.email||null, position: form.position||null,
+              hire_date: formWithoutMemo.hire_date, leave_date: formWithoutMemo.leave_date
+            }).eq('id', newId).select('id')
+          : null;
+        var upWarn = (!upRes || upRes.error || !(upRes.data && upRes.data.length))
+          ? '\n\n⚠ 이메일·직급·입사일·퇴사일을 저장하지 못했습니다. 직원 정보 수정에서 다시 입력해 주세요.' : '';
         setSaving(false);
         setModal(false); load();
-        alert('✅ ' + form.name + ' 등록 완료\n초기 비밀번호: ' + (cuData?.init_pw || tempPw));
+        alert('✅ ' + form.name + ' 등록 완료\n초기 비밀번호: ' + (cuData?.init_pw || tempPw) + upWarn);
       }
     } catch (e) {
       setSaving(false);

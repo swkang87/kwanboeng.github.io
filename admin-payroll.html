@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=20260915"></script>
+<script src="sysbar.js?v=20261001"></script>
 <script src="payslip-render.js?v=20260929"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -801,7 +801,7 @@ function EditTab({ user, period, runType, isMobile }) {
       sb.from('payroll_runs').select('*').eq('period', period).eq('run_type', runType).maybeSingle(),
       sb.from('payroll_items').select('*'),
       sb.from('payroll_employees').select('*'),
-      sb.from('users').select('id,name,birth_date,hire_date,role,team_id,email,position'),
+      Sysbar.loadUsersFull(sb),   // H-1: 생년월일·이메일은 민감정보 함수로 병합
       loadAllowance(period),
     ]).then(function(r) {
       [0, 1, 2, 3].forEach(function(i) { if (r[i].error) throw { ctx: '급여 데이터 조회', err: r[i].error }; });
@@ -1450,7 +1450,7 @@ function EmployeeModal({ emp, employees, users, teams, onClose, onSaved }) {
       .then(function() {
         // 계정 연결 대상자의 비어 있는 입사일은 직원 정보(users.hire_date)에 저장한다.
         if (mode === 'account' && selU && !selU.hire_date && userHire) {
-          return sb.from('users').update({ hire_date: userHire }).eq('id', selU.id).select().then(must('입사일 저장', { expectRows: true }));
+          return sb.from('users').update({ hire_date: userHire }).eq('id', selU.id).select('id').then(must('입사일 저장', { expectRows: true }));
         }
         return null;
       })
@@ -1543,7 +1543,7 @@ function EmployeesSettings() {
     var sb = getSb();
     Promise.all([
       sb.from('payroll_employees').select('*'),
-      sb.from('users').select('id,name,birth_date,hire_date,role,team_id,email,position'),
+      Sysbar.loadUsersFull(sb),   // H-1: 생년월일·이메일은 민감정보 함수로 병합
       sb.from('teams').select('id,name'),
     ]).then(function(r) {
       [0, 1, 2].forEach(function(i) { if (r[i].error) Sysbar.showError(r[i].error, '대상자 조회'); });
