@@ -150,6 +150,13 @@ var APP_CONFIG = {
                                       // true 로 켤 때는 DB 예약 작업도 함께 등록해야 한다(운영 문서 참고)
     SLIP_PAGE:        'payslip.html', // 직원용 명세서 페이지
     TYPE_LABELS:      { pay: '지급용', report: '신고용' },
+    // 급여대장 엑셀 내려받기 ({YYYY} {YY} {MM} {TYPE} {COMPANY} {STATUS} 치환)
+    EXCEL_FILE_MONTH:   '급여_{YYYY}-{MM}',      // 이번 달 파일명 (.xlsx 자동)
+    EXCEL_FILE_YEAR:    '급여_{YYYY}',           // 연간 파일명
+    EXCEL_DRAFT_SUFFIX: '_작성중',               // 작성중 묶음이 하나라도 있으면 파일명 끝에 붙임
+    EXCEL_SHEET_NAME:   '{YY}.{MM} {TYPE}',      // 시트 이름 (예: 26.08 지급)
+    EXCEL_SHEET_TYPE:   { pay: '지급', report: '신고' },
+    EXCEL_TITLE:        '{COMPANY} {YYYY}년 {MM}월 급여대장 ({TYPE}) — {STATUS}', // 시트 1행 제목
     // 편집 표 참고 표시 대상 항목명 (payroll_items.name 과 일치해야 함)
     REF_REPORT_ITEM:   '보고회수당',   // 보고회·위원회 횟수 표시 + '산출방법 채우기' 대상
     REF_OVERTIME_ITEM: '연장근로수당', // 초과근무 시간 표시 (참고만, 자동 입력 없음)

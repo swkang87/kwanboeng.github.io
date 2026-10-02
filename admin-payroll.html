@@ -12,6 +12,8 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script src="config.js"></script>
 <script src="sysbar.js?v=2026100102"></script>
 <script src="payslip-render.js?v=20260929"></script>
+<script src="payroll-excel.js?v=20261002"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -788,6 +790,159 @@ function MailSyncNote({ user }) {
   );
 }
 
+// ── 급여대장 엑셀 내려받기 ─────────────────────────────────────────
+// 화면 상태가 아니라 DB 에 저장된 명세서로 만든다(그래서 저장하지 않은 변경이 있으면 막는다).
+// 시트 구성·파일명은 payroll-excel.js + config.js PAYROLL.EXCEL_*.
+// 넣지 않는 것: 계좌번호·생년월일·이메일·월별수당 참고값.
+
+// PostgREST 기본 1000행 제한을 넘는 조회(연간 항목 등)를 나눠 받는다.
+function fetchAllPaged(makeQuery, ctx) {
+  var size = 1000, out = [];
+  function page(from) {
+    return makeQuery().range(from, from + size - 1).then(must(ctx)).then(function(r) {
+      var d = r.data || [];
+      out = out.concat(d);
+      return d.length < size ? out : page(from + size);
+    });
+  }
+  return page(0);
+}
+function chunkList(arr, n) {
+  var out = [];
+  for (var i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+  return out;
+}
+
+// kind: 'month'(key 'YYYY-MM' — 지급용·신고용) | 'year'(key 'YYYY' — 1~12월, 데이터 있는 달만)
+// 반환: Promise<{ empty } | { file, sheets:[{name, rows, sum}], warnings }>
+function exportPayrollExcel(kind, key) {
+  if (!window.XLSX || !window.PayrollExcel) return Promise.reject(new Error('엑셀 모듈을 불러오지 못했습니다. 새로고침 후 다시 시도하세요.'));
+  var sb = getSb();
+  var q = sb.from('payroll_runs').select('id,period,run_type,status');
+  q = kind === 'month' ? q.eq('period', key) : q.gte('period', key + '-01').lte('period', key + '-12');
+  return q.then(must('급여 묶음 조회')).then(function(rr) {
+    var runs = (rr.data || []).slice().sort(function(a, b) {
+      if (a.period !== b.period) return a.period < b.period ? -1 : 1;
+      return a.run_type === b.run_type ? 0 : (a.run_type === 'pay' ? -1 : 1);
+    });
+    if (!runs.length) return { empty: true };
+    var runIds = runs.map(function(r) { return r.id; });
+    return Promise.all([
+      fetchAllPaged(function() {
+        return sb.from('payroll_slips')
+          .select('id,run_id,employee_id,name_snap,dept_snap,position_snap,total_earning,total_deduction,net_pay')
+          .in('run_id', runIds).order('id');
+      }, '명세서 조회'),
+      sb.from('payroll_items').select('*').then(must('항목 조회')),
+      sb.from('payroll_employees').select('id,sort_order').then(must('대상자 조회')),
+    ]).then(function(res) {
+      var slips = res[0];
+      var slipIds = slips.map(function(s) { return s.id; });
+      return Promise.all(chunkList(slipIds, 100).map(function(ids) {
+        return fetchAllPaged(function() {
+          return sb.from('payroll_slip_lines')
+            .select('slip_id,item_id,item_name,item_kind,sort_order,amount,method')
+            .in('slip_id', ids).order('id');
+        }, '명세서 항목 조회');
+      })).then(function(parts) {
+        var lines = [].concat.apply([], parts);
+        var empOrder = {};
+        (res[2].data || []).forEach(function(e) { empOrder[e.id] = e.sort_order; });
+        var slipRun = {};
+        slips.forEach(function(s) { slipRun[s.id] = s.run_id; });
+
+        var built = [], anyDraft = false, warnings = [];
+        runs.forEach(function(run) {
+          var ss = slips.filter(function(s) { return s.run_id === run.id; });
+          if (!ss.length) return;   // 명세서 없는 묶음(데이터 없는 달)은 시트를 만들지 않는다
+          var b = PayrollExcel.buildSheet({
+            run: run, slips: ss, items: res[1].data || [], empOrder: empOrder,
+            lines: lines.filter(function(l) { return slipRun[l.slip_id] === run.id; }),
+          });
+          if (run.status !== 'confirmed') anyDraft = true;
+          b.warnings.forEach(function(w) { warnings.push(b.sheetName + ' — ' + w); });
+          built.push(b);
+        });
+        if (!built.length) return { empty: true };
+
+        var wb = XLSX.utils.book_new();
+        built.forEach(function(b) { XLSX.utils.book_append_sheet(wb, PayrollExcel.toWorksheet(XLSX, b), b.sheetName); });
+        var file = PayrollExcel.fileName(kind, key, anyDraft);
+        XLSX.writeFile(wb, file);
+        return {
+          file: file, warnings: warnings,
+          sheets: built.map(function(b) { return { name: b.sheetName, rows: b.rows.length, sum: b.sum }; }),
+        };
+      });
+    });
+  });
+}
+
+function ExportModal({ period, onClose }) {
+  var y0 = parseInt(period.slice(0, 4), 10);
+  const [kind, setKind] = useState('month');
+  const [year, setYear] = useState(String(y0));
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState(null);
+
+  function run() {
+    setBusy(true); setRes(null);
+    exportPayrollExcel(kind, kind === 'month' ? period : year).then(function(r) {
+      setBusy(false);
+      if (r.empty) { setRes({ t: 'w', s: '내려받을 급여 데이터가 없습니다.' }); return; }
+      setRes({ t: r.warnings.length ? 'w' : 's', file: r.file, sheets: r.sheets, warnings: r.warnings });
+    }).catch(function(e) {
+      setBusy(false);
+      if (e && e.ctx) reportErr(e);
+      setRes({ t: 'e', s: '내려받지 못했습니다: ' + ((e && e.err && e.err.message) || (e && e.message) || e) });
+    });
+  }
+
+  var years = [y0 - 2, y0 - 1, y0, y0 + 1];
+  return (
+    <div className="mbg" onClick={onClose}>
+      <div className="mbox" onClick={function(e){ e.stopPropagation(); }} style={{ maxWidth: 460 }}>
+        <div className="mh"><span className="mht">📥 급여대장 엑셀 내려받기</span><button className="mc" onClick={onClose}>×</button></div>
+        <div className="mb">
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10, cursor: 'pointer' }}>
+            <input type="radio" checked={kind === 'month'} onChange={function(){ setKind('month'); }} style={{ marginTop: 3 }} />
+            <span><b>이번 달</b> — {fmtPeriodKo(period)} 지급용·신고용 (시트 2개)<br/>
+              <span style={{ fontSize: 11, color: '#64748b' }}>{PayrollExcel.fileName('month', period, false)}</span></span>
+          </label>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, cursor: 'pointer' }}>
+            <input type="radio" checked={kind === 'year'} onChange={function(){ setKind('year'); }} style={{ marginTop: 3 }} />
+            <span><b>연간</b> —
+              <select className="fi" value={year} disabled={kind !== 'year'} onChange={function(e){ setYear(e.target.value); }}
+                style={{ width: 90, padding: '3px 6px', margin: '0 6px', display: 'inline-block' }}>
+                {years.map(function(y) { return <option key={y} value={String(y)}>{y}년</option>; })}
+              </select>
+              1~12월 (데이터 있는 달만, 월별 시트)<br/>
+              <span style={{ fontSize: 11, color: '#64748b' }}>{PayrollExcel.fileName('year', year, false)}</span></span>
+          </label>
+          <div className="al al-i" style={{ fontSize: 12 }}>
+            저장된 명세서 기준입니다. 작성중인 묶음도 포함되며, 제목과 파일명에 "작성중"이 표시됩니다.<br/>
+            계좌번호·생년월일·이메일·월별수당 참고값은 넣지 않습니다.
+          </div>
+          {res && res.s && <div className={'al ' + (res.t === 'e' ? 'al-e' : 'al-w')}>{res.s}</div>}
+          {res && res.file && (
+            <div className={'al ' + (res.t === 'w' ? 'al-w' : 'al-s')} style={{ fontSize: 12 }}>
+              <b>{res.file}</b> 내려받기 완료<br/>
+              {res.sheets.map(function(s) {
+                return <span key={s.name}>· {s.name}: {s.rows}명 · 지급 {won(s.sum.earning)} / 공제 {won(s.sum.deduction)} / 실지급 {won(s.sum.net)}<br/></span>;
+              })}
+              {res.warnings.map(function(w, i) { return <span key={i} style={{ color: '#991b1b' }}>⚠ {w}<br/></span>; })}
+            </div>
+          )}
+        </div>
+        <div className="mf">
+          <button className="btn btn-s" onClick={onClose}>닫기</button>
+          <button className="btn btn-p" onClick={run} disabled={busy}>{busy ? '만드는 중...' : '📥 내려받기'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── 편집 탭 ────────────────────────────────────────────────────
 function EditTab({ user, period, runType, isMobile }) {
   const [loading, setLoading] = useState(true);
@@ -808,8 +963,15 @@ function EditTab({ user, period, runType, isMobile }) {
   const [preview, setPreview] = useState(null);
   const [methodEmp, setMethodEmp] = useState(null);
   const [askUnconfirm, setAskUnconfirm] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   var locked = !!(run && run.status === 'confirmed');
+
+  // 엑셀은 저장된 명세서로 만들므로, 저장하지 않은 변경이 있으면 막는다.
+  function openExport() {
+    if (dirty) { window.alert('저장하지 않은 변경이 있습니다. 저장 후 내려받으세요.'); return; }
+    setExportOpen(true);
+  }
 
   function load() {
     setLoading(true); setMsg(null);
@@ -1071,6 +1233,7 @@ function EditTab({ user, period, runType, isMobile }) {
           <input type="date" className="fi" style={{ width: 150, padding: '5px 8px' }} value={payDate} disabled={locked}
             onChange={function(e){ setPayDate(e.target.value); setDirty(true); }} />
           <span className="sep" />
+          <button className="btn btn-s btn-sm" disabled={busy} onClick={openExport}>📥 엑셀</button>
           {!locked && <button className="btn btn-s btn-sm" disabled={busy} onClick={function(){ copyFrom(shiftPeriod(period, -1), runType); }}>⤵ 전월 {TYPE_LABELS[runType]} 복사</button>}
           {!locked && <button className="btn btn-s btn-sm" disabled={busy} onClick={function(){ copyFrom(period, otherType); }}>⇄ 같은 달 {TYPE_LABELS[otherType]}에서 복사</button>}
           {!locked && reportItem && <button className="btn btn-s btn-sm" disabled={busy} onClick={fillReportMethods}>✎ {reportItem.name} 산출방법 채우기</button>}
@@ -1198,6 +1361,7 @@ function EditTab({ user, period, runType, isMobile }) {
             setMethodEmp(null);
           }} />
       )}
+      {exportOpen && <ExportModal period={period} onClose={function(){ setExportOpen(false); }} />}
       {askUnconfirm && <UnconfirmModal runType={runType} mailSent={mailSent} busy={busy} onOk={unconfirmRun} onClose={function(){ setAskUnconfirm(false); }} />}
     </div>
   );
