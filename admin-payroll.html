@@ -334,9 +334,19 @@ var MAIL_FIELDS = [
   { k: 'reply_to',     label: '회신 주소' },
   { k: 'site_url',     label: '사이트 주소' },
   { k: 'slip_page',    label: '명세서 화면' },
+  { k: 'auto_send',    label: '자동 발송' },
 ];
 var MAIL_EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 var MAIL_FN = 'payroll-mail';
+// 자동 발송(지급일 09:00) 사용 여부. false 면 관리자가 [알림 메일 발송]을 눌러야만 발송된다.
+// 서버도 같은 값(payroll_mail_settings.auto_send)을 보고 자동 발송을 막는다.
+var MAIL_AUTO_SEND = PCFG.AUTO_SEND === true;
+// 동기화 변경 내역 표시용 (true/false 는 켜짐/꺼짐으로)
+function mailFieldText(v) {
+  if (v === true) return '켜짐';
+  if (v === false) return '꺼짐';
+  return v == null ? '' : String(v);
+}
 
 function mailConfig() {
   var C = window.APP_CONFIG || {};
@@ -348,6 +358,7 @@ function mailConfig() {
     // 이 화면이 열린 주소의 폴더 = 명세서 화면이 있는 곳
     site_url: window.location.href.split(/[?#]/)[0].replace(/[^/]*$/, '').replace(/\/+$/, ''),
     slip_page: PCFG.SLIP_PAGE || 'payslip.html',
+    auto_send: MAIL_AUTO_SEND,
   };
 }
 
@@ -365,7 +376,7 @@ function syncMailSettings(userId) {
     if (problems.length) return { row: cur, changes: [], created: false, problems: problems, synced: false };
     var changes = [];
     if (cur) MAIL_FIELDS.forEach(function(f) {
-      var before = cur[f.k] || '', after = cfg[f.k] || '';
+      var before = mailFieldText(cur[f.k]), after = mailFieldText(cfg[f.k]);
       if (before !== after) changes.push({ label: f.label, before: before, after: after });
     });
     var payload = Object.assign({ id: 1, synced_at: new Date().toISOString(), synced_by: userId || null }, cfg);
@@ -390,6 +401,12 @@ function autoSendCutoff(payDate) { return payDate ? new Date(payDate + 'T00:00:0
 
 // 자동 발송 안내 문구 { t: 'i'|'w', s }
 function autoSendInfo(run) {
+  // 자동 발송 꺼짐(기본): 관리자 수동 발송만
+  if (!MAIL_AUTO_SEND) {
+    return run.status !== 'confirmed'
+      ? { t: 'i', s: '확정 후 [알림 메일 발송] 버튼을 눌러야 직원에게 메일이 갑니다.' }
+      : { t: 'i', s: '[알림 메일 발송] 버튼을 눌러야 직원에게 메일이 갑니다. 자동으로는 발송되지 않습니다.' };
+  }
   var cutoff = autoSendCutoff(run.pay_date);
   if (!cutoff) return { t: 'w', s: '지급일이 없어 자동 발송되지 않습니다.' };
   var when = payDateKo(run.pay_date) + ' 오전 9시';
@@ -764,7 +781,7 @@ function MailSyncNote({ user }) {
       )}
       {row && (
         <div style={{ fontSize: 11, color: '#94a3b8' }}>
-          메일 설정 마지막 동기화: {fmtDateTime(row.synced_at)} · 발신 {row.from_name} &lt;{row.from_address}&gt; · 회신 {row.reply_to || '없음'}
+          메일 설정 마지막 동기화: {fmtDateTime(row.synced_at)} · 발신 {row.from_name} &lt;{row.from_address}&gt; · 회신 {row.reply_to || '없음'} · 자동 발송 {row.auto_send ? '켜짐' : '꺼짐'}
         </div>
       )}
     </div>
@@ -969,9 +986,11 @@ function EditTab({ user, period, runType, isMobile }) {
     if (!Object.keys(slipByEmp).length) { setMsg({ t: 'e', s: '저장된 명세서가 없습니다.' }); return; }
     var note = runType === 'pay'
       ? '지급용을 확정하면 직원 화면에 공개되고 편집이 잠깁니다.\n\n'
-        + (run.pay_date && Date.now() < autoSendCutoff(run.pay_date)
-            ? '알림 메일은 지급일 ' + payDateKo(run.pay_date) + ' 오전 9시에 자동 발송됩니다.'
-            : '지급일 오전 9시가 지나 알림 메일은 자동 발송되지 않습니다. 확정 후 [알림 메일 발송] 버튼으로 보내세요.')
+        + (!MAIL_AUTO_SEND
+            ? '확정 후 [알림 메일 발송] 버튼을 눌러야 직원에게 메일이 갑니다.'
+            : (run.pay_date && Date.now() < autoSendCutoff(run.pay_date)
+                ? '알림 메일은 지급일 ' + payDateKo(run.pay_date) + ' 오전 9시에 자동 발송됩니다.'
+                : '지급일 오전 9시가 지나 알림 메일은 자동 발송되지 않습니다. 확정 후 [알림 메일 발송] 버튼으로 보내세요.'))
         + '\n\n확정할까요?'
       : '신고용을 확정하면 편집이 잠깁니다. 확정할까요?';
     if (!window.confirm(note)) return;

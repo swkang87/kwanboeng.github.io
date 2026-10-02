@@ -8,7 +8,8 @@
 //   · 관리자 화면: Authorization: Bearer <로그인 JWT> → getUser() → users.role = 'admin' 만 허용.
 //
 // mode
-//   · auto : 지급용 + 확정 + 지급일 = 오늘(KST) + 지급일 09:00 KST 이전에 확정된 묶음만,
+//   · auto : (2026-10-02 기본 꺼짐 — payroll_mail_settings.auto_send = true 일 때만 동작, 예약 작업도 해제됨)
+//            지급용 + 확정 + 지급일 = 오늘(KST) + 지급일 09:00 KST 이전에 확정된 묶음만,
 //            이 묶음에서 아직 발송 성공 기록이 없는 대상자에게 보낸다(중복 발송 없음).
 //            dry_run=true 이면 보내지 않고 대상 수만 돌려준다(today / assume_confirmed_at 은 dry_run 에서만 허용).
 //   · send : [관리자] 확정된 지급용 묶음. 발송 성공 기록이 없는 대상자(미발송·실패자)에게 보낸다.
@@ -64,7 +65,7 @@ function confirmedBeforeSendTime(confirmedAt: string | null, payDate: string): b
   return new Date(confirmedAt).getTime() < new Date(payDate + 'T00:00:00Z').getTime()
 }
 
-type Settings = { from_address: string; from_name: string; reply_to: string | null; site_url: string; slip_page: string }
+type Settings = { from_address: string; from_name: string; reply_to: string | null; site_url: string; slip_page: string; auto_send?: boolean }
 type Run = { id: string; period: string; run_type: string; pay_date: string | null; status: string; confirmed_at: string | null; revision: number }
 type Target = { employee_id: string; name: string; email: string }
 type Log = { employee_id: string; status: string; revision: number; kind: string }
@@ -251,6 +252,11 @@ Deno.serve(async (req) => {
 
   try {
     // ── auto ──────────────────────────────────────────────
+    // 2차 안전장치: 자동 발송이 꺼져 있으면(config.js PAYROLL.AUTO_SEND → payroll_mail_settings.auto_send)
+    // 예약 작업이 남아 있거나 다시 불려도 아무것도 하지 않고 끝낸다. 설정 행이 없어도 끈 것으로 본다.
+    if (mode === 'auto' && !(s && s.auto_send === true)) {
+      return json({ ok: true, mode, dry_run: dryRun, today, auto_send: false, runs: [], note: '자동 발송이 꺼져 있습니다.' })
+    }
     if (mode === 'auto') {
       const q = admin.from('payroll_runs').select('*').eq('run_type', 'pay').eq('pay_date', today)
       const { data: runs, error } = await (assumeConfirmedAt ? q : q.eq('status', 'confirmed'))

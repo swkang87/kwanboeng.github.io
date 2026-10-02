@@ -146,6 +146,8 @@ var APP_CONFIG = {
     MAIL_FROM_NAME:    '',            // 알림 메일 발신자 이름. 비우면 COMPANY_SHORT + ' 급여'
     MAIL_FROM_ADDRESS: 'payroll@kwanboeng.com', // 알림 메일 발신 주소 (Resend 인증 도메인이어야 함)
                                       // 회신 주소는 EMAIL_CONTRACT 를 쓴다. 급여 화면을 열 때 이 값들이 DB(payroll_mail_settings)로 복사된다.
+    AUTO_SEND:        false,          // 알림 메일 자동 발송(지급일 09:00). false = 관리자가 [알림 메일 발송]을 눌러야만 발송
+                                      // true 로 켤 때는 DB 예약 작업도 함께 등록해야 한다(운영 문서 참고)
     SLIP_PAGE:        'payslip.html', // 직원용 명세서 페이지
     TYPE_LABELS:      { pay: '지급용', report: '신고용' },
     // 편집 표 참고 표시 대상 항목명 (payroll_items.name 과 일치해야 함)
