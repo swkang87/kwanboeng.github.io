@@ -149,6 +149,8 @@ var APP_CONFIG = {
     AUTO_SEND:        false,          // 알림 메일 자동 발송(지급일 09:00). false = 관리자가 [알림 메일 발송]을 눌러야만 발송
                                       // true 로 켤 때는 DB 예약 작업도 함께 등록해야 한다(운영 문서 참고)
     SLIP_PAGE:        'payslip.html', // 직원용 명세서 페이지
+    LEAVER_VIEW_MONTHS: 3,            // 퇴사자가 퇴사일 이후 본인 명세서를 볼 수 있는 개월 수 (0 = 퇴사일 당일까지)
+                                      // 기간 안에는 알림 메일도 받는다. 급여 화면을 열 때 DB(payroll_mail_settings)로 복사된다.
     TYPE_LABELS:      { pay: '지급용', report: '신고용' },
     // 급여대장 엑셀 내려받기 ({YYYY} {YY} {MM} {TYPE} {COMPANY} {STATUS} 치환)
     EXCEL_FILE_MONTH:   '급여_{YYYY}-{MM}',      // 이번 달 파일명 (.xlsx 자동)

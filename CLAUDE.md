@@ -16,6 +16,9 @@
     호출자 확인이 모두 이 함수를 쓴다. 화면 `canSal = admin || (관리팀 && role !== 'contractor')`.
   - **contractor 는 관리팀 소속이어도 급여 불가.**
   - 확정 잠금(`payroll_run_is_draft`)은 권한과 무관하게 그대로 — 관리팀도 확정된 묶음은 확정 취소 후에만 고친다.
+- **퇴사자 본인 명세서 열람**: 퇴사일(`users.leave_date`) + N개월 당일까지 허용, 그 다음 날부터 불가
+  (N = config `PAYROLL.LEAVER_VIEW_MONTHS`, 기본 3 → 급여 화면이 `payroll_mail_settings.leaver_view_months` 로 복사,
+  판정은 `payroll_my_employee_ids()`). 기간 안에는 알림 메일도 받는다. (2026-10-06 승우님 선택 (가))
   - 직원 정보(`users`) 수정은 여전히 admin 전용 RLS라, 급여 대상자 등록 시 비어 있는 입사일 입력은 admin 에게만 보인다.
 - **변경 기록**: 급여 명세서·항목 금액·대상자·묶음 상태·급여 항목이 바뀌면 DB 트리거가 `payroll_audit_logs` 에
   누가·언제·무엇을(전/후 값) 자동 기록한다. 조회는 admin + 관리팀, **수정·삭제는 누구도 불가**(service_role·소유자 포함).

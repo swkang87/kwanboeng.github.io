@@ -337,6 +337,7 @@ var MAIL_FIELDS = [
   { k: 'site_url',     label: '사이트 주소' },
   { k: 'slip_page',    label: '명세서 화면' },
   { k: 'auto_send',    label: '자동 발송' },
+  { k: 'leaver_view_months', label: '퇴사자 명세서 열람(개월)' },
 ];
 var MAIL_EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 var MAIL_FN = 'payroll-mail';
@@ -361,6 +362,8 @@ function mailConfig() {
     site_url: window.location.href.split(/[?#]/)[0].replace(/[^/]*$/, '').replace(/\/+$/, ''),
     slip_page: PCFG.SLIP_PAGE || 'payslip.html',
     auto_send: MAIL_AUTO_SEND,
+    // 퇴사일 이후 본인 명세서 열람 허용 개월 수 — DB 함수 payroll_my_employee_ids 가 이 값을 쓴다
+    leaver_view_months: (PCFG.LEAVER_VIEW_MONTHS == null) ? 3 : PCFG.LEAVER_VIEW_MONTHS,
   };
 }
 
@@ -374,6 +377,8 @@ function syncMailSettings(userId) {
     if (!cfg.from_name) problems.push('발신자 이름이 비어 있습니다 (config.js COMPANY_SHORT).');
     if (!MAIL_EMAIL_RE.test(cfg.from_address)) problems.push('발신 주소가 올바르지 않습니다 (config.js PAYROLL.MAIL_FROM_ADDRESS).');
     if (cfg.reply_to && !MAIL_EMAIL_RE.test(cfg.reply_to)) problems.push('회신 주소가 올바르지 않습니다 (config.js EMAIL_CONTRACT).');
+    if (!(Number.isInteger(cfg.leaver_view_months) && cfg.leaver_view_months >= 0 && cfg.leaver_view_months <= 120))
+      problems.push('퇴사자 명세서 열람 개월 수는 0~120 정수여야 합니다 (config.js PAYROLL.LEAVER_VIEW_MONTHS).');
     if (!/^https:\/\//.test(cfg.site_url)) problems.push('https 주소로 연 화면이 아니라 동기화하지 않았습니다 (로컬 실행 등).');
     if (problems.length) return { row: cur, changes: [], created: false, problems: problems, synced: false };
     var changes = [];
@@ -783,7 +788,7 @@ function MailSyncNote({ user }) {
       )}
       {row && (
         <div style={{ fontSize: 11, color: '#94a3b8' }}>
-          메일 설정 마지막 동기화: {fmtDateTime(row.synced_at)} · 발신 {row.from_name} &lt;{row.from_address}&gt; · 회신 {row.reply_to || '없음'} · 자동 발송 {row.auto_send ? '켜짐' : '꺼짐'}
+          메일 설정 마지막 동기화: {fmtDateTime(row.synced_at)} · 발신 {row.from_name} &lt;{row.from_address}&gt; · 회신 {row.reply_to || '없음'} · 자동 발송 {row.auto_send ? '켜짐' : '꺼짐'} · 퇴사자 열람 {row.leaver_view_months}개월
         </div>
       )}
     </div>
