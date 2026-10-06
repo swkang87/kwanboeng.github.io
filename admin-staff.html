@@ -428,11 +428,7 @@ function invokeAuthed(fnName, body) {
   return Sysbar.invokeAuthed(sb, fnName, body);
 }
 
-function StaffView({ user, staffEditor }) {
-  // 직원 정보 수정 = admin + 관리팀(contractor 제외). 관리팀은 admin 계정 행·역할·관리팀 출입은 못 바꾼다(DB 트리거와 같은 기준).
-  // 등록·삭제·아이디/비밀번호 초기화는 admin 전용 그대로.
-  var isAdmin = user.role === 'admin';
-  function canEditRow(u) { return isAdmin || (!!staffEditor && u.role !== 'admin'); }
+function StaffView({ user }) {
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -489,12 +485,6 @@ function StaffView({ user, staffEditor }) {
   const TEAM_ORDER = {'관리팀':0,'설계1팀':1,'설계2팀':2,'지반팀':3,'기술지원':4};
   const ROLE_ORDER2 = {admin:0, manager:1, employee:2, staff:2, contractor:3};
 
-  var ADMIN_TEAM_LABEL = (window.APP_CONFIG && APP_CONFIG.ADMIN_TEAM_NAME) || '';
-  function isAdminTeamId(id) {
-    if (!id || !ADMIN_TEAM_LABEL) return false;
-    var t = teams.find(function(x){ return x.id === id; });
-    return !!t && t.name === ADMIN_TEAM_LABEL;
-  }
   function tName(u) {
     if (u.role === 'contractor') return '기술지원';
     var t = teams.find(function(x){return x.id===u.team_id;});
@@ -596,13 +586,9 @@ function StaffView({ user, staffEditor }) {
 
       if (editU) {
         // 기존 직원 수정: Auth 계정은 건드리지 않고 users 레코드만 갱신
-        // 역할은 admin 만 바꾼다 — 관리팀 저장에는 role 을 싣지 않는다.
-        var payload = Object.assign({}, formWithoutMemo);
-        if (!isAdmin) delete payload.role;
-        var r = await sb.from('users').update(payload).eq('id', editU.id).select('id');
+        var r = await sb.from('users').update(formWithoutMemo).eq('id', editU.id);
         setSaving(false);
         if (r.error) { setErr('저장 오류: ' + r.error.message); return; }
-        if (!r.data || !r.data.length) { setErr('저장되지 않았습니다. 이 직원 정보를 수정할 권한이 없습니다.'); return; }
         setModal(false); load();
       } else {
         // 신규 등록: create-user Edge Function이 Auth 계정 생성 + auth_id 채움
@@ -716,10 +702,9 @@ function StaffView({ user, staffEditor }) {
                     <div><span style={{color:'#94a3b8',marginRight:4}}>이메일</span>{u.email||'-'}</div>
                     <div><span style={{color:'#94a3b8',marginRight:4}}>입사</span>{u.hire_date||'-'}{u.leave_date && <span style={{marginLeft:8,color:'#dc2626'}}>퇴사 {u.leave_date}</span>}</div>
                   </div>
-                  {canEditRow(u) && (
+                  {user.role==='admin' && (
                     <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
                       <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>수정</button>
-                      {isAdmin && <React.Fragment>
                       <button className="btn btn-sm" onClick={function(){openPhoneChange(u);}}
                         style={{background:'transparent',color:'#2563eb',border:'1px solid #2563eb',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
                         아이디·비번초기화
@@ -732,7 +717,6 @@ function StaffView({ user, staffEditor }) {
                         style={{background: delConfirm&&delConfirm.id===u.id ? '#ef4444':'transparent', color: delConfirm&&delConfirm.id===u.id ? '#fff':'#ef4444', border:'1px solid #ef4444', borderRadius:4, padding:'3px 8px', fontSize:11, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif", fontWeight:600}}>
                         {delConfirm&&delConfirm.id===u.id ? '확인(삭제)' : '삭제'}
                       </button>
-                      </React.Fragment>}
                     </div>
                   )}
                 </div>
@@ -747,7 +731,7 @@ function StaffView({ user, staffEditor }) {
                 <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('team');}}>팀{sortIcon('team')}</th>
                 <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('position');}}>직책{sortIcon('position')}</th>
                 <th style={{cursor:'pointer',userSelect:'none'}} onClick={function(){handleSort('role');}}>역할{sortIcon('role')}</th>
-                <th>전화번호</th><th>로그인아이디</th><th>이메일</th><th>입사일</th><th>퇴사일</th>{(isAdmin||staffEditor)&&<th className="tc">관리</th>}
+                <th>전화번호</th><th>로그인아이디</th><th>이메일</th><th>입사일</th><th>퇴사일</th>{user.role==='admin'&&<th className="tc">관리</th>}
               </tr></thead>
               <tbody>
                 {filtered.map(function(u) {
@@ -767,9 +751,8 @@ function StaffView({ user, staffEditor }) {
                       <td style={{color:'#64748b',fontSize:12}}>{u.email||'-'}</td>
                       <td style={{color:'#64748b',fontSize:12}}>{u.hire_date||'-'}</td>
                       <td style={{color:'#dc2626',fontSize:12}}>{u.leave_date||'-'}</td>
-                      {(isAdmin||staffEditor)&&<td className="tc" style={{whiteSpace:'nowrap'}}>
-                        {canEditRow(u) && <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>수정</button>}
-                        {isAdmin && <React.Fragment>
+                      {user.role==='admin'&&<td className="tc" style={{whiteSpace:'nowrap'}}>
+                        <button className="btn btn-s btn-sm" onClick={function(){openEdit(u);}}>수정</button>
                         {' '}
                         <button className="btn btn-sm" onClick={function(){openPhoneChange(u);}}
                           style={{background:'transparent',color:'#2563eb',border:'1px solid #2563eb',borderRadius:4,padding:'3px 8px',fontSize:11,cursor:'pointer',fontFamily:"'Noto Sans KR',sans-serif",fontWeight:600}}>
@@ -785,7 +768,6 @@ function StaffView({ user, staffEditor }) {
                           style={{background: delConfirm&&delConfirm.id===u.id ? '#ef4444':'transparent', color: delConfirm&&delConfirm.id===u.id ? '#fff':'#ef4444', border:'1px solid #ef4444', borderRadius:4, padding:'3px 8px', fontSize:11, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif", fontWeight:600}}>
                           {delConfirm&&delConfirm.id===u.id ? '확인(삭제)' : '삭제'}
                         </button>
-                        </React.Fragment>}
                       </td>}
                     </tr>
                   );
@@ -868,20 +850,16 @@ function StaffView({ user, staffEditor }) {
               </div>
               <div className="g2" style={{marginBottom:12}}>
                 <div><label className="fl">팀</label>
-                  <select className="fi" value={form.team_id||''} disabled={!isAdmin && !!editU && isAdminTeamId(editU.team_id)}
-                    onChange={function(e){setForm(function(p){return Object.assign({},p,{team_id:e.target.value});});}}>
+                  <select className="fi" value={form.team_id||''} onChange={function(e){setForm(function(p){return Object.assign({},p,{team_id:e.target.value});});}}>
                     <option value="">선택</option>
-                    {teams.filter(function(t){ return isAdmin || !isAdminTeamId(t.id) || (editU && editU.team_id === t.id); })
-                      .map(function(t){return <option key={t.id} value={t.id}>{t.name}</option>;})}
+                    {teams.map(function(t){return <option key={t.id} value={t.id}>{t.name}</option>;})}
                   </select>
-                  {!isAdmin && <div style={{fontSize:11,color:'#94a3b8',marginTop:4}}>{ADMIN_TEAM_LABEL}으로 옮기거나 빼는 것은 관리자만 할 수 있습니다.</div>}
                 </div>
                 <div><label className="fl">직책</label><input className="fi" value={form.position||''} placeholder="실장, 팀장 등" onChange={function(e){setForm(function(p){return Object.assign({},p,{position:e.target.value});});}} /></div>
               </div>
               <div className="g2" style={{marginBottom:12}}>
                 <div><label className="fl">역할</label>
-                  <select className="fi" value={form.role||'staff'} disabled={!isAdmin} title={isAdmin ? '' : '역할은 관리자만 바꿀 수 있습니다.'}
-                    onChange={function(e){setForm(function(p){return Object.assign({},p,{role:e.target.value});});}}>
+                  <select className="fi" value={form.role||'staff'} onChange={function(e){setForm(function(p){return Object.assign({},p,{role:e.target.value});});}}>
                     <option value="staff">팀원</option><option value="manager">팀장</option>
                     <option value="admin">관리자</option><option value="contractor">기술지원</option>
                   </select>
@@ -1098,7 +1076,7 @@ function App() {
           );
         })}
       </div>
-      <PageView user={user} staffEditor={user.role === 'admin' || (hasAccess && user.role !== 'contractor')} />
+      <PageView user={user} />
     </div>
   );
 }

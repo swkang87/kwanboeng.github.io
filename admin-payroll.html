@@ -1595,8 +1595,6 @@ function EmployeeModal({ emp, employees, users, teams, canEditUser, onClose, onS
     return u.role !== 'contractor' && !isShared(u);
   }).sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'ko'); });
   var selU = f.user_id ? umap[f.user_id] : null;
-  // 직원 정보(users) 수정 = admin + 관리팀. 단 admin 계정 행은 admin 만(DB 트리거·정책과 같은 기준).
-  var hireEditable = !!selU && (canEditUser || selU.role !== 'admin');
 
   function pickUser(id) {
     var u = umap[id];
@@ -1634,7 +1632,8 @@ function EmployeeModal({ emp, employees, users, teams, canEditUser, onClose, onS
     q.then(must('대상자 저장', { expectRows: true }))
       .then(function() {
         // 계정 연결 대상자의 비어 있는 입사일은 직원 정보(users.hire_date)에 저장한다.
-        if (mode === 'account' && hireEditable && !selU.hire_date && userHire) {
+        // 직원 정보(users) 수정은 DB 에서 admin 만 가능 — 관리팀은 입력칸 대신 안내만 본다.
+        if (mode === 'account' && canEditUser && selU && !selU.hire_date && userHire) {
           return sb.from('users').update({ hire_date: userHire }).eq('id', selU.id).select('id').then(must('입사일 저장', { expectRows: true }));
         }
         return null;
@@ -1673,13 +1672,13 @@ function EmployeeModal({ emp, employees, users, teams, canEditUser, onClose, onS
                   이름 <b>{selU.name}</b> · 생년월일 <b>{selU.birth_date || '미입력'}</b> · 입사일 <b>{selU.hire_date || '미입력'}</b>
                 </div>
               )}
-              {selU && !selU.hire_date && (hireEditable ? (
+              {selU && !selU.hire_date && (canEditUser ? (
                 <div style={{ marginBottom: 12 }}>
                   <label className="fl">입사일 입력 (직원 정보에 저장됩니다)</label>
                   <input type="date" className="fi" value={userHire} onChange={function(e){ setUserHire(e.target.value); }} />
                 </div>
               ) : (
-                <div className="al al-w" style={{ fontSize: 12 }}>입사일이 비어 있습니다. 관리자 계정의 입사일은 관리자(admin)만 입력할 수 있습니다.</div>
+                <div className="al al-w" style={{ fontSize: 12 }}>입사일이 비어 있습니다. 직원 정보의 입사일은 관리자(admin)만 입력할 수 있습니다.</div>
               ))}
             </div>
           ) : (
