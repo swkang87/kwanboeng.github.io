@@ -2208,6 +2208,7 @@ function AccountModal({ acc, employees, usersMap, accounts, onClose, onSaved }) 
     holder: acc ? (acc.holder || '') : '',
     is_default: acc ? !!acc.is_default : true,
     active: acc ? !!acc.active : true,
+    sort_order: acc ? String(acc.sort_order || 0) : '0',
   });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -2242,7 +2243,8 @@ function AccountModal({ acc, employees, usersMap, accounts, onClose, onSaved }) 
     var nowIso = new Date().toISOString();
     var makeDefault = isEmp && f.is_default && f.active;
     var payload = { label: f.label.trim() || null, bank_code: f.bank_code, bank_name: bankName,
-                    holder: f.holder.trim(), is_default: makeDefault, active: !!f.active };
+                    holder: f.holder.trim(), is_default: makeDefault, active: !!f.active,
+                    sort_order: parseInt(f.sort_order, 10) || 0 };
     if (no) payload.account_no = no;
     setBusy(true);
     var chain = Promise.resolve();
@@ -2310,6 +2312,12 @@ function AccountModal({ acc, employees, usersMap, accounts, onClose, onSaved }) 
               onChange={function(e){ set('account_no', e.target.value); }} />
             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>입력한 형식 그대로 송금내역에 나갑니다. 저장 후에는 화면에 뒤 4자리만 보입니다.</div>
           </div>
+          <div style={{ marginBottom: 12 }}>
+            <label className="fl">표시 순서</label>
+            <input className="fi" inputMode="numeric" style={{ width: 120 }} value={f.sort_order}
+              onChange={function(e){ set('sort_order', e.target.value.replace(/[^0-9]/g, '')); }} />
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>송금내역에서 같은 은행 묶음 안의 순서입니다(작은 수가 위).</div>
+          </div>
           {isEmp && (
             <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, marginBottom: 6 }}>
               <input type="checkbox" checked={!!f.is_default} onChange={function(e){ set('is_default', e.target.checked); }} />
@@ -2360,7 +2368,8 @@ function AccountsSettings() {
     if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
     return (a.sort_order || 0) - (b.sort_order || 0);
   });
-  var compAccts = accounts.filter(function(a) { return a.owner_type === 'company'; });
+  var compAccts = accounts.filter(function(a) { return a.owner_type === 'company'; })
+    .sort(function(a, b) { return (a.sort_order || 0) - (b.sort_order || 0); });
   var noDefault = sortEmployees(employees.filter(function(e) {
     return e.active && !accounts.some(function(a) { return a.employee_id === e.id && a.is_default && a.active; });
   }), usersMap);
@@ -2373,6 +2382,7 @@ function AccountsSettings() {
         <td style={{ fontFamily: 'monospace' }}>{maskAcct(a.account_tail)}</td>
         <td>{a.holder}</td>
         <td style={{ fontSize: 12, color: '#64748b' }}>{a.label || ''}</td>
+        <td className="tc">{a.sort_order || 0}</td>
         <td className="tc">{a.owner_type === 'employee' ? (a.is_default ? <span className="badge bb">기본</span> : '') : <span className="badge bp">회사</span>}</td>
         <td className="tc">{a.active ? <span className="badge bg">사용</span> : <span className="badge bgr">중지</span>}</td>
         <td className="tc"><button className="btn btn-s btn-sm" onClick={function(){ setModal({ acc: a }); }}>수정</button></td>
@@ -2397,7 +2407,7 @@ function AccountsSettings() {
       {accounts.length === 0 ? <div className="loading">등록된 계좌가 없습니다.</div> : (
         <div className="tbl-wrap">
           <table>
-            <thead><tr><th>대상</th><th>은행</th><th>계좌번호</th><th>예금주</th><th>메모</th><th className="tc">구분</th><th className="tc">상태</th><th className="tc">관리</th></tr></thead>
+            <thead><tr><th>대상</th><th>은행</th><th>계좌번호</th><th>예금주</th><th>메모</th><th className="tc">순서</th><th className="tc">구분</th><th className="tc">상태</th><th className="tc">관리</th></tr></thead>
             <tbody>
               {empAccts.map(function(a) { var e = empMap[a.employee_id]; return rowOf(a, e ? personOf(e, usersMap).name : '-'); })}
               {compAccts.map(function(a) { return rowOf(a, a.label || '회사 계좌'); })}

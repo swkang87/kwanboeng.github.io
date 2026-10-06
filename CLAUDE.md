@@ -380,9 +380,12 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - **위치**: 급여 편집 탭 [📥 엑셀] → "송금내역"(확정된 지급용만, 작성중이면 버튼 비활성). 형식 선택:
   은행 업로드용 **.xls**(SheetJS biff8, 비밀번호·서식 없음) / 보관용 **.xlsx**(xlsx-populate 1.21.0, 파일 비밀번호·서식·SUM 수식).
   xlsx-populate 는 송금내역을 내려받을 때만 jsdelivr 에서 **SRI 고정**으로 불러온다. 내려받기 전에 건수·합계·계좌 없는 줄을 보여 준다.
-- **공용 모듈** `payroll-transfer.js`(`PayrollTransfer`): 주거래은행(config `MAIN_BANK_CODE`) 먼저 → 타행(은행코드 순) →
-  계좌 없음(계좌번호 빈칸). 같은 묶음 안에서 급여 → 출장비 → 퇴직금 적립 → 기타. H·I열 요약, 현금 줄, 전체 합계,
-  하단 주소·회사명·"대표이사 {CEO_NAMES[TRANSFER_SIGNER_INDEX]} (인)"·사업자번호.
+- **공용 모듈** `payroll-transfer.js`(`PayrollTransfer`) — **배치는 2026년 8월 원본 송금 파일과 같게 고정**(승우님 지정):
+  A1 제목(A1:F1 병합) / 2행 머리글(원본 글자 그대로, `금   액` 등) / 3행부터 데이터 — 은행 묶음 순서 config `BANK_ORDER`
+  (목록에 없는 은행은 뒤에 코드순), 묶음 안은 **계좌 `sort_order`**(같으면 급여 → 출장비 → 퇴직금 적립 → 기타), 계좌 없음은 맨 끝(빈 셀) /
+  데이터 바로 아래 현금 줄(D 금액, F "현금") / 그 아래 전체 합계(D만) / 한 줄 비우고 하단 4줄 = config `TRANSFER_FOOTER`
+  (`{col, text}` 원문 그대로, 자동 띄어쓰기 없음). **요약은 데이터 길이와 무관한 고정 위치**: H12 `부산(n)` · H13 `타행(n)` ·
+  H14 빈칸 · H15 `총(n건)` · H16 `계좌없음(n)`(있을 때만), 금액 I열. 주거래·타행은 '건' 없이, 총만 '건'.
 - **급여 줄은 저장하지 않는다** — DB 함수 `payroll_transfer_export(period, format, preview)` 가 확정 명세서 실지급액(0원 제외,
   사용중지·퇴사자도 그 달 명세서가 있으면 포함)으로 만든다. preview=true 면 계좌번호를 뒤 4자리로 가리고 기록하지 않는다.
 - **추가 송금 줄** `payroll_transfer_lines`: 편집 탭(지급용) 아래 "💸 추가 송금" — 출장비·퇴직금 적립(기본값 = 명세서
@@ -391,8 +394,8 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   계좌번호는 **입력한 형식 그대로** 저장·출력. **`account_no` 는 컬럼 권한으로 화면 조회 불가**(뒤 4자리 `account_tail` 만) —
   전체 번호는 내려받기 함수에서만. 삭제 권한 없음(사용중지). 변경 기록은 계좌번호를 `****`+뒤 4자리로만 남긴다.
 - **내려받기 기록** `payroll_transfer_exports`: 함수만 기록, 수정·삭제 불가. 설정 → 📜 변경 기록 아래에 표시.
-- 권한은 세 표·함수 모두 `payroll_is_admin()`(급여와 같음). config 신규: `CEO_NAMES`, `PAYROLL.TRANSFER_*`, `MAIN_BANK_CODE`,
-  `RETIREMENT_ITEM`, `BANKS`(선택 목록). **Claude 는 계좌번호를 조회·기록하지 않는다**(입력은 승우님이 화면에서).
+- 권한은 세 표·함수 모두 `payroll_is_admin()`(급여와 같음). config 신규: `CEO_NAMES`, `PAYROLL.TRANSFER_TITLE/FILE/DEPOSITOR/FOOTER`,
+  `MAIN_BANK_CODE`, `BANK_ORDER`, `RETIREMENT_ITEM`, `BANKS`(선택 목록). 계좌 등록 창에 표시 순서(`sort_order`) 칸. **Claude 는 계좌번호를 조회·기록하지 않는다**(입력은 승우님이 화면에서).
 
 ---
 
