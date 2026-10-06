@@ -20,6 +20,7 @@ var APP_CONFIG = {
   COMPANY_EN:     'KWANBO ENGINEERING CO., LTD.',
   COMPANY_SHORT:  '관보종합기술단',    // 짧은 이름 (시스템 헤더 등)
   COMPANY_BIZ_NO: '604-81-29017',     // 사업자등록번호 (세금계산서 매입/매출 판별용)
+  CEO_NAMES:      ['강호갑', '이수금'], // 대표이사 (공동대표면 여러 명, 1인 회사는 1명만)
   LOGO_URL:       'logo.png',
   SINCE:          '1987',             // 설립연도
 
@@ -171,6 +172,24 @@ var APP_CONFIG = {
     REF_REPORT_ITEM:   '보고회수당',   // 보고회·위원회 횟수 표시 + '산출방법 채우기' 대상
     REF_OVERTIME_ITEM: '연장근로수당', // 초과근무 시간 표시 (참고만, 자동 입력 없음)
     ALLOWANCE_EVENT_TYPES: ['보고회', '위원회'], // 월별수당·보고회 횟수 집계 대상 일정 유형
+    // ── 급여 송금내역 (급여 편집 탭 [📥 엑셀] → 송금내역) ──
+    // 은행 업로드용 .xls(비밀번호 없음) / 보관용 .xlsx(비밀번호) 중 골라 내려받는다. 확정된 지급용 묶음만.
+    TRANSFER_TITLE:        '급 여 송 금 내 역',          // A1 제목
+    TRANSFER_FILE:         '급여송금내역_{YYYY}-{MM}',   // 파일명 (.xls / .xlsx 자동)
+    TRANSFER_DEPOSITOR:    { pay: '관보급여', travel: '관보출장비' }, // 입금자명 기본값 (급여·퇴직금 적립 등 = pay)
+    TRANSFER_SIGNER_INDEX: 0,               // 하단 서명란에 쓸 대표이사 (CEO_NAMES 의 순번, 0 부터)
+    MAIN_BANK_CODE:        '032',           // 주거래은행 — 송금내역에서 먼저, 요약에서 따로 집계
+    RETIREMENT_ITEM:       '퇴직금',        // 퇴직금 적립 기본 금액 = 그 달 명세서의 이 공제 항목 합계
+    BANKS: [                                // 송금 계좌 은행 선택 목록 (코드 · 표시 이름)
+      { code: '032', name: '부산' },   { code: '039', name: '경남' },   { code: '004', name: '국민' },
+      { code: '020', name: '우리' },   { code: '088', name: '신한' },   { code: '081', name: '하나' },
+      { code: '011', name: '농협' },   { code: '012', name: '지역농축협' }, { code: '003', name: '기업' },
+      { code: '002', name: '산업' },   { code: '007', name: '수협' },   { code: '023', name: 'SC제일' },
+      { code: '027', name: '씨티' },   { code: '031', name: 'iM뱅크(대구)' }, { code: '034', name: '광주' },
+      { code: '035', name: '제주' },   { code: '037', name: '전북' },   { code: '045', name: '새마을금고' },
+      { code: '048', name: '신협' },   { code: '050', name: '저축은행' }, { code: '071', name: '우체국' },
+      { code: '089', name: '케이뱅크' }, { code: '090', name: '카카오뱅크' }, { code: '092', name: '토스뱅크' },
+    ],
   },
 
 };

@@ -13,6 +13,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script src="sysbar.js?v=2026100102"></script>
 <script src="payslip-render.js?v=20260929"></script>
 <script src="payroll-excel.js?v=20261002"></script>
+<script src="payroll-transfer.js?v=20261009"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -126,7 +127,7 @@ tr:last-child td{border-bottom:none;}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 // Supabase 클라이언트는 최초 사용 시점에 함수 안에서 생성한다.
 var _sb = null;
@@ -883,14 +884,325 @@ function exportPayrollExcel(kind, key) {
   });
 }
 
+// ── 급여 송금내역 (송금 계좌 · 추가 송금 줄 · 내려받기) ─────────────────
+// 계좌번호 전체는 화면이 읽지 못한다(DB 컬럼 권한). 목록은 뒤 4자리만, 전체 번호는 내려받기 함수에서만 받는다.
+var BANKS = PCFG.BANKS || [];
+var RETIRE_ITEM = PCFG.RETIREMENT_ITEM || '';
+var TR_DEPOSITOR = PCFG.TRANSFER_DEPOSITOR || {};
+var TR_KINDS = [
+  { k: 'travel',     l: '출장비' },
+  { k: 'retirement', l: '퇴직금 적립' },
+  { k: 'cash',       l: '현금' },
+  { k: 'other',      l: '기타' },
+];
+var TR_KIND_LABEL = {}; TR_KINDS.forEach(function(x) { TR_KIND_LABEL[x.k] = x.l; });
+var ACCOUNT_COLS = 'id,owner_type,employee_id,label,bank_code,bank_name,account_tail,holder,is_default,active,sort_order';
+function maskAcct(tail) { return tail ? '****' + tail : ''; }
+function acctText(a) {
+  if (!a) return '';
+  return (a.bank_name || '') + ' ' + maskAcct(a.account_tail) + ' · ' + (a.holder || '') + (a.label ? ' (' + a.label + ')' : '');
+}
+function trDepositorDefault(kind) { return (kind === 'travel' ? TR_DEPOSITOR.travel : TR_DEPOSITOR.pay) || ''; }
+
+// 보관용 .xlsx(비밀번호) 생성 라이브러리 — 송금내역을 내려받을 때만 불러온다(계좌번호를 다루므로 무결성 해시 고정).
+var XP_SRC = 'https://cdn.jsdelivr.net/npm/xlsx-populate@1.21.0/browser/xlsx-populate.min.js';
+var XP_SRI = 'sha384-YnsK3VaaV54M5EcU58Pt9SdJqzL0iZpQzQAcav+18Kgn5tbwk16y/3g6FpT2d83h';
+var _xpLoading = null;
+function loadXlsxPopulate() {
+  if (window.XlsxPopulate) return Promise.resolve(window.XlsxPopulate);
+  if (_xpLoading) return _xpLoading;
+  _xpLoading = new Promise(function(resolve, reject) {
+    var s = document.createElement('script');
+    s.src = XP_SRC; s.integrity = XP_SRI; s.crossOrigin = 'anonymous'; s.async = true;
+    s.onload = function() { window.XlsxPopulate ? resolve(window.XlsxPopulate) : reject(new Error('xlsx-populate 를 불러오지 못했습니다.')); };
+    s.onerror = function() { _xpLoading = null; reject(new Error('xlsx-populate 를 불러오지 못했습니다(네트워크 또는 무결성 확인 실패).')); };
+    document.head.appendChild(s);
+  });
+  return _xpLoading;
+}
+function saveBlob(blob, name) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+function transferErrText(err) {
+  if (!err) return '';
+  if (err.code === '55000') return '확정된 지급용 묶음만 송금내역을 내려받을 수 있습니다. 먼저 확정하세요.';
+  if (err.code === 'P0002') return '이 달 지급용 묶음이 없습니다.';
+  if (err.code === '42501') return '급여 관리 권한이 있는 사용자만 송금내역을 볼 수 있습니다.';
+  return err.message || String(err);
+}
+
+// 이 달 지급용 명세서의 퇴직금(config RETIREMENT_ITEM) 합계 — 퇴직금 적립 기본 금액
+function loadRetireSum(period) {
+  var sb = getSb();
+  if (!RETIRE_ITEM) return Promise.resolve(null);
+  return sb.from('payroll_runs').select('id').eq('period', period).eq('run_type', 'pay').maybeSingle()
+    .then(must('지급용 묶음 조회')).then(function(r) {
+      if (!r.data) return null;
+      return sb.from('payroll_slip_lines').select('amount,payroll_slips!inner(run_id)')
+        .eq('payroll_slips.run_id', r.data.id).eq('item_name', RETIRE_ITEM).eq('item_kind', 'deduction')
+        .then(must('퇴직금 합계 조회')).then(function(lr) {
+          return (lr.data || []).reduce(function(t, x) { return t + (Number(x.amount) || 0); }, 0);
+        });
+    });
+}
+
+// ── 급여 편집 탭(지급용) 아래: 추가 송금 줄 ─────────────────────────
+// 출장비·퇴직금 적립·현금·기타. 확정 후에도 고칠 수 있다(입력·수정·삭제는 변경 기록에 남는다).
+function TransferLinesPanel({ period, empMap, usersMap }) {
+  const [lines, setLines] = useState([]);
+  const [orig, setOrig] = useState({});
+  const [accounts, setAccounts] = useState([]);
+  const [retire, setRetire] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [msg, setMsg] = useState(null);
+  var keySeq = useRef(0);
+
+  function toRow(x) {
+    keySeq.current += 1;
+    return { key: 'k' + keySeq.current, id: x.id || null, kind: x.kind || 'travel', employee_id: x.employee_id || '',
+             account_id: x.account_id || '', amount: x.amount != null ? String(x.amount) : '',
+             depositor: x.depositor || '', memo: x.memo || '', sort_order: x.sort_order || 0 };
+  }
+  function load() {
+    setLoading(true);
+    var sb = getSb();
+    Promise.all([
+      sb.from('payroll_transfer_lines').select('*').eq('period', period).order('sort_order').order('created_at'),
+      sb.from('payroll_accounts').select(ACCOUNT_COLS),
+      loadRetireSum(period).catch(function(e) { reportErr(e); return null; }),
+    ]).then(function(r) {
+      if (r[0].error) Sysbar.showError(r[0].error, '추가 송금 조회');
+      if (r[1].error) Sysbar.showError(r[1].error, '송금 계좌 조회');
+      var o = {};
+      (r[0].data || []).forEach(function(x) { o[x.id] = x; });
+      setOrig(o);
+      setLines((r[0].data || []).map(toRow));
+      setAccounts(r[1].data || []);
+      setRetire(r[2]);
+      setDirty(false); setLoading(false);
+    });
+  }
+  useEffect(function() { load(); }, [period]);
+
+  var empList = sortEmployees(Object.keys(empMap).map(function(id) { return empMap[id]; }), usersMap);
+  var acctMap = {}; accounts.forEach(function(a) { acctMap[a.id] = a; });
+  function acctOptions(row) {
+    return accounts.filter(function(a) {
+      if (a.id === row.account_id) return true;
+      if (!a.active) return false;
+      return a.owner_type === 'company' || (row.employee_id && a.employee_id === row.employee_id);
+    });
+  }
+  function defaultAccountFor(empId) {
+    var d = accounts.filter(function(a) { return a.active && a.employee_id === empId && a.is_default; })[0];
+    return d ? d.id : '';
+  }
+  function firstCompanyAccount() {
+    var d = accounts.filter(function(a) { return a.active && a.owner_type === 'company'; })[0];
+    return d ? d.id : '';
+  }
+  function setRow(key, patch) {
+    setLines(function(prev) { return prev.map(function(r) { return r.key === key ? Object.assign({}, r, patch) : r; }); });
+    setDirty(true); setMsg(null);
+  }
+  function addRow(kind) {
+    var row = toRow({ kind: kind || 'travel' });
+    if (kind === 'retirement') { row.amount = retire != null ? String(retire) : ''; row.account_id = firstCompanyAccount(); }
+    setLines(function(prev) { return prev.concat([row]); });
+    setDirty(true); setMsg(null);
+  }
+  function removeRow(key) {
+    setLines(function(prev) { return prev.filter(function(r) { return r.key !== key; }); });
+    setDirty(true); setMsg(null);
+  }
+  function copyPrev() {
+    var prev = shiftPeriod(period, -1);
+    if (lines.length && !window.confirm('이미 ' + lines.length + '줄이 있습니다. ' + fmtPeriodKo(prev) + ' 줄을 아래에 추가로 복사할까요?')) return;
+    getSb().from('payroll_transfer_lines').select('*').eq('period', prev).order('sort_order').order('created_at')
+      .then(function(r) {
+        if (r.error) { Sysbar.showError(r.error, '전월 추가 송금 조회'); return; }
+        var src = r.data || [];
+        if (!src.length) { setMsg({ t: 'w', s: fmtPeriodKo(prev) + ' 추가 송금 줄이 없습니다.' }); return; }
+        var copied = src.map(function(x) {
+          var row = toRow(Object.assign({}, x, { id: null }));
+          if (x.kind === 'retirement' && retire != null) row.amount = String(retire);   // 이번 달 퇴직금 합계로 다시 계산
+          return row;
+        });
+        setLines(function(p) { return p.concat(copied); });
+        setDirty(true);
+        setMsg({ t: 'i', s: fmtPeriodKo(prev) + ' 줄 ' + copied.length + '개를 복사했습니다. 금액을 확인하고 저장하세요.' });
+      });
+  }
+
+  function save() {
+    setMsg(null);
+    for (var i = 0; i < lines.length; i++) {
+      var r = lines[i];
+      if (!/^\d+$/.test(String(r.amount).replace(/,/g, ''))) { setMsg({ t: 'e', s: (i + 1) + '번째 줄 금액을 확인하세요(0 이상 정수).' }); return; }
+    }
+    var sb = getSb();
+    var nowIso = new Date().toISOString();
+    function payloadOf(r, idx) {
+      return { period: period, kind: r.kind, employee_id: r.employee_id || null,
+               account_id: r.kind === 'cash' ? null : (r.account_id || null),
+               amount: parseInt(String(r.amount).replace(/,/g, ''), 10) || 0,
+               depositor: r.kind === 'cash' ? null : (r.depositor.trim() || null),
+               memo: r.memo.trim() || null, sort_order: idx };
+    }
+    var keep = {}; lines.forEach(function(r) { if (r.id) keep[r.id] = true; });
+    var delIds = Object.keys(orig).filter(function(id) { return !keep[id]; });
+    var updates = [], inserts = [];
+    lines.forEach(function(r, idx) {
+      var p = payloadOf(r, idx);
+      if (!r.id) { inserts.push(p); return; }
+      var o = orig[r.id];
+      var changed = ['kind', 'employee_id', 'account_id', 'amount', 'depositor', 'memo', 'sort_order'].some(function(k) {
+        return String(o[k] == null ? '' : o[k]) !== String(p[k] == null ? '' : p[k]);
+      });
+      if (changed) updates.push({ id: r.id, p: Object.assign(p, { updated_at: nowIso }) });
+    });
+    setBusy(true);
+    var chain = Promise.resolve();
+    if (delIds.length) chain = chain.then(function() {
+      return sb.from('payroll_transfer_lines').delete().in('id', delIds).select('id').then(must('추가 송금 삭제', { expectRows: true }));
+    });
+    updates.forEach(function(u) {
+      chain = chain.then(function() {
+        return sb.from('payroll_transfer_lines').update(u.p).eq('id', u.id).select('id').then(must('추가 송금 수정', { expectRows: true }));
+      });
+    });
+    if (inserts.length) chain = chain.then(function() {
+      return sb.from('payroll_transfer_lines').insert(inserts).select('id').then(must('추가 송금 등록', { expectRows: true }));
+    });
+    chain.then(function() {
+      setBusy(false);
+      setMsg({ t: 's', s: '추가 송금을 저장했습니다.' });
+      load();
+    }).catch(function(e) { setBusy(false); reportErr(e); });
+  }
+
+  if (loading) return <div className="card"><div className="loading">추가 송금 불러오는 중...</div></div>;
+  var trTotal = 0, cashTotal = 0;
+  lines.forEach(function(r) { var v = parseInt(String(r.amount).replace(/,/g, ''), 10) || 0; if (r.kind === 'cash') cashTotal += v; else trTotal += v; });
+
+  return (
+    <div className="card">
+      <div className="sh">
+        <div className="st">💸 추가 송금 ({fmtPeriodKo(period)})</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button className="btn btn-s btn-sm" disabled={busy} onClick={function(){ addRow('travel'); }}>+ 출장비</button>
+          <button className="btn btn-s btn-sm" disabled={busy} onClick={function(){ addRow('retirement'); }}>+ 퇴직금 적립</button>
+          <button className="btn btn-s btn-sm" disabled={busy} onClick={function(){ addRow('cash'); }}>+ 현금</button>
+          <button className="btn btn-s btn-sm" disabled={busy} onClick={function(){ addRow('other'); }}>+ 기타</button>
+          <button className="btn btn-s btn-sm" disabled={busy} onClick={copyPrev}>전월 복사</button>
+          <button className="btn btn-p btn-sm" disabled={busy || !dirty} onClick={save}>{busy ? '저장 중...' : (dirty ? '💾 추가 송금 저장' : '저장됨')}</button>
+        </div>
+      </div>
+      {msg && <div className={'al ' + ({ e: 'al-e', w: 'al-w', s: 'al-s', i: 'al-i' })[msg.t]}>{msg.s}</div>}
+      {dirty && <div className="al al-w">저장하지 않은 추가 송금 변경이 있습니다. 송금내역은 저장된 값으로 만들어집니다.</div>}
+      {lines.length === 0 ? <div className="loading">추가 송금 줄이 없습니다.</div> : (
+        <div className="tbl-wrap">
+          <table>
+            <thead><tr><th>구분</th><th>대상자</th><th>송금 계좌</th><th className="tr">금액</th><th>입금자명</th><th>메모</th><th></th></tr></thead>
+            <tbody>
+              {lines.map(function(r) {
+                var isCash = r.kind === 'cash';
+                var opts = acctOptions(r);
+                return (
+                  <tr key={r.key}>
+                    <td>
+                      <select className="fi" style={{ minWidth: 100 }} value={r.kind}
+                        onChange={function(e){ var k = e.target.value; setRow(r.key, k === 'cash' ? { kind: k, account_id: '' } : { kind: k }); }}>
+                        {TR_KINDS.map(function(x) { return <option key={x.k} value={x.k}>{x.l}</option>; })}
+                      </select>
+                    </td>
+                    <td>
+                      <select className="fi" style={{ minWidth: 110 }} value={r.employee_id}
+                        onChange={function(e){
+                          var id = e.target.value;
+                          var patch = { employee_id: id };
+                          if (!isCash && id && !r.account_id) patch.account_id = defaultAccountFor(id);
+                          setRow(r.key, patch);
+                        }}>
+                        <option value="">(없음)</option>
+                        {empList.map(function(emp) { return <option key={emp.id} value={emp.id}>{personOf(emp, usersMap).name}{emp.active ? '' : ' (사용중지)'}</option>; })}
+                      </select>
+                    </td>
+                    <td>
+                      {isCash ? <span style={{ color: '#94a3b8', fontSize: 12 }}>계좌 없음(현금)</span> : (
+                        <select className="fi" style={{ minWidth: 180 }} value={r.account_id}
+                          onChange={function(e){ setRow(r.key, { account_id: e.target.value }); }}>
+                          <option value="">(계좌 선택)</option>
+                          {opts.map(function(a) { return <option key={a.id} value={a.id}>{acctText(a)}{a.active ? '' : ' [사용중지]'}</option>; })}
+                        </select>
+                      )}
+                    </td>
+                    <td className="tr">
+                      <input className="fi" style={{ width: 120, textAlign: 'right' }} inputMode="numeric" value={showAmt(r.amount)}
+                        onChange={function(e){ setRow(r.key, { amount: cleanAmt(e.target.value).replace('-', '') }); }} />
+                      {r.kind === 'retirement' && retire != null && (
+                        <div className="pr-sub">명세서 {RETIRE_ITEM} 합계 {won(retire)}</div>
+                      )}
+                    </td>
+                    <td>
+                      {isCash ? <span style={{ color: '#94a3b8' }}>-</span> : (
+                        <input className="fi" style={{ width: 110 }} value={r.depositor} placeholder={trDepositorDefault(r.kind)}
+                          onChange={function(e){ setRow(r.key, { depositor: e.target.value }); }} />
+                      )}
+                    </td>
+                    <td>
+                      <input className="fi" style={{ minWidth: 140 }} value={r.memo} placeholder={isCash ? '누구에게 얼마' : ''}
+                        onChange={function(e){ setRow(r.key, { memo: e.target.value }); }} />
+                    </td>
+                    <td className="tc"><button className="btn btn-d btn-sm" disabled={busy} onClick={function(){ removeRow(r.key); }}>삭제</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: '#475569', marginTop: 8 }}>
+        추가 송금 {lines.filter(function(r){ return r.kind !== 'cash'; }).length}줄 · {won(trTotal)}원
+        {' '}/ 현금 {lines.filter(function(r){ return r.kind === 'cash'; }).length}줄 · {won(cashTotal)}원
+      </div>
+      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6, lineHeight: 1.6 }}>
+        · 급여 송금 줄은 확정 명세서의 실지급액으로 자동으로 만들어지므로 여기에 넣지 않습니다.<br/>
+        · 현금 줄은 송금내역에 금액만 나오고 메모는 나오지 않습니다. 계좌는 ⚙ 설정 → 🏦 송금 계좌에서 등록합니다.
+      </div>
+    </div>
+  );
+}
+
 function ExportModal({ period, onClose }) {
   var y0 = parseInt(period.slice(0, 4), 10);
   const [kind, setKind] = useState('month');
   const [year, setYear] = useState(String(y0));
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState(null);
+  // 송금내역
+  const [tp, setTp] = useState(null);        // { loading } | { err } | { model }
+  const [fmt, setFmt] = useState('xls');
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+
+  useEffect(function() {
+    if (kind !== 'transfer') return;
+    setTp({ loading: true });
+    getSb().rpc('payroll_transfer_export', { p_period: period, p_format: null, p_preview: true }).then(function(r) {
+      if (r.error) { setTp({ err: transferErrText(r.error) }); return; }
+      setTp({ model: PayrollTransfer.build(r.data) });
+    });
+  }, [kind, period]);
 
   function run() {
+    if (kind === 'transfer') { runTransfer(); return; }
     setBusy(true); setRes(null);
     exportPayrollExcel(kind, kind === 'month' ? period : year).then(function(r) {
       setBusy(false);
@@ -903,20 +1215,50 @@ function ExportModal({ period, onClose }) {
     });
   }
 
+  function runTransfer() {
+    setRes(null);
+    if (fmt === 'xlsx') {
+      if (pw.length < 4) { setRes({ t: 'e', s: '파일 비밀번호를 4자 이상 입력하세요.' }); return; }
+      if (pw !== pw2) { setRes({ t: 'e', s: '파일 비밀번호 두 칸이 서로 다릅니다.' }); return; }
+    }
+    setBusy(true);
+    var name = PayrollTransfer.fileName(period, fmt);
+    // .xlsx 라이브러리를 먼저 불러온 뒤에 전체 계좌번호를 받는다(불러오기 실패 시 내려받기 기록이 남지 않게).
+    (fmt === 'xlsx' ? loadXlsxPopulate() : Promise.resolve(null)).then(function(XP) {
+      return getSb().rpc('payroll_transfer_export', { p_period: period, p_format: fmt, p_preview: false }).then(function(r) {
+        if (r.error) throw { transfer: true, err: r.error };
+        var model = PayrollTransfer.build(r.data);
+        if (fmt === 'xls') {
+          XLSX.writeFile(PayrollTransfer.toXlsWorkbook(XLSX, model), name, { bookType: 'biff8' });
+          return model;
+        }
+        return PayrollTransfer.toXlsxBlob(XP, model, pw, 'blob').then(function(blob) { saveBlob(blob, name); return model; });
+      });
+    }).then(function(model) {
+      setBusy(false); setPw(''); setPw2('');
+      setRes({ t: model.missing.length ? 'w' : 's', tfile: name, model: model });
+    }).catch(function(e) {
+      setBusy(false);
+      setRes({ t: 'e', s: '내려받지 못했습니다: ' + (e && e.transfer ? transferErrText(e.err) : ((e && e.message) || e)) });
+    });
+  }
+
   var years = [y0 - 2, y0 - 1, y0, y0 + 1];
+  var tm = tp && tp.model;
+  var canRun = kind !== 'transfer' || (tm && !tp.loading);
   return (
     <div className="mbg" onClick={onClose}>
-      <div className="mbox" onClick={function(e){ e.stopPropagation(); }} style={{ maxWidth: 460 }}>
-        <div className="mh"><span className="mht">📥 급여대장 엑셀 내려받기</span><button className="mc" onClick={onClose}>×</button></div>
+      <div className="mbox" onClick={function(e){ e.stopPropagation(); }} style={{ maxWidth: 520 }}>
+        <div className="mh"><span className="mht">📥 엑셀 내려받기</span><button className="mc" onClick={onClose}>×</button></div>
         <div className="mb">
           <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10, cursor: 'pointer' }}>
-            <input type="radio" checked={kind === 'month'} onChange={function(){ setKind('month'); }} style={{ marginTop: 3 }} />
-            <span><b>이번 달</b> — {fmtPeriodKo(period)} 지급용·신고용 (시트 2개)<br/>
+            <input type="radio" checked={kind === 'month'} onChange={function(){ setKind('month'); setRes(null); }} style={{ marginTop: 3 }} />
+            <span><b>급여대장 · 이번 달</b> — {fmtPeriodKo(period)} 지급용·신고용 (시트 2개)<br/>
               <span style={{ fontSize: 11, color: '#64748b' }}>{PayrollExcel.fileName('month', period, false)}</span></span>
           </label>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, cursor: 'pointer' }}>
-            <input type="radio" checked={kind === 'year'} onChange={function(){ setKind('year'); }} style={{ marginTop: 3 }} />
-            <span><b>연간</b> —
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 10, cursor: 'pointer' }}>
+            <input type="radio" checked={kind === 'year'} onChange={function(){ setKind('year'); setRes(null); }} style={{ marginTop: 3 }} />
+            <span><b>급여대장 · 연간</b> —
               <select className="fi" value={year} disabled={kind !== 'year'} onChange={function(e){ setYear(e.target.value); }}
                 style={{ width: 90, padding: '3px 6px', margin: '0 6px', display: 'inline-block' }}>
                 {years.map(function(y) { return <option key={y} value={String(y)}>{y}년</option>; })}
@@ -924,10 +1266,69 @@ function ExportModal({ period, onClose }) {
               1~12월 (데이터 있는 달만, 월별 시트)<br/>
               <span style={{ fontSize: 11, color: '#64748b' }}>{PayrollExcel.fileName('year', year, false)}</span></span>
           </label>
-          <div className="al al-i" style={{ fontSize: 12 }}>
-            저장된 명세서 기준입니다. 작성중인 묶음도 포함되며, 제목과 파일명에 "작성중"이 표시됩니다.<br/>
-            계좌번호·생년월일·이메일·월별수당 참고값은 넣지 않습니다.
-          </div>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12, cursor: 'pointer' }}>
+            <input type="radio" checked={kind === 'transfer'} onChange={function(){ setKind('transfer'); setRes(null); }} style={{ marginTop: 3 }} />
+            <span><b>송금내역</b> — {fmtPeriodKo(period)} 지급용 확정분 (은행 대량이체용)<br/>
+              <span style={{ fontSize: 11, color: '#64748b' }}>{PayrollTransfer.fileName(period, fmt)}</span></span>
+          </label>
+
+          {kind !== 'transfer' && (
+            <div className="al al-i" style={{ fontSize: 12 }}>
+              저장된 명세서 기준입니다. 작성중인 묶음도 포함되며, 제목과 파일명에 "작성중"이 표시됩니다.<br/>
+              계좌번호·생년월일·이메일·월별수당 참고값은 넣지 않습니다.
+            </div>
+          )}
+
+          {kind === 'transfer' && (
+            <div>
+              {tp && tp.loading && <div className="loading">송금 내역 확인 중...</div>}
+              {tp && tp.err && <div className="al al-w">{tp.err}</div>}
+              {tm && (
+                <div>
+                  <div className="tbl-wrap" style={{ marginBottom: 10 }}>
+                    <table>
+                      <tbody>
+                        {tm.summary.map(function(s) {
+                          return <tr key={s.label}><td>{s.label}</td><td className="tr" style={{ fontWeight: 700 }}>{won(s.amount)}</td></tr>;
+                        })}
+                        <tr><td>현금({tm.cashCount}건)</td><td className="tr" style={{ fontWeight: 700 }}>{won(tm.cashTotal)}</td></tr>
+                        <tr><td><b>전체 합계</b></td><td className="tr" style={{ fontWeight: 800 }}>{won(tm.grandTotal)}</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  {tm.missing.length > 0 && (
+                    <div className="al al-w" style={{ fontSize: 12 }}>
+                      <b>송금 계좌가 없는 줄 {tm.missing.length}건</b> — 파일에서 계좌번호가 빈칸으로 나갑니다.<br/>
+                      {tm.missing.map(function(m, i) { return <span key={i}>· {m}<br/></span>; })}
+                      ⚙ 설정 → 🏦 송금 계좌에서 기본 계좌를 등록하세요.
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', fontSize: 13 }}>
+                      <input type="radio" checked={fmt === 'xls'} onChange={function(){ setFmt('xls'); }} />
+                      <span><b>은행 업로드용 .xls</b> <span style={{ color: '#64748b', fontSize: 12 }}>(비밀번호 없음 · 서식 없음)</span></span>
+                    </label>
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer', fontSize: 13 }}>
+                      <input type="radio" checked={fmt === 'xlsx'} onChange={function(){ setFmt('xlsx'); }} />
+                      <span><b>보관용 .xlsx</b> <span style={{ color: '#64748b', fontSize: 12 }}>(파일 비밀번호 · 서식·합계 수식)</span></span>
+                    </label>
+                  </div>
+                  {fmt === 'xlsx' && (
+                    <div className="g2" style={{ marginBottom: 6 }}>
+                      <div><label className="fl">파일 비밀번호</label><input className="fi" type="password" autoComplete="new-password" value={pw} onChange={function(e){ setPw(e.target.value); }} /></div>
+                      <div><label className="fl">비밀번호 확인</label><input className="fi" type="password" autoComplete="new-password" value={pw2} onChange={function(e){ setPw2(e.target.value); }} /></div>
+                    </div>
+                  )}
+                  <div className="al al-i" style={{ fontSize: 12 }}>
+                    급여 줄은 확정 명세서의 실지급액(0원 제외)이고, 추가 송금은 저장된 줄입니다. 계좌번호 전체는 파일에만 들어갑니다.<br/>
+                    {fmt === 'xlsx' ? '비밀번호는 저장되지 않습니다. 잊으면 파일을 열 수 없으니 다시 내려받으세요.' : '이 파일은 비밀번호가 없습니다. 은행 업로드 후 보관하지 마세요.'}
+                    {' '}내려받기는 기록됩니다(⚙ 설정 → 📜 변경 기록).
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {res && res.s && <div className={'al ' + (res.t === 'e' ? 'al-e' : 'al-w')}>{res.s}</div>}
           {res && res.file && (
             <div className={'al ' + (res.t === 'w' ? 'al-w' : 'al-s')} style={{ fontSize: 12 }}>
@@ -938,10 +1339,17 @@ function ExportModal({ period, onClose }) {
               {res.warnings.map(function(w, i) { return <span key={i} style={{ color: '#991b1b' }}>⚠ {w}<br/></span>; })}
             </div>
           )}
+          {res && res.tfile && (
+            <div className={'al ' + (res.t === 'w' ? 'al-w' : 'al-s')} style={{ fontSize: 12 }}>
+              <b>{res.tfile}</b> 내려받기 완료 — 송금 {res.model.rows.length}건 · {won(res.model.transferTotal)}원,
+              현금 {won(res.model.cashTotal)}원, 전체 {won(res.model.grandTotal)}원
+              {res.model.missing.length > 0 && <span style={{ color: '#991b1b' }}><br/>⚠ 계좌 없는 줄 {res.model.missing.length}건(계좌번호 빈칸)</span>}
+            </div>
+          )}
         </div>
         <div className="mf">
           <button className="btn btn-s" onClick={onClose}>닫기</button>
-          <button className="btn btn-p" onClick={run} disabled={busy}>{busy ? '만드는 중...' : '📥 내려받기'}</button>
+          <button className="btn btn-p" onClick={run} disabled={busy || !canRun}>{busy ? '만드는 중...' : '📥 내려받기'}</button>
         </div>
       </div>
     </div>
@@ -1345,6 +1753,8 @@ function EditTab({ user, period, runType, isMobile }) {
         <MailPanel run={run} empIds={rows.filter(function(id) { return slipByEmp[id]; })}
           empMap={empMap} usersMap={usersMap} onSentCount={setMailSent} />
       )}
+
+      {runType === 'pay' && run && <TransferLinesPanel period={period} empMap={empMap} usersMap={usersMap} />}
 
       {preview && <PreviewModal model={preview} onClose={function(){ setPreview(null); }} />}
       {methodEmp && (
@@ -1784,6 +2194,260 @@ function EmployeesSettings({ canEditUser }) {
   );
 }
 
+// ── 설정 탭: 송금 계좌 ─────────────────────────────────────────────
+// 계좌번호 전체는 화면이 읽지 못한다(뒤 4자리만). 수정할 때 번호 칸을 비워 두면 기존 번호를 그대로 둔다.
+function AccountModal({ acc, employees, usersMap, accounts, onClose, onSaved }) {
+  var isNew = !acc;
+  var list = sortEmployees(employees, usersMap);
+  const [f, setF] = useState({
+    owner_type: acc ? acc.owner_type : 'employee',
+    employee_id: acc ? (acc.employee_id || '') : '',
+    label: acc ? (acc.label || '') : '',
+    bank_code: acc ? acc.bank_code : (PCFG.MAIN_BANK_CODE || ''),
+    account_no: '',
+    holder: acc ? (acc.holder || '') : '',
+    is_default: acc ? !!acc.is_default : true,
+    active: acc ? !!acc.active : true,
+  });
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  function set(k, v) { setF(function(p) { var n = Object.assign({}, p); n[k] = v; return n; }); }
+  var bankName = (BANKS.filter(function(b) { return b.code === f.bank_code; })[0] || {}).name || (acc ? acc.bank_name : '');
+  var isEmp = f.owner_type === 'employee';
+
+  function pickEmp(id) {
+    var emp = employees.filter(function(e) { return e.id === id; })[0];
+    setF(function(p) {
+      var n = Object.assign({}, p, { employee_id: id });
+      if (emp && !p.holder) n.holder = personOf(emp, usersMap).name;
+      // 이미 기본 계좌가 있는 대상자면 새 계좌는 기본 해제가 기본값
+      if (isNew) n.is_default = !accounts.some(function(a) { return a.employee_id === id && a.is_default && a.active; });
+      return n;
+    });
+  }
+
+  function save() {
+    setErr('');
+    if (isEmp && !f.employee_id) { setErr('대상자를 선택하세요.'); return; }
+    if (!isEmp && !f.label.trim()) { setErr('회사 계좌 이름을 입력하세요(예: 퇴직금 적립).'); return; }
+    if (!/^\d{3}$/.test(f.bank_code)) { setErr('은행을 선택하세요.'); return; }
+    var no = f.account_no.trim();
+    if (isNew || no) {
+      if (!/^[\d\s-]+$/.test(no)) { setErr('계좌번호는 숫자·공백·하이픈(-)만 입력하세요.'); return; }
+      var digits = no.replace(/\D/g, '').length;
+      if (digits < 6 || digits > 20) { setErr('계좌번호 숫자가 6~20자리여야 합니다.'); return; }
+    }
+    if (!f.holder.trim()) { setErr('예금주를 입력하세요.'); return; }
+    var sb = getSb();
+    var nowIso = new Date().toISOString();
+    var makeDefault = isEmp && f.is_default && f.active;
+    var payload = { label: f.label.trim() || null, bank_code: f.bank_code, bank_name: bankName,
+                    holder: f.holder.trim(), is_default: makeDefault, active: !!f.active };
+    if (no) payload.account_no = no;
+    setBusy(true);
+    var chain = Promise.resolve();
+    if (makeDefault) {
+      // 대상자당 기본 계좌는 1개 — 다른 기본 계좌를 먼저 해제
+      var others = accounts.filter(function(a) { return a.employee_id === f.employee_id && a.is_default && a.active && (!acc || a.id !== acc.id); });
+      if (others.length) chain = chain.then(function() {
+        return sb.from('payroll_accounts').update({ is_default: false, updated_at: nowIso })
+          .in('id', others.map(function(a) { return a.id; })).select('id').then(must('기존 기본 계좌 해제', { expectRows: true }));
+      });
+    }
+    chain = chain.then(function() {
+      if (isNew) {
+        return sb.from('payroll_accounts').insert(Object.assign({ owner_type: f.owner_type, employee_id: isEmp ? f.employee_id : null }, payload))
+          .select('id').then(must('송금 계좌 등록', { expectRows: true }));
+      }
+      return sb.from('payroll_accounts').update(Object.assign({ updated_at: nowIso }, payload)).eq('id', acc.id)
+        .select('id').then(must('송금 계좌 수정', { expectRows: true }));
+    });
+    chain.then(function() { setBusy(false); onSaved(); })
+      .catch(function(e) { setBusy(false); reportErr(e); });
+  }
+
+  return (
+    <div className="mbg" onClick={onClose}>
+      <div className="mbox" onClick={function(e){ e.stopPropagation(); }}>
+        <div className="mh"><span className="mht">{isNew ? '송금 계좌 등록' : '송금 계좌 수정'}</span><button className="mc" onClick={onClose}>×</button></div>
+        <div className="mb">
+          {err && <div className="al al-e">{err}</div>}
+          <div className="itabs" style={{ marginBottom: 14 }}>
+            <button className={isEmp ? 'itab active' : 'itab'} disabled={!isNew} onClick={function(){ set('owner_type', 'employee'); }}>대상자 계좌</button>
+            <button className={!isEmp ? 'itab active' : 'itab'} disabled={!isNew} onClick={function(){ set('owner_type', 'company'); }}>회사 계좌</button>
+          </div>
+          {isEmp ? (
+            <div style={{ marginBottom: 12 }}>
+              <label className="fl">대상자 *</label>
+              <select className="fi" value={f.employee_id} disabled={!isNew} onChange={function(e){ pickEmp(e.target.value); }}>
+                <option value="">선택...</option>
+                {list.map(function(e) { return <option key={e.id} value={e.id}>{personOf(e, usersMap).name}{e.active ? '' : ' (사용중지)'}</option>; })}
+              </select>
+            </div>
+          ) : null}
+          <div style={{ marginBottom: 12 }}>
+            <label className="fl">{isEmp ? '메모 (선택)' : '계좌 이름 *'}</label>
+            <input className="fi" value={f.label} placeholder={isEmp ? '예: 출장비용' : '예: 퇴직금 적립'} onChange={function(e){ set('label', e.target.value); }} />
+          </div>
+          <div className="g2">
+            <div>
+              <label className="fl">은행 *</label>
+              <select className="fi" value={f.bank_code} onChange={function(e){ set('bank_code', e.target.value); }}>
+                <option value="">선택...</option>
+                {BANKS.map(function(b) { return <option key={b.code} value={b.code}>{b.code} {b.name}</option>; })}
+                {acc && !BANKS.some(function(b) { return b.code === acc.bank_code; }) && <option value={acc.bank_code}>{acc.bank_code} {acc.bank_name}</option>}
+              </select>
+            </div>
+            <div>
+              <label className="fl">예금주 *</label>
+              <input className="fi" value={f.holder} onChange={function(e){ set('holder', e.target.value); }} />
+            </div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label className="fl">계좌번호 {isNew ? '*' : '(바꿀 때만 입력)'}</label>
+            <input className="fi" value={f.account_no} autoComplete="off" inputMode="numeric"
+              placeholder={isNew ? '은행 표기 그대로 (예: 000 - 00 - 000000 - 0)' : '현재 ' + maskAcct(acc.account_tail) + ' — 비워 두면 그대로'}
+              onChange={function(e){ set('account_no', e.target.value); }} />
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>입력한 형식 그대로 송금내역에 나갑니다. 저장 후에는 화면에 뒤 4자리만 보입니다.</div>
+          </div>
+          {isEmp && (
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, marginBottom: 6 }}>
+              <input type="checkbox" checked={!!f.is_default} onChange={function(e){ set('is_default', e.target.checked); }} />
+              급여 송금 기본 계좌 (대상자당 1개 — 켜면 다른 계좌의 기본이 해제됩니다)
+            </label>
+          )}
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+            <input type="checkbox" checked={!!f.active} onChange={function(e){ set('active', e.target.checked); }} />
+            사용 (해제하면 송금내역·선택 목록에서 빠집니다. 계좌는 삭제하지 않고 사용중지로 관리합니다)
+          </label>
+        </div>
+        <div className="mf">
+          <button className="btn btn-s" onClick={onClose}>취소</button>
+          <button className="btn btn-p" onClick={save} disabled={busy}>{busy ? '저장 중...' : '저장'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AccountsSettings() {
+  const [loading, setLoading] = useState(true);
+  const [accounts, setAccounts] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [usersMap, setUsersMap] = useState({});
+  const [modal, setModal] = useState(null);   // { acc } | { acc: null }
+
+  function load() {
+    var sb = getSb();
+    Promise.all([
+      sb.from('payroll_accounts').select(ACCOUNT_COLS),
+      sb.from('payroll_employees').select('id,user_id,name,active,sort_order'),
+      sb.from('users').select('id,name'),
+    ]).then(function(r) {
+      [0, 1, 2].forEach(function(i) { if (r[i].error) Sysbar.showError(r[i].error, '송금 계좌 조회'); });
+      var um = {}; (r[2].data || []).forEach(function(u) { um[u.id] = u; });
+      setAccounts(r[0].data || []); setEmployees(r[1].data || []); setUsersMap(um);
+      setLoading(false);
+    });
+  }
+  useEffect(function() { load(); }, []);
+
+  if (loading) return <div className="loading">불러오는 중...</div>;
+  var empMap = {}; employees.forEach(function(e) { empMap[e.id] = e; });
+  var order = {}; sortEmployees(employees, usersMap).forEach(function(e, i) { order[e.id] = i; });
+  var empAccts = accounts.filter(function(a) { return a.owner_type === 'employee'; }).sort(function(a, b) {
+    if (order[a.employee_id] !== order[b.employee_id]) return (order[a.employee_id] || 0) - (order[b.employee_id] || 0);
+    if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
+    return (a.sort_order || 0) - (b.sort_order || 0);
+  });
+  var compAccts = accounts.filter(function(a) { return a.owner_type === 'company'; });
+  var noDefault = sortEmployees(employees.filter(function(e) {
+    return e.active && !accounts.some(function(a) { return a.employee_id === e.id && a.is_default && a.active; });
+  }), usersMap);
+
+  function rowOf(a, who) {
+    return (
+      <tr key={a.id} style={{ opacity: a.active ? 1 : 0.5 }}>
+        <td style={{ fontWeight: 700 }}>{who}</td>
+        <td>{a.bank_code} {a.bank_name}</td>
+        <td style={{ fontFamily: 'monospace' }}>{maskAcct(a.account_tail)}</td>
+        <td>{a.holder}</td>
+        <td style={{ fontSize: 12, color: '#64748b' }}>{a.label || ''}</td>
+        <td className="tc">{a.owner_type === 'employee' ? (a.is_default ? <span className="badge bb">기본</span> : '') : <span className="badge bp">회사</span>}</td>
+        <td className="tc">{a.active ? <span className="badge bg">사용</span> : <span className="badge bgr">중지</span>}</td>
+        <td className="tc"><button className="btn btn-s btn-sm" onClick={function(){ setModal({ acc: a }); }}>수정</button></td>
+      </tr>
+    );
+  }
+
+  return (
+    <div>
+      <div className="sh">
+        <div className="st">송금 계좌 (대상자 {empAccts.filter(function(a){ return a.active; }).length} · 회사 {compAccts.filter(function(a){ return a.active; }).length})</div>
+        <button className="btn btn-p btn-sm" onClick={function(){ setModal({ acc: null }); }}>+ 계좌 등록</button>
+      </div>
+      <div className="al al-i" style={{ fontSize: 12 }}>
+        계좌번호는 화면에 뒤 4자리만 보이고, 전체 번호는 송금내역 파일에만 들어갑니다. 등록·수정은 변경 기록에 남습니다(계좌번호는 뒤 4자리만).
+      </div>
+      {noDefault.length > 0 && (
+        <div className="al al-w" style={{ fontSize: 12 }}>
+          급여 송금 기본 계좌가 없는 사용중 대상자 {noDefault.length}명: {noDefault.map(function(e) { return personOf(e, usersMap).name; }).join(', ')}
+        </div>
+      )}
+      {accounts.length === 0 ? <div className="loading">등록된 계좌가 없습니다.</div> : (
+        <div className="tbl-wrap">
+          <table>
+            <thead><tr><th>대상</th><th>은행</th><th>계좌번호</th><th>예금주</th><th>메모</th><th className="tc">구분</th><th className="tc">상태</th><th className="tc">관리</th></tr></thead>
+            <tbody>
+              {empAccts.map(function(a) { var e = empMap[a.employee_id]; return rowOf(a, e ? personOf(e, usersMap).name : '-'); })}
+              {compAccts.map(function(a) { return rowOf(a, a.label || '회사 계좌'); })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {modal && <AccountModal acc={modal.acc} employees={employees} usersMap={usersMap} accounts={accounts}
+        onClose={function(){ setModal(null); }} onSaved={function(){ setModal(null); load(); }} />}
+    </div>
+  );
+}
+
+// ── 설정 탭(변경 기록): 송금내역 내려받기 기록 ───────────────────────
+function TransferExportLog() {
+  const [rows, setRows] = useState(null);
+  useEffect(function() {
+    getSb().from('payroll_transfer_exports').select('*').order('exported_at', { ascending: false }).limit(50)
+      .then(function(r) { if (r.error) Sysbar.showError(r.error, '내려받기 기록 조회'); setRows(r.data || []); });
+  }, []);
+  if (!rows) return null;
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div className="st" style={{ marginBottom: 8 }}>송금내역 내려받기 기록 (최근 50건)</div>
+      {rows.length === 0 ? <div className="loading">기록이 없습니다.</div> : (
+        <div className="tbl-wrap">
+          <table>
+            <thead><tr><th>일시</th><th>내려받은 사람</th><th>귀속</th><th>형식</th><th className="tr">송금</th><th className="tr">현금</th><th className="tc">계좌 없음</th></tr></thead>
+            <tbody>
+              {rows.map(function(x) {
+                return (
+                  <tr key={x.id}>
+                    <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDateTime(x.exported_at)}</td>
+                    <td>{x.actor_name || '-'}</td>
+                    <td>{x.period}{x.run_revision > 1 ? ' (확정 ' + x.run_revision + '차)' : ''}</td>
+                    <td>{x.format === 'xlsx' ? '보관용 .xlsx' : '은행용 .xls'}</td>
+                    <td className="tr">{x.row_count}건 · {won(x.transfer_total)}</td>
+                    <td className="tr">{won(x.cash_total)}</td>
+                    <td className="tc">{x.missing_accounts ? <span className="badge br">{x.missing_accounts}</span> : '-'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 설정 탭: 변경 기록 (payroll_audit_logs — DB 트리거가 자동 기록, 조회만) ─────────
 var AUDIT_PAGE = PCFG.AUDIT_PAGE_SIZE || 100;
 var AUDIT_TABLES = {
@@ -1792,6 +2456,8 @@ var AUDIT_TABLES = {
   payroll_slip_lines: '항목 금액',
   payroll_employees:  '대상자',
   payroll_items:      '급여 항목',
+  payroll_accounts:   '송금 계좌',
+  payroll_transfer_lines: '추가 송금',
 };
 var AUDIT_OPS = { INSERT: { label: '추가', cls: 'bg' }, UPDATE: { label: '변경', cls: 'bb' }, DELETE: { label: '삭제', cls: 'br' } };
 var AUDIT_FIELDS = {
@@ -1801,16 +2467,19 @@ var AUDIT_FIELDS = {
   name_snap: '이름', birth_date_snap: '생년월일', hire_date_snap: '입사일', dept_snap: '부서', position_snap: '직급', employee_no_snap: '사원번호',
   name: '이름', birth_date: '생년월일', hire_date: '입사일', dept_label: '부서', position_label: '직급', employee_no: '사원번호',
   notify_email: '수신 이메일', active: '사용', kind: '구분', default_method: '기본 산출방법',
+  owner_type: '계좌 구분', label: '이름·메모', bank_code: '은행코드', bank_name: '은행', account_no: '계좌번호',
+  holder: '예금주', is_default: '기본 계좌', depositor: '입금자명', memo: '메모',
 };
 // 화면에 보일 필요 없는 연결용 칸(id)
-var AUDIT_HIDDEN = { id: 1, run_id: 1, slip_id: 1, item_id: 1, employee_id: 1, user_id: 1, confirmed_by: 1 };
+var AUDIT_HIDDEN = { id: 1, run_id: 1, slip_id: 1, item_id: 1, employee_id: 1, user_id: 1, confirmed_by: 1, account_id: 1 };
 var AUDIT_MONEY = { amount: 1, total_earning: 1, total_deduction: 1, net_pay: 1 };
 
 function auditVal(k, v) {
   if (v === null || v === undefined || v === '') return '(빈칸)';
   if (k === 'status') return v === 'confirmed' ? '확정' : v === 'draft' ? '작성중' : String(v);
   if (k === 'run_type') return TYPE_LABELS[v] || String(v);
-  if (k === 'kind' || k === 'item_kind') return v === 'earning' ? '지급' : v === 'deduction' ? '공제' : String(v);
+  if (k === 'kind' || k === 'item_kind') return v === 'earning' ? '지급' : v === 'deduction' ? '공제' : (TR_KIND_LABEL[v] || String(v));
+  if (k === 'owner_type') return v === 'company' ? '회사 계좌' : v === 'employee' ? '대상자 계좌' : String(v);
   if (AUDIT_MONEY[k]) return won(v);
   if (k === 'confirmed_at') return fmtDateTime(v);
   if (typeof v === 'boolean') return v ? '예' : '아니오';
@@ -1823,6 +2492,8 @@ var AUDIT_KEY_FIELDS = {
   payroll_runs:       ['status', 'pay_date'],
   payroll_items:      ['kind'],
   payroll_employees:  [],
+  payroll_accounts:   ['bank_name', 'account_no', 'holder'],
+  payroll_transfer_lines: ['kind', 'amount'],
 };
 function auditDiff(row) {
   var oldD = row.old_data || {}, newD = row.new_data || {};
@@ -1943,11 +2614,13 @@ function SettingsTab({ user }) {
       <div className="itabs" style={{ marginBottom: 16 }}>
         <button className={sub === 'emp' ? 'itab active' : 'itab'} onClick={function(){ setSub('emp'); }}>👥 대상자 관리</button>
         <button className={sub === 'item' ? 'itab active' : 'itab'} onClick={function(){ setSub('item'); }}>🧾 항목 관리</button>
+        <button className={sub === 'acct' ? 'itab active' : 'itab'} onClick={function(){ setSub('acct'); }}>🏦 송금 계좌</button>
         <button className={sub === 'log' ? 'itab active' : 'itab'} onClick={function(){ setSub('log'); }}>📜 변경 기록</button>
       </div>
       {sub === 'emp' && <EmployeesSettings canEditUser={!!user && user.role === 'admin'} />}
       {sub === 'item' && <ItemsSettings />}
-      {sub === 'log' && <AuditLogSettings />}
+      {sub === 'acct' && <AccountsSettings />}
+      {sub === 'log' && <div><AuditLogSettings /><TransferExportLog /></div>}
     </div>
   );
 }
