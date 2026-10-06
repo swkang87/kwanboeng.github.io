@@ -74,23 +74,32 @@ function queryPeriod() {
 }
 
 // DB 는 RLS 로 "본인 + 지급용 + 확정" 명세서만 돌려준다. 화면에서도 같은 조건을 한 번 더 건다.
+// 급여 관리 권한자(admin·관리팀)는 RLS 상 전 직원 명세서가 보이므로, 본인 대상자 id(payroll_my_employee_ids)로
+// 반드시 좁힌다 — 이 조건이 없으면 묶음마다 남의 명세서가 "내 명세서"로 잡힐 수 있다.
 function loadMySlips() {
   var sb = getSb();
-  return sb.from('payroll_runs').select('id,period,run_type,pay_date,status,revision')
-    .eq('run_type', 'pay').eq('status', 'confirmed').order('period', { ascending: false })
-    .then(function(rr) {
-      if (rr.error) throw rr.error;
-      var runs = rr.data || [];
-      if (!runs.length) return [];
-      return sb.from('payroll_slips').select('*').in('run_id', runs.map(function(r) { return r.id; }))
-        .then(function(sr) {
-          if (sr.error) throw sr.error;
-          var byRun = {};
-          (sr.data || []).forEach(function(s) { byRun[s.run_id] = s; });
-          return runs.filter(function(r) { return byRun[r.id]; })
-            .map(function(r) { return { run: r, slip: byRun[r.id] }; });
-        });
-    });
+  return sb.rpc('payroll_my_employee_ids').then(function(er) {
+    if (er.error) throw er.error;
+    var myIds = (er.data || []).map(function(x) { return (x && typeof x === 'object') ? x.payroll_my_employee_ids : x; })
+      .filter(Boolean);
+    if (!myIds.length) return [];
+    return sb.from('payroll_runs').select('id,period,run_type,pay_date,status,revision')
+      .eq('run_type', 'pay').eq('status', 'confirmed').order('period', { ascending: false })
+      .then(function(rr) {
+        if (rr.error) throw rr.error;
+        var runs = rr.data || [];
+        if (!runs.length) return [];
+        return sb.from('payroll_slips').select('*').in('run_id', runs.map(function(r) { return r.id; }))
+          .in('employee_id', myIds)
+          .then(function(sr) {
+            if (sr.error) throw sr.error;
+            var byRun = {};
+            (sr.data || []).forEach(function(s) { byRun[s.run_id] = s; });
+            return runs.filter(function(r) { return byRun[r.id]; })
+              .map(function(r) { return { run: r, slip: byRun[r.id] }; });
+          });
+      });
+  });
 }
 
 function loadLines(slipId) {

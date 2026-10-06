@@ -5,7 +5,8 @@
 //
 // 호출자 인증 (verify_jwt = false — 아래에서 직접 확인한다)
 //   · 예약 작업(pg_cron): x-cron-token 헤더 → DB 함수 payroll_mail_cron_ok 로 Vault 토큰과 대조. mode=auto 만 허용.
-//   · 관리자 화면: Authorization: Bearer <로그인 JWT> → getUser() → users.role = 'admin' 만 허용.
+//   · 관리자 화면: Authorization: Bearer <로그인 JWT> → getUser() → DB 함수 payroll_is_admin() 을 호출자 JWT 로 실행해
+//     true 일 때만 허용(admin + 관리팀, contractor·비밀번호 변경 전 제외). 급여 표 RLS 와 같은 한 함수로 판정한다.
 //
 // mode
 //   · auto : (2026-10-02 기본 꺼짐 — payroll_mail_settings.auto_send = true 일 때만 동작, 예약 작업도 해제됨)
@@ -175,7 +176,10 @@ Deno.serve(async (req) => {
     if (auErr || !au || !au.user) return json({ error: '인증이 필요합니다.' }, 401)
     const { data: me } = await admin.from('users').select('id, role').eq('auth_id', au.user.id).maybeSingle()
     if (!me) return json({ error: '사용자 정보를 확인할 수 없습니다.' }, 401)
-    if (me.role !== 'admin') return json({ error: '관리자만 사용할 수 있습니다.' }, 403)
+    // 급여 권한은 RLS 와 같은 DB 함수 하나로 판정한다(auth.uid() 가 필요하므로 호출자 JWT 로 실행).
+    const { data: canPay, error: cpErr } = await userClient.rpc('payroll_is_admin')
+    if (cpErr) return json({ error: '권한 확인 실패: ' + cpErr.message }, 500)
+    if (canPay !== true) return json({ error: '급여 관리 권한이 있는 사용자만 사용할 수 있습니다.' }, 403)
     caller = 'admin'
     callerUserId = me.id
   }

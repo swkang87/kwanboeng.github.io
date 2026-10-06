@@ -1038,7 +1038,8 @@ function App() {
     </div>
   );
 
-  var canSal = user.role === 'admin';
+  // 급여관리 = admin + 관리팀(ADMIN_TEAM_NAME). contractor 는 관리팀 소속이어도 제외. DB 판정은 payroll_is_admin().
+  var canSal = user.role === 'admin' || (hasAccess && user.role !== 'contractor');
   var canAb  = user.role === 'admin' || teamName === '관리팀';
 
   // 현재 페이지가 권한이 없는 페이지면 업무일지로 리다이렉트

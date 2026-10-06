@@ -1565,7 +1565,7 @@ function ItemsSettings() {
 }
 
 // ── 설정 탭: 대상자 관리 ───────────────────────────────────────────
-function EmployeeModal({ emp, employees, users, teams, onClose, onSaved }) {
+function EmployeeModal({ emp, employees, users, teams, canEditUser, onClose, onSaved }) {
   var isNew = !emp;
   var tmap = {}; teams.forEach(function(t) { tmap[t.id] = t.name; });
   var umap = {}; users.forEach(function(u) { umap[u.id] = u; });
@@ -1632,7 +1632,8 @@ function EmployeeModal({ emp, employees, users, teams, onClose, onSaved }) {
     q.then(must('대상자 저장', { expectRows: true }))
       .then(function() {
         // 계정 연결 대상자의 비어 있는 입사일은 직원 정보(users.hire_date)에 저장한다.
-        if (mode === 'account' && selU && !selU.hire_date && userHire) {
+        // 직원 정보(users) 수정은 DB 에서 admin 만 가능 — 관리팀은 입력칸 대신 안내만 본다.
+        if (mode === 'account' && canEditUser && selU && !selU.hire_date && userHire) {
           return sb.from('users').update({ hire_date: userHire }).eq('id', selU.id).select('id').then(must('입사일 저장', { expectRows: true }));
         }
         return null;
@@ -1671,12 +1672,14 @@ function EmployeeModal({ emp, employees, users, teams, onClose, onSaved }) {
                   이름 <b>{selU.name}</b> · 생년월일 <b>{selU.birth_date || '미입력'}</b> · 입사일 <b>{selU.hire_date || '미입력'}</b>
                 </div>
               )}
-              {selU && !selU.hire_date && (
+              {selU && !selU.hire_date && (canEditUser ? (
                 <div style={{ marginBottom: 12 }}>
                   <label className="fl">입사일 입력 (직원 정보에 저장됩니다)</label>
                   <input type="date" className="fi" value={userHire} onChange={function(e){ setUserHire(e.target.value); }} />
                 </div>
-              )}
+              ) : (
+                <div className="al al-w" style={{ fontSize: 12 }}>입사일이 비어 있습니다. 직원 정보의 입사일은 관리자(admin)만 입력할 수 있습니다.</div>
+              ))}
             </div>
           ) : (
             <div>
@@ -1715,7 +1718,7 @@ function EmployeeModal({ emp, employees, users, teams, onClose, onSaved }) {
   );
 }
 
-function EmployeesSettings() {
+function EmployeesSettings({ canEditUser }) {
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState([]);
   const [users, setUsers] = useState([]);
@@ -1770,21 +1773,176 @@ function EmployeesSettings() {
           </table>
         </div>
       )}
-      {modal && <EmployeeModal emp={modal.emp} employees={employees} users={users} teams={teams}
+      {modal && <EmployeeModal emp={modal.emp} employees={employees} users={users} teams={teams} canEditUser={canEditUser}
         onClose={function(){ setModal(null); }} onSaved={function(){ setModal(null); load(); }} />}
     </div>
   );
 }
 
-function SettingsTab() {
+// ── 설정 탭: 변경 기록 (payroll_audit_logs — DB 트리거가 자동 기록, 조회만) ─────────
+var AUDIT_PAGE = PCFG.AUDIT_PAGE_SIZE || 100;
+var AUDIT_TABLES = {
+  payroll_runs:       '묶음',
+  payroll_slips:      '명세서',
+  payroll_slip_lines: '항목 금액',
+  payroll_employees:  '대상자',
+  payroll_items:      '급여 항목',
+};
+var AUDIT_OPS = { INSERT: { label: '추가', cls: 'bg' }, UPDATE: { label: '변경', cls: 'bb' }, DELETE: { label: '삭제', cls: 'br' } };
+var AUDIT_FIELDS = {
+  status: '상태', pay_date: '지급일', confirmed_at: '확정 일시', revision: '확정 차수', period: '귀속연월', run_type: '종류',
+  amount: '금액', method: '산출방법', item_name: '항목명', item_kind: '구분', sort_order: '순서',
+  total_earning: '지급합계', total_deduction: '공제합계', net_pay: '실지급액',
+  name_snap: '이름', birth_date_snap: '생년월일', hire_date_snap: '입사일', dept_snap: '부서', position_snap: '직급', employee_no_snap: '사원번호',
+  name: '이름', birth_date: '생년월일', hire_date: '입사일', dept_label: '부서', position_label: '직급', employee_no: '사원번호',
+  notify_email: '수신 이메일', active: '사용', kind: '구분', default_method: '기본 산출방법',
+};
+// 화면에 보일 필요 없는 연결용 칸(id)
+var AUDIT_HIDDEN = { id: 1, run_id: 1, slip_id: 1, item_id: 1, employee_id: 1, user_id: 1, confirmed_by: 1 };
+var AUDIT_MONEY = { amount: 1, total_earning: 1, total_deduction: 1, net_pay: 1 };
+
+function auditVal(k, v) {
+  if (v === null || v === undefined || v === '') return '(빈칸)';
+  if (k === 'status') return v === 'confirmed' ? '확정' : v === 'draft' ? '작성중' : String(v);
+  if (k === 'run_type') return TYPE_LABELS[v] || String(v);
+  if (k === 'kind' || k === 'item_kind') return v === 'earning' ? '지급' : v === 'deduction' ? '공제' : String(v);
+  if (AUDIT_MONEY[k]) return won(v);
+  if (k === 'confirmed_at') return fmtDateTime(v);
+  if (typeof v === 'boolean') return v ? '예' : '아니오';
+  return String(v);
+}
+// 반환: [{ k, label, before, after }] — UPDATE 는 바뀐 칸 전부, 추가·삭제는 표마다 핵심 칸만
+var AUDIT_KEY_FIELDS = {
+  payroll_slip_lines: ['amount'],
+  payroll_slips:      ['net_pay'],
+  payroll_runs:       ['status', 'pay_date'],
+  payroll_items:      ['kind'],
+  payroll_employees:  [],
+};
+function auditDiff(row) {
+  var oldD = row.old_data || {}, newD = row.new_data || {};
+  var keys = row.op === 'UPDATE'
+    ? Object.keys(newD).filter(function(k) { return !AUDIT_HIDDEN[k]; })
+    : (AUDIT_KEY_FIELDS[row.table_name] || []);
+  return keys.map(function(k) {
+    return {
+      k: k, label: AUDIT_FIELDS[k] || k,
+      before: row.op === 'INSERT' ? null : auditVal(k, oldD[k]),
+      after: row.op === 'DELETE' ? null : auditVal(k, newD[k]),
+    };
+  });
+}
+
+function AuditLogSettings() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [more, setMore] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [fTable, setFTable] = useState('');
+  const [fPeriod, setFPeriod] = useState('');
+
+  function fetchPage(from) {
+    var q = getSb().from('payroll_audit_logs')
+      .select('id,changed_at,actor_name,actor_db_role,table_name,op,period,run_type,subject,old_data,new_data')
+      .order('changed_at', { ascending: false }).order('id', { ascending: false })
+      .range(from, from + AUDIT_PAGE - 1);
+    if (fTable) q = q.eq('table_name', fTable);
+    if (fPeriod) q = q.eq('period', fPeriod);
+    return q;
+  }
+  function load() {
+    setLoading(true);
+    fetchPage(0).then(function(r) {
+      if (r.error) Sysbar.showError(r.error, '변경 기록 조회');
+      var d = r.data || [];
+      setRows(d); setMore(d.length === AUDIT_PAGE); setLoading(false);
+    });
+  }
+  function loadMore() {
+    setBusy(true);
+    fetchPage(rows.length).then(function(r) {
+      setBusy(false);
+      if (r.error) { Sysbar.showError(r.error, '변경 기록 조회'); return; }
+      var d = r.data || [];
+      setRows(rows.concat(d)); setMore(d.length === AUDIT_PAGE);
+    });
+  }
+  useEffect(function() { load(); }, [fTable, fPeriod]);
+
+  return (
+    <div>
+      <div className="sh">
+        <div className="st">급여 변경 기록</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select className="fi" style={{ width: 'auto', marginBottom: 0 }} value={fTable} onChange={function(e){ setFTable(e.target.value); }}>
+            <option value="">전체 구분</option>
+            {Object.keys(AUDIT_TABLES).map(function(k) { return <option key={k} value={k}>{AUDIT_TABLES[k]}</option>; })}
+          </select>
+          <input type="month" className="fi" style={{ width: 'auto', marginBottom: 0 }} value={fPeriod}
+            onChange={function(e){ setFPeriod(/^\d{4}-\d{2}$/.test(e.target.value) ? e.target.value : ''); }} />
+          {fPeriod && <button className="btn btn-s btn-sm" onClick={function(){ setFPeriod(''); }}>전체 기간</button>}
+          <button className="btn btn-s btn-sm" onClick={load} disabled={loading}>새로고침</button>
+        </div>
+      </div>
+      <div className="al al-i" style={{ fontSize: 12 }}>
+        명세서·항목 금액·대상자·묶음 상태(확정/확정 취소)·급여 항목이 바뀌면 DB 가 자동으로 기록합니다.
+        기록은 누구도 수정하거나 삭제할 수 없습니다. 같은 값으로 다시 저장한 것은 기록하지 않습니다.
+      </div>
+      {loading ? <div className="loading">불러오는 중...</div> : rows.length === 0 ? <div className="loading">기록이 없습니다.</div> : (
+        <div className="tbl-wrap">
+          <table>
+            <thead><tr><th>일시</th><th>변경자</th><th>구분</th><th>귀속</th><th>대상</th><th>내용 (전 → 후)</th></tr></thead>
+            <tbody>
+              {rows.map(function(r) {
+                var op = AUDIT_OPS[r.op] || { label: r.op, cls: 'bgr' };
+                var diff = auditDiff(r);
+                return (
+                  <tr key={r.id}>
+                    <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDateTime(r.changed_at)}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{r.actor_name || <span style={{ color: '#94a3b8' }}>{r.actor_db_role === 'authenticated' ? '(알 수 없음)' : '시스템'}</span>}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}><span className={'badge ' + op.cls}>{op.label}</span> {AUDIT_TABLES[r.table_name] || r.table_name}</td>
+                    <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{r.period ? r.period + (r.run_type ? ' ' + (TYPE_LABELS[r.run_type] || r.run_type) : '') : '-'}</td>
+                    <td>{r.subject || '-'}</td>
+                    <td style={{ fontSize: 12 }}>
+                      {diff.length === 0 ? '-' : diff.map(function(d) {
+                        return (
+                          <div key={d.k}>
+                            <span style={{ color: '#64748b' }}>{d.label}</span>{' '}
+                            {d.before !== null && <span style={{ color: '#991b1b' }}>{d.before}</span>}
+                            {d.before !== null && d.after !== null && ' → '}
+                            {d.after !== null && <span style={{ color: '#166534', fontWeight: 700 }}>{d.after}</span>}
+                          </div>
+                        );
+                      })}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {more && !loading && (
+        <div style={{ textAlign: 'center', marginTop: 12 }}>
+          <button className="btn btn-s btn-sm" onClick={loadMore} disabled={busy}>{busy ? '불러오는 중...' : '더 보기'}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettingsTab({ user }) {
   const [sub, setSub] = useState('emp');
   return (
     <div className="card">
       <div className="itabs" style={{ marginBottom: 16 }}>
         <button className={sub === 'emp' ? 'itab active' : 'itab'} onClick={function(){ setSub('emp'); }}>👥 대상자 관리</button>
         <button className={sub === 'item' ? 'itab active' : 'itab'} onClick={function(){ setSub('item'); }}>🧾 항목 관리</button>
+        <button className={sub === 'log' ? 'itab active' : 'itab'} onClick={function(){ setSub('log'); }}>📜 변경 기록</button>
       </div>
-      {sub === 'emp' ? <EmployeesSettings /> : <ItemsSettings />}
+      {sub === 'emp' && <EmployeesSettings canEditUser={!!user && user.role === 'admin'} />}
+      {sub === 'item' && <ItemsSettings />}
+      {sub === 'log' && <AuditLogSettings />}
     </div>
   );
 }
@@ -1824,7 +1982,7 @@ function PayrollView({ user }) {
       )}
       {tab === 'edit' && <EditTab key={period + runType} user={user} period={period} runType={runType} isMobile={isMobile} />}
       {tab === 'allowance' && <AllowanceTab period={period} isMobile={isMobile} />}
-      {tab === 'settings' && <SettingsTab />}
+      {tab === 'settings' && <SettingsTab user={user} />}
     </div>
   );
 }
@@ -1867,7 +2025,7 @@ function LoginScreen({ onLogin }) {
       <div className="lbox">
         <div className="llogo">🏢</div>
         <div className="ltit">{APP_CONFIG.COMPANY_SHORT}</div>
-        <div className="lsub">관리포털 · 급여관리 (관리자 전용)</div>
+        <div className="lsub">관리포털 · 급여관리 (관리자{ADMIN_TEAM ? ' · ' + ADMIN_TEAM : ''})</div>
         {err && <div className="al al-e">{err}</div>}
         <div style={{ marginBottom: 12 }}>
           <label className="fl">아이디 (전화번호)</label>
@@ -1966,8 +2124,9 @@ function App() {
 
   if (!user) return <LoginScreen onLogin={handleLogin} />;
 
-  // 급여관리는 admin 전용 — 관리팀이라도 admin 이 아니면 업무일지로 보낸다.
-  var canSal = user.role === 'admin';
+  // 급여관리 = admin + 관리팀(ADMIN_TEAM_NAME). contractor 는 관리팀 소속이어도 제외 — 권한 없으면 업무일지로 보낸다.
+  // DB 판정은 payroll_is_admin()(비밀번호 변경 전 계정도 제외) — 화면과 같은 기준.
+  var canSal = user.role === 'admin' || (hasAccess && user.role !== 'contractor');
   var canAb  = user.role === 'admin' || (!!ADMIN_TEAM && teamName === ADMIN_TEAM);
   if (!canSal) { location.replace('admin-worklog.html'); return null; }
 
