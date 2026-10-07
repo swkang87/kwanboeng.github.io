@@ -341,6 +341,9 @@ function CalendarView({user,teamName}){
       const bg=tColor(l.user_id);
       while(cur<=end&&n<31){
         const ds=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
+        const dw=cur.getDay();
+        // 토·일·공휴일·대체공휴일에는 휴가자 표시 안 함
+        if(dw===0||dw===6||HOL[ds]||SUB[ds]){cur.setDate(cur.getDate()+1);n++;continue;}
         add(ds,{k:'leave',label:label,shortLabel:shortLabel,fullName:u2?u2.name:'',timeTag:timeTag,type:l.type,bg:bg,tx:'#fff',raw:l});
         cur.setDate(cur.getDate()+1);n++;
       }

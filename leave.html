@@ -424,7 +424,7 @@ function MiniCal({yr,mo,onPrev,onNext,start,end,hoverDate,onHover,onDayClick,sin
           const isToday=d===todayStr;
           const inR=inRange(d)||inHover(d);
           const dc=getDayColor(d,dow);
-          const dayPeople=teamLeaves.filter(l=>l.start_date<=d&&(l.end_date||l.start_date)>=d);
+          const dayPeople=isWork(d)?teamLeaves.filter(l=>l.start_date<=d&&(l.end_date||l.start_date)>=d):[]; // 토·일·공휴일 제외
           return(
             <div key={i} onClick={()=>onDayClick(d)} onMouseEnter={()=>onHover(d)} onMouseLeave={()=>onHover(null)}
               style={{textAlign:'center',cursor:'pointer',borderRadius:5,
@@ -649,6 +649,7 @@ function CalView({users,teams,leaves}){
   const approved=useMemo(()=>leaves.filter(l=>l.status==='approved'),[leaves]);
   const getDayPeople=ds=>{
     const out=[];
+    if(!isWork(ds)) return out; // 토·일·공휴일·대체공휴일에는 휴가자 표시 안 함
     for(const l of approved){
       const u=userById.get(l.user_id);
       if(!u?.team_id) continue;

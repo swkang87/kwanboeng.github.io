@@ -7,27 +7,13 @@
 ## 🔒 상설 작업 규칙 (모든 묶음에 적용)
 
 ### 권한 설계 원칙
-**관리 기능은 admin + 관리팀(팀장·팀원). 급여관리도 포함. 예외는 계정 아이디·비밀번호 초기화(admin 전용).**
-(2026-10-06 승우님 결정 — 이전 원칙 "급여 관련 기능만 admin 전용"을 폐기)
-- **급여관리 = admin + 관리팀**: `payroll_*` 표 전부, `admin-payroll.html`, 관리 화면 5개 파일의 "💼 급여관리" 탭(`canSal`),
-  `payroll-mail` 서버 함수. 편집·저장·복사·확정·확정 취소·엑셀·미리보기·메일 발송(테스트 포함)·설정(항목·대상자) 전부 같다.
-  - DB 판정은 **`payroll_is_admin()` 한 함수**(이름은 그대로)가 한다: `role='admin'` 또는
-    (관리팀 소속 `is_admin_team()` + `role <> 'contractor'` + 비밀번호 변경 완료). 급여 RLS 정책과 `payroll-mail`
-    호출자 확인이 모두 이 함수를 쓴다. 화면 `canSal = admin || (관리팀 && role !== 'contractor')`.
-  - **contractor 는 관리팀 소속이어도 급여 불가.**
-  - 확정 잠금(`payroll_run_is_draft`)은 권한과 무관하게 그대로 — 관리팀도 확정된 묶음은 확정 취소 후에만 고친다.
-- **퇴사자 본인 명세서 열람**: 퇴사일(`users.leave_date`) + N개월 당일까지 허용, 그 다음 날부터 불가
-  (N = config `PAYROLL.LEAVER_VIEW_MONTHS`, 기본 3 → 급여 화면이 `payroll_mail_settings.leaver_view_months` 로 복사,
-  판정은 `payroll_my_employee_ids()`). 기간 안에는 알림 메일도 받는다. (2026-10-06 승우님 선택 (가))
-  - 직원 정보(`users`) 수정은 여전히 admin 전용 RLS라, 급여 대상자 등록 시 비어 있는 입사일 입력은 admin 에게만 보인다.
-- **변경 기록**: 급여 명세서·항목 금액·대상자·묶음 상태·급여 항목이 바뀌면 DB 트리거가 `payroll_audit_logs` 에
-  누가·언제·무엇을(전/후 값) 자동 기록한다. 조회는 admin + 관리팀, **수정·삭제는 누구도 불가**(service_role·소유자 포함).
-  급여 화면 설정 탭 "📜 변경 기록".
-- **계정 아이디·비밀번호 초기화(`reset-user-login`)는 admin 전용**(관리팀 불가). 초기화할 수 있으면 관리팀이 그 직원 계정으로
-  로그인해 급여를 보는 우회로가 되고, 그동안 한 일은 그 직원 이름으로 남는다(변경 기록도 그 직원으로 기록됨).
-  직원 정보 조회·수정(직원관리)은 admin + 관리팀 그대로. (2026-10-01 결정, 2026-10-06 급여 확대 후에도 유지)
-- 구 급여 표(`salaries` · `salary_slips` · `salary_details` · `salary_items` · `salary_members`)는 DB 에 없고(2026-10-06 확인)
-  `admin-salary.html` 도 삭제됨 — 현행 급여는 `payroll_*` 표와 `admin-payroll.html`.
+**급여 관련 기능만 `role = 'admin'` 전용, 나머지 관리 기능은 admin + 관리팀.**
+- 급여 전용: `salaries` · `salary_slips` · `salary_details` · `salary_items` · `salary_members`,
+  `admin-salary.html`, `admin-account.html` 의 급여 탭(`canSal`).
+- admin + 관리팀: 장부(`account_book`) · 직원관리 · 업무일지 · 실적 등 나머지 관리 기능.
+- **계정 아이디·비밀번호 초기화는 admin 전용**(관리팀 불가). 초기화할 수 있으면 그 직원 계정으로
+  로그인해 본인 급여명세서를 볼 수 있으므로, 관리팀에 허용하면 "급여는 admin 전용" 원칙이 무너진다.
+  직원 정보 조회·수정(직원관리)은 admin + 관리팀 그대로. (2026-10-01 승우님 결정)
 - RLS 정책도 화면 권한(`canXxx`)과 **1:1로 대응**시킨다. 둘이 어긋나면 화면은 보이는데
   저장이 실패하는 상태가 되므로, 정책을 바꾸면 해당 화면의 권한 조건도 같이 확인할 것.
 - **급여 명세서 확정·공개 전 필수:** `security-fix\plan_next_bundles.md` 의 보류 항목(기존 계정 비밀번호 강제 변경)을
@@ -411,6 +397,19 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - 검증: Babel PASS·brace 0, 샘플 3건(지방·국가·변경+분담이행) jsdom 시뮬레이션으로 저장 payload 확인. 브라우저 확인 미완.
 - 미구현: 보관된 PDF 열람 화면.
 
+### 연차 캘린더 토·일·공휴일 휴가자 미표시 (2026-10-07, 미커밋)
+- **증상**: 휴일을 끼워 연차를 신청하면(예: 금~월) 토·일·공휴일 칸에도 이름이 올라감.
+  `start_date~end_date` 범위를 날짜 단위로 그대로 펼쳐 그렸기 때문.
+- **원칙**: 토·일·공휴일·대체공휴일에는 캘린더에 휴가자를 표시하지 않는다. 데이터(`leave_requests`)는 무변경 — **표시 단계에서만** 거른다.
+- **수정 3곳**:
+  - `leave.html` `CalView.getDayPeople` 첫 줄 `if(!isWork(ds)) return out;` — 월간·주간 탭, 날짜 선택 상세 모두 이 함수 경유.
+  - `leave.html` `MiniCal`(연차신청 피커) `dayPeople` — `isWork(d)` 일 때만 필터.
+  - `home.html` `buildMap` 휴가 펼침 루프 — `getDay()` 0·6 또는 `HOL`/`SUB` 이면 건너뜀(프로젝트·일정 이벤트는 무영향).
+- `isWork` 는 leave.html 기존 헬퍼(`HOLIDAYS`·`SUBSTITUTE`·주말). 공휴일은 하드코딩 + Nager.Date 보강 그대로.
+- 연차 일수 계산(`countWD`)은 원래 근무일 기준이라 무변경.
+- 검증: 중괄호 leave 1521/1521·home 646/646, Babel(preset-react+env) PASS.
+  백업 `backup/leave_20261007.html`, `backup/home_20261007.html`.
+
 ## ❕ 패턴·원칙
 
 - **화이트라벨 키는 항상 config 참조**: 세션키·인증 도메인 등은 `APP_CONFIG.*` 참조로 작성.
@@ -448,7 +447,7 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 
 ### 급여 테이블 RLS 봉쇄 (보안 항목)
 상세는 저장소 밖 `security-fix\` 문서 참조. 별도 묶음으로 처리 예정.
-현행 급여 권한 기준은 위 「권한 설계 원칙」(admin + 관리팀, 2026-10-06)을 따른다.
+「급여 관련만 admin 전용」 설계 원칙 적용 대상.
 
 ### SYS_MENUS 이중 관리 해소
 `sysbar.js`의 `SYS_MENUS`가 `config.js`의 `MENUS`와 별개로 하드코딩됨.
