@@ -158,6 +158,10 @@ var APP_CONFIG = {
     AUTO_SEND:        false,          // 알림 메일 자동 발송(지급일 09:00). false = 관리자가 [알림 메일 발송]을 눌러야만 발송
                                       // true 로 켤 때는 DB 예약 작업도 함께 등록해야 한다(운영 문서 참고)
     SLIP_PAGE:        'payslip.html', // 직원용 명세서 페이지
+    // 급여명세서 생년월일 6자리 확인 — 급여 화면을 열 때 DB(payroll_mail_settings)로 복사되어 서버가 쓴다
+    SLIP_VERIFY_MAX_FAILS:      5,      // 연속으로 이만큼 틀리면 잠금
+    SLIP_VERIFY_LOCK_MINUTES:   10,     // 잠금 시간(분) — 급여관리 → 설정 → 변경 기록에서 바로 해제할 수도 있다
+    SLIP_VERIFY_UNLOCK_MINUTES: 10,     // 확인 후 명세서를 볼 수 있는 시간(분). 창을 닫거나 로그아웃하면 바로 다시 잠김
     LEAVER_VIEW_MONTHS: 3,            // 퇴사자가 퇴사일 이후 본인 명세서를 볼 수 있는 개월 수 (0 = 퇴사일 당일까지)
                                       // 기간 안에는 알림 메일도 받는다. 급여 화면을 열 때 DB(payroll_mail_settings)로 복사된다.
     TYPE_LABELS:      { pay: '지급용', report: '신고용' },

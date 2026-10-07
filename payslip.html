@@ -37,6 +37,14 @@ body{background:#f1f5f9;color:#0f172a;font-size:14px;overflow-x:hidden;}
 .ps-sel{display:none;width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;font-weight:700;background:#fff;margin-bottom:12px;}
 .ps-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;border:none;background:#7c3aed;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
 .ps-btn.s{background:#fff;color:#475569;border:1px solid #e2e8f0;}
+.ps-gate{max-width:380px;margin:40px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:28px 24px;text-align:center;}
+.ps-gate h2{font-size:17px;font-weight:800;margin-bottom:6px;}
+.ps-gate p{font-size:13px;color:#64748b;line-height:1.6;margin-bottom:16px;}
+.ps-gate input{width:100%;padding:12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:20px;letter-spacing:8px;text-align:center;margin-bottom:12px;}
+.ps-gate .ps-btn{width:100%;justify-content:center;padding:12px;}
+.ps-msg{font-size:12px;border-radius:8px;padding:9px 12px;margin-bottom:12px;line-height:1.6;}
+.ps-msg.e{background:#fee2e2;color:#991b1b;}
+.ps-msg.w{background:#fef3c7;color:#92400e;}
 .ps-box{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:48px 20px;text-align:center;color:#64748b;font-size:14px;line-height:1.7;}
 .ps-box b{color:#0f172a;}
 .ps-note{font-size:11px;color:#94a3b8;margin-top:10px;text-align:center;}
@@ -73,39 +81,92 @@ function queryPeriod() {
   return m ? m[1] : '';
 }
 
-// DB 는 RLS 로 "본인 + 지급용 + 확정" 명세서만 돌려준다. 화면에서도 같은 조건을 한 번 더 건다.
-// 급여 관리 권한자(admin·관리팀)는 RLS 상 전 직원 명세서가 보이므로, 본인 대상자 id(payroll_my_employee_ids)로
-// 반드시 좁힌다 — 이 조건이 없으면 묶음마다 남의 명세서가 "내 명세서"로 잡힐 수 있다.
+// ── 생년월일 6자리 확인 ────────────────────────────────────────────
+// 명세서·항목은 서버 함수(payslip_list / payslip_lines)로만 받는다. 함수는 이 창이 생년월일 확인을 통과했을 때만 준다.
+// 창 토큰: 창(탭)마다 무작위로 만들어 sessionStorage 에 둔다 → 창을 닫으면 사라져 다시 잠긴다.
+// 서버는 토큰의 해시와 로그인 세션을 함께 확인한다 → 로그아웃 후 다시 로그인해도 다시 잠긴다.
+// 횟수·잠금·유지 시간은 config PAYROLL.SLIP_VERIFY_* (관리자 급여 화면이 서버로 복사).
+var SLIP_TOKEN_KEY = ((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_payslip_token';
+var _memToken = '';
+function slipToken() {
+  try {
+    var t = sessionStorage.getItem(SLIP_TOKEN_KEY);
+    if (t && t.length >= 64) return t;
+  } catch (e) {}
+  var a = new Uint8Array(32);
+  window.crypto.getRandomValues(a);
+  var t2 = Array.prototype.map.call(a, function(b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+  try { sessionStorage.setItem(SLIP_TOKEN_KEY, t2); } catch (e) { _memToken = _memToken || t2; return _memToken; }
+  return t2;
+}
+function dropSlipToken() { try { sessionStorage.removeItem(SLIP_TOKEN_KEY); } catch (e) {} _memToken = ''; }
+function isLockedErr(err) { return !!err && err.code === '42501' && /PAYSLIP_LOCKED/.test(err.message || ''); }
+function hhmm(ts) { var d = new Date(ts); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+function minutesLeft(ts) { return Math.max(1, Math.ceil((new Date(ts).getTime() - Date.now()) / 60000)); }
+
+// 확인을 통과한 창에만: 본인 확정 지급용 명세서 [{ run, slip }] (최근 귀속월 먼저)
 function loadMySlips() {
-  var sb = getSb();
-  return sb.rpc('payroll_my_employee_ids').then(function(er) {
-    if (er.error) throw er.error;
-    var myIds = (er.data || []).map(function(x) { return (x && typeof x === 'object') ? x.payroll_my_employee_ids : x; })
-      .filter(Boolean);
-    if (!myIds.length) return [];
-    return sb.from('payroll_runs').select('id,period,run_type,pay_date,status,revision')
-      .eq('run_type', 'pay').eq('status', 'confirmed').order('period', { ascending: false })
-      .then(function(rr) {
-        if (rr.error) throw rr.error;
-        var runs = rr.data || [];
-        if (!runs.length) return [];
-        return sb.from('payroll_slips').select('*').in('run_id', runs.map(function(r) { return r.id; }))
-          .in('employee_id', myIds)
-          .then(function(sr) {
-            if (sr.error) throw sr.error;
-            var byRun = {};
-            (sr.data || []).forEach(function(s) { byRun[s.run_id] = s; });
-            return runs.filter(function(r) { return byRun[r.id]; })
-              .map(function(r) { return { run: r, slip: byRun[r.id] }; });
-          });
-      });
+  return getSb().rpc('payslip_list', { p_token: slipToken() }).then(function(r) {
+    if (r.error) throw r.error;
+    return (r.data || []).filter(function(e) { return e && e.run && e.slip; });
   });
 }
 
 function loadLines(slipId) {
-  return getSb().from('payroll_slip_lines').select('item_name,item_kind,sort_order,amount,method')
-    .eq('slip_id', slipId).order('sort_order')
-    .then(function(r) { if (r.error) throw r.error; return r.data || []; });
+  return getSb().rpc('payslip_lines', { p_token: slipToken(), p_slip_id: slipId }).then(function(r) {
+    if (r.error) throw r.error;
+    return r.data || [];
+  });
+}
+
+// 생년월일 입력 화면
+function GateBox({ status, onUnlocked }) {
+  const [v, setV] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [st, setSt] = useState(status);
+  var adminTeam = (window.APP_CONFIG && APP_CONFIG.ADMIN_TEAM_NAME) || '관리자';
+
+  if (!st.has_birth_date) return (
+    <div className="ps-gate">
+      <h2>🔒 본인 확인</h2>
+      <div className="ps-msg w">생년월일이 등록되지 않았습니다. {adminTeam}에 문의하세요.</div>
+    </div>
+  );
+
+  var locked = st.locked && st.locked_until;
+  function submit(e) {
+    if (e) e.preventDefault();
+    if (!/^\d{6}$/.test(v)) { setMsg({ t: 'e', s: '생년월일 6자리(YYMMDD)를 숫자로 입력하세요.' }); return; }
+    setBusy(true); setMsg(null);
+    getSb().rpc('payslip_verify', { p_birth6: v, p_token: slipToken() }).then(function(r) {
+      setBusy(false); setV('');
+      if (r.error) { Sysbar.showError(r.error, '본인 확인'); return; }
+      var d = r.data || {};
+      if (d.status === 'ok') { onUnlocked(); return; }
+      if (d.status === 'wrong') { setMsg({ t: 'e', s: '생년월일이 맞지 않습니다. 남은 횟수 ' + d.remaining + '회' }); return; }
+      if (d.status === 'locked') { setSt(Object.assign({}, st, { locked: true, locked_until: d.locked_until })); setMsg(null); return; }
+      if (d.status === 'no_birth_date') { setSt(Object.assign({}, st, { has_birth_date: false })); return; }
+      setMsg({ t: 'e', s: '생년월일 6자리(YYMMDD)를 숫자로 입력하세요.' });
+    });
+  }
+
+  return (
+    <form className="ps-gate" onSubmit={submit}>
+      <h2>🔒 본인 확인</h2>
+      <p>급여명세서를 보려면 생년월일 6자리를 입력하세요.<br/>(예: 1990년 3월 7일 → 900307)</p>
+      {locked ? (
+        <div className="ps-msg e">입력을 여러 번 틀려 잠겼습니다. {minutesLeft(st.locked_until)}분 뒤({hhmm(st.locked_until)}) 다시 시도하세요.<br/>급한 경우 {adminTeam}에 잠금 해제를 요청하세요.</div>
+      ) : (
+        <div>
+          {msg && <div className={'ps-msg ' + msg.t}>{msg.s}</div>}
+          <input type="password" inputMode="numeric" autoComplete="off" maxLength={6} value={v} placeholder="YYMMDD" autoFocus
+            onChange={function(ev){ setV(ev.target.value.replace(/[^0-9]/g, '').slice(0, 6)); }} />
+          <button type="submit" className="ps-btn" disabled={busy || v.length !== 6}>{busy ? '확인 중...' : '확인'}</button>
+        </div>
+      )}
+    </form>
+  );
 }
 
 function toModel(entry, lines) {
@@ -124,6 +185,8 @@ function toModel(entry, lines) {
 }
 
 function PayslipPage({ user }) {
+  const [gate, setGate] = useState(null);       // payslip_gate_status 결과
+  const [opened, setOpened] = useState(false);  // 이 창이 확인을 통과했는지
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState([]);
   const [selId, setSelId] = useState('');
@@ -132,6 +195,21 @@ function PayslipPage({ user }) {
   const [err, setErr] = useState('');
 
   useEffect(function() {
+    getSb().rpc('payslip_gate_status', { p_token: slipToken() }).then(function(r) {
+      if (r.error) { Sysbar.showError(r.error, '본인 확인 상태'); setGate({ has_birth_date: true }); return; }
+      setGate(r.data || {});
+      if (r.data && r.data.unlocked) setOpened(true);
+    });
+  }, []);
+
+  // 통과 시간이 지나 서버가 거부하면 다시 입력 화면으로
+  function relock() {
+    setOpened(false); setEntries([]); setSelId(''); setModel(null); setLoading(true);
+    getSb().rpc('payslip_gate_status', { p_token: slipToken() }).then(function(r) { setGate(r.data || { has_birth_date: true }); });
+  }
+
+  useEffect(function() {
+    if (!opened) return;
     loadMySlips().then(function(list) {
       setEntries(list);
       var want = queryPeriod();
@@ -141,10 +219,11 @@ function PayslipPage({ user }) {
       if (first) setSelId(first.slip.id);
       setLoading(false);
     }).catch(function(e) {
+      if (isLockedErr(e)) { relock(); return; }
       Sysbar.showError(e, '급여명세서 조회');
       setLoading(false);
     });
-  }, []);
+  }, [opened]);
 
   useEffect(function() {
     if (!selId) { setModel(null); return; }
@@ -155,11 +234,14 @@ function PayslipPage({ user }) {
       setModel(toModel(entry, lines));
       setLineLoading(false);
     }).catch(function(e) {
-      Sysbar.showError(e, '명세서 항목 조회');
       setLineLoading(false);
+      if (isLockedErr(e)) { relock(); return; }
+      Sysbar.showError(e, '명세서 항목 조회');
     });
   }, [selId]);
 
+  if (!gate) return <div className="ps-page"><div className="ps-box">확인 중...</div></div>;
+  if (!opened) return <div className="ps-page"><GateBox status={gate} onUnlocked={function(){ setOpened(true); }} /></div>;
   if (loading) return <div className="ps-page"><div className="ps-box">불러오는 중...</div></div>;
 
   var cur = entries.filter(function(e) { return e.slip.id === selId; })[0];
@@ -236,8 +318,13 @@ function App() {
     Sysbar.SessionManager.onLogin(function() { logout(); });
   }
   function logout() {
-    Sysbar.Auth.logout(getSb());
-    setUser(null);
+    // 이 창의 생년월일 확인을 서버에서 먼저 해제하고(실패해도 로그아웃은 진행) 창 토큰을 지운다.
+    var tok = slipToken();
+    getSb().rpc('payslip_lock', { p_token: tok }).then(function() {}, function() {}).then(function() {
+      dropSlipToken();
+      Sysbar.Auth.logout(getSb());
+      setUser(null);
+    });
   }
 
   if (!user) return <LoginScreen supabaseClient={getSb()} onLogin={handleLogin} />;

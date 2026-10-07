@@ -376,7 +376,7 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   **`backup` 스키마**(PostgREST 미노출, anon/authenticated USAGE 없음)의 `project_members_backfill_20260923` 에 보관.
 - 검증: 중괄호 2297/2297 balance(괄호 델타는 HEAD 와 동일), Babel(preset-react+env) 트랜스파일 PASS.
 
-### admin-payroll.html 급여 송금내역 엑셀 (2026-10-06 구현, 10/9 이후 main 반영)
+### admin-payroll.html 급여 송금내역 엑셀 (2026-10-06 구현, 2026-10-12 main 반영)
 - **위치**: 급여 편집 탭 [📥 엑셀] → "송금내역"(확정된 지급용만, 작성중이면 버튼 비활성). 형식 선택:
   은행 업로드용 **.xls**(SheetJS biff8, 비밀번호·서식 없음) / 보관용 **.xlsx**(xlsx-populate 1.21.0, 파일 비밀번호·서식·SUM 수식).
   xlsx-populate 는 송금내역을 내려받을 때만 jsdelivr 에서 **SRI 고정**으로 불러온다. 내려받기 전에 건수·합계·계좌 없는 줄을 보여 준다.
@@ -396,6 +396,20 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - **내려받기 기록** `payroll_transfer_exports`: 함수만 기록, 수정·삭제 불가. 설정 → 📜 변경 기록 아래에 표시.
 - 권한은 세 표·함수 모두 `payroll_is_admin()`(급여와 같음). config 신규: `CEO_NAMES`, `PAYROLL.TRANSFER_TITLE/FILE/DEPOSITOR/FOOTER`,
   `MAIN_BANK_CODE`, `BANK_ORDER`, `RETIREMENT_ITEM`, `BANKS`(선택 목록). 계좌 등록 창에 표시 순서(`sort_order`) 칸. **Claude 는 계좌번호를 조회·기록하지 않는다**(입력은 승우님이 화면에서).
+
+### payslip.html 급여명세서 생년월일 6자리 확인 (2026-10-07 구현, 2026-10-12 DB 적용·main 반영)
+- **직원은 명세서를 서버 함수로만 받는다** — 직원용 RLS 정책 `payroll_runs_employee_select`·`payroll_slips_employee_select` 제거
+  (REST 직접 조회 0건). 관리자(admin·관리팀) 정책은 그대로라 급여관리 미리보기는 무변경.
+- 함수(SECURITY DEFINER): `payslip_gate_status` / `payslip_verify(birth6, token)` / `payslip_list(token)` / `payslip_lines(token, slip)` /
+  `payslip_lock(token)` + 관리 `payslip_gate_admin_list` / `payslip_gate_admin_unlock`. 생년월일은 서버에서만 비교, 값은 돌려주지 않음.
+  조회 함수는 기존 `payroll_my_employee_ids()`(contractor·비밀번호 변경 전·퇴사자 열람 기간)를 그대로 거친다.
+- **창별 통과**(여러 창 동시 가능, 창마다 따로 확인): 화면이 창마다 64자 토큰을 만들어 sessionStorage 에 둔다(창 닫으면 사라짐).
+  서버는 토큰 해시 + 로그인 세션(JWT `session_id`) + 만료로 판정 → 창을 닫거나 로그아웃·재로그인하면 다시 잠김. 로그아웃은 `payslip_lock` 도 부른다.
+- **잠금은 계정 단위**: 연속 N회 틀리면 M분 잠금(잠금 중엔 맞아도 거부), 시간이 지나면 횟수 초기화. admin·관리팀도 payslip.html 에선 같은 확인.
+- config `PAYROLL.SLIP_VERIFY_MAX_FAILS / LOCK_MINUTES / UNLOCK_MINUTES`(5/10/10) → 급여 화면이 `payroll_mail_settings` 로 복사(퇴사자 열람 기간과 같은 방식).
+- 기록 `payslip_verify_logs`(성공·틀림·잠금·잠금 중 시도·관리자 해제, **입력값 저장 안 함**, 수정·삭제 불가) — 급여관리 → 설정 → 📜 변경 기록 아래
+  "급여명세서 본인 확인"에서 잠긴 계정 해제(기록됨).
+- 상태 표 `payslip_gate`(계정별)·`payslip_unlocks`(창별)는 함수만 접근. 만료된 창 통과 행은 확인 성공 때 함수가 정리한다.
 
 ---
 
