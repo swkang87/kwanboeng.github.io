@@ -49,6 +49,14 @@ var APP_CONFIG = {
   SESSION_PREFIX:  'kwanbo',          // 스토리지 키 prefix
   AUTH_DOMAIN:     'kwanbo.internal', // 로그인 이메일 도메인
 
+  // ── 계약서 자동등록 (project.html 관리 → 새 프로젝트 등록) ────────
+  // 나라장터 전자계약서 PDF를 읽어 프로젝트를 등록·변경한다. 우리 회사 판별은 COMPANY_BIZ_NO 를 쓴다.
+  CONTRACT_IMPORT: {
+    PDF_BUCKET:       'contract-pdfs', // 계약서 원본 보관 Storage 버킷 (supabase/sql/contract_pdfs.sql 로 생성)
+    DEFAULT_CATEGORY: '관급',          // 계약서로 등록할 때의 분류
+    DEFAULT_STATUS:   '진행중',        // 계약서로 등록할 때의 상태
+  },
+
   // ── 로그인 정책 (화면 안내·검사 기준. 서버 함수와 Supabase Auth 최소 길이도 같은 값으로 맞춘다) ──
   // 직원관리 화면(admin)을 열 때 DB(auth_policy)로 복사되어 서버 함수도 같은 규칙을 쓴다.
   AUTH_POLICY: {

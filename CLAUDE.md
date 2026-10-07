@@ -392,6 +392,25 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 
 ---
 
+### project.html 계약서 PDF 자동등록 (2026-10-06, 미커밋·미push)
+- **위치**: 관리자 메뉴 → 새 프로젝트 등록 탭 상단 `[📄 계약서 PDF로 채우기]` (admin 전용 화면 그대로).
+- **판독기**: `contract-parser.js` 신규(전역 `ContractParser`). pdf.js 3.11.174 는 첫 판독 때 cdnjs 에서 지연 로드.
+  양식 등록부 `FORMATS` — 현재 나라장터 용역계약서·용역변경계약서만. 스캔 PDF·타 양식은 안내 후 중단.
+  우리 회사 판별 = `APP_CONFIG.COMPANY_BIZ_NO` 로 계약업체 목록 대조(대표사·구성원 무관).
+- **config.js**: `CONTRACT_IMPORT { PDF_BUCKET, DEFAULT_CATEGORY, DEFAULT_STATUS }` 추가.
+- **신규 계약**: 폼 자동채움 → 확인 후 [프로젝트 등록]. 용역명=계약건명, 발주처=수요기관(없으면 발주처),
+  발주부서·담당자는 비움(계약서 담당은 재무과 계약담당이라), 착수·준공=착수일자·총완수일자,
+  비고=`계약번호 … · 계약일 … · 계약방법(계약법)`. 등록 후 `contracts` upsert(우리 지분 금액, 비우면 생략),
+  PDF 보관, `change_logs` '계약서 등록'.
+- **금액 규칙**: 단독=계약금액, 공동이행=계약금액×우리 지분율, 분담이행·주계약자=비움+직접입력 경고.
+- **변경계약**: 용역명 정규화 비교(`ContractParser.normalizeTitle`)로 기존 프로젝트 매칭(0건·다건이면 직접 선택) →
+  착수·준공·계약금액 비교표 → [변경 반영]: projects 착수/준공 갱신 + 비고에 `[N차 변경 날짜] 변경내역 · 사유` 한 줄 추가,
+  금액 칸 입력 시 contracts 갱신, `change_logs` '계약변경', PDF 보관. 비고에 같은 차수/계약번호 있으면 중복 경고.
+- **DB 컬럼 추가 없음.** PDF 경로 규칙 `<버킷>/<프로젝트ID>/<계약번호>.pdf`.
+  ⚠ 버킷은 `supabase/sql/contract_pdfs.sql` 을 SQL Editor 에서 실행해야 생성됨(미실행 시 PDF 보관만 오류 알림, 등록은 정상).
+- 검증: Babel PASS·brace 0, 샘플 3건(지방·국가·변경+분담이행) jsdom 시뮬레이션으로 저장 payload 확인. 브라우저 확인 미완.
+- 미구현: 보관된 PDF 열람 화면.
+
 ## ❕ 패턴·원칙
 
 - **화이트라벨 키는 항상 config 참조**: 세션키·인증 도메인 등은 `APP_CONFIG.*` 참조로 작성.

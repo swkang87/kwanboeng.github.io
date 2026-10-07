@@ -15,6 +15,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="contract-parser.js?v=2026100601"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -57,6 +58,7 @@ button{cursor:pointer}
 .alert{padding:10px 14px;border-radius:7px;font-size:12px;margin-bottom:12px}
 .alert-error{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
 .alert-success{background:#f0fdf4;color:#059669;border:1px solid #bbf7d0}
+.alert-warn{background:#fffbeb;color:#b45309;border:1px solid #fde68a}
 
 /* ── NAV ── */
 .navbar{background:linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e3a5f 100%);color:#fff;padding:8px 14px;display:flex;flex-direction:column;gap:6px;position:sticky;top:0;z-index:100}
@@ -2525,9 +2527,11 @@ function ChangeLogPanel({ projects, users }) {
     '주요공정 등록': { bg:'#059669', label:'공정 등록' },
     '주요공정 수정': { bg:'#d97706', label:'공정 수정' },
     '주요공정 삭제': { bg:'#dc2626', label:'공정 삭제' },
+    '계약서 등록':  { bg:'#0891b2', label:'계약 등록' },
+    '계약변경':    { bg:'#7c3aed', label:'계약 변경' },
   };
 
-  const allTypes = ['all','주간보고','주요공정 등록','주요공정 수정','주요공정 삭제'];
+  const allTypes = ['all','주간보고','주요공정 등록','주요공정 수정','주요공정 삭제','계약서 등록','계약변경'];
   const staffUsers = users.filter(u => u.role !== 'admin');
 
   const filtered = logs.filter(l => {
@@ -2702,7 +2706,7 @@ function AdminPanel({ user }) {
         ))}
       </div>
 
-      {tab === 'create' && <CreateProjectForm userId={user.id} users={users} onSaved={() => { loadAll(); showMsg('프로젝트가 등록되었습니다.'); }} />}
+      {tab === 'create' && <CreateProjectForm userId={user.id} users={users} projects={projects} onSaved={(m) => { loadAll(); showMsg(typeof m === 'string' ? m : '프로젝트가 등록되었습니다.'); }} />}
       {tab === 'editProj' && <AdminProjectEdit projects={projects} users={users} onSaved={() => { loadAll(); showMsg('수정되었습니다.'); }} userId={user.id} />}
       {tab === 'userList' && <UserList users={users} onSaved={() => { loadAll(); showMsg('저장되었습니다.'); }} />}
       {tab === 'logs' && <ChangeLogPanel projects={projects} users={users} />}
@@ -2710,12 +2714,258 @@ function AdminPanel({ user }) {
   );
 }
 
+// ─── 계약서 PDF 자동등록 (contract-parser.js) ───
+// 회사별 값은 config.js(CONTRACT_IMPORT, COMPANY_BIZ_NO)에서만 읽는다.
+const CI_CFG = (window.APP_CONFIG && APP_CONFIG.CONTRACT_IMPORT) || {};
+const ciWon = (n) => (n === null || n === undefined || n === '') ? '—' : Number(n).toLocaleString() + '원';
+const ciNum = (s) => { const n = parseInt(String(s || '').replace(/[^0-9]/g, ''), 10); return isNaN(n) ? null : n; };
+const ciNorm = (s) => (window.ContractParser ? ContractParser.normalizeTitle(s) : String(s || '').replace(/\s/g, ''));
+
+// 비고에 남기는 계약 정보 한 줄
+function ciMemoLine(r) {
+  let line = '계약번호 ' + r.contractNo + ' · 계약일 ' + r.contractDate;
+  if (r.contractMethod) line += ' · ' + r.contractMethod + (r.contractLaw ? '(' + r.contractLaw + ')' : '');
+  if (r.isJoint) line += ' · 공동도급(' + r.jointType + ')';
+  return line;
+}
+
+// 원본 PDF 보관: <버킷>/<프로젝트ID>/<계약번호>.pdf. 실패해도 등록은 유지하고 알림만 띄운다.
+function ciUploadPdf(file, projectId, contractNo) {
+  if (!CI_CFG.PDF_BUCKET || !file) return Promise.resolve(true);
+  const safeNo = String(contractNo || 'contract').replace(/[^A-Za-z0-9_\-]/g, '_');
+  return sb.storage.from(CI_CFG.PDF_BUCKET)
+    .upload(projectId + '/' + safeNo + '.pdf', file, { upsert: true, contentType: 'application/pdf' })
+    .then(res => {
+      if (res.error) { Sysbar.showError(res.error, '계약서 PDF 보관'); return false; }
+      return true;
+    }, err => { Sysbar.showError(err, '계약서 PDF 보관'); return false; });
+}
+
+function ciLog(projectId, fieldName, oldValue, newValue, userId) {
+  return sb.from('change_logs').insert({ project_id: projectId, field_name: fieldName, old_value: oldValue, new_value: newValue, changed_by: userId, created_at: new Date().toISOString() })
+    .then(res => { if (res.error) console.error('change_log insert error:', res.error.message); return res; });
+}
+
+// 계약금액: contracts 테이블(실적관리 계약/잔금)에 프로젝트당 1건
+function ciSaveAmount(projectId, amount, r, existing) {
+  if (!amount) return Promise.resolve(true);
+  const q = existing && existing.id
+    ? sb.from('contracts').update({ amount: amount, updated_at: new Date().toISOString() }).eq('id', existing.id).select()
+    : sb.from('contracts').upsert({ project_id: projectId, amount: amount, prior_collected: 0, expected_outsource: 0, memo: '계약번호 ' + r.contractNo, start_date: r.startDate || null, updated_at: new Date().toISOString() }, { onConflict: 'project_id' }).select();
+  return q.then(res => !Sysbar.writeFailed(res, '계약금액 저장', { expectRows: true }));
+}
+
+// 업로드 버튼 + 판독
+function ContractImportBar({ onParsed }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const inputRef = useRef(null);
+
+  const pick = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!window.ContractParser) { setErr('계약서 판독기(contract-parser.js)를 불러오지 못했습니다.'); return; }
+    setBusy(true); setErr('');
+    ContractParser.parseFile(file, { bizNo: APP_CONFIG.COMPANY_BIZ_NO }).then(r => {
+      setBusy(false);
+      if (!r.ok) { setErr(r.error); return; }
+      onParsed(r, file);
+    }, ex => { setBusy(false); setErr('계약서를 읽는 중 오류: ' + (ex && ex.message ? ex.message : ex)); });
+  };
+
+  return (
+    <div style={{ marginBottom: 14, padding: 12, border: '1px dashed #cbd5e1', borderRadius: 8, background: '#f8fafc' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button className="btn btn-secondary btn-sm" onClick={() => inputRef.current && inputRef.current.click()} disabled={busy}>
+          {busy ? '계약서 읽는 중...' : '📄 계약서 PDF로 채우기'}
+        </button>
+        <span style={{ fontSize: 11, color: '#64748b' }}>나라장터 용역계약서·용역변경계약서 PDF. 변경계약서는 기존 프로젝트 변경 화면으로 넘어갑니다.</span>
+        <input ref={inputRef} type="file" accept="application/pdf,.pdf" style={{ display: 'none' }} onChange={pick} />
+      </div>
+      {err && <div className="alert alert-error" style={{ marginTop: 10, marginBottom: 0 }}>{err}</div>}
+    </div>
+  );
+}
+
+function ContractWarnings({ list }) {
+  if (!list || !list.length) return null;
+  return (
+    <div className="alert alert-warn">
+      {list.map((w, i) => <div key={i}>⚠ {w}</div>)}
+    </div>
+  );
+}
+
+// 신규 계약: 판독 결과 요약 + 우리 지분 금액 입력
+function ContractNewInfo({ r, amount, setAmount, dupNames, onClear }) {
+  const warns = r.warnings.slice();
+  dupNames.forEach(n => warns.push('같은 용역명 또는 같은 계약번호의 프로젝트가 이미 있습니다: ' + n));
+  return (
+    <div style={{ marginBottom: 14, padding: 12, border: '1px solid #bfdbfe', borderRadius: 8, background: '#eff6ff' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: '#1e3a8a' }}>계약서에서 읽은 내용 — 아래 폼을 확인한 뒤 등록하세요</div>
+        <button className="btn btn-secondary btn-sm" onClick={onClear}>취소</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '4px 16px', fontSize: 12, color: '#334155', marginBottom: 10 }}>
+        <div>계약번호: <b>{r.contractNo}</b></div>
+        <div>계약일: {r.contractDate}</div>
+        <div>계약방법: {r.contractMethod}</div>
+        <div>계약금액(전체): {ciWon(r.amount)}</div>
+        <div>공동도급: {r.jointType || '—'}</div>
+        <div>발주 계약관: {r.client}</div>
+      </div>
+      <ContractWarnings list={warns} />
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <label className="form-label">계약금액 (우리 지분, 원) — 실적관리 계약/잔금에 함께 등록됩니다. 비우면 등록하지 않습니다.</label>
+        <input className="form-input" style={{ textAlign: 'right', maxWidth: 260 }} value={amount} placeholder="직접 입력"
+          onChange={e => { const n = ciNum(e.target.value); setAmount(n === null ? '' : n.toLocaleString()); }} />
+      </div>
+    </div>
+  );
+}
+
+// 변경계약: 용역명으로 기존 프로젝트를 찾아 변경 전·후를 비교하고 반영
+function ContractChangePanel({ r, file, projects, userId, onDone, onCancel }) {
+  const candidates = projects.filter(p => ciNorm(p.name) === ciNorm(r.title));
+  const [pid, setPid] = useState(candidates.length === 1 ? candidates[0].id : '');
+  const [contract, setContract] = useState(null);
+  const [amount, setAmount] = useState(r.ourAmount ? Number(r.ourAmount).toLocaleString() : '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const project = projects.find(p => p.id === pid) || null;
+
+  useEffect(() => {
+    setContract(null);
+    if (!pid) return;
+    sb.from('contracts').select('*').eq('project_id', pid).maybeSingle().then(res => {
+      if (res.error) { Sysbar.showError(res.error, '계약금액 조회'); return; }
+      setContract(res.data || null);
+    });
+  }, [pid]);
+
+  const newAmount = ciNum(amount);
+  const oldAmount = contract ? contract.amount : null;
+  const rows = project ? [
+    { label: '착수일', before: project.start_date || '', after: r.startDate || project.start_date || '' },
+    { label: '준공일', before: project.end_date || '', after: r.endDate || project.end_date || '' },
+    { label: '계약금액', before: oldAmount, after: newAmount === null ? oldAmount : newAmount, money: true },
+  ] : [];
+  rows.forEach(x => { x.changed = String(x.before === null ? '' : x.before) !== String(x.after === null ? '' : x.after); });
+
+  const already = project && project.memo && (project.memo.indexOf('[' + r.changeSeq + '차 변경') >= 0 || project.memo.indexOf(r.contractNo) >= 0);
+  const warns = r.warnings.slice();
+  if (already) warns.push('이 변경계약(' + r.changeSeq + '차)은 이미 반영된 것 같습니다. 비고를 확인하세요.');
+  if (!candidates.length) warns.push('용역명이 같은 프로젝트를 찾지 못했습니다. 아래에서 직접 선택하세요.');
+  if (candidates.length > 1) warns.push('용역명이 같은 프로젝트가 ' + candidates.length + '건입니다. 맞는 프로젝트를 선택하세요.');
+
+  const apply = () => {
+    if (!project) { setErr('반영할 프로젝트를 선택하세요.'); return; }
+    setBusy(true); setErr('');
+    const diffs = rows.filter(x => x.changed).map(x => x.label + ' ' + (x.money ? ciWon(x.before) : (x.before || '—')) + '→' + (x.money ? ciWon(x.after) : (x.after || '—')));
+    let memoLine = '[' + r.changeSeq + '차 변경 ' + (r.changeDate || '') + '] ' + (diffs.length ? diffs.join(', ') : (r.change && r.change.kind ? r.change.kind : '내용변경'));
+    if (r.change && r.change.reason) memoLine += ' · ' + r.change.reason;
+    const updates = {
+      start_date: rows[0].after || null,
+      end_date: rows[1].after || null,
+      memo: project.memo ? project.memo + '\n' + memoLine : memoLine,
+      updated_at: new Date().toISOString(),
+    };
+    sb.from('projects').update(updates).eq('id', project.id).select().then(res => {
+      if (Sysbar.writeFailed(res, '프로젝트 변경 반영', { expectRows: true })) { setBusy(false); return null; }
+      const amt = rows[2].changed ? newAmount : null;
+      return ciSaveAmount(project.id, amt, r, contract)
+        .then(() => ciLog(project.id, '계약변경',
+          '착수 ' + (rows[0].before || '—') + ' · 준공 ' + (rows[1].before || '—') + ' · 금액 ' + ciWon(rows[2].before),
+          r.contractNo + ' | ' + memoLine, userId))
+        .then(() => ciUploadPdf(file, project.id, r.contractNo))
+        .then(() => { setBusy(false); onDone(r.changeSeq + '차 변경계약이 반영되었습니다.'); });
+    }, ex => { setBusy(false); setErr('반영 중 오류: ' + (ex && ex.message ? ex.message : ex)); });
+  };
+
+  const sorted = candidates.concat(projects.filter(p => candidates.indexOf(p) < 0));
+  return (
+    <div className="card card-p">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>변경계약 반영 — {r.changeSeq}차 변경 ({r.changeDate})</div>
+        <button className="btn btn-secondary btn-sm" onClick={onCancel}>취소</button>
+      </div>
+      {err && <div className="alert alert-error">{err}</div>}
+      <div style={{ fontSize: 12, color: '#334155', marginBottom: 10 }}>
+        <div>용역명: <b>{r.title}</b></div>
+        <div>계약번호: {r.contractNo} · 공동도급: {r.jointType || '—'}{r.change && r.change.reason ? ' · 변경사유: ' + r.change.reason : ''}</div>
+      </div>
+      <ContractWarnings list={warns} />
+      <div className="form-group">
+        <label className="form-label">반영할 프로젝트</label>
+        <select className="form-input" value={pid} onChange={e => setPid(e.target.value)}>
+          <option value="">선택</option>
+          {sorted.map(p => <option key={p.id} value={p.id}>{(candidates.indexOf(p) >= 0 ? '★ ' : '') + p.name}</option>)}
+        </select>
+      </div>
+      {project && (
+        <>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 12 }}>
+            <thead>
+              <tr style={{ background: '#f1f5f9', color: '#475569' }}>
+                <th style={{ padding: '6px 8px', textAlign: 'left' }}>항목</th>
+                <th style={{ padding: '6px 8px', textAlign: 'left' }}>현재</th>
+                <th style={{ padding: '6px 8px', textAlign: 'left' }}>변경계약서</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(x => (
+                <tr key={x.label} style={{ borderTop: '1px solid #e2e8f0', background: x.changed ? '#fffbeb' : 'transparent' }}>
+                  <td style={{ padding: '6px 8px', fontWeight: 700 }}>{x.label}</td>
+                  <td style={{ padding: '6px 8px', color: '#64748b' }}>{x.money ? ciWon(x.before) : (x.before || '—')}</td>
+                  <td style={{ padding: '6px 8px', fontWeight: x.changed ? 800 : 400 }}>{x.money ? ciWon(x.after) : (x.after || '—')}{x.changed ? ' (변경)' : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="form-group">
+            <label className="form-label">변경 후 계약금액 (우리 지분, 원) — 비우면 금액은 바꾸지 않습니다.</label>
+            <input className="form-input" style={{ textAlign: 'right', maxWidth: 260 }} value={amount} placeholder="직접 입력"
+              onChange={e => { const n = ciNum(e.target.value); setAmount(n === null ? '' : n.toLocaleString()); }} />
+          </div>
+        </>
+      )}
+      <button className="btn btn-primary" onClick={apply} disabled={busy || !project}>{busy ? '반영 중...' : '변경 반영'}</button>
+    </div>
+  );
+}
+
 // ─── Create Project Form ───
-function CreateProjectForm({ userId, users, onSaved }) {
-  const [form, setForm] = useState({ name:'', category:'관급', client:'', client_dept:'', client_contact:'', pm_id:'', start_date:'', end_date:'', status:'진행중', memo:'' });
+function CreateProjectForm({ userId, users, projects, onSaved }) {
+  const EMPTY = { name:'', category:'관급', client:'', client_dept:'', client_contact:'', pm_id:'', start_date:'', end_date:'', status:'진행중', memo:'' };
+  const [form, setForm] = useState(EMPTY);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+  const [imp, setImp] = useState(null);          // 신규 계약서 판독 결과 { r, file }
+  const [impAmount, setImpAmount] = useState('');
+  const [chg, setChg] = useState(null);          // 변경계약서 판독 결과 { r, file }
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const onParsed = (r, file) => {
+    setErr('');
+    if (r.docType === 'change') { setImp(null); setChg({ r: r, file: file }); return; }
+    setChg(null);
+    setImp({ r: r, file: file });
+    setImpAmount(r.ourAmount ? Number(r.ourAmount).toLocaleString() : '');
+    setForm(f => ({
+      ...f,
+      name: r.title,
+      category: CI_CFG.DEFAULT_CATEGORY || f.category,
+      client: r.demandOrg || r.client,
+      client_dept: '', client_contact: '',
+      start_date: r.startDate || '', end_date: r.endDate || '',
+      status: CI_CFG.DEFAULT_STATUS || f.status,
+      memo: ciMemoLine(r),
+    }));
+  };
+  const clearImport = () => { setImp(null); setImpAmount(''); setForm(EMPTY); };
+
+  const dupNames = imp ? (projects || []).filter(p => ciNorm(p.name) === ciNorm(imp.r.title) || (p.memo && p.memo.indexOf(imp.r.contractNo) >= 0)).map(p => p.name) : [];
 
   const save = async () => {
     if (!form.name || !form.client || !form.pm_id) { setErr('용역명, 발주처, PM은 필수입니다.'); return; }
@@ -2727,15 +2977,28 @@ function CreateProjectForm({ userId, users, onSaved }) {
     // 프로젝트는 이미 만들어졌으므로 PM 배정만 실패해도 목록은 갱신한다.
     const pmRes = await sb.from('project_members').insert({ project_id: data.id, user_id: form.pm_id, role: 'pm' });
     if (Sysbar.writeFailed(pmRes, 'PM 배정')) { onSaved(); setLoading(false); return; }
-    setForm({ name:'', category:'관급', client:'', client_dept:'', client_contact:'', pm_id:'', start_date:'', end_date:'', status:'진행중', memo:'' });
+    // 계약서로 채운 경우: 계약금액·원본 PDF·로그 (각각 실패해도 프로젝트 등록은 유지)
+    if (imp) {
+      await ciSaveAmount(data.id, ciNum(impAmount), imp.r, null);
+      await ciUploadPdf(imp.file, data.id, imp.r.contractNo);
+      await ciLog(data.id, '계약서 등록', '', imp.r.contractNo + ' | ' + ciWon(ciNum(impAmount)), userId);
+    }
+    setForm(EMPTY); setImp(null); setImpAmount('');
     onSaved();
     setLoading(false);
   };
+
+  if (chg) {
+    return <ContractChangePanel r={chg.r} file={chg.file} projects={projects || []} userId={userId}
+      onCancel={() => setChg(null)} onDone={(m) => { setChg(null); onSaved(m); }} />;
+  }
 
   return (
     <div className="card card-p">
       <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 14 }}>새 프로젝트 등록</div>
       {err && <div className="alert alert-error">{err}</div>}
+      <ContractImportBar onParsed={onParsed} />
+      {imp && <ContractNewInfo r={imp.r} amount={impAmount} setAmount={setImpAmount} dupNames={dupNames} onClear={clearImport} />}
       <div className="form-group">
         <label className="form-label">용역명 *</label>
         <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="용역명을 입력하세요" />
