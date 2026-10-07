@@ -2759,30 +2759,60 @@ function ciSaveAmount(projectId, amount, r, existing) {
 function ContractImportBar({ onParsed }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [over, setOver] = useState(false);
   const inputRef = useRef(null);
+  const depth = useRef(0);   // 자식 요소를 지날 때 dragleave 가 연달아 와도 깜빡이지 않게
 
-  const pick = (e) => {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = '';
-    if (!file) return;
+  // 이 화면이 열려 있는 동안 드롭 영역 밖에 파일을 놓아도 브라우저가 PDF를 열어 버리지 않게 막는다
+  useEffect(() => {
+    const stop = (e) => { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0) e.preventDefault(); };
+    window.addEventListener('dragover', stop);
+    window.addEventListener('drop', stop);
+    return () => { window.removeEventListener('dragover', stop); window.removeEventListener('drop', stop); };
+  }, []);
+
+  const isPdf = (f) => f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+
+  const handle = (files) => {
+    const list = Array.prototype.slice.call(files || []);
+    if (!list.length) return;
+    const file = list.find(isPdf);
+    if (!file) { setErr('PDF 파일만 올릴 수 있습니다.'); return; }
     if (!window.ContractParser) { setErr('계약서 판독기(contract-parser.js)를 불러오지 못했습니다.'); return; }
     setBusy(true); setErr('');
     ContractParser.parseFile(file, { bizNo: APP_CONFIG.COMPANY_BIZ_NO }).then(r => {
       setBusy(false);
       if (!r.ok) { setErr(r.error); return; }
+      if (list.length > 1) console.info('여러 파일 중 첫 번째 PDF만 처리:', file.name);
       onParsed(r, file);
     }, ex => { setBusy(false); setErr('계약서를 읽는 중 오류: ' + (ex && ex.message ? ex.message : ex)); });
   };
 
+  const pick = (e) => { const files = e.target.files; handle(files); e.target.value = ''; };
+  const onEnter = (e) => { e.preventDefault(); depth.current += 1; if (!busy) setOver(true); };
+  const onLeave = (e) => { e.preventDefault(); depth.current = Math.max(0, depth.current - 1); if (depth.current === 0) setOver(false); };
+  const onOver  = (e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = busy ? 'none' : 'copy'; };
+  const onDrop  = (e) => {
+    e.preventDefault(); depth.current = 0; setOver(false);
+    if (busy) return;
+    handle(e.dataTransfer && e.dataTransfer.files);
+  };
+
   return (
-    <div style={{ marginBottom: 14, padding: 12, border: '1px dashed #cbd5e1', borderRadius: 8, background: '#f8fafc' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <button className="btn btn-secondary btn-sm" onClick={() => inputRef.current && inputRef.current.click()} disabled={busy}>
-          {busy ? '계약서 읽는 중...' : '📄 계약서 PDF로 채우기'}
-        </button>
-        <span style={{ fontSize: 11, color: '#64748b' }}>나라장터 용역계약서·용역변경계약서 PDF. 변경계약서는 기존 프로젝트 변경 화면으로 넘어갑니다.</span>
-        <input ref={inputRef} type="file" accept="application/pdf,.pdf" style={{ display: 'none' }} onChange={pick} />
-      </div>
+    <div onDragEnter={onEnter} onDragLeave={onLeave} onDragOver={onOver} onDrop={onDrop}
+      style={{ marginBottom: 14, padding: 12, borderRadius: 8, transition: 'background .15s, border-color .15s',
+        border: over ? '2px dashed #2563eb' : '1px dashed #cbd5e1', background: over ? '#eff6ff' : '#f8fafc' }}>
+      {over ? (
+        <div style={{ padding: '14px 0', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>여기에 계약서 PDF를 놓으세요</div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => inputRef.current && inputRef.current.click()} disabled={busy}>
+            {busy ? '계약서 읽는 중...' : '📄 계약서 PDF로 채우기'}
+          </button>
+          <span style={{ fontSize: 11, color: '#64748b' }}>버튼을 누르거나 PDF를 이 상자에 끌어다 놓으세요. 나라장터 용역계약서·용역변경계약서 (변경계약서는 기존 프로젝트 변경 화면으로 넘어갑니다).</span>
+        </div>
+      )}
+      <input ref={inputRef} type="file" accept=".pdf" style={{ display: 'none' }} onChange={pick} />
       {err && <div className="alert alert-error" style={{ marginTop: 10, marginBottom: 0 }}>{err}</div>}
     </div>
   );
