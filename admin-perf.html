@@ -367,6 +367,15 @@ const SCLS = { '완료':'bg','진행중':'bb','보류':'ba' };
 const CAT_COLOR = { '관급': '#2563eb', '사급': '#059669', '기술지원': '#d97706' };
 const CAT_BG    = { '관급': '#dbeafe', '사급': '#dcfce7', '기술지원': '#fef3c7' };
 const CAT_TX    = { '관급': '#1e40af', '사급': '#15803d', '기술지원': '#92400e' };
+// 표시 라벨 — config CATEGORY_LABELS / ENTRY_TYPE_LABELS (form: 'full' | 'short'). 매핑에 없으면 원래 값 그대로.
+function catLabel(cat, form) {
+  var m = (window.APP_CONFIG && APP_CONFIG.CATEGORY_LABELS) || {};
+  return (m[cat] && m[cat][form]) || cat;
+}
+function entryLabel(type, form) {
+  var m = (window.APP_CONFIG && APP_CONFIG.ENTRY_TYPE_LABELS) || {};
+  return (m[type] && m[type][form]) || type;
+}
 
 const fmtShort = (ds) => { const d = new Date(ds + 'T00:00:00'); return (d.getMonth()+1) + '/' + d.getDate(); };
 
@@ -727,7 +736,7 @@ function PerfView({ user }) {
             <button key={c} onClick={function(){ setCatFilter(c); }}
               style={{padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:700,border:'none',cursor:'pointer',
                 background:bg,color:color,transition:'all 0.15s'}}>
-              {c}
+              {c === '전체' ? c : catLabel(c, 'full')}
             </button>
           );
         })}
@@ -1354,7 +1363,7 @@ function PerfView({ user }) {
             <span className="st">수금 내역 ({year}년)</span>
             <div style={{display:'flex',gap:6}}>
               <button className="btn btn-p btn-sm" onClick={function(){setModal('col');setEditItem(null);setForm({collected_at:TODAY(),entry_type:'both'});}}>+ 수금 입력</button>
-              <button className="btn btn-d btn-sm" style={{background:'#fee2e2',color:'#dc2626',border:'1px solid #fecaca'}} onClick={function(){setModal('col');setEditItem(null);setForm({collected_at:TODAY(),entry_type:'outsource_only'});}}>+ 외주비만</button>
+              <button className="btn btn-d btn-sm" style={{background:'#fee2e2',color:'#dc2626',border:'1px solid #fecaca'}} onClick={function(){setModal('col');setEditItem(null);setForm({collected_at:TODAY(),entry_type:'outsource_only'});}}>{'+ ' + entryLabel('outsource_only', 'short')}</button>
             </div>
           </div>
           {yCols.length === 0 ? (
@@ -1391,13 +1400,13 @@ function PerfView({ user }) {
                             <div style={{flex:1,marginRight:8}}>
                               {isSupv ? (
                                 <div>
-                                  <span style={{fontSize:10,fontWeight:700,padding:'1px 5px',borderRadius:4,background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>감리</span>
+                                  <span style={{fontSize:10,fontWeight:700,padding:'1px 5px',borderRadius:4,whiteSpace:'nowrap',background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>{catLabel('감리', 'short')}</span>
                                   <div style={{fontWeight:600,fontSize:13,marginTop:3}}>{sp&&sp.name ? sp.name : (c.memo||'-')}</div>
                                   {sp&&sp.client && <div style={{fontSize:11,color:'#94a3b8'}}>{sp.client}</div>}
                                 </div>
                               ) : (
                                 <div>
-                                  {cat && <span style={{fontSize:10,fontWeight:700,padding:'1px 5px',borderRadius:4,background:CAT_BG[cat]||'#f1f5f9',color:CAT_TX[cat]||'#475569',border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0')}}>{cat}</span>}
+                                  {cat && <span style={{fontSize:10,fontWeight:700,padding:'1px 5px',borderRadius:4,whiteSpace:'nowrap',background:CAT_BG[cat]||'#f1f5f9',color:CAT_TX[cat]||'#475569',border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0')}}>{catLabel(cat, 'short')}</span>}
                                   <div style={{fontWeight:600,fontSize:13,marginTop:3}}>{pName(c.project_id)}</div>
                                   {proj&&proj.client && <div style={{fontSize:11,color:'#94a3b8'}}>{proj.client}</div>}
                                 </div>
@@ -1467,9 +1476,9 @@ function PerfView({ user }) {
                                   var sp = parseSupvMemo(c.memo);
                                   return (
                                     <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
-                                      <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 0',borderRadius:4,marginTop:2,
-                                        width:36,textAlign:'center',display:'inline-block',
-                                        background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>감리</span>
+                                      <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 3px',borderRadius:4,marginTop:2,
+                                        minWidth:36,boxSizing:'border-box',whiteSpace:'nowrap',textAlign:'center',display:'inline-block',
+                                        background:'#ecfdf5',color:'#065f46',border:'1px solid #6ee7b7'}}>{catLabel('감리', 'short')}</span>
                                       <span style={{display:'flex',flexDirection:'column',gap:1,minWidth:0}}>
                                         {sp.client && <span style={{fontSize:'80%',color:'#94a3b8',fontWeight:500,lineHeight:1.2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block'}}>{sp.client}</span>}
                                         <span style={{fontWeight:600,fontSize:12,wordBreak:'keep-all',lineHeight:1.4}}>{sp.name||c.memo||'-'}</span>
@@ -1480,11 +1489,11 @@ function PerfView({ user }) {
                                 return (
                                   <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
                                     {cat && (
-                                      <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 0',borderRadius:4,marginTop:2,
-                                        width:36,textAlign:'center',display:'inline-block',
+                                      <span style={{flexShrink:0,fontSize:10,fontWeight:700,padding:'2px 3px',borderRadius:4,marginTop:2,
+                                        minWidth:36,boxSizing:'border-box',whiteSpace:'nowrap',textAlign:'center',display:'inline-block',
                                         background: CAT_BG[cat]||'#f1f5f9', color: CAT_TX[cat]||'#475569',
                                         border:'1px solid '+(CAT_COLOR[cat]||'#e2e8f0')}}>
-                                        {cat}
+                                        {catLabel(cat, 'short')}
                                       </span>
                                     )}
                                     <span style={{display:'flex',flexDirection:'column',gap:1,minWidth:0}}>
@@ -1498,10 +1507,10 @@ function PerfView({ user }) {
                             <td style={{whiteSpace:'nowrap',fontSize:12}}>{fmtD(c.collected_at)}</td>
                             <td>
                               {c.entry_type==='supervision'
-                                ? <span className="badge" style={{fontSize:10,background:'#ecfdf5',color:'#065f46'}}>감리</span>
+                                ? <span className="badge" style={{fontSize:10,whiteSpace:'nowrap',background:'#ecfdf5',color:'#065f46'}}>{entryLabel('supervision', 'short')}</span>
                                 : isOut
-                                  ? <span className="badge bgr" style={{fontSize:10}}>외주비만</span>
-                                  : <span className="badge bg" style={{fontSize:10}}>수금</span>
+                                  ? <span className="badge bgr" style={{fontSize:10,whiteSpace:'nowrap'}}>{entryLabel('outsource_only', 'short')}</span>
+                                  : <span className="badge bg" style={{fontSize:10,whiteSpace:'nowrap'}}>{entryLabel('both', 'short')}</span>
                               }
                             </td>
                             <td className="tr" style={{fontWeight:700,fontSize:12,color: isOut ? '#94a3b8' : '#1d4ed8',whiteSpace:'nowrap'}}>
@@ -1731,7 +1740,7 @@ function PerfView({ user }) {
                   color:form.entry_type==='outsource_only'?'#dc2626':'#475569'}}>
                   <input type="radio" name="entry_type" value="outsource_only" checked={form.entry_type==='outsource_only'}
                     onChange={function(){setForm(function(p){return Object.assign({},p,{entry_type:'outsource_only',amount:'',memo:''});});}} style={{display:'none'}} />
-                  💸 외주비만
+                  💸 {entryLabel('outsource_only', 'full')}
                 </label>
                 <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'6px 12px',borderRadius:6,border:'1.5px solid',
                   borderColor:form.entry_type==='supervision'?'#059669':'#e2e8f0',

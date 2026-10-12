@@ -448,6 +448,18 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - 검증: 중괄호 leave 1521/1521·home 646/646, Babel(preset-react+env) PASS.
   백업 `backup/leave_20261007.html`, `backup/home_20261007.html`.
 
+### admin-perf.html 수금 내역 배지 줄바꿈 수정 + 표시 라벨 config화 (2026-10-12)
+- **config.js 신규** `CATEGORY_LABELS`(분류) / `ENTRY_TYPE_LABELS`(수금 entry_type) — 키 = DB 값, `{ full, short }` 표시만.
+  full = 필터 칩·입력 창, short = 표 안 배지. DB 값·구분 코드는 무변경. 매핑에 없는 값은 원래 값 그대로 표시.
+- admin-perf.html 헬퍼 `catLabel(cat, form)` / `entryLabel(type, form)`(CAT_TX 아래).
+- **수금 내역 탭만** 적용: 유형 배지 `외주비만`→`외주비`(short), 우측 상단 버튼 `+ 외주비`, 입력 창 라디오는 full(`외주비만` 유지),
+  필터 칩은 full(`기술지원` 유지). 구분 배지 글자는 `기술지원` 그대로(short 도 `기술지원`).
+- PC 구분 배지(감리 포함) `width:36` → `minWidth:36` + `boxSizing:border-box` + `padding 2px 3px` + nowrap —
+  관급·사급·감리는 36px 그대로, 기술지원만 약 43px 로 한 줄. 이 페이지는 border-box 라 기존 36 이 바깥 폭이었다.
+  모바일 카드 배지·유형 배지에도 nowrap. 다른 탭(프로젝트별·계약/잔금 등) 배지는 무변경.
+- 검증: Babel PASS, Edge 헤드리스 실측(1280/760) — 기술지원 배지 높이 30→18, 외주비 배지(760) 28→16,
+  다른 배지 폭·이름 시작 위치 동일, 기술지원 행만 이름이 7px 오른쪽, 프로젝트명 줄 수 동일. 백업 `backup/admin-perf_20261012.html`.
+
 ## ❕ 패턴·원칙
 
 - **화이트라벨 키는 항상 config 참조**: 세션키·인증 도메인 등은 `APP_CONFIG.*` 참조로 작성.

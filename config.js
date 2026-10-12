@@ -50,6 +50,20 @@ var APP_CONFIG = {
   SESSION_PREFIX:  'kwanbo',          // 스토리지 키 prefix
   AUTH_DOMAIN:     'kwanbo.internal', // 로그인 이메일 도메인
 
+  // ── 표시 라벨 (키 = DB 값, 화면 표시만 바꾼다) ─────────────────────
+  // full = 필터 칩·입력 창 등 넓은 자리, short = 표 안의 좁은 배지. DB 값은 바꾸지 않는다.
+  CATEGORY_LABELS: {
+    '관급':     { full: '관급',     short: '관급' },
+    '사급':     { full: '사급',     short: '사급' },
+    '기술지원': { full: '기술지원', short: '기술지원' },
+    '감리':     { full: '감리',     short: '감리' },
+  },
+  ENTRY_TYPE_LABELS: {            // 수금 내역 entry_type
+    both:           { full: '수금',     short: '수금' },
+    outsource_only: { full: '외주비만', short: '외주비' },
+    supervision:    { full: '감리',     short: '감리' },
+  },
+
   // ── 계약서 자동등록 (project.html 관리 → 새 프로젝트 등록) ────────
   // 나라장터 전자계약서 PDF를 읽어 프로젝트를 등록·변경한다. 우리 회사 판별은 COMPANY_BIZ_NO 를 쓴다.
   CONTRACT_IMPORT: {
