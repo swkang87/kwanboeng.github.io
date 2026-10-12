@@ -403,7 +403,10 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - 함수(SECURITY DEFINER): `payslip_gate_status` / `payslip_verify(birth6, token)` / `payslip_list(token)` / `payslip_lines(token, slip)` /
   `payslip_lock(token)` + 관리 `payslip_gate_admin_list` / `payslip_gate_admin_unlock`. 생년월일은 서버에서만 비교, 값은 돌려주지 않음.
   조회 함수는 기존 `payroll_my_employee_ids()`(contractor·비밀번호 변경 전·퇴사자 열람 기간)를 그대로 거친다.
-- **창별 통과**(여러 창 동시 가능, 창마다 따로 확인): 화면이 창마다 64자 토큰을 만들어 sessionStorage 에 둔다(창 닫으면 사라짐).
+- **화면 열 때마다 확인**(2026-10-12 승우님 변경 — 이전 "창별 10분 유지" 대체): 화면을 열 때마다 64자 토큰을 새로 만들어 **메모리에만** 둔다
+  (sessionStorage 저장 안 함) → 다른 메뉴로 갔다 오거나 새로고침·뒤로 가기(bfcache)로 돌아오면 다시 입력. 떠날 때(pagehide) `payslip_lock` 을
+  keepalive fetch 로 호출(실패 무시 — 로그인 토큰은 미리 받아 둠). 화면에 머무는 동안 유지 시간(10분)은 그대로. 서버 함수·잠금 규칙 무변경.
+  상단 메뉴에 `teamName` 을 넘겨(worklog 와 같은 teams 조회) 관리팀에도 관리포털이 보인다.
   서버는 토큰 해시 + 로그인 세션(JWT `session_id`) + 만료로 판정 → 창을 닫거나 로그아웃·재로그인하면 다시 잠김. 로그아웃은 `payslip_lock` 도 부른다.
 - **잠금은 계정 단위**: 연속 N회 틀리면 M분 잠금(잠금 중엔 맞아도 거부), 시간이 지나면 횟수 초기화. admin·관리팀도 payslip.html 에선 같은 확인.
 - config `PAYROLL.SLIP_VERIFY_MAX_FAILS / LOCK_MINUTES / UNLOCK_MINUTES`(5/10/10) → 급여 화면이 `payroll_mail_settings` 로 복사(퇴사자 열람 기간과 같은 방식).

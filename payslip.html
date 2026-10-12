@@ -83,23 +83,39 @@ function queryPeriod() {
 
 // ── 생년월일 6자리 확인 ────────────────────────────────────────────
 // 명세서·항목은 서버 함수(payslip_list / payslip_lines)로만 받는다. 함수는 이 창이 생년월일 확인을 통과했을 때만 준다.
-// 창 토큰: 창(탭)마다 무작위로 만들어 sessionStorage 에 둔다 → 창을 닫으면 사라져 다시 잠긴다.
+// 창 토큰: 화면을 열 때마다 새로 만들어 메모리에만 둔다(저장하지 않음) → 다른 메뉴로 갔다 오거나 새로고침하면 다시 입력.
+// 화면을 떠날 때(pagehide) payslip_lock 으로 서버 쪽 통과 기록도 끝낸다(실패해도 무시 — 토큰이 사라져 어차피 다시 쓸 수 없다).
 // 서버는 토큰의 해시와 로그인 세션을 함께 확인한다 → 로그아웃 후 다시 로그인해도 다시 잠긴다.
 // 횟수·잠금·유지 시간은 config PAYROLL.SLIP_VERIFY_* (관리자 급여 화면이 서버로 복사).
-var SLIP_TOKEN_KEY = ((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_payslip_token';
-var _memToken = '';
-function slipToken() {
-  try {
-    var t = sessionStorage.getItem(SLIP_TOKEN_KEY);
-    if (t && t.length >= 64) return t;
-  } catch (e) {}
+function makeSlipToken() {
   var a = new Uint8Array(32);
   window.crypto.getRandomValues(a);
-  var t2 = Array.prototype.map.call(a, function(b) { return ('0' + b.toString(16)).slice(-2); }).join('');
-  try { sessionStorage.setItem(SLIP_TOKEN_KEY, t2); } catch (e) { _memToken = _memToken || t2; return _memToken; }
-  return t2;
+  return Array.prototype.map.call(a, function(b) { return ('0' + b.toString(16)).slice(-2); }).join('');
 }
-function dropSlipToken() { try { sessionStorage.removeItem(SLIP_TOKEN_KEY); } catch (e) {} _memToken = ''; }
+var _slipToken = makeSlipToken();
+function slipToken() { return _slipToken; }
+function renewSlipToken() { _slipToken = makeSlipToken(); }
+
+// pagehide 때 쓸 로그인 토큰 — 떠나는 순간엔 비동기 조회를 기다릴 수 없어 미리 받아 둔다
+var _lockAuth = '';
+function rememberLockAuth() {
+  getSb().auth.getSession().then(function(r) {
+    var s = r && r.data && r.data.session;
+    _lockAuth = (s && s.access_token) || '';
+  }, function() {});
+}
+// 화면을 떠날 때 이 창의 통과 기록을 끝낸다. 페이지가 내려가도 요청이 끝나도록 keepalive fetch 로 부른다.
+function lockOnLeave() {
+  if (!_lockAuth) return;
+  try {
+    fetch(APP_CONFIG.SUPABASE_URL + '/rest/v1/rpc/payslip_lock', {
+      method: 'POST', keepalive: true,
+      headers: { 'Content-Type': 'application/json', apikey: APP_CONFIG.SUPABASE_KEY, Authorization: 'Bearer ' + _lockAuth },
+      body: JSON.stringify({ p_token: _slipToken }),
+    }).catch(function() {});
+  } catch (e) {}
+}
+window.addEventListener('pagehide', lockOnLeave);
 function isLockedErr(err) { return !!err && err.code === '42501' && /PAYSLIP_LOCKED/.test(err.message || ''); }
 function hhmm(ts) { var d = new Date(ts); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
 function minutesLeft(ts) { return Math.max(1, Math.ceil((new Date(ts).getTime() - Date.now()) / 60000)); }
@@ -143,7 +159,7 @@ function GateBox({ status, onUnlocked }) {
       setBusy(false); setV('');
       if (r.error) { Sysbar.showError(r.error, '본인 확인'); return; }
       var d = r.data || {};
-      if (d.status === 'ok') { onUnlocked(); return; }
+      if (d.status === 'ok') { rememberLockAuth(); onUnlocked(); return; }
       if (d.status === 'wrong') { setMsg({ t: 'e', s: '생년월일이 맞지 않습니다. 남은 횟수 ' + d.remaining + '회' }); return; }
       if (d.status === 'locked') { setSt(Object.assign({}, st, { locked: true, locked_until: d.locked_until })); setMsg(null); return; }
       if (d.status === 'no_birth_date') { setSt(Object.assign({}, st, { has_birth_date: false })); return; }
@@ -195,11 +211,19 @@ function PayslipPage({ user }) {
   const [err, setErr] = useState('');
 
   useEffect(function() {
+    rememberLockAuth();
     getSb().rpc('payslip_gate_status', { p_token: slipToken() }).then(function(r) {
       if (r.error) { Sysbar.showError(r.error, '본인 확인 상태'); setGate({ has_birth_date: true }); return; }
       setGate(r.data || {});
       if (r.data && r.data.unlocked) setOpened(true);
     });
+  }, []);
+
+  // 뒤로 가기 등으로 보관된 화면이 다시 보이면(bfcache) 새 토큰으로 다시 입력 화면에서 시작
+  useEffect(function() {
+    function onShow(ev) { if (ev.persisted) { renewSlipToken(); relock(); } }
+    window.addEventListener('pageshow', onShow);
+    return function() { window.removeEventListener('pageshow', onShow); };
   }, []);
 
   // 통과 시간이 지나 서버가 거부하면 다시 입력 화면으로
@@ -299,6 +323,14 @@ function App() {
   })();
   const [user, setUser] = useState(initialUser);
   const [checked, setChecked] = useState(false);
+  const [teamName, setTeamName] = useState('');
+
+  // 상단 메뉴(관리포털 표시)용 팀 이름 — 다른 화면(worklog.html)과 같은 방식
+  useEffect(function() {
+    if (!user || !user.team_id) { setTeamName(''); return; }
+    getSb().from('teams').select('name').eq('id', user.team_id).single()
+      .then(function(r) { setTeamName((r.data && r.data.name) || ''); });
+  }, [user && user.team_id]);
 
   // 캐시된 세션의 role 은 믿지 않고 서버 값으로 다시 확인한다 (contractor 차단 포함).
   useEffect(function() {
@@ -318,10 +350,10 @@ function App() {
     Sysbar.SessionManager.onLogin(function() { logout(); });
   }
   function logout() {
-    // 이 창의 생년월일 확인을 서버에서 먼저 해제하고(실패해도 로그아웃은 진행) 창 토큰을 지운다.
+    // 이 창의 생년월일 확인을 서버에서 먼저 해제하고(실패해도 로그아웃은 진행) 창 토큰을 새로 바꾼다.
     var tok = slipToken();
     getSb().rpc('payslip_lock', { p_token: tok }).then(function() {}, function() {}).then(function() {
-      dropSlipToken();
+      renewSlipToken();
       Sysbar.Auth.logout(getSb());
       setUser(null);
     });
@@ -332,14 +364,14 @@ function App() {
 
   if (user.role === 'contractor') return (
     <div>
-      <SysBar activeKey="payslip" user={user} onLogout={logout} />
+      <SysBar activeKey="payslip" user={user} teamName={teamName} onLogout={logout} />
       <div className="ps-page"><div className="ps-box">🚫 <b>급여명세서</b>는 임직원 전용 메뉴입니다.</div></div>
     </div>
   );
 
   return (
     <div>
-      <SysBar activeKey="payslip" user={user} onLogout={logout} />
+      <SysBar activeKey="payslip" user={user} teamName={teamName} onLogout={logout} />
       <PayslipPage user={user} />
     </div>
   );
