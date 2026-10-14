@@ -1,0 +1,156 @@
+{
+  "_comment": "공개 홈페이지용 회사 정보 단일 원천. tools/build_seo.py가 읽어 meta·JSON-LD·robots·sitemap·llms.txt·카운터를 생성한다. 시스템 런타임 설정(config.js)과 별개. 값이 null 이면 해당 항목은 출력하지 않는다.",
+
+  "site": {
+    "baseUrl": "https://kwanboeng.com",
+    "language": "ko-KR",
+    "ogImage": "/og-image.jpg",
+    "logo": "/logo.png",
+    "ga4MeasurementId": "G-9BQETFEDJJ",
+    "naverSiteVerification": null
+  },
+
+  "company": {
+    "legalName": "(주)관보종합기술단",
+    "name": "관보종합기술단",
+    "alternateName": "KWAN BO ENGINEERING CO., LTD.",
+    "representatives": ["강호갑", "이수금"],
+    "foundedYear": 1987,
+    "incorporatedYear": 1995,
+    "businessRegistrationNo": null,
+    "description": "(주)관보종합기술단은 부산광역시 연제구에 소재한 토목 엔지니어링 기업으로, 1987년 개업 이후 부산·울산·경남 지역에서 개발행위허가 등 민간개발사업 인허가, 측량, 토목설계, 건설사업관리(감리), 지하안전평가·지반조사를 수행합니다.",
+    "socialValue": ["장애인기업", "여성기업"]
+  },
+
+  "contact": {
+    "telephone": "051-853-2633",
+    "fax": "051-853-4893",
+    "emails": [
+      { "address": "kwanboeng@naver.com", "label": "설계" },
+      { "address": "kwanboacc@naver.com", "label": "계약" }
+    ],
+    "address": {
+      "streetAddress": "거제대로 270, 301호 (거제동, 종근당빌딩)",
+      "addressLocality": "연제구",
+      "addressRegion": "부산광역시",
+      "postalCode": "47521",
+      "addressCountry": "KR"
+    },
+    "geo": { "latitude": 35.1901644, "longitude": 129.0773355 }
+  },
+
+  "areaServed": ["부산광역시", "울산광역시", "경상남도"],
+
+  "sameAs": {
+    "naverPlace": null,
+    "googleBusiness": null,
+    "kakaoMap": "https://map.kakao.com/link/map/관보종합기술단,35.1901644,129.0773355"
+  },
+
+  "heroCounters": [
+    { "id": "fields",   "label": "엔지니어링 등록 분야", "value": 9, "unit": "개" },
+    { "id": "certs",    "label": "전문 인증 보유",       "value": 11, "unit": "개" },
+    { "id": "projects", "label": "수행 프로젝트 건수",   "value": 500, "unit": "건+" },
+    { "id": "years",    "label": "업력 (1987년 개업 / 1995년 법인전환)", "value": "auto", "unit": "년차" }
+  ],
+
+  "registrations": [
+    { "name": "건설엔지니어링업 (설계·사업관리 일반)", "law": "건설기술 진흥법", "number": "E-09-000494" },
+    { "name": "엔지니어링사업자 (건설 등 2개 기술부문, 9개 전문분야)", "law": "엔지니어링산업 진흥법", "number": null },
+    { "name": "측량업 4종 (공공측량·수치지도제작·지하시설물측량·영상처리)", "law": "공간정보의 구축 및 관리 등에 관한 법률", "number": null },
+    { "name": "지하안전평가 전문기관", "law": "지하안전관리에 관한 특별법", "number": null },
+    { "name": "안전점검 전문기관 (토목)", "law": "시설물의 안전 및 유지관리에 관한 특별법", "number": null },
+    { "name": "초경량비행장치사용사업 (촬영·측량)", "law": "항공사업법", "number": "제2025-1116호" },
+    { "name": "상수도관망관리대행업", "law": "수도법", "number": "낙동강유역환경청 제1-18호" },
+    { "name": "소프트웨어사업자", "law": "소프트웨어 진흥법", "number": null },
+    { "name": "산업디자인전문회사 (환경디자인)", "law": "산업디자인진흥법", "number": "제20951호" },
+    { "name": "직접생산확인 (공간정보·측량, 디자인서비스, 지질연구)", "law": "판로지원법", "number": null }
+  ],
+
+  "pages": [
+    {
+      "path": "/",
+      "file": "index.html",
+      "type": "home",
+      "title": "(주)관보종합기술단 | 부산 개발행위허가·토목설계·측량·감리",
+      "description": "부산 연제구 소재 개업 40년차 토목 엔지니어링 기업. 부산·울산·경남 개발행위허가(임야·농지), 도시계획 인허가, 측량·드론측량, 토목설계, 건설사업관리, 지하안전평가를 수행합니다.",
+      "priority": 1.0
+    },
+    {
+      "path": "/service-permit.html",
+      "file": "service-permit.html",
+      "type": "service",
+      "serviceName": "개발행위허가",
+      "serviceType": "개발행위허가 도서 작성 및 인허가 대행",
+      "title": "부산·울산·경남 개발행위허가 (임야·농지 포함) | (주)관보종합기술단",
+      "description": "임야·농지가 포함된 부지의 개발행위허가, 산지·농지전용 협의, 복구설계와 준공검사까지. 매년 10~20건의 민간 개발행위허가를 수행하는 부산 토목 엔지니어링 기업입니다.",
+      "priority": 0.9,
+      "featured": true
+    },
+    {
+      "path": "/service-development.html",
+      "file": "service-development.html",
+      "type": "service",
+      "serviceName": "민간개발사업 인허가",
+      "serviceType": "지구단위계획·도시관리계획 결정 및 부대토목 설계",
+      "title": "민간개발사업 인허가 (지구단위계획·도시관리계획) | (주)관보종합기술단",
+      "description": "지구단위계획 결정, 도시관리계획 결정·입안제안, 도시계획시설 실시계획인가, 공동주택단지 부대토목 설계를 수행합니다.",
+      "priority": 0.8
+    },
+    {
+      "path": "/service-survey.html",
+      "file": "service-survey.html",
+      "type": "service",
+      "serviceName": "측량·드론측량",
+      "serviceType": "공공측량, 지하시설물측량(UIS), 드론측량, 수치지도제작",
+      "title": "부산 측량·드론측량 (공공측량·UIS) | (주)관보종합기술단",
+      "description": "측량업 4종 등록 업체. RTK 드론 공공측량, 정사영상·수치지형도 제작, 지하시설물 UIS DB 구축을 수행합니다.",
+      "priority": 0.7
+    },
+    {
+      "path": "/service-geotech.html",
+      "file": "service-geotech.html",
+      "type": "service",
+      "serviceName": "지하안전평가·지반",
+      "serviceType": "지하안전평가, 소규모 지하안전평가, 착공후지하안전조사, 지반조사",
+      "title": "부산 지하안전평가 전문기관 | (주)관보종합기술단",
+      "description": "지하안전평가 전문기관. 지하안전평가, 소규모 지하안전평가, 착공후지하안전조사와 지반조사·가시설 설계를 수행합니다.",
+      "priority": 0.7
+    },
+    {
+      "path": "/service-design.html",
+      "file": "service-design.html",
+      "type": "service",
+      "serviceName": "토목설계",
+      "serviceType": "도로·상하수도·구조물·하천 실시설계, 시설물 안전점검",
+      "title": "부산 공공 토목설계 (도로·상하수도·구조물) | (주)관보종합기술단",
+      "description": "부산광역시와 구·군, 상수도사업본부, 교육청의 도로·상하수도·구조물·하천 실시설계를 2016년 이후 190건 이상 수행했습니다.",
+      "priority": 0.7
+    },
+    {
+      "path": "/service-cm.html",
+      "file": "service-cm.html",
+      "type": "service",
+      "serviceName": "건설사업관리(감리)",
+      "serviceType": "상하수도 관로·도로 공사 건설사업관리",
+      "title": "건설사업관리(감리) | (주)관보종합기술단",
+      "description": "상하수도 관로공사와 도로·교통시설 공사의 건설사업관리(감리)를 수행합니다.",
+      "priority": 0.6
+    },
+    {
+      "path": "/service-utility.html",
+      "file": "service-utility.html",
+      "type": "service",
+      "serviceName": "상수도관망 관리",
+      "serviceType": "상수도관 세척, 누수탐사",
+      "title": "상수도관 세척·누수탐사 | (주)관보종합기술단",
+      "description": "상수도관망관리대행업 등록 업체. 상수도관 세척, 누수탐사, 세척 전후 수질 확인을 수행합니다.",
+      "priority": 0.5
+    }
+  ],
+
+  "privatePaths": [
+    "/home.html", "/leave.html", "/project.html", "/worklog.html",
+    "/admin-", "/payslip.html", "/import_weekly.html"
+  ]
+}

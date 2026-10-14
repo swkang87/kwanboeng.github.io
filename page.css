@@ -497,3 +497,32 @@ footer {
   .pg-nav a { padding:26px 22px; }
   .pg-cta { padding:56px 22px; }
 }
+
+/* ══════════════════════════════════
+   FAQ (SEO/GEO 블록 공용)
+══════════════════════════════════ */
+.faq-sec { padding:90px 0; background:var(--bg); }
+.faq-wrap { max-width:900px; margin:0 auto; padding:0 24px; }
+.faq-title { font-size:1.7rem; font-weight:800; color:var(--ink); margin-bottom:34px; text-align:center; }
+.faq { display:flex; flex-direction:column; gap:12px; }
+.faq-item { background:#fff; border:1px solid var(--border); border-radius:12px; padding:0 22px; overflow:hidden; }
+.faq-item summary {
+  list-style:none; cursor:pointer; padding:20px 0;
+  font-size:1rem; font-weight:700; color:var(--ink);
+  display:flex; align-items:center; gap:12px; position:relative; padding-right:34px;
+}
+.faq-item summary::-webkit-details-marker { display:none; }
+.faq-item summary::before { content:'Q'; color:var(--gold); font-weight:800; font-size:1.05rem; }
+.faq-item summary::after {
+  content:'+'; position:absolute; right:4px; top:50%; transform:translateY(-50%);
+  font-size:1.4rem; font-weight:400; color:var(--gold); transition:transform .2s var(--ease);
+}
+.faq-item[open] summary::after { transform:translateY(-50%) rotate(45deg); }
+.faq-a {
+  padding:18px 0 22px 28px; font-size:.92rem; line-height:1.9; color:var(--gray);
+  border-top:1px solid var(--border);
+}
+@media (max-width:640px) {
+  .faq-sec { padding:60px 0; }
+  .faq-title { font-size:1.4rem; }
+}

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /home.html
+Disallow: /leave.html
+Disallow: /project.html
+Disallow: /worklog.html
+Disallow: /admin-
+Disallow: /payslip.html
+Disallow: /import_weekly.html
+
+Sitemap: https://kwanboeng.com/sitemap.xml
