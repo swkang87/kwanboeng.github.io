@@ -33,7 +33,7 @@ var APP_CONFIG = {
   MOBILE_NAME:      '강승우 실장',
   MOBILE:           '010-9315-2914',
   MOBILE_TEL:       '01093152914',
-  COPYRIGHT_YEAR:   '2025',
+  COPYRIGHT_YEAR:   null,
 
   // ── 색상 테마 (Theme Colors) ─────────────────────────────────
   COLOR_PRIMARY:  '#0f172a',   // 메인 네이비 (시스템 UI 기준색)

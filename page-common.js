@@ -80,7 +80,7 @@
     var tel  = cfg('TEL', '051) 853-2633');
     var fax  = cfg('FAX', '051) 853-4893');
     var mail = cfg('EMAIL_DESIGN', 'kwanboeng@naver.com');
-    var year = cfg('COPYRIGHT_YEAR', '2025');
+    var year = cfg('COPYRIGHT_YEAR', String(new Date().getFullYear()));
 
     return '' +
       '<footer>' +
