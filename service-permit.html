@@ -91,6 +91,14 @@
         },
         {
           "@type": "Question",
+          "name": "임야 개발행위허가에서 경사도는 어떻게 확인하나요?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "현황측량 성과로 지형 모델을 만든 뒤, 사업 부지 경계 안을 격자로 나눠 평균경사도를 계산합니다. 계산한 값은 산지관리법과 지자체 도시계획 조례의 허가 기준과 비교해 판단합니다. (주)관보종합기술단은 경사도 분석 프로그램(SLOPRO)으로 분석을 직접 수행하고, 평균경사도 조사서를 허가 도서에 첨부합니다."
+          }
+        },
+        {
+          "@type": "Question",
           "name": "개발행위허가는 기간이 얼마나 걸리나요?",
           "acceptedAnswer": {
             "@type": "Answer",
@@ -346,7 +354,7 @@
 </section>
 
 <!-- ════════════════ ④ 허가 판단 기준 ════════════════ -->
-<section class="pg-sec">
+<section class="pg-sec alt">
   <div class="pg-inner">
     <div class="pg-hd sr">
       <span class="stag">CRITERIA — 허가 판단 기준</span>
@@ -382,7 +390,64 @@
   </div>
 </section>
 
-<!-- ════════════════ ⑤ 진행 기간 ════════════════ -->
+<!-- ════════════════ ⑤ 경사도 분석 ════════════════ -->
+<section class="pg-sec">
+  <div class="pg-inner">
+    <div class="pg-hd sr">
+      <span class="stag">SLOPE — 경사도 분석</span>
+      <h2 class="stitle">임야는 경사도 분석부터 합니다</h2>
+    </div>
+
+    <div class="ov-body sr">
+      <p>
+        임야(산지)가 포함된 부지는 평균경사도가 허가 여부를 가르는 핵심 기준입니다.
+        (주)관보종합기술단은 정식 라이선스 경사도 분석 프로그램(SLOPRO)을 사용해 경사도 분석을 직접 수행합니다.
+      </p>
+    </div>
+
+    <div class="proc slope-proc">
+      <div class="proc-step sr" data-no="01">
+        <h3 class="proc-t">측량 성과 불러오기</h3>
+        <p class="proc-d">드론·GNSS·토털스테이션 현황측량 좌표를 불러옵니다.</p>
+      </div>
+      <div class="proc-step sr" data-no="02">
+        <h3 class="proc-t">지형 모델 작성</h3>
+        <p class="proc-d">삼각망과 등고선을 만들고, 옹벽·도로·절성토면 같은 현황선을 브레이크라인으로 반영해 실제 지형에 맞춥니다.</p>
+      </div>
+      <div class="proc-step sr" data-no="03">
+        <h3 class="proc-t">평균경사도 분석</h3>
+        <p class="proc-d">사업 부지 경계 안을 격자로 나눠 격자별 경사도와 평균경사도를 계산하고, 경사 구간별 색으로 표시합니다.</p>
+      </div>
+      <div class="proc-step sr" data-no="04">
+        <h3 class="proc-t">표고 분석</h3>
+        <p class="proc-d">표고 구간별 면적과 구성비를 산출합니다.</p>
+      </div>
+      <div class="proc-step sr" data-no="05">
+        <h3 class="proc-t">조사서 작성</h3>
+        <p class="proc-d">평균경사도 조사서와 분석도를 허가 도서에 첨부할 양식으로 작성합니다.</p>
+      </div>
+    </div>
+
+    <div class="fig-grid">
+      <figure class="fig sr">
+        <img src="slope-grid.jpg" alt="평균경사도 격자 분석 화면 예시" width="1091" height="771" loading="lazy">
+        <figcaption>평균경사도 격자 분석 화면 예시 (SLOPRO)</figcaption>
+      </figure>
+      <figure class="fig sr" style="transition-delay:.1s">
+        <img src="slope-elevation.jpg" alt="표고 구간별 면적 분석표 예시" width="581" height="432" loading="lazy">
+        <figcaption>표고분석 표 예시 (SLOPRO)</figcaption>
+      </figure>
+    </div>
+
+    <div class="ov-body sr slope-close">
+      <p>
+        사전 검토 단계에서 경사도를 먼저 확인하므로, 기준을 넘는지와 사업 구역을 조정해야 하는지를 계약 초기에 안내합니다.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ ⑥ 진행 기간 ════════════════ -->
 <section class="pg-sec alt">
   <div class="pg-inner">
     <div class="pg-hd sr">
@@ -399,7 +464,7 @@
   </div>
 </section>
 
-<!-- ════════════════ ⑥ 수행 실적 ════════════════ -->
+<!-- ════════════════ ⑦ 수행 실적 ════════════════ -->
 <section class="pg-sec">
   <div class="pg-inner">
     <div class="pg-hd sr">
@@ -418,7 +483,7 @@
   </div>
 </section>
 
-<!-- ════════════════ ⑦ 비용 구성 ════════════════ -->
+<!-- ════════════════ ⑧ 비용 구성 ════════════════ -->
 <section class="pg-sec alt">
   <div class="pg-inner">
     <div class="pg-hd sr">
@@ -497,6 +562,10 @@
       <details class="faq-item">
         <summary>토지분할도 개발행위허가를 받아야 하나요?</summary>
         <div class="faq-a">녹지·관리·농림·자연환경보전지역에서 건축허가 등 다른 인허가 없이 토지를 나누는 경우, 건축법상 분할제한 면적 미만으로 나누는 경우, 너비 5m 이하로 나누는 경우에는 개발행위허가(토지분할)를 받아야 합니다. (주)관보종합기술단은 토지분할과 형질변경이 함께 필요한 부지의 허가 도서를 함께 작성합니다.</div>
+      </details>
+      <details class="faq-item">
+        <summary>임야 개발행위허가에서 경사도는 어떻게 확인하나요?</summary>
+        <div class="faq-a">현황측량 성과로 지형 모델을 만든 뒤, 사업 부지 경계 안을 격자로 나눠 평균경사도를 계산합니다. 계산한 값은 산지관리법과 지자체 도시계획 조례의 허가 기준과 비교해 판단합니다. (주)관보종합기술단은 경사도 분석 프로그램(SLOPRO)으로 분석을 직접 수행하고, 평균경사도 조사서를 허가 도서에 첨부합니다.</div>
       </details>
       <details class="faq-item">
         <summary>개발행위허가는 기간이 얼마나 걸리나요?</summary>

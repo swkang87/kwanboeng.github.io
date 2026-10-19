@@ -401,6 +401,14 @@ footer {
 }
 .proc-d { font-size:.84rem; color:var(--gray); line-height:1.8; font-weight:300; }
 
+/* ── 도판(figure) 2열 — 모바일 1열 ── */
+.slope-proc { margin-top:40px; }
+.fig-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; margin-top:48px; align-items:start; }
+.fig { margin:0; background:#fff; border:1px solid var(--border); border-radius:8px; padding:12px; }
+.fig img { display:block; width:100%; height:auto; border-radius:4px; }
+.fig figcaption { margin-top:10px; font-size:.78rem; color:var(--gray); line-height:1.6; }
+.slope-close { margin-top:36px; }
+
 /* ── 성과품 태그 ── */
 .deliv { display:flex; flex-wrap:wrap; gap:10px; }
 .deliv span {
@@ -491,6 +499,7 @@ footer {
   .proc { padding-left:44px; }
   .proc::before { left:15px; }
   .proc-step::before { left:-44px; width:32px; height:32px; font-size:.8rem; }
+  .fig-grid { grid-template-columns:1fr; }
   .pg-nav { grid-template-columns:1fr; }
   .pg-nav .nx { border-left:none; border-top:1px solid var(--border); align-items:flex-start; text-align:left; }
   .pg-nav .nx:only-child { border-top:none; }
