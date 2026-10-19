@@ -418,7 +418,8 @@ def build_copyright(profile):
 # ---------------------------------------------------------------- 공공 수행실적 (public-works)
 
 def load_public_works(profile):
-    """public-works.json + public-works-extra.json 을 합쳐 연도 내림차순 → 이름 순으로 돌려준다."""
+    """public-works.json + public-works-extra.json 을 합쳐 계약일(date) 내림차순 → 이름 순으로 돌려준다.
+    date 가 없는 행(extra 등)은 같은 연도의 맨 뒤에 둔다."""
     pw = profile.get("publicWorks")
     if not pw:
         return None
@@ -432,7 +433,8 @@ def load_public_works(profile):
             rows.extend(read_json(path))
         elif key == "source":
             warn("publicWorks.source 파일 없음: %s" % rel)
-    rows.sort(key=lambda r: (-int(r["year"]), r["name"]))
+    rows.sort(key=lambda r: r["name"])
+    rows.sort(key=lambda r: (int(r["year"]), 1 if r.get("date") else 0, r.get("date") or ""), reverse=True)
     return rows
 
 

@@ -11,11 +11,13 @@ import_g2b.py — 나라장터 '계약체결관리 목록' xlsx → site-content
   계약담당자·금액 열은 읽지 않는다.
 - 제외: 처리상태가 EXCLUDE_STATUS 에 있는 행, 계약번호 중복(먼저 나온 행만 유지).
 - 분류: CATEGORY_RULES 를 위에서부터 검사해 먼저 맞는 것.
-- 출력: [{year, name, agency, category}] — 연도 내림차순 → 이름 오름차순. 계약번호는 넣지 않는다.
+- 출력: [{year, date, name, agency, category}] — date(초안송신일자, YYYY-MM-DD) 내림차순 → 이름 오름차순.
+  date 는 정렬용이다(화면에는 연도만 표시). 계약번호·담당자·금액은 넣지 않는다.
   저장은 CRLF, UTF-8 BOM 없음.
 """
 
 import collections
+import datetime
 import json
 import os
 import re
@@ -107,9 +109,16 @@ def find_header(rows):
 
 # ---------------------------------------------------------------- 변환
 
-def year_of(s):
-    m = re.match(r"\s*(\d{4})", s or "")
-    return int(m.group(1)) if m else None
+def date_of(s):
+    """'2026/10/07', '2026-10-07', '20261007', 엑셀 날짜 일련번호 → 'YYYY-MM-DD' (없으면 None)."""
+    s = (s or "").strip()
+    m = re.match(r"(\d{4})\D?(\d{1,2})\D?(\d{1,2})", s)
+    if m:
+        return "%s-%02d-%02d" % (m.group(1), int(m.group(2)), int(m.group(3)))
+    if re.fullmatch(r"\d+(\.\d+)?", s):
+        d = datetime.date(1899, 12, 30) + datetime.timedelta(days=int(float(s)))
+        return d.isoformat()
+    return None
 
 
 def convert(xlsx):
@@ -137,13 +146,14 @@ def convert(xlsx):
             stats["제외: 계약번호 중복"] += 1
             continue
         seen.add(no)
-        year = year_of(r.get(col["date"], ""))
-        if year is None:
+        date = date_of(r.get(col["date"], ""))
+        if date is None:
             stats["제외: 날짜 없음"] += 1
             continue
-        out.append({"year": year, "name": re.sub(r"\s+", " ", name),
+        out.append({"year": int(date[:4]), "date": date, "name": re.sub(r"\s+", " ", name),
                     "agency": r.get(col["agency"], ""), "category": classify(name)})
-    out.sort(key=lambda x: (-x["year"], x["name"]))
+    out.sort(key=lambda x: x["name"])
+    out.sort(key=lambda x: x["date"], reverse=True)   # 안정 정렬: 날짜 내림차순, 같은 날짜는 이름 순
     return out, stats
 
 
