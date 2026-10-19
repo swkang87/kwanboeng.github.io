@@ -382,7 +382,7 @@ def build_counters(profile):
         elif val == "auto":
             num_text = str(year_now - founded + 1)
         elif isinstance(val, (int, float)):
-            num_text = str(int(val))
+            num_text = "{:,}".format(int(val))   # 1000 → "1,000" (JS 가 쉼표 제거 후 읽음)
         else:
             # 숫자가 아닌 글자(예: "수백") — 그대로 표시, 애니메이션 미적용
             num_text = esc_text(str(val))

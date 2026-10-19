@@ -50,7 +50,7 @@
   "heroCounters": [
     { "id": "fields",   "label": "엔지니어링 등록 분야", "value": 9, "unit": "개" },
     { "id": "certs",    "label": "전문 인증 보유",       "value": 11, "unit": "개" },
-    { "id": "projects", "label": "수행 프로젝트 건수",   "value": 500, "unit": "건+" },
+    { "id": "projects", "label": "수행 프로젝트 건수",   "value": 1000, "unit": "건+" },
     { "id": "years",    "label": "업력 (1987년 개업 / 1995년 법인전환)", "value": "auto", "unit": "년차" }
   ],
 
