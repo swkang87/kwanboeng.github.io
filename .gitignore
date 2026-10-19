@@ -3,3 +3,4 @@ _validate_babel.mjs
 _validate_balance.mjs
 supabase/.temp/
 backup/
+site-content/g2b_*.xlsx

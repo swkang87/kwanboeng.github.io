@@ -47,6 +47,26 @@
     "kakaoMap": "https://map.kakao.com/link/map/관보종합기술단,35.1901644,129.0773355"
   },
 
+  "publicWorks": {
+    "source": "site-content/public-works.json",
+    "extra": "site-content/public-works-extra.json",
+    "basis": "나라장터 계약 기준 (2007~현재)",
+    "designDisplay": "230",
+    "designUnit": "건+",
+    "designCategories": ["design", "planning", "safety", "utility", "survey", "geotech", "study"],
+    "cmDisplay": "13",
+    "cmUnit": "건",
+    "cmNote": "건설사업관리(감리) 수행실적",
+    "cmCategories": ["cm"],
+    "visibleRows": 30,
+    "countLabel": "나라장터 기준",
+    "clientCounts": [
+      { "id": "CITY",  "agencyExact": "부산광역시" },
+      { "id": "WATER", "agencyPrefix": "부산광역시 상수도사업본부" },
+      { "id": "GUGUN", "agencyPattern": "^부산광역시 (\\S+[구군])$", "groupLabel": "구·군", "top": 3 }
+    ]
+  },
+
   "heroCounters": [
     { "id": "fields",   "label": "엔지니어링 등록 분야", "value": 9, "unit": "개" },
     { "id": "certs",    "label": "전문 인증 보유",       "value": 11, "unit": "개" },
@@ -85,7 +105,26 @@
       "title": "부산·울산·경남 개발행위허가 (임야·농지 포함) | (주)관보종합기술단",
       "description": "임야·농지가 포함된 부지의 개발행위허가, 산지·농지전용 협의, 복구설계와 준공검사까지. 매년 10~20건의 민간 개발행위허가를 수행하는 부산 토목 엔지니어링 기업입니다.",
       "priority": 0.9,
-      "featured": true
+      "featured": true,
+      "servedDistricts": [
+        { "group": "부산", "label": "강서구", "name": "부산광역시 강서구" },
+        { "group": "부산", "label": "금정구", "name": "부산광역시 금정구" },
+        { "group": "부산", "label": "기장군", "name": "부산광역시 기장군" },
+        { "group": "부산", "label": "남구", "name": "부산광역시 남구" },
+        { "group": "부산", "label": "동래구", "name": "부산광역시 동래구" },
+        { "group": "부산", "label": "부산진구", "name": "부산광역시 부산진구" },
+        { "group": "부산", "label": "북구", "name": "부산광역시 북구" },
+        { "group": "부산", "label": "사상구", "name": "부산광역시 사상구" },
+        { "group": "부산", "label": "사하구", "name": "부산광역시 사하구" },
+        { "group": "부산", "label": "서구", "name": "부산광역시 서구" },
+        { "group": "부산", "label": "수영구", "name": "부산광역시 수영구" },
+        { "group": "부산", "label": "연제구", "name": "부산광역시 연제구" },
+        { "group": "부산", "label": "영도구", "name": "부산광역시 영도구" },
+        { "group": "부산", "label": "중구", "name": "부산광역시 중구" },
+        { "group": "부산", "label": "해운대구", "name": "부산광역시 해운대구" },
+        { "group": "울산·경남", "label": "울산 북구", "name": "울산광역시 북구" },
+        { "group": "울산·경남", "label": "김해시", "name": "경상남도 김해시" }
+      ]
     },
     {
       "path": "/service-development.html",
@@ -124,7 +163,7 @@
       "serviceName": "토목설계",
       "serviceType": "도로·상하수도·구조물·하천 실시설계, 시설물 안전점검",
       "title": "부산 공공 토목설계 (도로·상하수도·구조물) | (주)관보종합기술단",
-      "description": "부산광역시와 구·군, 상수도사업본부, 교육청의 도로·상하수도·구조물·하천 실시설계를 2016년 이후 190건 이상 수행했습니다.",
+      "description": "부산광역시와 구·군, 상수도사업본부, 교육청의 도로·상하수도·구조물·하천 실시설계를 수행합니다. 나라장터 계약 기준 2007년 이후 공공 실시설계 230건 이상을 수행했습니다.",
       "priority": 0.7
     },
     {
