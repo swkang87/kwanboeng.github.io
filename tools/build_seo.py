@@ -7,6 +7,8 @@ build_seo.py — kwanboeng.com 공개 홈페이지 SEO/GEO 생성기
   - site-profile.json          (회사 정보 단일 원천, null 값은 미출력)
   - site-content/lead.json      (페이지별 정의 문장)
   - site-content/faq.json       (페이지별 FAQ)
+  - site-content/public-works.json, public-works-extra.json
+                                (공공 수행실적 — tools/import_g2b.py 가 생성 / 나라장터 밖 계약)
 
 하는 일:
   1) pages의 각 HTML에서 표시 블록 안만 다시 쓴다.
@@ -14,6 +16,9 @@ build_seo.py — kwanboeng.com 공개 홈페이지 SEO/GEO 생성기
      <!-- LEAD:START --> ~ <!-- LEAD:END -->
      <!-- FAQ:START --> ~ <!-- FAQ:END -->
      <!-- COUNTERS:START --> ~ <!-- COUNTERS:END -->  (index.html만)
+     <!-- PUBLIC_WORKS:DESIGN|CM:START --> ~ END      (index.html 수행실적 목록)
+     <!-- PW_CLIENT:<id>:START --><!-- PW_CLIENT:<id>:END -->  (발주처별 건수, 한 줄 블록)
+     <!-- SERVED_DISTRICTS:START --> ~ END           (pages[].servedDistricts 지역 태그)
      블록 밖은 절대 건드리지 않는다. 블록이 없으면 경고만 하고 삽입하지 않는다.
   2) 루트에 robots.txt, sitemap.xml, llms.txt 생성.
   3) 같은 입력이면 같은 출력(멱등). 저장은 CRLF, UTF-8 BOM 없음.
@@ -111,6 +116,14 @@ def replace_block(text, name, inner):
 
     new_text, n = pat.subn(repl, text, count=1)
     return new_text, n
+
+
+def replace_inline_block(text, name, inner):
+    """한 줄 블록: <!-- name:START -->inner<!-- name:END --> (줄바꿈·들여쓰기 없이)."""
+    start = "<!-- %s:START -->" % name
+    end = "<!-- %s:END -->" % name
+    pat = re.compile(re.escape(start) + r".*?" + re.escape(end), re.DOTALL)
+    return pat.subn(lambda m: start + inner + end, text, count=1)
 
 
 # ---------------------------------------------------------------- 이스케이프
@@ -243,7 +256,9 @@ def service_node(profile, page):
         "url": page_url(base, page["path"]),
         "description": page["description"],
         "provider": {"@id": base + "/#org"},
-        "areaServed": area_served(profile),
+        "areaServed": area_served(profile) + [
+            {"@type": "AdministrativeArea", "name": d["name"]}
+            for d in page.get("servedDistricts") or []],
     }
 
 
@@ -400,6 +415,112 @@ def build_copyright(profile):
     return "&copy; %d %s. All rights reserved." % (year, esc_text(profile["company"]["legalName"]))
 
 
+# ---------------------------------------------------------------- 공공 수행실적 (public-works)
+
+def load_public_works(profile):
+    """public-works.json + public-works-extra.json 을 합쳐 연도 내림차순 → 이름 순으로 돌려준다."""
+    pw = profile.get("publicWorks")
+    if not pw:
+        return None
+    rows = []
+    for key in ("source", "extra"):
+        rel = pw.get(key)
+        if not rel:
+            continue
+        path = os.path.join(ROOT, rel)
+        if os.path.exists(path):
+            rows.extend(read_json(path))
+        elif key == "source":
+            warn("publicWorks.source 파일 없음: %s" % rel)
+    rows.sort(key=lambda r: (-int(r["year"]), r["name"]))
+    return rows
+
+
+def perf_row(r, indent=""):
+    return '%s<div class="perf-row"><span class="py">%s</span><span class="pn">%s</span><span class="pa">%s</span></div>' % (
+        indent, r["year"], esc_text(r["name"]), esc_text(r["agency"]))
+
+
+def build_public_works(profile, rows, kind):
+    """index.html 수행실적 탭(설계/감리)의 요약 + 표. 설계 탭은 visibleRows 이후를 더보기로 숨긴다."""
+    pw = profile["publicWorks"]
+    cats = set(pw["%sCategories" % kind])
+    sel = [r for r in rows if r["category"] in cats]
+    note = pw["basis"] if kind == "design" else pw["cmNote"]
+    lines = ['<div class="perf-summary sr">',
+             '  <span class="perf-count">%s<em>%s</em></span>' % (
+                 esc_text(pw["%sDisplay" % kind]), esc_text(pw["%sUnit" % kind])),
+             '  <span class="perf-note">%s</span>' % esc_text(note),
+             '</div>',
+             '<div class="perf-table sr" style="transition-delay:.1s">',
+             '  <div class="perf-thead">',
+             '    <span>연도</span><span>용역명</span><span>발주기관</span>',
+             '  </div>',
+             '  <div class="perf-tbody">']
+    visible = int(pw.get("visibleRows") or 0) if kind == "design" else 0
+    if visible and len(sel) > visible:
+        shown, hidden = sel[:visible], sel[visible:]
+    else:
+        shown, hidden = sel, []
+    lines += [perf_row(r, "    ") for r in shown]
+    if hidden:
+        lines += ['    <div class="perf-row perf-more-btn" id="designMoreBtn" style="cursor:pointer;justify-content:center;color:var(--navy2);font-weight:600;">',
+                  '      <span style="display:flex;align-items:center;gap:6px;">▼ &nbsp;더보기 (%d건)</span>' % len(hidden),
+                  '    </div>',
+                  '    <!-- 숨김 rows -->',
+                  '    <div class="perf-more-rows hidden">']
+        lines += [perf_row(r, "      ") for r in hidden]
+        lines.append('    </div>')
+    lines += ['  </div>', '</div>']
+    return "\n".join(lines)
+
+
+def build_client_counts(profile, rows):
+    """발주처 카드별 건수 문구 {id: html}. public-works 전체(감리 포함) 기준."""
+    pw = profile["publicWorks"]
+    label = esc_text(pw.get("countLabel") or "")
+    out = {}
+    for c in pw.get("clientCounts") or []:
+        if "agencyExact" in c:
+            n = sum(1 for r in rows if r["agency"] == c["agencyExact"])
+            text = "%s %d건" % (label, n)
+        elif "agencyPrefix" in c:
+            n = sum(1 for r in rows if r["agency"].startswith(c["agencyPrefix"]))
+            text = "%s %d건" % (label, n)
+        elif "agencyPattern" in c:
+            rx = re.compile(c["agencyPattern"])
+            cnt = {}
+            for r in rows:
+                m = rx.match(r["agency"])
+                if m:
+                    cnt[m.group(1)] = cnt.get(m.group(1), 0) + 1
+            top = sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0]))[:int(c.get("top") or 0)]
+            text = "%s %d개 %s %d건" % (label, len(cnt), esc_text(c.get("groupLabel") or ""), sum(cnt.values()))
+            if top:
+                text += " (%s)" % ", ".join("%s %d건" % (esc_text(k), v) for k, v in top)
+        else:
+            continue
+        out[c["id"]] = '<span class="eval-meta">%s</span>' % text
+    return out
+
+
+def build_served_districts(page):
+    """pages[].servedDistricts → 그룹별 지역 태그(.deliv 칩 재사용)."""
+    groups = []
+    for d in page.get("servedDistricts") or []:
+        if not groups or groups[-1][0] != d["group"]:
+            groups.append((d["group"], []))
+        groups[-1][1].append(d["label"])
+    lines = ['<div class="region-tags sr">']
+    for g, labels in groups:
+        lines.append('  <p class="region-label">%s</p>' % esc_text(g))
+        lines.append('  <div class="deliv">')
+        lines += ['    <span>%s</span>' % esc_text(x) for x in labels]
+        lines.append('  </div>')
+    lines.append('</div>')
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------- 페이지 존재 판정
 
 def page_file_path(page):
@@ -522,6 +643,8 @@ def build_llms(profile):
 # ---------------------------------------------------------------- 페이지 처리
 
 def process_pages(profile, lead_map, faq_map):
+    works = load_public_works(profile)
+    client_counts = build_client_counts(profile, works) if works is not None else {}
     for page in profile["pages"]:
         fpath = page_file_path(page)
         if not page_exists(page):
@@ -567,6 +690,24 @@ def process_pages(profile, lead_map, faq_map):
                 text, _ = replace_block(text, "COPYRIGHT", build_copyright(profile))
             else:
                 warn("%s: COPYRIGHT 블록 없음 — 삽입하지 않음" % page["file"])
+            if works is not None:
+                for kind, name in (("design", "PUBLIC_WORKS:DESIGN"), ("cm", "PUBLIC_WORKS:CM")):
+                    if has_block(text, name):
+                        text, _ = replace_block(text, name, build_public_works(profile, works, kind))
+                    else:
+                        warn("%s: %s 블록 없음 — 삽입하지 않음" % (page["file"], name))
+
+        # 발주처별 건수 (블록이 있는 페이지만)
+        for cid, html in client_counts.items():
+            if has_block(text, "PW_CLIENT:" + cid):
+                text, _ = replace_inline_block(text, "PW_CLIENT:" + cid, html)
+
+        # 수행 지역 태그
+        if page.get("servedDistricts"):
+            if has_block(text, "SERVED_DISTRICTS"):
+                text, _ = replace_block(text, "SERVED_DISTRICTS", build_served_districts(page))
+            else:
+                warn("%s: SERVED_DISTRICTS 블록 없음 — 삽입하지 않음" % page["file"])
 
         if text != orig:
             write_if_changed(fpath, to_crlf(text))

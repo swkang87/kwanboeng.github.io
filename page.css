@@ -410,6 +410,12 @@ footer {
 .fig figcaption { font-size:.78rem; color:var(--gray); line-height:1.6; }
 .slope-close { margin-top:36px; }
 
+/* ── 발주처 카드 건수 / 수행 지역 태그 ── */
+.eval-meta { display:block; margin-top:12px; font-size:.78rem; font-weight:600; color:var(--navy2); line-height:1.6; }
+.region-tags { margin-top:32px; }
+.region-label { font-size:.8rem; font-weight:700; color:var(--navy); margin:20px 0 10px; }
+.region-label:first-child { margin-top:0; }
+
 /* ── 성과품 태그 ── */
 .deliv { display:flex; flex-wrap:wrap; gap:10px; }
 .deliv span {
