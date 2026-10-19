@@ -1252,7 +1252,7 @@ footer {
       <div class="stat-label">전문 인증 보유</div>
     </div>
     <div class="stat-col sr" style="transition-delay:.2s">
-      <div class="stat-num">500<em>건+</em></div>
+      <div class="stat-num">1,000<em>건+</em></div>
       <div class="stat-label">수행 프로젝트 건수</div>
     </div>
     <div class="stat-col sr" style="transition-delay:.3s">
@@ -2110,7 +2110,7 @@ function countUp(el) {
   const t0 = performance.now(), dur = 1400;
   (function tick(now) {
     const p = Math.min((now-t0)/dur, 1);
-    node.textContent = Math.round((1-Math.pow(1-p,3))*to);
+    node.textContent = Math.round((1-Math.pow(1-p,3))*to).toLocaleString('en-US');
     if(p<1) requestAnimationFrame(tick);
   })(performance.now());
 }
