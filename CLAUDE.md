@@ -495,6 +495,11 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - 화면에 보이는 변화: 공정관리 관리자 탭 변경이력의 "로그 삭제" 기능 제거(변경이력은 보존 기록 — 다시 만들지 말 것),
   변경계약 반영 시 비고(memo)에 금액을 적지 않음(금액 이력은 계약·변경기록에 남음), 퇴사일이 지난 계정은 로그인 후 급여명세서 화면으로 이동.
 
+### 보안 수정 묶음 B 완료 (2026-10-21) — 메일 도메인 보호
+- 상세는 저장소 밖 `security-fixA_bundle_b_mail_domain_record.md` 참조.
+- **DNS 변경은 승우님이 가비아에서 직접 입력한다.** 이 작업 환경에서는 DNS·대시보드 설정 변경이 자동 차단되므로,
+  Claude 는 넣을 값과 순서를 안내하고 적용 뒤 `nslookup … 8.8.8.8` 조회로 확인만 한다.
+
 ## ❕ 패턴·원칙
 
 - **화이트라벨 키는 항상 config 참조**: 세션키·인증 도메인 등은 `APP_CONFIG.*` 참조로 작성.
@@ -533,6 +538,10 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 ### 급여 테이블 RLS 봉쇄 (보안 항목)
 상세는 저장소 밖 `security-fix\` 문서 참조. 별도 묶음으로 처리 예정.
 급여 권한 기준은 위 「권한 설계 원칙」(admin + 관리팀) 참조.
+
+### 메일 도메인 DMARC 상향 [승우 직접 입력]
+11월 첫 급여 알림 메일이 직원 받은편지함에 정상 도착(헤더 `dmarc=pass`)하는 것을 확인한 뒤 `_dmarc` 를 `p=reject` 로 상향.
+값·순서는 `security-fixA_bundle_b_mail_domain_record.md` 「다음 할 일」. 적용 후 Claude 가 조회로 확인·기록.
 
 ### SYS_MENUS 이중 관리 해소
 `sysbar.js`의 `SYS_MENUS`가 `config.js`의 `MENUS`와 별개로 하드코딩됨.
