@@ -500,7 +500,17 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - **DNS 변경은 승우님이 가비아에서 직접 입력한다.** 이 작업 환경에서는 DNS·대시보드 설정 변경이 자동 차단되므로,
   Claude 는 넣을 값과 순서를 안내하고 적용 뒤 `nslookup … 8.8.8.8` 조회로 확인만 한다.
 
+### 보안 수정 묶음 C 완료 (2026-10-21) — 외부 스크립트 버전 고정·무결성 검사
+- 상세는 저장소 밖 `security-fixB_bundle_c_sri_record.md` 참조.
+- 12개 화면의 외부 스크립트 45곳 + `contract-parser.js` 의 pdf.js 동적 로드에 정확한 버전 + `integrity`(sha384) + `crossorigin="anonymous"`.
+  `supabase-js@2` → `2.117.2`(`dist/umd/supabase.js`), `react`·`react-dom@18` → `18.3.1`. 나머지는 이미 정확한 버전이라 해시만 추가.
+- 예외: Google 애널리틱스(gtag) — 내용이 수시로 바뀌는 스크립트라 SRI 불가. pdf.js worker — 브라우저 Worker 가 SRI 미지원(버전 고정만).
+
 ## ❕ 패턴·원칙
+
+- **외부 스크립트는 정확한 버전 + `integrity`(sha384) + `crossorigin="anonymous"`**(2026-10-21~). `@2`·`@18` 같은 주 버전 주소 금지.
+  버전을 바꾸면 해시를 다시 계산한다(두 CDN 또는 npm 원본과 해시가 같은지 대조). jsDelivr 가 자동으로 만드는 `.min.js`(패키지에 없는 파일)는
+  내용이 바뀔 수 있어 SRI 에 쓰지 않는다 — 패키지 원본 파일 경로를 쓴다. 새 버전은 나온 지 2주가 지난 것으로 고른다.
 
 - **화이트라벨 키는 항상 config 참조**: 세션키·인증 도메인 등은 `APP_CONFIG.*` 참조로 작성.
   단, 레거시 정리용 `removeItem` 키(`kwanbo_pm_user`, `kwanbo_uid`)는 리터럴 유지 —

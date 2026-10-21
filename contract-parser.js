@@ -12,6 +12,7 @@
 
   var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
   var PDFJS_CMAP_URL = PDFJS_BASE + 'cmaps/';
+  var PDFJS_SRI = 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';  // pdf.min.js 3.11.174
   var CELL_GAP = 12;   // 이 간격(pt)보다 넓으면 다른 칸
   var WORD_GAP = 1.0;  // 이 간격보다 넓으면 띄어쓰기
   var LINE_TOL = 2;    // 같은 줄로 보는 y 오차
@@ -90,6 +91,10 @@
     pdfjsPromise = new Promise(function (resolve, reject) {
       var sc = document.createElement('script');
       sc.src = PDFJS_BASE + 'pdf.min.js';
+      // 무결성 확인(SRI) — 파일 내용이 바뀌면 브라우저가 실행하지 않는다. 버전을 바꾸면 해시도 다시 계산할 것.
+      // (worker 파일은 브라우저 Worker 가 SRI 를 지원하지 않아 버전 고정으로만 보호한다.)
+      sc.integrity = PDFJS_SRI;
+      sc.crossOrigin = 'anonymous';
       sc.onload = function () {
         if (!root.pdfjsLib) { reject(new Error('pdf.js 초기화 실패')); return; }
         root.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_BASE + 'pdf.worker.min.js';
