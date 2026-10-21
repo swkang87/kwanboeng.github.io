@@ -512,6 +512,9 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
   `supabase-js@2` → `2.117.2`(`dist/umd/supabase.js`), `react`·`react-dom@18` → `18.3.1`. 나머지는 이미 정확한 버전이라 해시만 추가.
 - 예외: Google 애널리틱스(gtag) — 내용이 수시로 바뀌는 스크립트라 SRI 불가. pdf.js worker — 브라우저 Worker 가 SRI 미지원(버전 고정만).
 
+### DB 백업 체계 (2026-10-21)
+- 사무실 PC 작업 스케줄러가 평일 12:30 `pg_dump`(public·auth·backup 스키마 + 역할 + Storage `contract-pdfs`)로 `C:\Users\kwanb\kbsys-db-backup\` 에 보관(일일 14 + 월간 12), 스크립트·복구 안내는 저장소 밖 `security-fix\db-backup\README.md`.
+
 ## ❕ 패턴·원칙
 
 - **외부 스크립트는 정확한 버전 + `integrity`(sha384) + `crossorigin="anonymous"`**(2026-10-21~). `@2`·`@18` 같은 주 버전 주소 금지.
