@@ -5,7 +5,7 @@
 //
 // 권한: admin 만. 초기화할 수 있으면 그 직원 계정으로 로그인해 그 사람인 척 본인 급여명세서·개인 기록을 볼 수 있어
 //       관리팀에는 허용하지 않는다(CLAUDE.md 권한 원칙 — 급여 관리 자체는 admin + 관리팀).
-// 대체: 기존 update-user-phone / dynamic-action(아이디 변경)은 배포만 유지하고 화면에서는 이 함수를 쓴다.
+// 대체: 예전 아이디 변경 함수 update-user-phone / dynamic-action 은 2026-10-21 삭제했다(소스는 security-fix 스냅샷). 화면은 이 함수를 쓴다.
 //
 // body: { user_id }  → { ok, login_id, init_pw }  (임시값은 이 응답에서 한 번만 돌려준다)
 
