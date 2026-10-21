@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026100102"></script>
+<script src="sysbar.js?v=2026102101"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -479,6 +479,12 @@ function StaffView({ user }) {
       Sysbar.syncAuthPolicy(sb, user.id).then(function(r) {
         if (r.error) Sysbar.showError(r.error, '로그인 정책 동기화');
       });
+      // config.js ADMIN_TEAM_NAME → DB(app_settings). 관리팀 권한 판정이 이 값을 쓴다.
+      if (Sysbar.syncAppSettings) {
+        Sysbar.syncAppSettings(sb, user.id).then(function(r) {
+          if (r.error) Sysbar.showError(r.error, '관리팀 설정 동기화');
+        });
+      }
     }
   }, []);
 

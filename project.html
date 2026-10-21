@@ -2497,9 +2497,6 @@ function ChangeLogPanel({ projects, users }) {
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
   const [page, setPage] = useState(0);
-  const [delMode, setDelMode] = useState(false);
-  const [delDays, setDelDays] = useState(30);
-  const [delMsg, setDelMsg] = useState('');
   const PAGE_SIZE = 50;
 
   useEffect(() => { loadLogs(); }, []);
@@ -2545,17 +2542,6 @@ function ChangeLogPanel({ projects, users }) {
   const paged = filtered.slice(page * PAGE_SIZE, (page+1) * PAGE_SIZE);
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
 
-  const handleDelete = async () => {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - delDays);
-    const { error } = await sb.from('change_logs').delete().lt('created_at', cutoff.toISOString());
-    if (error) { setDelMsg('삭제 오류: ' + error.message + ' (created_at 컬럼이 없으면 Supabase에서 추가 필요)'); return; }
-    setDelMsg(`${delDays}일 이전 로그 삭제 완료`);
-    setDelMode(false);
-    setTimeout(() => setDelMsg(''), 3000);
-    loadLogs();
-  };
-
   if (loading) return <Spinner />;
 
   return (
@@ -2585,25 +2571,9 @@ function ChangeLogPanel({ projects, users }) {
             <input type="date" className="form-input" style={{ fontSize:12, padding:'6px 10px' }} value={filterTo} onChange={e => { setFilterTo(e.target.value); setPage(0); }} />
           </div>
           <button className="btn btn-secondary btn-sm" onClick={() => { setFilterUser('all'); setFilterType('all'); setFilterFrom(''); setFilterTo(''); setPage(0); }}>초기화</button>
-          <div style={{ marginLeft:'auto' }}>
-            <button className="btn btn-sm" style={{ background:'#fef2f2', color:'#dc2626', border:'1px solid #fecaca' }} onClick={() => setDelMode(m => !m)}>🗑 로그 삭제</button>
-          </div>
+          {/* 변경이력은 보존 기록이라 수정·삭제하지 않는다(DB 정책도 막음) */}
+          <div style={{ marginLeft:'auto', fontSize:11, color:'#94a3b8' }}>변경이력은 보존 기록으로 삭제할 수 없습니다</div>
         </div>
-        {delMode && (
-          <div style={{ marginTop:12, padding:'12px 14px', background:'#fef2f2', borderRadius:8, border:'1px solid #fecaca', display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-            <span style={{ fontSize:12, color:'#dc2626', fontWeight:700 }}>⚠ 오래된 로그 삭제</span>
-            <select className="form-input" style={{ fontSize:12, padding:'5px 10px', width:'auto' }} value={delDays} onChange={e => setDelDays(+e.target.value)}>
-              <option value={30}>30일 이전</option>
-              <option value={60}>60일 이전</option>
-              <option value={90}>90일 이전</option>
-              <option value={180}>6개월 이전</option>
-              <option value={365}>1년 이전</option>
-            </select>
-            <button className="btn btn-sm" style={{ background:'#dc2626', color:'#fff', border:'none' }} onClick={handleDelete}>삭제 실행</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => setDelMode(false)}>취소</button>
-          </div>
-        )}
-        {delMsg && <div className="alert alert-success" style={{ marginTop:10, padding:'6px 12px' }}>{delMsg}</div>}
       </div>
 
       {/* 통계 */}
@@ -2893,7 +2863,9 @@ function ContractChangePanel({ r, file, projects, userId, onDone, onCancel }) {
     if (!project) { setErr('반영할 프로젝트를 선택하세요.'); return; }
     setBusy(true); setErr('');
     const diffs = rows.filter(x => x.changed).map(x => x.label + ' ' + (x.money ? ciWon(x.before) : (x.before || '—')) + '→' + (x.money ? ciWon(x.after) : (x.after || '—')));
-    let memoLine = '[' + r.changeSeq + '차 변경 ' + (r.changeDate || '') + '] ' + (diffs.length ? diffs.join(', ') : (r.change && r.change.kind ? r.change.kind : '내용변경'));
+    // 비고(memo)는 협력업체도 보는 칸이라 금액 변경은 적지 않는다. 금액 이력은 contracts·change_logs(admin·관리팀만 조회)에 남는다.
+    const memoDiffs = rows.filter(x => x.changed && !x.money).map(x => x.label + ' ' + (x.before || '—') + '→' + (x.after || '—'));
+    let memoLine = '[' + r.changeSeq + '차 변경 ' + (r.changeDate || '') + '] ' + (memoDiffs.length ? memoDiffs.join(', ') : (r.change && r.change.kind ? r.change.kind : '내용변경'));
     if (r.change && r.change.reason) memoLine += ' · ' + r.change.reason;
     const updates = {
       start_date: rows[0].after || null,

@@ -119,6 +119,9 @@ async function fetchHolidays(){
 
 // ── 유틸 ───────────────────────────────────────────────
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+// 퇴사일이 지난 계정은 급여명세서만 열람 가능(DB 도 명세서 외에는 막음) → 홈 대신 명세서 화면으로 보낸다
+const SLIP_PAGE=(window.APP_CONFIG&&APP_CONFIG.PAYROLL&&APP_CONFIG.PAYROLL.SLIP_PAGE)||'payslip.html';
+const isLeaver=u=>!!(u&&u.leave_date&&u.leave_date<todayStr());
 const fmt=s=>{if(!s)return'';const d=new Date(s+'T00:00:00');return (d.getMonth()+1)+'/'+d.getDate();};
 const fmtFull=s=>{if(!s)return'';const d=new Date(s+'T00:00:00');return d.getFullYear()+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0');};
 
@@ -775,6 +778,7 @@ function App(){
       if(v&&v.id&&v.role){
         if(v.password){delete v.password;sessionStorage.setItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session',JSON.stringify(v));}
         if(v.role==='contractor'){window.location.replace('project.html');return null;}
+        if(isLeaver(v)){window.location.replace(SLIP_PAGE);return null;}
         return v;
       }
     }catch(e){}
@@ -846,6 +850,7 @@ function App(){
 
   const handleLogin=u=>{
     if(u.role==='contractor'){window.location.replace('project.html');return;}
+    if(isLeaver(u)){window.location.replace(SLIP_PAGE);return;}
     setUser(u);
     Sysbar.SessionManager.onLogin(()=>logout());
   };

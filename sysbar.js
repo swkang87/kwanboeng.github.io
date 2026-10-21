@@ -354,7 +354,7 @@
 
         // Auth 성공 → 본인 프로필 조회 (H-1: 민감 컬럼은 본인 조회 함수로만 받는다)
         var profileRes = await loadMyProfile(sbClient,
-          'id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,must_change_pw,must_change_id');
+          'id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,must_change_pw,must_change_id,leave_date');
 
         if (profileRes.error || !profileRes.data) {
           await sbClient.auth.signOut();
@@ -434,7 +434,7 @@
         }
 
         return loadMyProfile(sbClient,
-            'id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days')
+            'id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,leave_date')
           .then(function(pr) {
             if (pr.error || !pr.data) {
               clearSession();
@@ -962,6 +962,23 @@
     });
   }
 
+  // config.js ADMIN_TEAM_NAME 을 DB(app_settings)로 복사 — DB 의 관리 권한 판정(is_admin_team)이 같은 팀명을 쓰도록.
+  // admin 만 저장된다(RLS). 그 외 역할이면 조용히 건너뛴다. 반환: Promise<{ synced, changed, error }>
+  function syncAppSettings(sbClient, userId) {
+    var name = (global.APP_CONFIG && global.APP_CONFIG.ADMIN_TEAM_NAME) || null;
+    var row = { id: 1, admin_team_name: name, synced_at: new Date().toISOString(), synced_by: userId || null };
+    return sbClient.from('app_settings').select('*').eq('id', 1).maybeSingle().then(function(r) {
+      if (r.error) return { synced: false, changed: false, error: r.error };
+      var cur = r.data;
+      if (cur && cur.admin_team_name === row.admin_team_name) return { synced: true, changed: false, error: null };
+      var q = cur ? sbClient.from('app_settings').update(row).eq('id', 1).select('id')
+                  : sbClient.from('app_settings').insert(row).select('id');
+      return q.then(function(w) {
+        return { synced: !w.error && !!(w.data && w.data.length), changed: true, error: w.error || null };
+      });
+    });
+  }
+
   // ── 직원 정보 조회 (H-1) ──────────────────────────────────────
   // users 의 민감 컬럼(phone · email · birth_date · username)은 일반 조회 권한에서 빠진다.
   //   · 본인 정보   → loadMyProfile()      (DB 함수 get_my_profile)
@@ -1014,6 +1031,7 @@
     checkLoginId:        checkLoginId,
     loginIdRuleText:     loginIdRuleText,
     syncAuthPolicy:      syncAuthPolicy,
+    syncAppSettings:     syncAppSettings,
     USER_PUBLIC_COLS: USER_PUBLIC_COLS,
     loadMyProfile:    loadMyProfile,
     mergeUserPrivate: mergeUserPrivate,

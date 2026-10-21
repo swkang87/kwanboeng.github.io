@@ -7,23 +7,30 @@
 ## 🔒 상설 작업 규칙 (모든 묶음에 적용)
 
 ### 권한 설계 원칙
-**급여 관련 기능만 `role = 'admin'` 전용, 나머지 관리 기능은 admin + 관리팀.**
-- 급여 전용: `salaries` · `salary_slips` · `salary_details` · `salary_items` · `salary_members`,
-  `admin-salary.html`, `admin-account.html` 의 급여 탭(`canSal`).
-- admin + 관리팀: 장부(`account_book`) · 직원관리 · 업무일지 · 실적 등 나머지 관리 기능.
+**급여 관련 기능은 admin + 관리팀(`payroll_is_admin()`), 나머지 관리 기능도 admin + 관리팀.**
+(2026-10-21 문구 정정 — 이전 문구 "급여 관련 기능만 admin 전용"은 실제 설계·DB와 달랐다)
+- 급여: `payroll_*` 표 · 직원 본인 명세서 함수(`payslip_*`) · `admin-payroll.html` · 관리포털 급여 탭(`canSal`).
+  화면 `canSal` = admin 또는 관리팀(contractor 제외), DB `payroll_is_admin()` = `is_manage_staff()` — 같은 기준.
+- admin + 관리팀: 장부(`account_book`) · 직원관리 · 업무일지 · 실적 · 수금 등 나머지 관리 기능.
 - **계정 아이디·비밀번호 초기화는 admin 전용**(관리팀 불가). 초기화할 수 있으면 그 직원 계정으로
-  로그인해 본인 급여명세서를 볼 수 있으므로, 관리팀에 허용하면 "급여는 admin 전용" 원칙이 무너진다.
+  로그인해 그 사람인 척 본인 급여명세서·개인 기록을 볼 수 있으므로 관리팀에는 허용하지 않는다.
   직원 정보 조회·수정(직원관리)은 admin + 관리팀 그대로. (2026-10-01 승우님 결정)
 - RLS 정책도 화면 권한(`canXxx`)과 **1:1로 대응**시킨다. 둘이 어긋나면 화면은 보이는데
   저장이 실패하는 상태가 되므로, 정책을 바꾸면 해당 화면의 권한 조건도 같이 확인할 것.
+- **RLS 판정은 공통 함수로만 쓴다**(2026-10-21~). 정책에서는 `(select 함수())` 형태로 부른다.
+  `is_active_user()`(등록됨 · 아이디·비밀번호 변경 완료 · 퇴사 전) / `is_internal_staff()`(활성 + contractor 아님) /
+  `is_manage_staff()`(내부 직원 + admin 또는 관리팀) / `my_project_ids()`(내가 멤버·PM인 프로젝트) /
+  `my_project_peer_ids()`(내 프로젝트의 PM·멤버 + 본인). 기존 `get_my_role()` · `get_my_user_id()` 는 그대로 사용 가능.
+  **금지:** `auth.uid() IS NOT NULL` 만 보는 정책, 정책 대상 역할 `public`(→ `authenticated`), 정책·함수 안 팀명 리터럴.
 - **급여 명세서 확정·공개 전 필수:** `security-fix\plan_next_bundles.md` 의 보류 항목(기존 계정 비밀번호 강제 변경)을
   먼저 처리할 것. 작성중(draft) 상태 등록은 선행 없이 가능 — 2026-09-29 승우님 결정으로 "등록 전" → "확정·공개 전" 변경.
 
 ### 화이트라벨 원칙
 **신규 코드에 회사명·팀명을 하드코딩하지 않는다.** 항상 `APP_CONFIG.*` 참조.
-- 예외: 기존 `is_admin_team()` 함수 **재사용은 허용**한다(함수 내부에 `'관리팀'` 리터럴이
-  있으나, 팀명이 그 한 곳에 모여 있어 M-4에서 함수만 고치면 해소된다).
-  새로 팀명 리터럴을 **추가하지는 말 것.**
+- DB 의 관리팀 판정은 `is_admin_team()` 하나로 모여 있고, 함수 안에 팀명 리터럴이 없다 —
+  `public.app_settings.admin_team_name` 을 읽는다(admin 이 직원관리 화면을 열면 `APP_CONFIG.ADMIN_TEAM_NAME` 으로 동기화).
+  정책·함수에 팀명 리터럴을 **추가하지 말 것.**
+- **납품 체크리스트**: 저장소 밖 `security-fix\whitelabel_delivery_checklist.md`. 다른 회사에 배포할 때 이 순서대로 확인한다.
 - 미해소 항목은 「미완료 — 팀 목록 중복 소스 정리」 및 M-4 참조.
 - 레거시 정리용 `removeItem` 키(`kwanbo_pm_user`, `kwanbo_uid`)만 리터럴 유지.
 
@@ -460,6 +467,11 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - 검증: Babel PASS, Edge 헤드리스 실측(1280/760) — 기술지원 배지 높이 30→18, 외주비 배지(760) 28→16,
   다른 배지 폭·이름 시작 위치 동일, 기술지원 행만 이름이 7px 오른쪽, 프로젝트명 줄 수 동일. 백업 `backup/admin-perf_20261012.html`.
 
+### 보안 수정 묶음 A 완료 (2026-10-21)
+- 상세는 저장소 밖 `security-fix\` 문서(75~100) 참조.
+- 화면에 보이는 변화: 공정관리 관리자 탭 변경이력의 "로그 삭제" 기능 제거(변경이력은 보존 기록 — 다시 만들지 말 것),
+  변경계약 반영 시 비고(memo)에 금액을 적지 않음(금액 이력은 계약·변경기록에 남음), 퇴사일이 지난 계정은 로그인 후 급여명세서 화면으로 이동.
+
 ## ❕ 패턴·원칙
 
 - **화이트라벨 키는 항상 config 참조**: 세션키·인증 도메인 등은 `APP_CONFIG.*` 참조로 작성.
@@ -497,7 +509,7 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 
 ### 급여 테이블 RLS 봉쇄 (보안 항목)
 상세는 저장소 밖 `security-fix\` 문서 참조. 별도 묶음으로 처리 예정.
-「급여 관련만 admin 전용」 설계 원칙 적용 대상.
+급여 권한 기준은 위 「권한 설계 원칙」(admin + 관리팀) 참조.
 
 ### SYS_MENUS 이중 관리 해소
 `sysbar.js`의 `SYS_MENUS`가 `config.js`의 `MENUS`와 별개로 하드코딩됨.

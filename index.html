@@ -2166,7 +2166,7 @@ function renderLoginSection(user) {
           sessionStorage.setItem((APP_CONFIG.SESSION_PREFIX||'kwanbo')+'_session', JSON.stringify(u));
           localStorage.removeItem('kwanbo_pm_user');
           sessionStorage.removeItem('kwanbo_uid');
-          window.location.href = (u.role === 'contractor') ? 'project.html' : 'home.html';
+          window.location.href = _afterLoginUrl(u);
         } catch(e) {
           cErr.textContent = '오류: ' + e.message;
           btn.disabled = false; btn.textContent = LABEL;
@@ -2179,6 +2179,15 @@ function renderLoginSection(user) {
         document.getElementById('mNpw').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('mNpw2').focus(); });
         document.getElementById('mNpw2').addEventListener('keydown', function(e){ if(e.key==='Enter') submitChange(); });
       }
+    }
+
+    // 로그인 후 이동할 화면: 퇴사일이 지난 계정은 급여명세서만 열람 가능(DB 도 명세서 외에는 막음) → 명세서 화면,
+    // 기술지원(contractor)은 공정관리, 그 외는 홈. 날짜는 브라우저 로컬(KST) 기준 — toISOString 사용 금지.
+    function _afterLoginUrl(u) {
+      var d = new Date();
+      var today = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      if (u && u.leave_date && u.leave_date < today) return (APP_CONFIG.PAYROLL && APP_CONFIG.PAYROLL.SLIP_PAGE) || 'payslip.html';
+      return (u && u.role === 'contractor') ? 'project.html' : 'home.html';
     }
 
     async function doLogin() {
@@ -2211,7 +2220,7 @@ function renderLoginSection(user) {
 
         // 본인 프로필 조회 (H-1: 민감 컬럼은 본인 조회 함수 get_my_profile 로만 받는다)
         var profileRes = await sb.rpc('get_my_profile')
-          .select('id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,must_change_pw,must_change_id')
+          .select('id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,must_change_pw,must_change_id,leave_date')
           .maybeSingle();
 
         if (profileRes.error || !profileRes.data) {
@@ -2235,7 +2244,7 @@ function renderLoginSection(user) {
         sessionStorage.setItem((APP_CONFIG.SESSION_PREFIX||'kwanbo')+'_session', JSON.stringify(u));
         localStorage.removeItem('kwanbo_pm_user');
         sessionStorage.removeItem('kwanbo_uid');
-        window.location.href = (u.role === 'contractor') ? 'project.html' : 'home.html';
+        window.location.href = _afterLoginUrl(u);
 
       } catch(e) {
         errEl.textContent = '오류: ' + e.message;
