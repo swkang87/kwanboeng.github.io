@@ -17,7 +17,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <body>
 <div id="app"></div>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026100102"></script>
+<script src="sysbar.js?v=2026102201"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js" integrity="sha384-1qlE7MZPM2pHD/pBZCU/yB8UCP52RYL8bge/qNdfNBCWToySp8/M+JL2waXU4hjJ" crossorigin="anonymous"></script>
@@ -1373,13 +1373,13 @@ function App(){
       />
 
       {/* 2줄: 시스템 제목 바 */}
-      <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8',position:'sticky',top:38,zIndex:250}}>
+      <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8',position:'sticky',top:'var(--sysbar-h,38px)',zIndex:250}}>
         <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
         <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>연차 관리 시스템</p>
       </div>
 
       {/* 3줄: 가로 네비 탭 */}
-      <div style={{background:'#1e293b',padding:'0 14px',display:'flex',alignItems:'center',flexShrink:0,height:36,gap:1,borderBottom:'1px solid var(--theme,#0f172a)',position:'sticky',top:83,zIndex:240,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none'}}>
+      <div style={{background:'#1e293b',padding:'0 14px',display:'flex',alignItems:'center',flexShrink:0,height:36,gap:1,borderBottom:'1px solid var(--theme,#0f172a)',position:'sticky',top:'calc(var(--sysbar-h,38px) + 45px)',zIndex:240,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none'}}>
         {navItems.map(item=>(
           <button key={item.k} onClick={()=>setView(item.k)}
             style={{display:'flex',alignItems:'center',gap:4,padding:'5px 11px',

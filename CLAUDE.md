@@ -107,6 +107,22 @@
 
 ## ✅ 완료된 작업
 
+### 왼쪽 메뉴 전환 — sysbar.js v3.1 (2026-10-22)
+동종업계 친구 회사 포털(관리 포털 데모)의 왼쪽 메뉴를 참고해 PC 네비게이션을 상단 막대 → 왼쪽 고정 메뉴로 전환.
+- PC(`MOBILE_MAX_WIDTH`(768) 초과 = 769px~): `SysBar`가 상단 막대 대신 왼쪽 메뉴(`.sys-side`, 폭 `--sys-side-w` 212px)를 그림. body에 `sys-has-side` 클래스 + `padding-left`.
+- 휴대폰·태블릿(~768px): 기존 상단 막대 그대로. 하단 탭바는 연차관리 자체 하단바와 충돌해 보류(2차).
+  (처음엔 641px 기준이었으나 검수에서 641~768px 구간에 연차·업무일지 하단 탭바가 왼쪽 메뉴 아래쪽(로그아웃 버튼)을 덮는 문제를 발견 → 화면들의 모바일 기준 `MOBILE_MAX_WIDTH` 에 맞춤)
+- 접기: 화면 왼쪽 가운데 손잡이(`.sys-side-tog`) 또는 `[` 키 → 메뉴 완전히 숨김. 저장 키 `SESSION_PREFIX + '_side_off'`(localStorage, PC별).
+- 관리포털 하위 5개(업무일지·수금·급여·계정·직원)는 왼쪽 메뉴 안 들여쓰기로 표시. PC에서는 각 admin 화면의 `.top-nav`(클래스 `sys-portal-tabs`) 숨김, 휴대폰은 그대로.
+- **`PORTAL_PAGES` · 권한 판정은 sysbar.js 한 곳**: `Sysbar.PORTAL_PAGES`, `Sysbar.portalPerms(user, teamName)` → `{access, sal, ab}`, `Sysbar.portalCanShow`. admin-*.html 5개는 참조만 함. `'관리팀'` 하드코딩 4곳 → `ADMIN_TEAM_NAME` 기준으로 정리. 쓰이지 않던 `CURRENT_PAGE === 'sl'` 검사 4곳 삭제(급여 화면은 자체 `!canSal` 리다이렉트 유지).
+- 선 아이콘: `SIDE_ICONS`(SVG, stroke=currentColor), `SYS_MENUS[].svg` 키. 휴대폰 상단 막대는 기존 이모지(`icon`).
+- **CSS 변수 `--sysbar-h`**: 화면 위 고정 막대 높이(PC 0 / 휴대폰 38px). sticky `top:38` → `var(--sysbar-h,38px)`, `top:83` → `calc(var(--sysbar-h,38px) + 45px)`, payslip `.ps-list` 56px → `calc(var(--sysbar-h,38px) + 18px)`. **새 화면에서도 38/83 숫자를 직접 쓰지 말 것.**
+- 인쇄 시 왼쪽 메뉴·손잡이 숨김, padding 0.
+- sysbar.js 캐시 버전 `?v=2026102201` (수정한 10개 화면). import_weekly.html은 SysBar 미사용이라 그대로.
+- z-index: 메뉴 190, 손잡이 195 (모달 200~900보다 아래).
+- 참고: worklog.html의 `.sidebar` CSS는 JSX에서 쓰이지 않는 죽은 코드(변수만 맞춰 둠).
+- 백업: `backup/*_20261022.*` (sysbar.js + 화면 10개)
+
 ### 날짜 타임존 버그 6곳 수정
 `new Date(...).toISOString().split('T')[0]` → `localDateStr()` / `today()` 교체.
 - `leave.html` 537행 (`getWeekDays`) — `localDateStr(x)`

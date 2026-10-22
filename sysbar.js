@@ -1,6 +1,12 @@
 /**
- * SYSBAR MODULE v3.0
- * 모든 페이지 공통: 상단 네비바 CSS + React 컴포넌트
+ * SYSBAR MODULE v3.1
+ * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.1 변경사항 (왼쪽 메뉴):
+ *  - PC(MOBILE_MAX_WIDTH 초과, 기본 769px~): 상단 막대 대신 왼쪽 고정 메뉴. [ 키 · 손잡이로 완전히 숨기기 (PC별 기억)
+ *  - 휴대폰·태블릿(MOBILE_MAX_WIDTH 이하): 기존 상단 막대 그대로
+ *  - 관리포털 하위 화면(PORTAL_PAGES) · 권한 판정(portalPerms)을 여기로 통합
+ *  - CSS 변수 --sysbar-h: 각 화면 sticky top 기준 (PC 0 / 휴대폰 38px)
  *
  * v3.0 변경사항 (Phase 3 — Supabase Auth 도입):
  *  - 로그인: doLoginFetch(PBKDF2) → signInWithPassword(Supabase Auth JWT)
@@ -21,15 +27,78 @@
   var _prefix = (global.APP_CONFIG && global.APP_CONFIG.SESSION_PREFIX) ? global.APP_CONFIG.SESSION_PREFIX : 'kwanbo';
   var SESSION_KEY = _prefix + '_session';
 
+  // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
-    { key:'home',    icon:'🏠', label:'메인메뉴', url:'home.html' },
-    { key:'project', icon:'📊', label:'공정관리', url:'project.html' },
-    { key:'leave',   icon:'📅', label:'연차관리', url:'leave.html'   },
-    { key:'worklog', icon:'📝', label:'업무일지', url:'worklog.html' },
-    { key:'payslip', icon:'💰', label:'급여명세서',
+    { key:'home',    icon:'🏠', svg:'home',    label:'메인메뉴', url:'home.html' },
+    { key:'project', icon:'📊', svg:'project', label:'공정관리', url:'project.html' },
+    { key:'leave',   icon:'📅', svg:'cal',     label:'연차관리', url:'leave.html'   },
+    { key:'worklog', icon:'📝', svg:'note',    label:'업무일지', url:'worklog.html' },
+    { key:'payslip', icon:'💰', svg:'won',     label:'급여명세서',
       url:(global.APP_CONFIG && global.APP_CONFIG.PAYROLL && global.APP_CONFIG.PAYROLL.SLIP_PAGE) || 'payslip.html' },
-    { key:'admin',   icon:'🏢', label:'관리포털', url:'admin-worklog.html', adminOnly:true },
+    { key:'admin',   icon:'🏢', svg:'admin',   label:'관리포털', url:'admin-worklog.html', adminOnly:true },
   ];
+
+  // ── 관리포털 하위 화면 (5개 admin-*.html 공용 — 여기 한 곳에서만 관리) ──
+  //   need: 'access' = 관리포털 접근자 전부, 'sal' = 급여 권한, 'ab' = 계정관리 권한
+  var PORTAL_PAGES = [
+    { key:'wl', svg:'note',   label:'업무일지', tabLabel:'📝 업무일지', href:'admin-worklog.html', need:'access' },
+    { key:'pf', svg:'chart',  label:'수금관리', tabLabel:'📊 수금관리', href:'admin-perf.html',    need:'access' },
+    { key:'py', svg:'wallet', label:'급여관리', tabLabel:'💼 급여관리', href:'admin-payroll.html', need:'sal'    },
+    { key:'ab', svg:'key',    label:'계정관리', tabLabel:'🔑 계정관리', href:'admin-account.html', need:'ab'     },
+    { key:'st', svg:'people', label:'직원관리', tabLabel:'👥 직원관리', href:'admin-staff.html',   need:'access' },
+  ];
+
+  // 관리포털 권한 판정 (화면 표시용 — 실제 차단은 DB RLS / payroll_is_admin())
+  //   access = admin 또는 ADMIN_TEAM_NAME 팀
+  //   sal    = admin 또는 (관리팀 && contractor 아님)
+  //   ab     = admin 또는 관리팀
+  function portalPerms(user, teamName) {
+    var adminTeam = (global.APP_CONFIG && global.APP_CONFIG.ADMIN_TEAM_NAME) || '';
+    var isAdmin = !!(user && user.role === 'admin');
+    var inTeam  = !!(adminTeam && teamName === adminTeam);
+    var access  = isAdmin || inTeam;
+    return {
+      access: access,
+      sal:    isAdmin || (inTeam && !!user && user.role !== 'contractor'),
+      ab:     access,
+    };
+  }
+  function portalCanShow(perms, need) {
+    if (need === 'sal') return perms.sal;
+    if (need === 'ab')  return perms.ab;
+    return perms.access;
+  }
+
+  // ── PC 왼쪽 메뉴 선 아이콘 (24x24, stroke=currentColor → 테마 색 자동) ──
+  var SIDE_ICONS = {
+    home:    '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+    project: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 15v-3M12 15V9M17 15v-5"/>',
+    cal:     '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h3M8 17h6"/>',
+    note:    '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM8.5 11h7M8.5 15h5"/>',
+    won:     '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7.5 9.5l1.5 5 1.5-4 1.5 4 1.5-4 1.5 4 1.5-5M7 12h10"/>',
+    admin:   '<path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16"/><path d="M15 10h4a1 1 0 0 1 1 1v10M3 21h18M8 8h3M8 12h3M8 16h3"/>',
+    chart:   '<path d="M4 20V4M4 20h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/>',
+    wallet:  '<path d="M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a1 1 0 0 1-1-1V7z"/><path d="M4 7l11-3v3M16 13.5h.01"/>',
+    key:     '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
+    people:  '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2a4.5 4.5 0 0 1 5 4.8"/>',
+    globe:   '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+    out:     '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/>',
+    chevL:   '<path d="M15 18l-6-6 6-6"/>',
+    chevR:   '<path d="M9 18l6-6-6-6"/>',
+  };
+  function sideIcon(React, name, size) {
+    var s = size || 18;
+    return React.createElement('svg', {
+      key:'i', width:s, height:s, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:2,
+      strokeLinecap:'round', strokeLinejoin:'round', 'aria-hidden':'true', className:'sys-ico',
+      dangerouslySetInnerHTML:{ __html: SIDE_ICONS[name] || '' }
+    });
+  }
+
+  // 메뉴 접힘 상태 저장 키 (PC별 기억)
+  var SIDE_OFF_KEY = _prefix + '_side_off';
+  function sideOffGet() { try { return localStorage.getItem(SIDE_OFF_KEY) === '1'; } catch(e) { return false; } }
+  function sideOffSet(v) { try { if (v) localStorage.setItem(SIDE_OFF_KEY, '1'); else localStorage.removeItem(SIDE_OFF_KEY); } catch(e) {} }
 
   var CSS_INJECTED = false;
 
@@ -59,6 +128,8 @@
   function injectCss() {
     if (!THEME_INJECTED) injectThemeVars();  // APP_CONFIG가 늦게 로드된 경우 보장
     if (CSS_INJECTED || document.getElementById('sysbar-css')) { CSS_INJECTED = true; return; }
+    // 왼쪽 메뉴는 화면들의 모바일 기준(MOBILE_MAX_WIDTH)보다 넓을 때만 — 그 폭 이하는 각 화면이 하단 탭바를 쓴다
+    var sideMin = (((global.APP_CONFIG && global.APP_CONFIG.MOBILE_MAX_WIDTH) || 768) + 1) + 'px';
     var s = document.createElement('style');
     s.id = 'sysbar-css';
     s.textContent =
@@ -80,6 +151,46 @@
         '.sys-link{flex:1;padding:4px 1px;font-size:10px;gap:1px;}' +
       '}' +
       '@media print{.no-print{display:none!important;}}' +
+
+      /* ─── 왼쪽 메뉴 (PC, MOBILE_MAX_WIDTH 초과) ───
+         --sysbar-h : 화면 위 고정 막대 높이. 각 화면의 sticky top 은 var(--sysbar-h,38px) 를 쓴다.
+                      휴대폰 = 38px(상단 막대), PC 왼쪽 메뉴 = 0
+         --sys-side-w : 왼쪽 메뉴 폭. 접으면(body.sys-side-off) 0 */
+      ':root{--sysbar-h:38px;--sys-side-w:212px;}' +
+      '.sys-side,.sys-side-tog{display:none;}' +
+      '@media(min-width:' + sideMin + '){' +
+        'body.sys-has-side{--sysbar-h:0px;padding-left:var(--sys-side-w);transition:padding-left .2s;}' +
+        'body.sys-has-side.sys-side-off{padding-left:0;}' +
+        'body.sys-has-side .sys-bar{display:none;}' +
+        'body.sys-has-side .sys-portal-tabs{display:none!important;}' +
+        '.sys-side{display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;width:var(--sys-side-w);background:var(--theme,#0f172a);color:#cbd5e1;z-index:190;border-right:1px solid rgba(255,255,255,.06);transition:transform .2s;}' +
+        'body.sys-side-off .sys-side{transform:translateX(-100%);}' +
+        '.sys-side-tog{display:flex;align-items:center;justify-content:center;position:fixed;top:50%;margin-top:-22px;left:var(--sys-side-w);width:18px;height:44px;padding:0;border:none;border-radius:0 8px 8px 0;background:var(--theme,#0f172a);color:#94a3b8;cursor:pointer;z-index:195;box-shadow:2px 2px 6px rgba(0,0,0,.15);transition:left .2s,color .15s;}' +
+        '.sys-side-tog:hover{color:#fff;}' +
+        'body.sys-side-off .sys-side-tog{left:0;}' +
+      '}' +
+      '.sys-side-brand{display:flex;align-items:center;gap:10px;height:45px;box-sizing:border-box;padding:0 16px;text-decoration:none;color:#fff;border-bottom:1px solid rgba(255,255,255,.07);}' +
+      '.sys-side-brand img{width:30px;height:30px;object-fit:contain;flex-shrink:0;}' +
+      '.sys-side-brand b{display:block;font-size:15px;font-weight:800;letter-spacing:-.3px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+      '.sys-side-nav{flex:1;overflow-y:auto;padding:12px 10px;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;}' +
+      '.sys-side-b{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:8px;font-size:13.5px;font-weight:600;color:#94a3b8;text-decoration:none;cursor:pointer;border:none;background:transparent;font-family:inherit;text-align:left;width:100%;transition:background .12s,color .12s;}' +
+      '.sys-side-b:hover{background:rgba(255,255,255,.07);color:#fff;}' +
+      '.sys-side-b .sys-ico{flex-shrink:0;}' +
+      '.sys-side-b.on{background:#1d4ed8;color:#fff;cursor:default;}' +
+      '.sys-side-b.on-admin{background:rgba(124,58,237,.22);color:#fff;}' +
+      '.sys-side-b.disabled{color:#475569;}' +
+      '.sys-side-b.disabled:hover{background:transparent;color:#64748b;}' +
+      '.sys-side-sub{display:flex;flex-direction:column;gap:1px;margin:2px 0 4px 21px;padding-left:8px;border-left:1px solid rgba(255,255,255,.1);}' +
+      '.sys-side-sub .sys-side-b{padding:7px 10px;font-size:12.5px;font-weight:500;gap:9px;}' +
+      '.sys-side-sub .sys-side-b.on{background:#7c3aed;}' +
+      '.sys-side-foot{padding:12px 12px 14px;border-top:1px solid rgba(255,255,255,.07);}' +
+      '.sys-side-who{padding:0 4px 10px;}' +
+      '.sys-side-who b{display:block;font-size:13px;color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+      '.sys-side-who span{display:block;font-size:11px;color:#64748b;margin-top:1px;}' +
+      '.sys-side-btns{display:flex;gap:6px;}' +
+      '.sys-side-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 8px;border-radius:7px;border:1px solid #334155;background:transparent;color:#94a3b8;font-size:12px;font-family:inherit;cursor:pointer;text-decoration:none;white-space:nowrap;}' +
+      '.sys-side-btn:hover{color:#fff;border-color:#475569;}' +
+      '@media print{.sys-side,.sys-side-tog{display:none!important;}body.sys-has-side{padding-left:0!important;transition:none!important;}}' +
 
       /* ─── 공통 컴포넌트 클래스 (화이트라벨: 색상은 config 변수 연결) ─── */
       /* 버튼: <button class="btn btn-primary"> 형태로 사용 */
@@ -724,6 +835,33 @@
       var canAdmin   = !!(user && (user.role === 'admin' || teamName === ((global.APP_CONFIG && global.APP_CONFIG.ADMIN_TEAM_NAME) || '관리팀')));
       var e = React.createElement;
 
+      // ── PC 왼쪽 메뉴: 접힘 상태 + body 클래스 + [ 단축키 ──
+      var offState = React.useState(sideOffGet());
+      var sideOff = offState[0], setSideOff = offState[1];
+      React.useEffect(function() {
+        document.body.classList.add('sys-has-side');
+        return function() { document.body.classList.remove('sys-has-side'); document.body.classList.remove('sys-side-off'); };
+      }, []);
+      React.useEffect(function() {
+        document.body.classList.toggle('sys-side-off', !!sideOff);
+        // 본문 폭이 바뀌므로 표 · 차트가 다시 계산되도록 알림
+        var t = setTimeout(function() { try { global.dispatchEvent(new Event('resize')); } catch(err) {} }, 220);
+        return function() { clearTimeout(t); };
+      }, [sideOff]);
+      React.useEffect(function() {
+        function onKey(ev) {
+          if (ev.key !== '[' || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+          var t = ev.target, tg = t && t.tagName;
+          if (tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT' || (t && t.isContentEditable)) return;
+          ev.preventDefault();
+          setSideOff(function(v) { var nv = !v; sideOffSet(nv); return nv; });
+        }
+        document.addEventListener('keydown', onKey);
+        return function() { document.removeEventListener('keydown', onKey); };
+      }, []);
+      function toggleSide() { var nv = !sideOff; sideOffSet(nv); setSideOff(nv); }
+
+      // ── 휴대폰 상단 막대 (기존 그대로) ──
       var links = SYS_MENUS
         .filter(function(m){ return m.adminOnly ? canAdmin : true; })
         .map(function(m){
@@ -743,7 +881,7 @@
         ? (user.name + ' 님' + (teamName ? ' ('+teamName+')' : ''))
         : '';
 
-      return e('div', {className:'sys-bar'+(noPrint?' no-print':'')},
+      var topBar = e('div', {key:'top', className:'sys-bar'+(noPrint?' no-print':'')},
         e('a', {key:'home-link', href:cfg.INDEX_URL||'index.html', className:'sys-co', title:'홈페이지'}, '🌐'),
         e('a', {key:'co', href:cfg.HOME_URL||'home.html', className:'sys-co'}, cfg.COMPANY_KO||''),
         links,
@@ -752,6 +890,60 @@
           e('button', {className:'sys-logout', onClick:onLogout}, '로그아웃')
         )
       );
+
+      // ── PC 왼쪽 메뉴 ──
+      var curFile = (function() { try { return (location.pathname.split('/').pop() || '').toLowerCase(); } catch(err) { return ''; } })();
+      var perms = portalPerms(user, teamName);
+
+      var sideItems = [];
+      SYS_MENUS.forEach(function(m) {
+        if (m.adminOnly && !canAdmin) return;
+        var inner = [sideIcon(React, m.svg), e('span', {key:'l'}, m.label)];
+        if (m.key === activeKey && m.key !== 'admin') {
+          sideItems.push(e('div', {key:m.key, className:'sys-side-b on', 'aria-current':'page'}, inner));
+        } else if (contractor && m.key !== 'project') {
+          sideItems.push(e('div', {key:m.key, className:'sys-side-b disabled', onClick:onDisabled}, inner));
+        } else {
+          sideItems.push(e('a', {key:m.key, href:m.url, className:'sys-side-b' + (m.key === activeKey ? ' on-admin' : '')}, inner));
+        }
+        if (m.key === 'admin') {
+          sideItems.push(e('div', {key:'admin-sub', className:'sys-side-sub'},
+            PORTAL_PAGES.filter(function(pg) { return portalCanShow(perms, pg.need); }).map(function(pg) {
+              var on = activeKey === 'admin' && curFile === pg.href.toLowerCase();
+              var sub = [sideIcon(React, pg.svg, 16), e('span', {key:'l'}, pg.label)];
+              return on
+                ? e('div', {key:pg.key, className:'sys-side-b on', 'aria-current':'page'}, sub)
+                : e('a', {key:pg.key, href:pg.href, className:'sys-side-b'}, sub);
+            })
+          ));
+        }
+      });
+
+      var side = e('aside', {key:'side', className:'sys-side no-print', 'aria-label':'메뉴'},
+        e('a', {key:'brand', className:'sys-side-brand', href:cfg.HOME_URL||'home.html'},
+          cfg.LOGO_URL ? e('img', {key:'i', src:cfg.LOGO_URL, alt:''}) : null,
+          e('b', {key:'t'}, cfg.COMPANY_SHORT || cfg.COMPANY_KO || '')
+        ),
+        e('nav', {key:'nav', className:'sys-side-nav'}, sideItems),
+        e('div', {key:'foot', className:'sys-side-foot'},
+          user ? e('div', {key:'who', className:'sys-side-who'},
+            e('b', null, user.name + ' 님'),
+            teamName ? e('span', null, teamName) : null
+          ) : null,
+          e('div', {key:'btns', className:'sys-side-btns'},
+            e('a', {key:'hp', href:cfg.INDEX_URL||'index.html', className:'sys-side-btn', title:'홈페이지'}, sideIcon(React, 'globe', 14), '홈페이지'),
+            e('button', {key:'lo', type:'button', className:'sys-side-btn', onClick:onLogout}, sideIcon(React, 'out', 14), '로그아웃')
+          )
+        )
+      );
+
+      var tog = e('button', {
+        key:'tog', type:'button', className:'sys-side-tog no-print', onClick:toggleSide,
+        title: sideOff ? '메뉴 펴기 ( [ 키 )' : '메뉴 접기 — 본문만 크게 ( [ 키 )',
+        'aria-label': sideOff ? '메뉴 펴기' : '메뉴 접기'
+      }, sideIcon(React, sideOff ? 'chevR' : 'chevL', 14));
+
+      return e(React.Fragment, null, topBar, side, tog);
     };
   }
 
@@ -1038,6 +1230,9 @@
     loadUsersFull:    loadUsersFull,
     SESSION_KEY: SESSION_KEY,
     SYS_MENUS:   SYS_MENUS,
+    PORTAL_PAGES:  PORTAL_PAGES,
+    portalPerms:   portalPerms,
+    portalCanShow: portalCanShow,
     injectCss:   injectCss,
     createComponent:      createComponent,
     createLoginComponent: createLoginComponent,

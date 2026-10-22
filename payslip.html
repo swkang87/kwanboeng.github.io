@@ -11,7 +11,7 @@
 html, body, #root, button, input, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026100102"></script>
+<script src="sysbar.js?v=2026102201"></script>
 <script src="payslip-render.js?v=20260929"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
@@ -26,7 +26,7 @@ body{background:#f1f5f9;color:#0f172a;font-size:14px;overflow-x:hidden;}
 .ps-title{font-size:20px;font-weight:800;}
 .ps-sub{font-size:12px;color:#64748b;margin-top:2px;}
 .ps-body{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;align-items:start;}
-.ps-list{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;position:sticky;top:56px;}
+.ps-list{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;position:sticky;top:calc(var(--sysbar-h,38px) + 18px);}
 .ps-list-h{font-size:11px;font-weight:700;color:#64748b;padding:10px 14px;border-bottom:1px solid #e2e8f0;background:#f8fafc;}
 .ps-item{display:block;width:100%;text-align:left;padding:10px 14px;border:none;border-bottom:1px solid #f1f5f9;background:#fff;cursor:pointer;font-size:13px;color:#0f172a;}
 .ps-item:last-child{border-bottom:none;}
