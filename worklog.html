@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102206"></script>
+<script src="sysbar.js?v=2026102207"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -426,7 +426,7 @@ function worklogTabs(user) {
     { id: VIEWS.ALL_LOGS, icon: '👥', svg: 'people', label: '전체 업무일지' },
     { id: VIEWS.HISTORY,  icon: '📅', svg: 'cal',    label: '내 기록' },
     { id: VIEWS.SUPPLY,   icon: '🧾', svg: 'box',    label: '비품관리' },
-    ...(user && user.role === 'admin'
+    ...(user && Sysbar.can('worklog_history')   // 작성이력 = 기능 권한 worklog_history (기본 = 관리자)
       ? [{ id: VIEWS.LOGS, icon: '🗒️', svg: 'list', label: '작성이력' }]
       : []),
   ];
@@ -1278,6 +1278,7 @@ function LogCard({ log, name, defaultOpen }) {
 
 // ─── ALL LOGS VIEW ─────────────────────────────────────────────────────────
 function AllLogsView({ user }) {
+  const canAll = Sysbar.can('worklog_all');   // 다른 사람 일지 보기(기능 권한, 기본 = 관리자·팀장)
   const [mode, setMode] = useState('day');
   const [selDate, setSelDate] = useState(todayStr());
   const [logs, setLogs] = useState([]);
@@ -1323,9 +1324,10 @@ function AllLogsView({ user }) {
         // manager: 관리팀 제외 전체 (모든 팀원 + 타팀 팀장)
         // employee: 관리팀 제외 + 팀장 전체 제외 (팀원끼리만)
         let filtered = allUsers.filter(u => u.role !== 'contractor');
+        // 다른 사람 일지 보기 = 기능 권한 worklog_all (기본 = 관리자·팀장). 관리자 외에는 팀장 범위로 보인다.
         if (user.role === 'admin') {
           // 전체 허용 (contractor만 제외)
-        } else if (user.role === 'manager') {
+        } else if (canAll) {
           // 관리팀 제외
           filtered = filtered.filter(u => allowedTeamIds.includes(u.team_id));
         } else {
@@ -1342,7 +1344,7 @@ function AllLogsView({ user }) {
       }
     };
     load();
-  }, [user.id]);
+  }, [user.id, canAll]);   // 권한을 늦게 읽어도 범위를 다시 맞춘다
 
   useEffect(() => {
     if (!usersLoaded) return;
@@ -1793,7 +1795,8 @@ function SupplyView({ user }) {
   const [filEnd, setFilEnd]       = useState('');
   const [filMethod, setFilMethod] = useState('all');
 
-  const canEditAll = user.role === 'admin' || user.role === 'manager';
+  // 다른 사람 비품 기록 수정·삭제 = 기능 권한 supply_admin (기본 = 관리자·관리팀, DB 정책과 같은 판정). 본인 기록은 누구나.
+  const canEditAll = Sysbar.can('supply_admin');
 
   const loadUsers = () => {
     sb.from('users').select('id,name').then(r => {
@@ -2075,6 +2078,15 @@ function App() {
   const [view, setView] = useState(() => Sysbar.hashTab() || VIEWS.MY_LOG);
   const [ssoChecked, setSsoChecked] = useState(!!initialUser);
   const [userTeamName, setUserTeamName] = useState('');
+  // 기능 권한 — 화면을 열 때마다 서버 값으로 다시 읽고, 읽은 뒤에 탭 주소를 검사한다
+  const [permsReady, setPermsReady] = useState(false);
+  const [, setPermTick] = useState(0);
+  useEffect(() => {
+    if (!user || user.role === 'contractor') return;
+    let alive = true;
+    Sysbar.loadPerms(sb).then(() => { if (alive) { setPermsReady(true); setPermTick(t => t + 1); } });
+    return () => { alive = false; };
+  }, [user ? user.id : null]);
 
   // 탭 전환 — pushState + 주소 #탭키
   const nv = (v) => {
@@ -2092,10 +2104,10 @@ function App() {
   }, []);
   // 탭 주소 맞추기 — 그 직급에 없는 탭이면 기본 탭(내 업무일지), 주소는 지금 탭으로
   useEffect(() => {
-    if (!user || user.role === 'contractor') return;
+    if (!user || user.role === 'contractor' || !permsReady) return;
     if (!worklogTabs(user).some(t => t.id === view)) { setView(VIEWS.MY_LOG); return; }
     if (location.hash !== '#' + view) history.replaceState(Object.assign({}, history.state, { view: view }), '', '#' + view);
-  }, [user ? user.id : null, user ? user.role : null, view]);
+  }, [user ? user.id : null, user ? user.role : null, permsReady, view]);
 
   // checkOnLoad — 렌더 후 실행
   useEffect(() => {
@@ -2182,7 +2194,7 @@ function App() {
           {view === VIEWS.ALL_LOGS && <AllLogsView user={user} />}
           {view === VIEWS.HISTORY  && <MyHistoryView user={user} />}
           {view === VIEWS.SUPPLY   && <SupplyView user={user} />}
-          {view === VIEWS.LOGS     && user.role === 'admin' && <LogsView user={user} />}
+          {view === VIEWS.LOGS     && Sysbar.can('worklog_history') && <LogsView user={user} />}
         </main>
         <MobileNav view={view} setView={nv} />
       </div>

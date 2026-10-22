@@ -79,7 +79,7 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
 }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102206"></script>
+<script src="sysbar.js?v=2026102207"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -164,7 +164,7 @@ function NoticeView({user,teamName,readIds,onRead}){
   const [form,setForm]=useState({title:'',content:'',is_pinned:false});
   const [saving,setSaving]=useState(false);
   const [err,setErr]=useState('');
-  const canWrite=user.role==='admin'||teamName==='관리팀';
+  const canWrite=Sysbar.can('notice');   // 공지 작성 = 기능 권한 notice (기본 = 관리자, DB 정책과 같은 판정)
 
   const load=useCallback(async()=>{
     setLoading(true);
@@ -290,7 +290,7 @@ function CalendarView({user,teamName}){
   const [evF,setEvF]=useState({title:'',date:'',end_date:'',category:'일반',memo:''});
   const [saving,setSaving]=useState(false);
   const [editEv,setEditEv]=useState(null);
-  const canWrite=user.role==='admin'||teamName==='관리팀';
+  const canWrite=Sysbar.can('company_events');   // 회사 일정 = 기능 권한 company_events (기본 = 관리자·관리팀)
   const td=todayStr();
 
   const load=async()=>{
@@ -788,6 +788,14 @@ function App(){
   const [user,setUser]=useState(initUser);
   const [checked,setChecked]=useState(!!initUser);
   const [teamName,setTeamName]=useState('');
+  // 기능 권한(공지·회사 일정 버튼) — 화면을 열 때마다 서버 값으로 다시 읽는다
+  const [,setPermTick]=useState(0);
+  useEffect(()=>{
+    if(!user)return;
+    let alive=true;
+    Sysbar.loadPerms(sb).then(()=>{if(alive)setPermTick(t=>t+1);});
+    return()=>{alive=false;};
+  },[user?user.id:null]);
   const [readIds,setReadIds]=useState(new Set());
   const [unread,setUnread]=useState(0);
   const [pendingLeaves,setPendingLeaves]=useState([]);

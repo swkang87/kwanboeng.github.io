@@ -11,7 +11,7 @@
 html, body, #root, button, input, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102206"></script>
+<script src="sysbar.js?v=2026102207"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
@@ -68,6 +68,13 @@ function fmtPhone(p) {
   var n = String(p).replace(/\D/g, '');
   return n.length === 11 ? n.slice(0, 3) + '-' + n.slice(3, 7) + '-' + n.slice(7) : p;
 }
+// users.phone 이 휴대폰 번호 모양인지(숫자·하이픈·공백·+ 만, 숫자 9자리 이상).
+// 오래된 계정은 phone 칸에 로그인 아이디가 들어 있는 경우가 있다(예: 관리자 계정) — 그 값은 휴대폰 칸에 보이지 않는다.
+function isPhoneLike(p) {
+  if (!p) return false;
+  var s = String(p).trim();
+  return /^[0-9+\-\s()]+$/.test(s) && s.replace(/\D/g, '').length >= 9;
+}
 
 function MyInfo({ user, teamName, onLogout }) {
   const [curr, setCurr] = useState('');
@@ -102,6 +109,9 @@ function MyInfo({ user, teamName, onLogout }) {
   }
 
   var avBg = user.role === 'admin' ? 'var(--theme,#0f172a)' : user.role === 'contractor' ? '#d97706' : '#2563eb';
+  // 아이디 = username. 비어 있으면 로그인에 쓰는 값(phone 칸의 아이디)을 보여 준다 — 로그인 규칙(username 우선, 없으면 phone)과 같다
+  var phoneOk = isPhoneLike(user.phone);
+  var loginId = user.username || (!phoneOk && user.phone ? String(user.phone) : '');
   var isContractor = user.role === 'contractor';
 
   return (
@@ -116,8 +126,8 @@ function MyInfo({ user, teamName, onLogout }) {
           </div>
         </div>
         <div className="me-rows">
-          {user.username && <div className="me-row"><span>아이디</span><b>{user.username}</b></div>}
-          <div className="me-row"><span>휴대폰</span><b>{fmtPhone(user.phone) || '-'}</b></div>
+          {loginId && <div className="me-row"><span>아이디</span><b>{loginId}</b></div>}
+          <div className="me-row"><span>휴대폰</span><b>{phoneOk ? fmtPhone(user.phone) : '없음'}</b></div>
           {user.position && <div className="me-row"><span>직위</span><b>{user.position}</b></div>}
         </div>
       </div>

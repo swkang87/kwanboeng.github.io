@@ -12,7 +12,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 — 그리면서 보낸 세션 확인 요청이 이동으로 중단되지 않게 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102206"></script>
+<script src="sysbar.js?v=2026102207"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -445,8 +445,10 @@ const PROJECT_TABS = [
   { k: 'weekly', l: '주간보고', i: '📋', svg: 'list' },
   { k: 'monthly', l: '월간달력', i: '📅', svg: 'cal' },
   { k: 'projects', l: '전체 프로젝트', i: '📊', svg: 'chart' },
-  { k: 'admin', l: '관리', i: '⚙', svg: 'gear', adminOnly: true },
+  { k: 'admin', l: '관리', i: '⚙', svg: 'gear', need: 'project_admin' },   // need = 기능 권한 키(권한 표, 기본 = 관리자)
 ];
+// 이 사람에게 보이는 탭 — 위 탭 줄 · 왼쪽 메뉴 하위 항목 · 주소 검사가 모두 이것을 쓴다
+const projectTabs = () => PROJECT_TABS.filter(t => !t.need || Sysbar.can(t.need));
 const PROJECT_INIT_VIEW = PROJECT_TABS.some(t => t.k === Sysbar.hashTab()) ? Sysbar.hashTab() : 'mine';
 function App() {
   const [user, setUser] = useState(() => {
@@ -485,7 +487,15 @@ function App() {
     Sysbar.Auth.logout(sb);
     setUser(null);
   };
-  const isAdmin = user?.role === 'admin';
+  // 기능 권한(권한 표) — 화면을 열 때마다 서버 값으로 다시 읽고, 읽은 뒤에 탭 주소를 검사한다
+  const [permsReady, setPermsReady] = useState(false);
+  const [, setPermTick] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    Sysbar.loadPerms(sb).then(() => { if (alive) { setPermsReady(true); setPermTick(t => t + 1); } });
+    return () => { alive = false; };
+  }, [user ? user.id : null]);
 
   const [prevView, setPrevView] = useState('mine');
   const [userTeamName, setUserTeamName] = useState('');
@@ -534,13 +544,13 @@ function App() {
   // 탭 주소 맞추기 — 그 직급에 없는 탭이면 기본 탭(내 프로젝트), 주소(#탭키)는 지금 탭으로.
   // 상세보기(view 'project')는 연 탭의 주소를 그대로 둔다(새로고침하면 그 탭으로).
   useEffect(() => {
-    if (!user || view === 'project') return;
-    if (!PROJECT_TABS.some(t => t.k === view && (!t.adminOnly || isAdmin))) {
+    if (!user || !permsReady || view === 'project') return;
+    if (!projectTabs().some(t => t.k === view)) {
       setMountedTabs(prev => { const n = new Set(prev); n.add('mine'); return n; });
       setView('mine'); return;
     }
     if (location.hash !== '#' + view) history.replaceState({ view: view }, '', '#' + view);
-  }, [user ? user.id : null, isAdmin, view]);
+  }, [user ? user.id : null, permsReady, view]);
 
   // 세션 서버 검증 — sessionStorage 는 초기 렌더용 캐시일 뿐이다.
   // 마운트 직후 실제 JWT 와 users.role 을 서버에서 확인하고, 캐시 role 은 버린다.
@@ -575,7 +585,7 @@ function App() {
   if (!ssoChecked) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'var(--theme,#0f172a)', color:'#94a3b8', fontSize:14 }}>로딩 중...</div>;
   if (!user) return <Login supabaseClient={sb} onLogin={handleLogin} subtitle="공정관리 시스템" />;
 
-  const menuItems = PROJECT_TABS.filter(t => !t.adminOnly || isAdmin);
+  const menuItems = projectTabs();
   const curTab = view === 'project' ? 'projects' : view;   // 상세보기는 「전체 프로젝트」 탭으로 표시(기존과 같음)
 
   const isContractor = user?.role === 'contractor';
@@ -643,7 +653,7 @@ function App() {
         <div style={{ display: view === 'projects' || (view === 'project') ? '' : 'none' }}>
           {mountedTabs.has('projects') && <ProjectList gp={gp} user={user} listFilter={listFilter} setListFilter={setListFilter} appData={appData} />}
         </div>
-        {view === 'admin'   && isAdmin && <AdminPanel user={user} />}
+        {view === 'admin'   && Sysbar.can('project_admin') && <AdminPanel user={user} />}
       </div>
 
     </div>
@@ -2699,7 +2709,7 @@ function AdminPanel({ user }) {
       <h2 className="section-title">⚙ 관리자 메뉴</h2>
       {msg && <div className="alert alert-success">{msg}</div>}
       <div style={{ display: 'flex', gap: 4, marginBottom: 14, background: '#fff', borderRadius: 8, padding: 4, boxShadow: '0 1px 2px rgba(0,0,0,.06)', width: 'fit-content', flexWrap: 'wrap' }}>
-        {[{k:'editProj',l:'프로젝트 수정'},{k:'create',l:'새 프로젝트 등록'},{k:'userList',l:'직원 목록'},{k:'logs',l:'📋 수정 로그'}].map(t => (
+        {[{k:'editProj',l:'프로젝트 수정'},{k:'create',l:'새 프로젝트 등록'},{k:'userList',l:'직원 목록'}].concat(Sysbar.can('project_manage') ? [{k:'logs',l:'📋 수정 로그'}] : []).map(t => (   // 수정 로그 = project_manage
           <button key={t.k} onClick={() => setTab(t.k)} className="btn btn-sm" style={{ background: tab===t.k?'var(--theme,#0f172a)':'transparent', color: tab===t.k?'#fff':'#64748b', border: 'none' }}>{t.l}</button>
         ))}
       </div>
@@ -2707,7 +2717,7 @@ function AdminPanel({ user }) {
       {tab === 'create' && <CreateProjectForm userId={user.id} users={users} projects={projects} onSaved={(m) => { loadAll(); showMsg(typeof m === 'string' ? m : '프로젝트가 등록되었습니다.'); }} />}
       {tab === 'editProj' && <AdminProjectEdit projects={projects} users={users} onSaved={() => { loadAll(); showMsg('수정되었습니다.'); }} userId={user.id} />}
       {tab === 'userList' && <UserList users={users} onSaved={() => { loadAll(); showMsg('저장되었습니다.'); }} />}
-      {tab === 'logs' && <ChangeLogPanel projects={projects} users={users} />}
+      {tab === 'logs' && Sysbar.can('project_manage') && <ChangeLogPanel projects={projects} users={users} />}
     </div>
   );
 }
@@ -3027,7 +3037,7 @@ function CreateProjectForm({ userId, users, projects, onSaved }) {
     <div className="card card-p">
       <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 14 }}>새 프로젝트 등록</div>
       {err && <div className="alert alert-error">{err}</div>}
-      <ContractImportBar onParsed={onParsed} />
+      {Sysbar.can('project_manage') && <ContractImportBar onParsed={onParsed} />}   {/* 계약금액·계약서 PDF 저장 = project_manage */}
       {imp && <ContractNewInfo r={imp.r} amount={impAmount} setAmount={setImpAmount} dupNames={dupNames} onClear={clearImport} />}
       <div className="form-group">
         <label className="form-label">용역명 *</label>
@@ -3342,7 +3352,7 @@ function AdminProjectEdit({ projects, users, onSaved, userId }) {
                   <div style={{ fontSize: 10, color: '#94a3b8' }}>{p.client} · {uName(p.pm_id)}</div>
                 </div>
                 <Bd bg={STATUS_COLOR[p.status]}>{p.status}</Bd>
-                <button className="btn btn-danger btn-sm" onClick={e => { e.stopPropagation(); setDelConfirm(p); }}>삭제</button>
+                {Sysbar.can('project_manage') && <button className="btn btn-danger btn-sm" onClick={e => { e.stopPropagation(); setDelConfirm(p); }}>삭제</button>}
               </div>
             </div>
           ))}

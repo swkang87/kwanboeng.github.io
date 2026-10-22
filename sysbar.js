@@ -1,6 +1,10 @@
 /**
- * SYSBAR MODULE v3.3
+ * SYSBAR MODULE v3.4
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.4 변경사항 (기능 권한 표 2차, 2026-10-22):
+ *  - PERM_DEFS 에 공정관리·연차·업무일지·메인메뉴 키 9개 + group(권한 탭 묶음). PERM_GROUPS
+ *  - loadPerms: 같은 계정의 동시 호출은 한 번만 보낸다(화면 + 메뉴)
  *
  * v3.3 변경사항 (왼쪽 메뉴 하위 탭, 2026-10-22):
  *  - SysBar props subTabs([{key,label,svg?,badge?}]) · activeSub · onSubChange(key)
@@ -64,16 +68,27 @@
   // ── 기능 권한 표 (2026-10-22~) ─────────────────────────────────────────
   //   키 목록은 DB 함수 public.perm_keys() 와 같아야 한다(키를 더하면 두 곳 모두).
   //   기본값(= 이전 규칙)·예외(부서/사람) 판정은 DB has_perm() 이 하고, 화면은 my_perms() 결과만 쓴다.
-  //   pages = 이 권한으로 열리는 화면(권한 탭 안내용)
+  //   pages = 이 권한으로 열리는 화면(권한 탭 안내용), group = 권한 탭에서 묶어 보이는 단위(PERM_GROUPS 순서)
+  //   2차(2026-10-22): 공정관리·연차·업무일지·메인메뉴. 기본값은 DB perm_default_for (= 그 전 규칙)
+  var PERM_GROUPS = ['관리포털', '공정관리', '연차', '업무일지', '메인메뉴'];
   var PERM_DEFS = [
-    { key:'worklog_admin', label:((global.APP_CONFIG && global.APP_CONFIG.ADMIN_TEAM_NAME) || '관리포털') + ' 업무일지', desc:'관리포털 업무일지 화면',                        pages:['admin-worklog.html'] },
-    { key:'perf',          label:'수금관리',        desc:'수금·계약/잔금·예상수금',                        pages:['admin-perf.html'] },
-    { key:'tax',           label:'세금계산서',      desc:'수금관리 안 세금계산서·매칭확인 탭',             pages:['admin-perf.html'] },
-    { key:'payroll',       label:'급여 작성·명세서', desc:'급여관리 화면(명세서 작성·확정·메일)',          pages:['admin-payroll.html'] },
-    { key:'payroll_bank',  label:'송금·계좌',       desc:'송금내역 엑셀·송금 계좌·추가 송금 (급여 권한도 있어야 함)', pages:['admin-payroll.html'] },
-    { key:'staff',         label:'직원관리',        desc:'직원 정보 조회·수정',                            pages:['admin-staff.html'] },
-    { key:'account',       label:'계정관리',        desc:'계정(장부) 보기·입력',                           pages:['admin-account.html'] },
-    { key:'system',        label:'시스템',          desc:'사용량·백업 상태, 권한 표 보기',                 pages:['admin-system.html'] },
+    { key:'worklog_admin', group:'관리포털', label:((global.APP_CONFIG && global.APP_CONFIG.ADMIN_TEAM_NAME) || '관리포털') + ' 업무일지', desc:'관리포털 업무일지 화면',                        pages:['admin-worklog.html'] },
+    { key:'perf',          group:'관리포털', label:'수금관리',        desc:'수금·계약/잔금·예상수금',                        pages:['admin-perf.html'] },
+    { key:'tax',           group:'관리포털', label:'세금계산서',      desc:'수금관리 안 세금계산서·매칭확인 탭',             pages:['admin-perf.html'] },
+    { key:'payroll',       group:'관리포털', label:'급여 작성·명세서', desc:'급여관리 화면(명세서 작성·확정·메일)',          pages:['admin-payroll.html'] },
+    { key:'payroll_bank',  group:'관리포털', label:'송금·계좌',       desc:'송금내역 엑셀·송금 계좌·추가 송금 (급여 권한도 있어야 함)', pages:['admin-payroll.html'] },
+    { key:'staff',         group:'관리포털', label:'직원관리',        desc:'직원 정보 조회·수정',                            pages:['admin-staff.html'] },
+    { key:'account',       group:'관리포털', label:'계정관리',        desc:'계정(장부) 보기·입력',                           pages:['admin-account.html'] },
+    { key:'system',        group:'관리포털', label:'시스템',          desc:'사용량·백업 상태, 권한 표 보기',                 pages:['admin-system.html'] },
+    { key:'project_admin',   group:'공정관리', label:'관리 탭',           desc:'공정관리 「관리」 탭(프로젝트 등록·수정, 직원 목록)',                                  pages:['project.html#admin'] },
+    { key:'project_manage',  group:'공정관리', label:'삭제·수정 로그·계약', desc:'프로젝트·주간보고·주요공정 삭제, 수정 로그 보기, 계약금액·계약서 PDF 저장 (관리 탭 안 기능은 관리 탭 권한도 있어야 함)', pages:['project.html#admin'] },
+    { key:'leave_approve',   group:'연차',     label:'최종 승인',          desc:'연차 「승인 관리」 탭(최종 승인·반려·취소 승인). 팀장 「팀원 결재」는 직급 규칙 그대로',  pages:['leave.html#admin_approve'] },
+    { key:'leave_admin',     group:'연차',     label:'통계·감사 로그',      desc:'연차 통계·감사 로그 탭 (팀 관리·직원 관리 탭은 관리자만 — 부서·계정 변경은 고정 규칙)',  pages:['leave.html#admin_stats', 'leave.html#admin_audit'] },
+    { key:'worklog_all',     group:'업무일지', label:'다른 사람 일지 보기',  desc:'전체 업무일지에서 다른 사람이 쓴 내용 보기',                                          pages:['worklog.html#all_logs'] },
+    { key:'worklog_history', group:'업무일지', label:'작성이력',           desc:'업무일지 「작성이력」 탭(전 직원 수정 기록)',                                         pages:['worklog.html#logs'] },
+    { key:'supply_admin',    group:'업무일지', label:'비품 전체 수정',      desc:'비품관리에서 다른 사람 기록 수정·삭제 (본인 기록은 누구나)',                            pages:['worklog.html#supply'] },
+    { key:'notice',          group:'메인메뉴', label:'공지 작성',          desc:'메인메뉴 공지 작성, 다른 사람 공지 수정·삭제 (본인 공지는 작성자도 가능)',               pages:['home.html'] },
+    { key:'company_events',  group:'메인메뉴', label:'회사 일정',          desc:'메인메뉴 회사 일정 등록·수정·삭제',                                                    pages:['home.html'] },
   ];
   // 표에서 바꿀 수 없는 규칙(권한 탭 🔒 안내)
   var PERM_FIXED_RULES = [
@@ -120,10 +135,12 @@
   function portalCanShow(pg) { return can(pg && pg.need); }
 
   // 서버에서 내 권한을 다시 읽는다(화면을 열 때마다 — 관리자가 바꾼 권한이 새로고침으로 적용되게).
+  var _permsInflight = null;   // { uid, p } — 화면과 메뉴(SysBar)가 동시에 불러도 요청은 한 번
   function loadPerms(sbClient) {
     var u = _me();
     if (!sbClient || !sbClient.rpc || !u) return Promise.resolve(getPerms());
-    return sbClient.rpc('my_perms').then(function(r) {
+    if (_permsInflight && _permsInflight.uid === u.id) return _permsInflight.p;
+    var p = sbClient.rpc('my_perms').then(function(r) {
       if (r.error || !r.data) { logError(r.error, '기능 권한 조회'); return getPerms(); }
       // 응답이 오는 사이 만료·로그아웃으로 세션이 지워졌거나 다른 계정이면 쓰지 않는다
       // (화면을 열 때 만료 정리 뒤에 이 응답이 도착해 권한 캐시가 되살아나던 문제 — 2026-10-22)
@@ -132,6 +149,9 @@
       _ssSet(PERMS_KEY, { uid: u.id, perms: r.data });
       return getPerms();
     }, function(err) { logError(err, '기능 권한 조회'); return getPerms(); });
+    _permsInflight = { uid: u.id, p: p };
+    p.then(function() { _permsInflight = null; }, function() { _permsInflight = null; });
+    return p;
   }
 
   // 다른 부서로 보기 (관리자만). team = {id, name} 또는 null(원래대로). 성공하면 true.
@@ -1468,6 +1488,7 @@
     PORTAL_PAGES:  PORTAL_PAGES,
     portalCanShow: portalCanShow,
     PERM_DEFS:        PERM_DEFS,
+    PERM_GROUPS:      PERM_GROUPS,
     PERM_FIXED_RULES: PERM_FIXED_RULES,
     loadPerms:     loadPerms,
     can:           can,

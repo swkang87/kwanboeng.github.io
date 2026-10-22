@@ -12,16 +12,27 @@
 - 급여: `payroll_*` 표 · 직원 본인 명세서 함수(`payslip_*`) · `admin-payroll.html` · 관리포털 급여 탭.
   화면 `Sysbar.can('payroll')`, DB `payroll_is_admin()` = `has_perm('payroll')` — 같은 판정(아래 기능 권한 표).
   송금내역·계좌는 `payroll` + `payroll_bank` 둘 다 있어야 한다.
-- **기능 권한 표(2026-10-22~)** — 1차 범위 = 관리포털 6화면 + 세금계산서. 키 8개:
-  `worklog_admin` · `perf` · `tax` · `payroll` · `payroll_bank` · `staff` · `account` · `system`.
+- **기능 권한 표(2026-10-22~)** — 키 17개. 권한 탭에서 화면 그룹(`Sysbar.PERM_GROUPS`)별로 묶어 보인다.
+  - 1차(관리포털 + 세금계산서): `worklog_admin` · `perf` · `tax` · `payroll` · `payroll_bank` · `staff` · `account` · `system`
+  - 2차(공정관리·연차·업무일지·메인메뉴): `project_admin`(공정관리 관리 탭) · `project_manage`(프로젝트·주간보고·주요공정 삭제, 수정 로그,
+    계약·계약서 PDF) · `leave_approve`(연차 최종 승인) · `leave_admin`(연차 통계·감사 로그) · `worklog_all`(다른 사람 업무일지 보기) ·
+    `worklog_history`(업무일지 작성이력) · `supply_admin`(다른 사람 비품 수정·삭제) · `notice`(공지 작성·남의 공지 수정) · `company_events`(회사 일정)
   - 판정 순서(DB `has_perm('키')`): 고정 규칙(비활성·협력업체 → false, admin → true) → 사람 예외 → 부서 예외(`perm_overrides`)
-    → 기본값 `perm_default_for` (= 2026-10-22 이전 규칙: `tax` = admin + 팀장(role manager), 나머지 = admin + 관리팀).
+    → 기본값 `perm_default_for` (= 도입 전 규칙): `tax`·`worklog_all` = admin + 팀장(role manager) /
+    `project_admin`·`leave_approve`·`leave_admin`·`worklog_history`·`notice` = admin 만 / 나머지 = admin + 관리팀.
+  - **역할로 남긴 것(권한 키 아님)**: 연차 팀장 「팀원 결재」(결재 흐름) · 공정관리 PM·참여자 기반 접근(`my_project_ids` 등, 주간보고 입력·
+    프로젝트 수정 버튼) · 본인 데이터 · 관리자 고정 규칙(계정 초기화, 권한 변경, `users`/`teams`/`app_settings` 쓰기 — 연차 팀 관리·직원 관리 탭은
+    admin + `leave_admin`) · 업무일지 전체 보기의 **보이는 사람 범위**(관리자 = 전체, 그 외 `worklog_all` = 팀장 범위).
+  - 키 하나에 화면 기능 하나: 같은 표를 두 화면이 쓰면 `키A OR 키B`(예: `contracts` = `perf` or `project_manage`,
+    `users_private_list()` = `staff` · `payroll` · `leave_admin` · `project_admin`).
   - 키 목록은 DB `perm_keys()` 와 `sysbar.js` `Sysbar.PERM_DEFS` **두 곳을 같이** 고친다. `PORTAL_PAGES[].need` 도 키.
   - 화면은 `Sysbar.can(키)` / `Sysbar.canPortal()`(my_perms() 를 sessionStorage 에 캐시, 화면을 열 때마다 다시 읽음).
     새 화면도 `SysBar` 에 `sb={sb}` 를 넘길 것(권한·부서 목록 조회용). 팀명 비교로 권한을 판정하지 말 것.
   - **권한 변경 = admin 전용**(관리팀은 시스템 → 권한 탭 읽기만). 변경 기록 `perm_change_logs`(트리거).
-  - 1차 범위 정책은 `(select has_perm('키'))`. **2차(공정관리 '관리' 탭·연차 결재·홈 공지·업무일지(직원) 등)는 `is_manage_staff()` 그대로.**
-    두 범위가 같이 쓰는 표(`contracts` · `shared_todos` · `users_private_list()`)는 `기존 판정 OR 새 키` — 2차에서 정리.
+  - 정책은 `(select has_perm('키'))`. 2차(2026-10-22)로 **`is_manage_staff()` 를 쓰는 정책·함수는 0개**(함수는 남겨 둠 — 삭제는 멈춤 조건).
+    새 정책에 `is_manage_staff()`·`get_my_role() = 'admin'` 을 쓰지 말고 키를 쓸 것(고정 규칙 제외).
+  - 화면에서 권한으로 탭을 고르는 화면(project · leave · worklog)은 **권한을 다시 읽은 뒤에** 탭 주소(#탭키)를 검사한다(`permsReady`) —
+    읽기 전에 검사하면 권한 탭 주소가 기본 탭으로 바뀐다.
   - 관리자 「다른 부서로 보기」(왼쪽 메뉴 아래·시스템 → 권한 탭)는 **화면 표시만** 바꾼다(이 창 sessionStorage). 데이터는 관리자 권한 그대로.
 - admin + 관리팀: 장부(`account_book`) · 직원관리 · 업무일지 · 실적 · 수금 등 나머지 관리 기능.
 - **계정 아이디·비밀번호 초기화는 admin 전용**(관리팀 불가). 초기화할 수 있으면 그 직원 계정으로
@@ -129,6 +140,17 @@
   이제 `verifySession` 은 서버가 명확히 답한 실패(no-session · profile-missing · 오류 코드/401·403·404 가 있는 profile-error)만 세션을 지우고,
   중단·네트워크·5xx·토큰 갱신 네트워크 실패는 `hold:true`(reason network-error / auth-error)로 돌려준다 — 화면은 `hold` 면 로그아웃하지 않는다.
   공정관리도 명확한 실패면 `Auth.logout`(다른 화면과 같게). 옛 주소 `#profile` 은 화면을 그리기 전 `<head>` 스크립트에서 me.html 로 보낸다(project · leave).
+
+### 기능 권한 표 2차 — 공정관리·연차·업무일지·메인메뉴 (2026-10-22, sysbar.js v3.4 `?v=2026102207`)
+- 구조·키·역할로 남긴 것은 위 「권한 설계 원칙 → 기능 권한 표」. DB 산출물은 저장소 밖 `security-fix\113~117_perm2_*`.
+- 오픈 시점 권한 변화 없음: 한 DO 블록 안에서 적용 전 기록 → 114 본문 실행 → 재확인 → 롤백 방식으로 auth 연결 19명 × (새 키 9 + PDF 1 + 1차 키 8) 함수 342건,
+  실제 조회 행 수(11개 표 + 개인정보 함수) 228건 모두 FAIL 0 확인 후 적용.
+- 화면: 공정관리 관리 탭 = `project_admin`(안의 수정 로그·삭제·계약서 PDF = `project_manage`), 연차 탭 목록 `leaveNavItems()` 가 `can()` 으로,
+  업무일지 작성이력 = `worklog_history`, 비품 남의 기록 수정·삭제 = `supply_admin`(이전 화면은 관리자·팀장이었으나 DB 는 관리자·관리팀 — DB 기준으로 맞춤),
+  메인메뉴 공지 = `notice`(이전 화면은 관리자·'관리팀' 리터럴이었으나 DB 는 관리자만 — DB 기준), 회사 일정 = `company_events`. home.html 의 '관리팀' 리터럴 2곳 제거.
+- 휴대폰 연차관리 하단 바: 탭이 5개를 넘으면 앞 4개 + 「더보기」(나머지 목록, 대기 배지 합계).
+- 내 정보 「휴대폰」: 번호 모양이 아닌 값(오래된 계정의 phone 칸에 든 로그인 아이디)은 「없음」, 아이디 칸에 보인다.
+- 백업: `backup/*_20261022_7.*`
 
 ### 왼쪽 메뉴 하위 탭 + 「내 정보관리」 (2026-10-22, sysbar.js v3.3)
 - **화면 안 탭 = 왼쪽 메뉴 하위 항목**(공정관리 · 연차관리 · 업무일지). `SysBar` props `subTabs`([{key, label, svg?, badge?}]) · `activeSub` · `onSubChange(key)`.

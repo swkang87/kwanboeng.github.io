@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102206"></script>
+<script src="sysbar.js?v=2026102207"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
@@ -87,6 +87,12 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font
 .pt-tbl td{padding:6px;border-bottom:1px solid #f1f5f9;text-align:center;white-space:nowrap;}
 .pt-tbl tr:last-child td{border-bottom:none;}
 .pt-tbl .pt-name{text-align:left;font-weight:600;color:#0f172a;}
+/* 권한 표 2차: 열이 많아 그룹 머리글 + 첫 열 고정(가로 스크롤해도 부서 이름이 보임) */
+.pt-tbl th.pt-grp{background:#eef2ff;color:#3730a3;border-left:2px solid #c7d2fe;}
+.pt-tbl .pt-gs{border-left:2px solid #e0e7ff;}
+.pt-tbl th:first-child,.pt-tbl td.pt-name{position:sticky;left:0;z-index:1;background:#fff;box-shadow:1px 0 0 #e2e8f0;}
+.pt-tbl th:first-child{background:#f8fafc;}
+.pt-tbl tr.pt-grow td{background:#f8fafc;color:#3730a3;font-size:11px;font-weight:700;text-align:left;}
 .pc{min-width:62px;padding:5px 8px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#94a3b8;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;}
 .pc.pc-yes{color:#334155;}
 .pc.pc-on{background:#dcfce7;border-color:#86efac;color:#166534;}
@@ -386,6 +392,11 @@ function PermView({ user }) {
   var teamName = {}; teams.forEach(function(t) { teamName[t.id] = t.name; });
   var userName = {}; users.forEach(function(u) { userName[u.id] = u.name; });
   var keyLabel = {}; DEFS.forEach(function(d) { keyLabel[d.key] = d.label; });
+  // 화면 그룹(관리포털 / 공정관리 / 연차 / 업무일지 / 메인메뉴)별 열 묶음 — 그룹이 바뀌는 열에 구분선
+  var GROUPS = (Sysbar.PERM_GROUPS || []).map(function(g) {
+    return { name: g, defs: DEFS.filter(function(d) { return d.group === g; }) };
+  }).filter(function(g) { return g.defs.length; });
+  var grpStart = {}; GROUPS.forEach(function(g) { grpStart[g.defs[0].key] = true; });
   var ovrByUser = {};
   userOvr.forEach(function(o) { (ovrByUser[o.target_id] = ovrByUser[o.target_id] || []).push(o); });
   var ovrUsers = Object.keys(ovrByUser);
@@ -423,7 +434,10 @@ function PermView({ user }) {
         <div className="ps" style={{ margin: '4px 0 10px' }}>칸을 누르면 기본 → 켬 → 끔 → 기본 순서로 바뀌어요. 기본과 다르게 정한 칸은 색으로 표시돼요. 「기본」은 그 부서 일반 직원 기준이에요.</div>
         <div className="tbl-wrap">
           <table className="pt-tbl">
-            <thead><tr><th>부서</th>{DEFS.map(function(d) { return <th key={d.key} title={d.desc}>{d.label}</th>; })}</tr></thead>
+            <thead>
+              <tr><th rowSpan={2}>부서</th>{GROUPS.map(function(g) { return <th key={g.name} colSpan={g.defs.length} className="pt-grp">{g.name}</th>; })}</tr>
+              <tr>{DEFS.map(function(d) { return <th key={d.key} title={d.desc} className={grpStart[d.key] ? 'pt-gs' : ''}>{d.label}</th>; })}</tr>
+            </thead>
             <tbody>
               {teams.map(function(t) {
                 var tp = teamPerms[t.id];
@@ -431,9 +445,9 @@ function PermView({ user }) {
                   <tr key={t.id}>
                     <td className="pt-name">{t.name}</td>
                     {DEFS.map(function(d) {
-                      if (!tp) return <td key={d.key}>-</td>;
+                      if (!tp) return <td key={d.key} className={grpStart[d.key] ? 'pt-gs' : ''}>-</td>;
                       var st = ovrState(tp.overrides[d.key]);
-                      return <td key={d.key}><PermCell state={st} base={!!tp.defaults[d.key]} disabled={!canEdit || busy}
+                      return <td key={d.key} className={grpStart[d.key] ? 'pt-gs' : ''}><PermCell state={st} base={!!tp.defaults[d.key]} disabled={!canEdit || busy}
                         onClick={function() { write('team', t.id, d.key, PERM_NEXT[st]); }} /></td>;
                     })}
                   </tr>
@@ -442,7 +456,8 @@ function PermView({ user }) {
             </tbody>
           </table>
         </div>
-        <div className="uc-s">세금계산서의 기본값은 직급으로 정해져서(관리자·팀장) 부서 칸에는 「기본 –」로 보여요. 팀장은 기본으로 켜져 있어요.</div>
+        <div className="uc-s">세금계산서·다른 사람 일지 보기는 직급으로 정해져서(관리자·팀장) 부서 칸에는 「기본 –」로 보여요. 팀장은 기본으로 켜져 있어요.
+          공정관리 관리 탭·연차 최종 승인·통계·감사 로그·작성이력·공지 작성은 기본이 관리자만이라 모든 부서가 「기본 –」예요. 표가 넓으면 옆으로 밀어서 보세요.</div>
       </div>
 
       <div className="card">
@@ -472,8 +487,9 @@ function PermView({ user }) {
                 <tbody>
                   {DEFS.map(function(d) {
                     var st = ovrState(up.overrides[d.key]);
+                    var head = grpStart[d.key] ? <tr key={'g-' + d.group} className="pt-grow"><td colSpan={4}>{d.group}</td></tr> : null;
                     var dis = !canEdit || busy || up.fixed === 'admin';
-                    return (
+                    return [head, (
                       <tr key={d.key}>
                         <td className="pt-name" title={d.desc}>{d.label}</td>
                         <td>{up.base[d.key] ? '✓' : '–'}</td>
@@ -488,7 +504,7 @@ function PermView({ user }) {
                         </td>
                         <td className={up.perms[d.key] ? 'fin-y' : 'fin-n'}>{up.perms[d.key] ? '✓' : '–'}</td>
                       </tr>
-                    );
+                    )];
                   })}
                 </tbody>
               </table>
