@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>관리포털 시스템</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
+<script src="config.js"></script>
+<script src="sysbar.js?v=2026102202"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
+.sys-bar{position:sticky;top:0;z-index:300;} /* → sysbar.js가 주입 */
+@media(max-width:640px){
+  .top-nav{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+  .top-nav::-webkit-scrollbar{display:none;}
+}
+.top-nav{position:sticky;top:calc(var(--sysbar-h,38px) + 45px);z-index:200;background:#1e293b;height:36px;display:flex;align-items:center;padding:0 14px;gap:1px;border-bottom:1px solid var(--theme,#0f172a);}
+.nav-btn{display:flex;align-items:center;gap:4px;padding:5px 11px;height:26px;border:none;background:transparent;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-size:11px;font-weight:400;color:#94a3b8;cursor:pointer;white-space:nowrap;}
+.nav-btn.active{background:#7c3aed;color:#fff;font-weight:700;}
+.page{padding:24px;max-width:1100px;margin:0 auto;}
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:20px;margin-bottom:16px;}
+.ph{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px;}
+.pt{font-size:22px;font-weight:800;color:#0f172a;margin-bottom:4px;}
+.ps{font-size:13px;color:#64748b;}
+.fl{display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px;}
+.fi{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;color:#0f172a;outline:none;}
+.fi:focus{border-color:#7c3aed;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:600;cursor:pointer;border:none;text-decoration:none;}
+.btn-p{background:#7c3aed;color:#fff;}
+.btn-s{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.al{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;}
+.al-e{background:#fee2e2;color:#991b1b;}
+.loading{text-align:center;padding:32px;color:#94a3b8;font-size:13px;}
+/* ── 백업 상태 ── */
+.bk{display:flex;align-items:flex-start;gap:14px;border-left:5px solid #cbd5e1;}
+.bk.ok{border-left-color:#16a34a;}
+.bk.bad{border-left-color:#dc2626;background:#fef2f2;border-color:#fecaca;}
+.bk-dot{width:12px;height:12px;border-radius:50%;background:#94a3b8;margin-top:5px;flex-shrink:0;}
+.bk.ok .bk-dot{background:#16a34a;}
+.bk.bad .bk-dot{background:#dc2626;}
+.bk-st{font-size:15px;font-weight:800;color:#475569;margin-bottom:4px;}
+.bk.ok .bk-st{color:#166534;}
+.bk.bad .bk-st{color:#991b1b;}
+.bk-line{font-size:13px;color:#334155;line-height:1.6;}
+.bk-fail{margin-top:8px;padding:8px 12px;border-radius:8px;background:#fff7ed;border:1px solid #fed7aa;font-size:12px;color:#9a3412;line-height:1.5;word-break:break-all;}
+/* ── 사용량 카드 ── */
+.ug{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px;}
+.ug .card{margin-bottom:0;}
+.uc-t{font-size:12px;font-weight:700;color:#64748b;margin-bottom:10px;}
+.uc-v{font-size:24px;font-weight:800;color:#0f172a;}
+.uc-u{font-size:13px;font-weight:600;color:#64748b;margin-left:4px;}
+.uc-s{font-size:12px;color:#64748b;margin-top:6px;}
+.bar{height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden;margin-top:10px;}
+.bar-f{height:100%;border-radius:4px;background:#7c3aed;transition:width .3s;}
+.bar-f.warn{background:#f59e0b;}
+.bar-f.danger{background:#dc2626;}
+.ul{list-style:none;margin-top:10px;}
+.ul li{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#334155;padding:5px 0;border-bottom:1px solid #f1f5f9;}
+.ul li:last-child{border-bottom:none;}
+.ul .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ul .v{color:#64748b;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.note{font-size:12px;color:#64748b;line-height:1.7;background:#f1f5f9;border-radius:10px;padding:12px 16px;}
+.note a{color:#6d28d9;font-weight:600;}
+/* ── 로그인 ── */
+.lwrap{min-height:100vh;background:linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e1b4b 50%,#4c1d95 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
+.lbox{background:#fff;border-radius:20px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 32px 80px rgba(0,0,0,.5);}
+.ltit{font-size:18px;font-weight:800;color:#0f172a;text-align:center;margin-bottom:4px;}
+.lsub{font-size:12px;color:#94a3b8;text-align:center;margin-bottom:24px;}
+@media(max-width:768px){.ug{grid-template-columns:1fr;}.page{padding:12px;}.btn{min-height:44px;}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+
+// ── 설정 (화이트라벨: config.js SYSTEM) ───────────────────────────────────
+const SYS = APP_CONFIG.SYSTEM || {};
+const DB_LIMIT_MB       = SYS.DB_LIMIT_MB || 500;
+const STORAGE_LIMIT_MB  = SYS.STORAGE_LIMIT_MB || 1024;
+const BACKUP_ALERT_DAYS = SYS.BACKUP_ALERT_DAYS || 3;
+
+// Supabase 대시보드 사용량 주소 — SUPABASE_URL(https://<ref>.supabase.co)에서 프로젝트 ref 를 뽑는다
+const PROJECT_REF = (function() {
+  var m = /^https:\/\/([a-z0-9]+)\.supabase\.co/i.exec(APP_CONFIG.SUPABASE_URL || '');
+  return m ? m[1] : '';
+})();
+const DASHBOARD_USAGE_URL = 'https://supabase.com/dashboard/org/_/usage' + (PROJECT_REF ? '?projectRef=' + PROJECT_REF : '');
+
+// ── 표시 헬퍼 ─────────────────────────────────────────────────────────────
+const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const MB = 1024 * 1024;
+
+function fmtBytes(b) {
+  var n = Number(b) || 0;
+  if (n >= 1024 * MB) return (n / 1024 / MB).toFixed(2) + 'GB';
+  if (n >= MB) return (n / MB).toFixed(1) + 'MB';
+  if (n >= 1024) return Math.round(n / 1024) + 'KB';
+  return n + 'B';
+}
+
+// "2026.10.22 12:31 (오늘)" — 날짜 비교는 로컬 날짜(localDateStr) 기준
+function fmtWhen(iso) {
+  if (!iso) return '-';
+  var d = new Date(iso);
+  var ds = localDateStr(d);
+  var hm = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  var today = new Date(); today.setHours(0,0,0,0);
+  var day = new Date(d.getTime()); day.setHours(0,0,0,0);
+  var diff = Math.round((today - day) / 86400000);
+  var rel = diff <= 0 ? '오늘' : (diff === 1 ? '어제' : diff + '일 전');
+  return ds.replace(/-/g, '.') + ' ' + hm + ' (' + rel + ')';
+}
+
+function pctOf(bytes, limitMb) {
+  if (!limitMb) return 0;
+  return Math.round((Number(bytes) || 0) / (limitMb * MB) * 1000) / 10;
+}
+
+function Bar({ pct }) {
+  var cls = pct >= 90 ? 'bar-f danger' : (pct >= 70 ? 'bar-f warn' : 'bar-f');
+  return <div className="bar"><div className={cls} style={{width: Math.min(100, Math.max(0, pct)) + '%'}} /></div>;
+}
+
+// ── ① 백업 상태 ───────────────────────────────────────────────────────────
+function BackupCard({ data }) {
+  var lastOk  = data.backup_last_ok;
+  var lastRun = data.backup_last_run;
+
+  if (!lastOk && !lastRun) return (
+    <div className="card bk">
+      <div className="bk-dot" />
+      <div>
+        <div className="bk-st">백업 기록이 아직 없어요</div>
+        <div className="bk-line">사무실 PC 자동 백업이 한 번 실행되면 여기에 결과가 보여요.</div>
+      </div>
+    </div>
+  );
+
+  var ageDays = lastOk ? (Date.now() - new Date(lastOk.ran_at).getTime()) / 86400000 : Infinity;
+  var stale = ageDays > BACKUP_ALERT_DAYS;
+  var runFailed = lastRun && lastRun.ok === false;
+
+  return (
+    <div className={'card bk ' + (stale ? 'bad' : 'ok')}>
+      <div className="bk-dot" />
+      <div style={{minWidth:0, flex:1}}>
+        <div className="bk-st">{stale ? '백업이 멈췄어요 — 사무실 PC 확인 필요' : '정상'}</div>
+        <div className="bk-line">
+          {lastOk
+            ? <span>마지막 백업 · {fmtWhen(lastOk.ran_at)}{lastOk.size_bytes != null ? ' · ' + fmtBytes(lastOk.size_bytes) : ''}</span>
+            : <span>성공한 백업이 아직 없어요</span>}
+        </div>
+        <div className="bk-line" style={{fontSize:12, color:'#64748b'}}>
+          마지막 성공이 {BACKUP_ALERT_DAYS}일보다 오래되면 경고로 바뀌어요.
+        </div>
+        {runFailed && (
+          <div className="bk-fail">
+            마지막 실행({fmtWhen(lastRun.ran_at)})이 실패했어요{lastRun.note ? ': ' + lastRun.note : ''}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── ② 사용량 ──────────────────────────────────────────────────────────────
+function UsageCards({ data }) {
+  var dbPct = pctOf(data.db_bytes, DB_LIMIT_MB);
+  var buckets = Array.isArray(data.storage) ? data.storage : [];
+  var stBytes = buckets.reduce(function(s, b) { return s + (Number(b.bytes) || 0); }, 0);
+  var stFiles = buckets.reduce(function(s, b) { return s + (Number(b.files) || 0); }, 0);
+  var stPct = pctOf(stBytes, STORAGE_LIMIT_MB);
+  var tops = Array.isArray(data.top_tables) ? data.top_tables : [];
+
+  return (
+    <div className="ug">
+      <div className="card">
+        <div className="uc-t">데이터베이스</div>
+        <div><span className="uc-v">{fmtBytes(data.db_bytes)}</span><span className="uc-u">/ {DB_LIMIT_MB}MB · {dbPct}%</span></div>
+        <Bar pct={dbPct} />
+      </div>
+      <div className="card">
+        <div className="uc-t">파일 저장소</div>
+        <div><span className="uc-v">{fmtBytes(stBytes)}</span><span className="uc-u">/ {STORAGE_LIMIT_MB >= 1024 ? (STORAGE_LIMIT_MB / 1024) + 'GB' : STORAGE_LIMIT_MB + 'MB'} · {stPct}%</span></div>
+        <Bar pct={stPct} />
+        <ul className="ul">
+          {buckets.length === 0 && <li><span className="n">파일 보관함이 없어요</span></li>}
+          {buckets.map(function(b) {
+            return <li key={b.bucket}><span className="n">{b.bucket}</span><span className="v">{(Number(b.files) || 0).toLocaleString()}개 · {fmtBytes(b.bytes)}</span></li>;
+          })}
+        </ul>
+        {buckets.length > 1 && <div className="uc-s">전체 {stFiles.toLocaleString()}개</div>}
+      </div>
+      <div className="card">
+        <div className="uc-t">로그인 가능 계정</div>
+        <div><span className="uc-v">{(Number(data.users_login) || 0).toLocaleString()}</span><span className="uc-u">명</span></div>
+        <div className="uc-s">로그인 계정이 연결돼 있고 퇴사일이 지나지 않은 직원 수예요.</div>
+      </div>
+      <div className="card">
+        <div className="uc-t">용량이 큰 표 (상위 5개)</div>
+        <ul className="ul" style={{marginTop:0}}>
+          {tops.map(function(t) {
+            return <li key={t.name}><span className="n">{t.name}</span><span className="v">{fmtBytes(t.bytes)}</span></li>;
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ── 시스템 화면 ───────────────────────────────────────────────────────────
+function SystemView() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+
+  function load() {
+    setLoading(true); setErr('');
+    sb.rpc('system_usage').then(function(r) {
+      setLoading(false);
+      if (r.error) {
+        setErr(r.error.code === '42501' ? '관리자·관리팀만 볼 수 있어요.' : '정보를 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.');
+        return;
+      }
+      setData(r.data || null);
+    }, function() {
+      setLoading(false);
+      setErr('정보를 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.');
+    });
+  }
+  useEffect(load, []);
+
+  return (
+    <div className="page">
+      <div className="ph">
+        <div>
+          <div className="pt">시스템</div>
+          <div className="ps">사용량과 백업 상태를 한눈에 봐요{data && data.checked_at ? ' · ' + fmtWhen(data.checked_at) + ' 기준' : ''}</div>
+        </div>
+        <button className="btn btn-s" onClick={load} disabled={loading}>{loading ? '불러오는 중...' : '새로 보기'}</button>
+      </div>
+
+      {err && <div className="al al-e">{err}</div>}
+      {loading && !data && <div className="loading">불러오는 중...</div>}
+
+      {data && <BackupCard data={data} />}
+      {data && <UsageCards data={data} />}
+
+      <div className="note">
+        {(SYS.PLAN_NAME || '현재')} 요금제 — 파일 하나 {SYS.FILE_MAX_MB || 50}MB까지 · 내려받기 한 달 {SYS.EGRESS_LIMIT_GB || 5}GB.
+        내려받기 사용량은 이 화면에서 볼 수 없어요. Supabase 대시보드에서 확인해요.{' '}
+        <a href={DASHBOARD_USAGE_URL} target="_blank" rel="noopener noreferrer">Supabase 사용량 보기</a>
+      </div>
+    </div>
+  );
+}
+
+// ── 로그인 ────────────────────────────────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [phone, setPhone] = useState('');
+  const [pw, setPw] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [remain, setRemain] = useState(0);
+
+  // 잠금 상태 카운트다운
+  useEffect(function() {
+    const bf = Sysbar.Auth.checkBruteForce();
+    if (bf.locked) { setLocked(true); setRemain(bf.remainSec); }
+    const timer = setInterval(function() {
+      const bf2 = Sysbar.Auth.checkBruteForce();
+      if (bf2.locked) { setLocked(true); setRemain(bf2.remainSec); }
+      else { setLocked(false); setRemain(0); }
+    }, 1000);
+    return function() { clearInterval(timer); };
+  }, []);
+
+  function doLogin() {
+    if (locked) return;
+    if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
+    setLoading(true); setErr('');
+    // allowedRoles: contractor만 차단 (팀 권한은 hasAccess로 판단)
+    Sysbar.Auth.doLogin(sb, phone, pw, {
+      allowedRoles: ['admin', 'manager', 'staff', 'employee'],
+    }).then(function(result) {
+      setLoading(false);
+      if (result.ok) {
+        onLogin(result.user);
+      } else {
+        if (result.locked) { setLocked(true); setRemain(result.remainSec); }
+        setErr(result.reason);
+      }
+    }, function() {
+      setLoading(false);
+      setErr('로그인 중 오류가 발생했습니다.');
+    });
+  }
+
+  return (
+    <div className="lwrap">
+      <div className="lbox">
+        <div className="ltit">{APP_CONFIG.COMPANY_SHORT}</div>
+        <div className="lsub">관리포털 · 관리팀/관리자 전용</div>
+        {err && <div className="al al-e">{err}</div>}
+        <div style={{marginBottom:12}}>
+          <label className="fl">아이디 (전화번호)</label>
+          <input className="fi" value={phone} placeholder="전화번호 입력" disabled={locked}
+            onChange={function(e){setPhone(e.target.value);}}
+            onKeyDown={function(e){if(e.key==='Enter')document.getElementById('ap-pw').focus();}} />
+        </div>
+        <div style={{marginBottom:20}}>
+          <label className="fl">비밀번호</label>
+          <input id="ap-pw" type="password" className="fi" value={pw} placeholder="비밀번호 입력" disabled={locked}
+            onChange={function(e){setPw(e.target.value);}}
+            onKeyDown={function(e){if(e.key==='Enter')doLogin();}} />
+        </div>
+        <button className="btn btn-p" onClick={doLogin} disabled={loading || locked} style={{width:'100%',justifyContent:'center',padding:'12px'}}>
+          {locked ? `잠금 ${remain}초` : (loading ? '로그인 중...' : '로그인')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────────
+const SysBar = Sysbar.createComponent(React);
+
+const CURRENT_PAGE = 'sy';
+const PageView = SystemView;
+
+// 관리포털 하위 화면 목록 · 권한 판정은 sysbar.js 한 곳에서 관리 (PC는 왼쪽 메뉴, 휴대폰은 아래 탭 줄)
+const PORTAL_PAGES = Sysbar.PORTAL_PAGES;
+
+function App() {
+  var initialUser = (function() {
+    var v = Sysbar.Auth.getSession();
+    if (v && v.id && v.role) return v;
+    return null;
+  })();
+  const [user, setUser] = useState(initialUser);
+  const [ssoChecked, setSsoChecked] = useState(!!initialUser);
+  const [teamName, setTeamName] = useState('');
+  const [hasAccess, setHasAccess] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+
+  useEffect(function() {
+    if (initialUser) return;
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { setUser(null); return; }
+    setSsoChecked(true);
+  }, []);
+
+  useEffect(function() {
+    if (!initialUser) return;
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated) { logout(); return; }
+    if (ssoChecked) { Sysbar.SessionManager.onLogin(function() { logout(); }); }
+  }, []);
+
+  useEffect(function() {
+    if (!user) return;
+    if (user.role === 'admin') { setTeamName('관리자'); setHasAccess(true); setAccessChecked(true); return; }
+    if (!user.team_id) { setHasAccess(false); setAccessChecked(true); return; }
+    sb.from('teams').select('name').eq('id', user.team_id).single().then(function(r) {
+      var name = r.data ? r.data.name : '';
+      setTeamName(name);
+      setHasAccess(Sysbar.portalPerms(user, name).access);
+      setAccessChecked(true);
+    });
+  }, [user ? user.id : null]);
+
+  function handleLogin(u) {
+    setUser(u);
+    Sysbar.SessionManager.onLogin(function() { logout(); });
+  }
+
+  function logout() {
+    Sysbar.Auth.logout(sb);
+    setUser(null); setTeamName(''); setHasAccess(false);
+  }
+
+  if (!ssoChecked || (user && !accessChecked)) return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'var(--theme,#0f172a)',color:'#94a3b8',fontSize:14}}>
+      로딩 중...
+    </div>
+  );
+
+  if (!user) return <LoginScreen onLogin={handleLogin} />;
+
+  if (user.role !== 'admin' && !hasAccess) return (
+    <div className="lwrap">
+      <div className="lbox" style={{textAlign:'center'}}>
+        <div className="ltit" style={{marginBottom:8}}>접근 권한 없음</div>
+        <p style={{fontSize:13,color:'#64748b',lineHeight:1.6,marginBottom:24}}>관리포털은 관리팀 및 관리자만<br/>이용할 수 있습니다.</p>
+        <a href="project.html" className="btn btn-s" style={{justifyContent:'center'}}>공정관리로 돌아가기</a>
+      </div>
+    </div>
+  );
+
+  var _pp    = Sysbar.portalPerms(user, teamName);
+  var canSal = _pp.sal;
+  var canAb  = _pp.ab;
+
+  // 시스템 화면 = 관리자 + 관리팀(need:'ab'). 권한이 없으면 업무일지로 보낸다. DB 판정은 system_usage() 안의 is_manage_staff().
+  if (!canAb) { location.replace('admin-worklog.html'); return null; }
+
+  function canShow(need) {
+    if (need === 'sal') return canSal;
+    if (need === 'ab')  return canAb;
+    return true;
+  }
+
+  return (
+    <div>
+      <SysBar
+        activeKey="admin"
+        user={user}
+        teamName={teamName}
+        onLogout={logout}
+      />
+      {/* 시스템 제목 바 */}
+      <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #7c3aed',position:'sticky',top:'var(--sysbar-h,38px)',zIndex:250}}>
+        <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
+        <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>관리 포털</p>
+      </div>
+      <div className="top-nav sys-portal-tabs">
+        {PORTAL_PAGES.filter(function(pg){ return canShow(pg.need); }).map(function(pg) {
+          return (
+            <button key={pg.key}
+              className={CURRENT_PAGE===pg.key?'nav-btn active':'nav-btn'}
+              onClick={function(){ if (CURRENT_PAGE!==pg.key) location.href = pg.href; }}>
+              {pg.tabLabel}
+            </button>
+          );
+        })}
+      </div>
+      <PageView user={user} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

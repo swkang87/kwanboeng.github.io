@@ -123,6 +123,15 @@
 - 참고: worklog.html의 `.sidebar` CSS는 JSX에서 쓰이지 않는 죽은 코드(변수만 맞춰 둠).
 - 백업: `backup/*_20261022.*` (sysbar.js + 화면 10개)
 
+### 관리포털 「시스템」 화면 — 사용량 + 백업 상태 (2026-10-22)
+- 새 화면 `admin-system.html`(관리포털 하위 6번째, `PORTAL_PAGES` key `sy`, `need:'ab'` = 관리자 + 관리팀). 뼈대는 admin-account.html 과 같다.
+  내용: ① 백업 상태(마지막 성공 시각·크기, `SYSTEM.BACKUP_ALERT_DAYS` 넘으면 빨강, 마지막 실행 실패면 사유) ② 사용량 4칸(DB·파일·로그인 가능 계정·용량 큰 표 5개, 막대 70% 주황/90% 빨강) ③ 요금제 안내 + Supabase 대시보드 사용량 링크(주소는 `SUPABASE_URL` 의 프로젝트 ref 로 만듦). 「새로 보기」 버튼. 수동 백업 버튼은 만들지 않음(사무실 PC 자동 백업이 더 완전함).
+- DB: 표 `system_backup_log`(사무실 PC 백업 스크립트가 실행마다 1행, 최근 200행 유지. RLS 조회만 `is_manage_staff()`, 쓰기 정책 없음 — 스크립트는 postgres 계정) + 함수 `system_usage()`(SECURITY DEFINER, search_path 고정, 관리자·관리팀 외 42501). 상세·테스트는 저장소 밖 `security-fix\103~106_system_screen_*`.
+- config.js 신규 `SYSTEM { PLAN_NAME, DB_LIMIT_MB, STORAGE_LIMIT_MB, FILE_MAX_MB, EGRESS_LIMIT_GB, BACKUP_ALERT_DAYS }`.
+- sysbar.js: `PORTAL_PAGES` 에 `sy` 추가, `SIDE_ICONS.gear`. 캐시 버전 `?v=2026102202`(화면 10개 + 새 화면).
+- 백업 스크립트(저장소 밖 `security-fix\db-backup\backup.ps1`)가 같은 DB 연결로 기록. 기록 실패는 백업 판정에 영향 없음.
+- 백업: `backup/*_20261022_2.*`
+
 ### 날짜 타임존 버그 6곳 수정
 `new Date(...).toISOString().split('T')[0]` → `localDateStr()` / `today()` 교체.
 - `leave.html` 537행 (`getWeekDays`) — `localDateStr(x)`

@@ -217,4 +217,16 @@ var APP_CONFIG = {
     ],
   },
 
+  // ── 시스템 화면 (admin-system.html — 사용량·백업 상태) ──────────────
+  //   요금제 한도는 화면 막대의 기준값일 뿐, 실제 한도는 Supabase 요금제를 따른다(요금제를 바꾸면 여기도 맞춘다).
+  //   Supabase 대시보드 주소는 SUPABASE_URL 의 프로젝트 ref 로 화면이 만든다(여기 적지 않음).
+  SYSTEM: {
+    PLAN_NAME:         '무료',
+    DB_LIMIT_MB:       500,   // DB 용량 한도
+    STORAGE_LIMIT_MB:  1024,  // 파일(Storage) 용량 한도
+    FILE_MAX_MB:       50,    // 파일 하나 최대 크기 (안내용)
+    EGRESS_LIMIT_GB:   5,     // 한 달 내려받기 한도 — 이 화면에서 조회 불가, 안내용
+    BACKUP_ALERT_DAYS: 3,     // 마지막 성공 백업이 이 일수보다 오래되면 경고. 사무실 PC 백업 config.ps1 의 AlertDays 와 같게
+  },
+
 };
