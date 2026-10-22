@@ -40,40 +40,6 @@
   var _prefix = (global.APP_CONFIG && global.APP_CONFIG.SESSION_PREFIX) ? global.APP_CONFIG.SESSION_PREFIX : 'kwanbo';
   var SESSION_KEY = _prefix + '_session';
 
-  // ── [세션진단] 임시(2026-10-22) — 로그인 세션이 예상치 않게 풀리는 원인 확인용. 원인을 확인하면 지운다 ──
-  //   값·비밀정보는 남기지 않는다: 시각 · 화면 파일명 · 경로 이름 · 키가 있는지(O/X)만.
-  //   이 창 sessionStorage '<prefix>_diag' 에 최근 80줄, 콘솔에 '[세션진단] …'.
-  var DIAG_KEY = _prefix + '_diag';
-  function _diag(path) {
-    try {
-      var d = new Date();
-      var t = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2);
-      var line = t + ' ' + ((global.location.pathname.split('/').pop() || 'index.html') + (global.location.hash || '')) + ' ' + path;
-      var a = JSON.parse(sessionStorage.getItem(DIAG_KEY) || '[]');
-      a.push(line); if (a.length > 80) a = a.slice(-80);
-      sessionStorage.setItem(DIAG_KEY, JSON.stringify(a));
-      console.info('[세션진단] ' + line);
-    } catch(e) {}
-  }
-  function _diagState() {
-    try {
-      var tok = false;
-      for (var i = 0; i < localStorage.length; i++) { if (/^sb-.*-auth-token$/.test(localStorage.key(i) || '')) tok = true; }
-      function has(k) { return sessionStorage.getItem(_prefix + k) ? 'O' : 'X'; }
-      return '[session=' + has('_session') + ' perms=' + has('_perms') + ' last_active=' + has('_last_active')
-        + ' login_ts=' + has('_login_ts') + ' origin=' + has('_browser_origin') + ' token=' + (tok ? 'O' : 'X') + ']';
-    } catch(e) { return '[state ?]'; }
-  }
-  // 부른 곳(함수 이름 · 줄 번호만)
-  function _diagCaller() {
-    try {
-      var s = (new Error().stack || '').split('\n').slice(3, 6).map(function(l) {
-        return l.trim().replace(/^at /, '').replace(/https?:\/\/[^\/]+\//g, '').replace(/\?v=\d+/g, '');
-      });
-      return ' <- ' + s.join(' <- ');
-    } catch(e) { return ''; }
-  }
-
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
     { key:'home',    icon:'🏠', svg:'home',    label:'메인메뉴', url:'home.html' },
@@ -453,7 +419,6 @@
           _stop();
           var el = document.getElementById('kwanbo-timeout-toast');
           if (el) el.remove();
-          _diag('1시간 비활동 → 자동 로그아웃(timer)');
           _logoutCb && _logoutCb('timeout');
         } else if (elapsed >= WARN_MS) {
           _showWarn(Math.ceil((TIMEOUT_MS - elapsed) / 60000));
@@ -482,7 +447,6 @@
         // sessionStorage 기반 세션 → 브라우저/탭 닫으면 자동 만료
         // 만료 여부만 체크
         if (_isExpired()) {
-          _diag('만료(checkOnLoad) ' + _diagState());
           sessionStorage.removeItem(SESSION_KEY);
           sessionStorage.removeItem(ACTIVE_KEY);
           sessionStorage.removeItem(LOGIN_KEY);
@@ -501,7 +465,6 @@
       onLogin: function(logoutCb) {
         if (_registered) { _logoutCb = logoutCb; return; }
         _registered = true;
-        _diag('감시 시작(onLogin) ' + _diagState());
         if (!sessionStorage.getItem(LOGIN_KEY)) {
           sessionStorage.setItem(LOGIN_KEY, Date.now().toString());
         }
@@ -511,7 +474,6 @@
       },
 
       onLogout: function() {
-        _diag('감시 끝(onLogout)' + _diagCaller());
         _stop();
         sessionStorage.removeItem(ACTIVE_KEY);
         sessionStorage.removeItem(LOGIN_KEY);
@@ -577,7 +539,6 @@
      * clearSession()
      */
     function clearSession() {
-      _diag('세션 지움(clearSession) ' + _diagState() + _diagCaller());
       clearPerms();   // 기능 권한 캐시 + 다른 부서로 보기
       sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem('kwanbo_uid');
@@ -671,7 +632,6 @@
         }
 
         // 로그인 성공
-        _diag('로그인 성공(doLogin)');
         clearPerms();   // 이전 계정의 기능 권한 캐시가 남지 않게
         sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
         sessionStorage.removeItem('kwanbo_uid');
@@ -705,20 +665,36 @@
      * .then() 체인으로 작성했고 throw 하지 않는다.
      * 반환: Promise<{ ok, user, changed, reason, error }>
      *   ok=false 의 reason: 'no-client' | 'no-session' | 'profile-missing'
-     *                       | 'profile-error' | 'auth-error'
+     *                       | 'profile-error' | 'auth-error' | 'network-error'
+     *   hold=true (auth-error · network-error): 판정 보류 — 세션을 지우지 않았다. 화면은 로그아웃하지 말 것.
+     *     세션은 서버가 명확히 답한 실패(no-session · profile-missing · 오류 코드/401·403·404 가 있는 profile-error)일 때만 지운다.
      *
      * 페이지 공용이다. 다른 페이지도 마운트 직후 같은 방식으로 호출하면 된다.
      */
+    // 서버가 명확히 답한 실패인가(2026-10-22).
+    // 화면을 떠나는 중 중단된 요청 · 네트워크 오류 · 서버 일시 오류는 코드 없는 오류(status 0 · 5xx)로 돌아온다 —
+    // 이것을 실패로 보고 세션을 지우면 멀쩡한 로그인이 풀린다(공정관리 #profile → 내 정보 이동 때 실제로 일어남).
+    function _isClearFailure(err, status) {
+      if (!err) return false;
+      if (err.code) return true;                         // PostgreSQL · PostgREST 오류 코드(42501, PGRST… 등)
+      var st = status || err.status || 0;
+      return st === 401 || st === 403 || st === 404;
+    }
+
     function verifySession(sbClient) {
       if (!sbClient || !sbClient.auth || !sbClient.auth.getSession) {
         return Promise.resolve({ ok: false, reason: 'no-client' });
       }
       var cached = getSession();   // 검증 전 캐시 (role 비교용)
+      // 판정 보류 — 세션을 지우지 않고 돌려준다. 호출하는 화면은 hold 면 로그아웃하지 않는다.
+      function hold(reason, err) { return { ok: false, reason: reason, hold: true, error: err || null }; }
 
       return sbClient.auth.getSession().then(function(res) {
         var session = (res && res.data) ? res.data.session : null;
         if (!session || !session.user) {
-          _diag('verifySession: no-session (getSession error=' + (res && res.error ? 'O' : 'X') + ')');
+          // 토큰 갱신이 네트워크 문제로 실패한 경우도 session 이 비어 온다 → 보류(토큰이 정말 무효면 4xx)
+          var ge = res && res.error;
+          if (ge && (ge.name === 'AuthRetryableFetchError' || !(ge.status >= 400 && ge.status < 500))) return hold('network-error', ge);
           clearSession();
           return { ok: false, reason: 'no-session' };
         }
@@ -726,8 +702,8 @@
         return loadMyProfile(sbClient,
             'id,name,phone,username,email,position,team_id,role,join_date,total_days,used_days,leave_date')
           .then(function(pr) {
+            if (pr.error && !_isClearFailure(pr.error, pr.status)) return hold('network-error', pr.error);
             if (pr.error || !pr.data) {
-              _diag('verifySession: ' + (pr.error ? 'profile-error code=' + (pr.error.code || pr.error.status || '-') : 'profile-missing'));
               clearSession();
               if (sbClient.auth.signOut) {
                 try { sbClient.auth.signOut(); } catch (e) {}
@@ -741,7 +717,6 @@
 
             var fresh = pr.data;
             var changed = !cached || cached.id !== fresh.id || cached.role !== fresh.role;
-            _diag('verifySession: ok (cache ' + (cached ? '있음' : '없음') + ')');
 
             // 캐시 role 은 믿지 않는다. 항상 서버 값으로 덮어쓴다.
             try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(fresh)); } catch (e) {}
@@ -751,10 +726,9 @@
                        '세션 role 불일치 — 서버 값으로 교정');
             }
             return { ok: true, user: fresh, changed: changed };
-          });
+          }, function(e) { return hold('network-error', e); });
       }, function(e) {
-        _diag('verifySession: auth-error');
-        return { ok: false, reason: 'auth-error', error: e };
+        return hold('auth-error', e);
       });
     }
 
@@ -1513,12 +1487,5 @@
     writeFailed:  writeFailed,
     describeError: describeError,
   };
-
-  // [세션진단] 화면 열림 · 떠남 · bfcache 복귀
-  _diag('열림 ' + _diagState());
-  try {
-    global.addEventListener('pagehide', function(ev) { _diag('떠남' + (ev.persisted ? '(bfcache)' : '') + ' ' + _diagState()); });
-    global.addEventListener('pageshow', function(ev) { if (ev.persisted) _diag('다시 보임(bfcache) ' + _diagState()); });
-  } catch(e) {}
 
 })(window);

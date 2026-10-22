@@ -124,7 +124,11 @@
   (이전: 공정관리는 만료 검사 없음 · 공정관리/연차/홈은 저장된 세션으로 들어오면 감시 안 함 → 화면마다 만료가 달랐다.) 새 화면도 같게 할 것.
 - `checkOnLoad(sb)` 만료 처리 = 세션 · 감시 키 3개 · 기능 권한 캐시 · 다른 부서로 보기 삭제 + 이 기기 로그인 토큰 `signOut({scope:'local'})`.
 - `loadPerms` 는 응답이 왔을 때 세션이 그대로일 때만 캐시에 쓴다(만료 정리 뒤 늦게 온 응답이 권한 캐시를 되살리던 경쟁).
-- 🔧 **임시 진단 기록 `[세션진단]`**(sysbar.js `_diag`, sessionStorage `<prefix>_diag`) — 로그인 직후 새로고침에 세션이 풀리는 원인 확인용. 원인 확인 후 삭제할 것.
+- **이동 중 요청 중단으로 세션이 지워지던 문제(같은 날 수정, `?v=2026102206`)**: 공정관리 `#profile` → 내 정보 이동 때 공정관리가 보낸 `get_my_profile` 이
+  이동으로 중단 → 코드 없는 오류 → `verifySession` 이 profile-error 로 보고 `clearSession`. 왼쪽 메뉴로 빨리 다른 화면으로 갈 때도 같은 일이 생길 수 있었다.
+  이제 `verifySession` 은 서버가 명확히 답한 실패(no-session · profile-missing · 오류 코드/401·403·404 가 있는 profile-error)만 세션을 지우고,
+  중단·네트워크·5xx·토큰 갱신 네트워크 실패는 `hold:true`(reason network-error / auth-error)로 돌려준다 — 화면은 `hold` 면 로그아웃하지 않는다.
+  공정관리도 명확한 실패면 `Auth.logout`(다른 화면과 같게). 옛 주소 `#profile` 은 화면을 그리기 전 `<head>` 스크립트에서 me.html 로 보낸다(project · leave).
 
 ### 왼쪽 메뉴 하위 탭 + 「내 정보관리」 (2026-10-22, sysbar.js v3.3)
 - **화면 안 탭 = 왼쪽 메뉴 하위 항목**(공정관리 · 연차관리 · 업무일지). `SysBar` props `subTabs`([{key, label, svg?, badge?}]) · `activeSub` · `onSubChange(key)`.
@@ -589,6 +593,9 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - 사무실 PC 작업 스케줄러가 평일 12:30 `pg_dump`(public·auth·backup 스키마 + 역할 + Storage `contract-pdfs`)로 `C:\Users\kwanb\kbsys-db-backup\` 에 보관(일일 14 + 월간 12), 스크립트·복구 안내는 저장소 밖 `security-fix\db-backup\README.md`.
 
 ## ❕ 패턴·원칙
+
+- **요청 중단·네트워크 오류로 세션을 지우지 않는다**(2026-10-22). 세션 삭제·로그아웃은 서버가 명확히 답한 실패(오류 코드 또는 401·403·404, 세션 없음)일 때만.
+  supabase-js 는 중단·fetch 실패를 `code:''` · `status:0` 오류로 돌려준다. 새 코드도 `verifySession` 의 `hold` 를 따를 것.
 
 - **외부 스크립트는 정확한 버전 + `integrity`(sha384) + `crossorigin="anonymous"`**(2026-10-21~). `@2`·`@18` 같은 주 버전 주소 금지.
   버전을 바꾸면 해시를 다시 계산한다(두 CDN 또는 npm 원본과 해시가 같은지 대조). jsDelivr 가 자동으로 만드는 `.min.js`(패키지에 없는 파일)는

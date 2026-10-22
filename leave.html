@@ -16,8 +16,10 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 </head>
 <body>
 <div id="app"></div>
+<script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 */
+if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102205"></script>
+<script src="sysbar.js?v=2026102206"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js" integrity="sha384-1qlE7MZPM2pHD/pBZCU/yB8UCP52RYL8bge/qNdfNBCWToySp8/M+JL2waXU4hjJ" crossorigin="anonymous"></script>
@@ -1194,7 +1196,6 @@ function leaveNavItems(cu,pendingCount,mgrPending){
     ?[{k:'calendar',l:'캘린더',i:'📅',svg:'cal'},{k:'dashboard',l:'대시보드',i:'🏠',svg:'grid'},{k:'team_approve',l:'팀원 결재',i:'✅',svg:'check',b:mgrPending},{k:'apply',l:'연차 신청',i:'✏️',svg:'pencil'},{k:'history',l:'신청 내역',i:'📋',svg:'clock'}]
     :[{k:'calendar',l:'캘린더',i:'📅',svg:'cal'},{k:'dashboard',l:'대시보드',i:'🏠',svg:'grid'},{k:'apply',l:'연차 신청',i:'✏️',svg:'pencil'},{k:'history',l:'신청 내역',i:'📋',svg:'clock'}];
 }
-if(Sysbar.hashTab()==='profile')location.replace('me.html');
 function App(){
   // 세션 즉시 복원
   const initialUser = (() => {
@@ -1423,7 +1424,7 @@ function App(){
   );
 }
 
-ReactDOM.createRoot(document.getElementById('app')).render(<App/>);
+if(!window.__TO_ME)ReactDOM.createRoot(document.getElementById('app')).render(<App/>);   // #profile 이면 그리지 않는다(위 스크립트)
 </script>
 </body>
 </html>
