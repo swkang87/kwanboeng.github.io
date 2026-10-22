@@ -1,6 +1,14 @@
 /**
- * SYSBAR MODULE v3.2
+ * SYSBAR MODULE v3.3
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.3 변경사항 (왼쪽 메뉴 하위 탭, 2026-10-22):
+ *  - SysBar props subTabs([{key,label,svg?,badge?}]) · activeSub · onSubChange(key)
+ *    화면이 자기 탭 목록(직급별로 이미 계산된 것)을 넘기면 왼쪽 메뉴의 현재 메뉴 아래에 하위 항목으로 그린다.
+ *  - 지금 보고 있는 메뉴만 펼친다(아코디언). 관리포털 하위 6개도 관리포털 화면에서만 펼침
+ *  - 메인 메뉴 「급여명세서」 → 「내 정보관리」(me.html). 하위(고정) = 내 정보 · 급여명세서
+ *  - PC 에서 화면 탭 줄(.sys-page-tabs) 숨김. 휴대폰은 그대로(열 때 선택된 탭으로 가로 스크롤)
+ *  - hashTab(): 화면 안 탭 주소(#탭키) 읽기
  *
  * v3.2 변경사항 (기능 권한 표, 2026-10-22):
  *  - PERM_DEFS · loadPerms(sb) · can(key) · canPortal() — DB has_perm()/my_perms() 결과로 메뉴·버튼 판정
@@ -38,10 +46,20 @@
     { key:'project', icon:'📊', svg:'project', label:'공정관리', url:'project.html' },
     { key:'leave',   icon:'📅', svg:'cal',     label:'연차관리', url:'leave.html'   },
     { key:'worklog', icon:'📝', svg:'note',    label:'업무일지', url:'worklog.html' },
-    { key:'payslip', icon:'💰', svg:'won',     label:'급여명세서',
-      url:(global.APP_CONFIG && global.APP_CONFIG.PAYROLL && global.APP_CONFIG.PAYROLL.SLIP_PAGE) || 'payslip.html' },
+    // 내 정보관리: 하위가 화면이 아니라 고정 링크다(subs). 급여명세서 화면에서도 이 메뉴가 펼쳐진다(activeKey 'me', activeSub 'payslip')
+    { key:'me',      icon:'👤', svg:'user',    label:'내 정보관리', url:'me.html', subs:[
+      { key:'info',    svg:'user', label:'내 정보',   href:'me.html' },
+      { key:'payslip', svg:'won',  label:'급여명세서',
+        href:(global.APP_CONFIG && global.APP_CONFIG.PAYROLL && global.APP_CONFIG.PAYROLL.SLIP_PAGE) || 'payslip.html' },
+    ] },
     { key:'admin',   icon:'🏢', svg:'admin',   label:'관리포털', url:'admin-worklog.html', adminOnly:true },
   ];
+  // 협력업체가 열 수 있는 메뉴(나머지는 누르면 안내). 내 정보관리 안 급여명세서는 막힌다(급여명세서 화면도 임직원 전용)
+  function contractorOk(key) { return key === 'project' || key === 'me' || key === 'info'; }
+
+  // ── 화면 안 탭 주소(해시) — project.html#weekly 처럼 기존 탭 키를 그대로 쓴다 ──
+  //   읽기만 여기서. 그 직급에 없는 탭이면 각 화면이 기본 탭으로 바꾸고, 탭을 바꿀 때 각 화면이 history 에 쓴다.
+  function hashTab() { try { return decodeURIComponent((global.location.hash || '').replace(/^#/, '')); } catch(e) { return ''; } }
 
   // ── 기능 권한 표 (2026-10-22~) ─────────────────────────────────────────
   //   키 목록은 DB 함수 public.perm_keys() 와 같아야 한다(키를 더하면 두 곳 모두).
@@ -173,6 +191,15 @@
     out:     '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/>',
     chevL:   '<path d="M15 18l-6-6 6-6"/>',
     chevR:   '<path d="M9 18l6-6-6-6"/>',
+    // 하위 탭용
+    user:    '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    folder:  '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    list:    '<path d="M9 4h6v3H9z"/><path d="M9 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-3"/><path d="M9 12h6M9 16h4"/>',
+    check:   '<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M8 12l3 3 5-6"/>',
+    pencil:  '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+    clock:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    box:     '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
+    grid:    '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   };
   function sideIcon(React, name, size) {
     var s = size || 18;
@@ -245,12 +272,13 @@
                       휴대폰 = 38px(상단 막대), PC 왼쪽 메뉴 = 0
          --sys-side-w : 왼쪽 메뉴 폭. 접으면(body.sys-side-off) 0 */
       ':root{--sysbar-h:38px;--sys-side-w:212px;}' +
-      '.sys-side,.sys-side-tog{display:none;}' +
+      '.sys-side,.sys-side-tog,.sys-pc-only{display:none;}' +
       '@media(min-width:' + sideMin + '){' +
         'body.sys-has-side{--sysbar-h:0px;padding-left:var(--sys-side-w);transition:padding-left .2s;}' +
         'body.sys-has-side.sys-side-off{padding-left:0;}' +
         'body.sys-has-side .sys-bar{display:none;}' +
-        'body.sys-has-side .sys-portal-tabs{display:none!important;}' +
+        'body.sys-has-side .sys-portal-tabs,body.sys-has-side .sys-page-tabs,body.sys-has-side .sys-mobile-only{display:none!important;}' +
+        'body.sys-has-side .sys-pc-only{display:block;}' +
         '.sys-side{display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;width:var(--sys-side-w);background:var(--theme,#0f172a);color:#cbd5e1;z-index:190;border-right:1px solid rgba(255,255,255,.06);transition:transform .2s;}' +
         'body.sys-side-off .sys-side{transform:translateX(-100%);}' +
         '.sys-side-tog{display:flex;align-items:center;justify-content:center;position:fixed;top:50%;margin-top:-22px;left:var(--sys-side-w);width:18px;height:44px;padding:0;border:none;border-radius:0 8px 8px 0;background:var(--theme,#0f172a);color:#94a3b8;cursor:pointer;z-index:195;box-shadow:2px 2px 6px rgba(0,0,0,.15);transition:left .2s,color .15s;}' +
@@ -266,11 +294,16 @@
       '.sys-side-b .sys-ico{flex-shrink:0;}' +
       '.sys-side-b.on{background:#1d4ed8;color:#fff;cursor:default;}' +
       '.sys-side-b.on-admin{background:rgba(124,58,237,.22);color:#fff;}' +
+      '.sys-side-b.on-parent{background:rgba(29,78,216,.22);color:#fff;}' +
       '.sys-side-b.disabled{color:#475569;}' +
       '.sys-side-b.disabled:hover{background:transparent;color:#64748b;}' +
       '.sys-side-sub{display:flex;flex-direction:column;gap:1px;margin:2px 0 4px 21px;padding-left:8px;border-left:1px solid rgba(255,255,255,.1);}' +
       '.sys-side-sub .sys-side-b{padding:7px 10px;font-size:12.5px;font-weight:500;gap:9px;}' +
-      '.sys-side-sub .sys-side-b.on{background:#7c3aed;}' +
+      '.sys-side-sub .sys-side-b.on{background:#1d4ed8;cursor:pointer;}' +
+      '.sys-side-sub.adm .sys-side-b.on{background:#7c3aed;cursor:default;}' +
+      '.sys-side-dot{width:16px;height:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}' +
+      '.sys-side-dot:before{content:"";width:4px;height:4px;border-radius:50%;background:currentColor;}' +
+      '.sys-side-badge{margin-left:auto;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;line-height:16px;}' +
       '.sys-side-foot{padding:12px 12px 14px;border-top:1px solid rgba(255,255,255,.07);}' +
       '.sys-side-view{padding:0 4px 10px;}' +
       '.sys-side-view label{display:block;font-size:10.5px;color:#64748b;margin-bottom:4px;}' +
@@ -927,6 +960,10 @@
       var noPrint    = props.noPrint         || false;
       var contractor = !!(user && user.role === 'contractor');
       var sbClient   = props.sb || null;          // 기능 권한·부서 목록 조회용(없으면 이 창에 저장된 권한만 씀)
+      // 화면 안 탭 — 화면이 직급별로 계산한 목록을 그대로 받는다(직급 규칙을 여기 두지 않는다)
+      var subTabs     = props.subTabs || null;    // [{key, label, svg?, badge?}]
+      var activeSub   = props.activeSub;
+      var onSubChange = props.onSubChange || null;
       var e = React.createElement;
 
       // ── 기능 권한: 화면을 열 때마다 서버 값으로 다시 읽는다 ──
@@ -956,18 +993,18 @@
       }
       React.useEffect(function() { renderViewBand(); });
 
-      // ── 휴대폰 관리포털 탭 줄: 선택된 탭이 보이도록 가로 스크롤 ──
+      // ── 휴대폰 탭 줄(관리포털 · 화면 탭): 선택된 탭이 보이도록 가로 스크롤 ──
       React.useEffect(function() {
         var t = setTimeout(function() {
           try {
-            var a = document.querySelector('.sys-portal-tabs .nav-btn.active');
+            var a = document.querySelector('.sys-portal-tabs .nav-btn.active, .sys-page-tabs .sys-tab-on');
             var box = a && a.parentNode;
             if (!box || box.scrollWidth <= box.clientWidth) return;
             box.scrollLeft = Math.max(0, a.offsetLeft - (box.clientWidth - a.offsetWidth) / 2);
           } catch(err) {}
         }, 0);
         return function() { clearTimeout(t); };
-      }, [permTick[0]]);
+      }, [permTick[0], activeSub]);
 
       // ── PC 왼쪽 메뉴: 접힘 상태 + body 클래스 + [ 단축키 ──
       var offState = React.useState(sideOffGet());
@@ -1006,7 +1043,7 @@
                     : 'sys-link active';
             return e('div', {key:m.key, className:cls}, label);
           }
-          if (contractor && m.key !== 'project')
+          if (contractor && !contractorOk(m.key))
             return e('div', {key:m.key, className:'sys-link disabled', onClick:onDisabled}, label);
           return e('a', {key:m.key, href:m.url, className:'sys-link'}, label);
         });
@@ -1028,26 +1065,53 @@
       // ── PC 왼쪽 메뉴 ──
       var curFile = (function() { try { return (location.pathname.split('/').pop() || '').toLowerCase(); } catch(err) { return ''; } })();
 
+      // 하위 항목 하나. href 가 있으면 다른 화면으로(링크), 없으면 같은 화면 안 탭 전환(onSubChange)
+      function subItem(s, on) {
+        var inner = [
+          (s.svg && SIDE_ICONS[s.svg]) ? sideIcon(React, s.svg, 16) : e('span', {key:'i', className:'sys-side-dot', 'aria-hidden':'true'}),
+          e('span', {key:'l'}, s.label)
+        ];
+        if (s.badge > 0) inner.push(e('span', {key:'b', className:'sys-side-badge'}, s.badge));
+        if (s.href && contractor && !contractorOk(s.key))   // 고정 링크(내 정보관리 하위)만 — 화면 탭은 화면이 이미 직급별로 거른 것
+          return e('div', {key:s.key, className:'sys-side-b disabled', onClick:onDisabled}, inner);
+        if (s.href) {
+          return on ? e('div', {key:s.key, className:'sys-side-b on', 'aria-current':'page'}, inner)
+                    : e('a', {key:s.key, href:s.href, className:'sys-side-b'}, inner);
+        }
+        // 선택된 탭도 누를 수 있다(공정관리 상세보기 → 목록 등)
+        return e('button', {key:s.key, type:'button', className:'sys-side-b' + (on ? ' on' : ''), 'aria-current': on ? 'page' : undefined,
+          onClick:function() { if (onSubChange) onSubChange(s.key); }}, inner);
+      }
+
       var sideItems = [];
       SYS_MENUS.forEach(function(m) {
         if (m.adminOnly && !canAdmin) return;
+        var isCur = m.key === activeKey;
         var inner = [sideIcon(React, m.svg), e('span', {key:'l'}, m.label)];
-        if (m.key === activeKey && m.key !== 'admin') {
+        // 하위 항목은 지금 보고 있는 메뉴만 펼친다(아코디언)
+        var subs = null, subOn = null;
+        if (isCur && m.key === 'admin') {
+          subs = PORTAL_PAGES.filter(function(pg) { return can(pg.need); }).map(function(pg) {
+            if (curFile === pg.href.toLowerCase()) subOn = pg.key;
+            return { key:pg.key, label:pg.label, svg:pg.svg, href:pg.href };
+          });
+        } else if (isCur && m.subs) {
+          subs = m.subs; subOn = activeSub;
+        } else if (isCur && subTabs && subTabs.length) {
+          subs = subTabs; subOn = activeSub;
+        }
+        var hasSubs = !!(subs && subs.length);
+        if (isCur && !hasSubs) {
           sideItems.push(e('div', {key:m.key, className:'sys-side-b on', 'aria-current':'page'}, inner));
-        } else if (contractor && m.key !== 'project') {
+        } else if (contractor && !contractorOk(m.key)) {
           sideItems.push(e('div', {key:m.key, className:'sys-side-b disabled', onClick:onDisabled}, inner));
         } else {
-          sideItems.push(e('a', {key:m.key, href:m.url, className:'sys-side-b' + (m.key === activeKey ? ' on-admin' : '')}, inner));
+          sideItems.push(e('a', {key:m.key, href:m.url,
+            className:'sys-side-b' + (isCur ? (m.key === 'admin' ? ' on-admin' : ' on-parent') : '')}, inner));
         }
-        if (m.key === 'admin') {
-          sideItems.push(e('div', {key:'admin-sub', className:'sys-side-sub'},
-            PORTAL_PAGES.filter(function(pg) { return can(pg.need); }).map(function(pg) {
-              var on = activeKey === 'admin' && curFile === pg.href.toLowerCase();
-              var sub = [sideIcon(React, pg.svg, 16), e('span', {key:'l'}, pg.label)];
-              return on
-                ? e('div', {key:pg.key, className:'sys-side-b on', 'aria-current':'page'}, sub)
-                : e('a', {key:pg.key, href:pg.href, className:'sys-side-b'}, sub);
-            })
+        if (hasSubs) {
+          sideItems.push(e('div', {key:m.key + '-sub', className:'sys-side-sub' + (m.key === 'admin' ? ' adm' : '')},
+            subs.map(function(s) { return subItem(s, s.key === subOn); })
           ));
         }
       });
@@ -1371,6 +1435,7 @@
     loadUsersFull:    loadUsersFull,
     SESSION_KEY: SESSION_KEY,
     SYS_MENUS:   SYS_MENUS,
+    hashTab:     hashTab,
     PORTAL_PAGES:  PORTAL_PAGES,
     portalCanShow: portalCanShow,
     PERM_DEFS:        PERM_DEFS,

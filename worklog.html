@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102203"></script>
+<script src="sysbar.js?v=2026102204"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -419,6 +419,18 @@ const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────
 const VIEWS = { MY_LOG: 'my_log', ALL_LOGS: 'all_logs', HISTORY: 'history', SUPPLY: 'supply', LOGS: 'logs' };
+// 화면 안 탭 — 주소 worklog.html#탭키. 위 탭 줄(PC 에서는 숨김)과 왼쪽 메뉴 하위 항목(SysBar subTabs)이 같은 목록을 쓴다.
+function worklogTabs(user) {
+  return [
+    { id: VIEWS.MY_LOG,   icon: '📝', svg: 'pencil', label: '내 업무일지' },
+    { id: VIEWS.ALL_LOGS, icon: '👥', svg: 'people', label: '전체 업무일지' },
+    { id: VIEWS.HISTORY,  icon: '📅', svg: 'cal',    label: '내 기록' },
+    { id: VIEWS.SUPPLY,   icon: '🧾', svg: 'box',    label: '비품관리' },
+    ...(user && user.role === 'admin'
+      ? [{ id: VIEWS.LOGS, icon: '🗒️', svg: 'list', label: '작성이력' }]
+      : []),
+  ];
+}
 const STATUS = ['완료', '진행중', '보류'];
 const STATUS_CLS = { '완료': 'done-active', '진행중': 'prog-active', '보류': 'hold-active' };
 const STATUS_BADGE = { '완료': 'vt-done', '진행중': 'vt-prog', '보류': 'vt-hold' };
@@ -1275,13 +1287,14 @@ function AllLogsView({ user }) {
   const [usersLoaded, setUsersLoaded] = useState(false);
 
   const changeMode = (newMode, date) => {
-    history.pushState({ mode: newMode, selDate: date || selDate }, '', '');
+    // 탭(view)은 그대로 두고 보기 방식만 기록한다. 주소 인자 생략 = #탭키 유지
+    history.pushState(Object.assign({}, history.state, { mode: newMode, selDate: date || selDate }), '');
     if (date) setSelDate(date);
     setMode(newMode);
   };
 
   useEffect(() => {
-    history.replaceState({ mode: 'day', selDate: selDate }, '', '');
+    history.replaceState(Object.assign({}, history.state, { mode: 'day', selDate: selDate }), '');
     const onPop = (e) => {
       if (e.state && e.state.mode) {
         setMode(e.state.mode);
@@ -2008,20 +2021,12 @@ function SupplyView({ user }) {
 
 // ─── TOP NAV BAR ───────────────────────────────────────────────────────────
 function TopNavBar({ view, setView, user, onLogout, canWrite }) {
-  const NAV = [
-    { id: VIEWS.MY_LOG,   icon: '📝', label: '내 업무일지' },
-    { id: VIEWS.ALL_LOGS, icon: '👥', label: '전체 업무일지' },
-    { id: VIEWS.HISTORY,  icon: '📅', label: '내 기록' },
-    { id: VIEWS.SUPPLY,   icon: '🧾', label: '비품관리' },
-    ...(user?.role === 'admin'
-      ? [{ id: VIEWS.LOGS, icon: '🗒️', label: '작성이력' }]
-      : []),
-  ];
+  const NAV = worklogTabs(user);
   return (
-    <div className="top-nav-bar">
+    <div className="top-nav-bar sys-page-tabs">
       {NAV.map(n => (
         <button key={n.id}
-          className={`top-nav-btn ${view === n.id ? 'active' : ''}`}
+          className={`top-nav-btn ${view === n.id ? 'active sys-tab-on' : ''}`}
           onClick={() => setView(n.id)}>
           {n.icon} {n.label}
         </button>
@@ -2067,23 +2072,30 @@ function App() {
     } catch(e) { return null; }
   })();
   const [user, setUser] = useState(initialUser);
-  const [view, setView] = useState(VIEWS.MY_LOG);
+  const [view, setView] = useState(() => Sysbar.hashTab() || VIEWS.MY_LOG);
   const [ssoChecked, setSsoChecked] = useState(!!initialUser);
   const [userTeamName, setUserTeamName] = useState('');
 
-  // 탭 전환 — pushState
+  // 탭 전환 — pushState + 주소 #탭키
   const nv = (v) => {
-    history.pushState({ view: v }, '', '');
+    if (v === view) return;
+    history.pushState({ view: v }, '', '#' + v);
     setView(v);
   };
   useEffect(() => {
-    history.replaceState({ view: VIEWS.MY_LOG }, '', '');
     const onPop = (e) => {
-      if (e.state && e.state.view) setView(e.state.view);
+      // 기록에 탭이 없으면(첫 화면 · 주소창에서 #탭키 입력) 주소의 탭으로
+      setView((e.state && e.state.view) || Sysbar.hashTab() || VIEWS.MY_LOG);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+  // 탭 주소 맞추기 — 그 직급에 없는 탭이면 기본 탭(내 업무일지), 주소는 지금 탭으로
+  useEffect(() => {
+    if (!user || user.role === 'contractor') return;
+    if (!worklogTabs(user).some(t => t.id === view)) { setView(VIEWS.MY_LOG); return; }
+    if (location.hash !== '#' + view) history.replaceState(Object.assign({}, history.state, { view: view }), '', '#' + view);
+  }, [user ? user.id : null, user ? user.role : null, view]);
 
   // checkOnLoad — 렌더 후 실행
   useEffect(() => {
@@ -2152,6 +2164,9 @@ function App() {
         user={user}
         teamName={userTeamName}
         onLogout={logout}
+        subTabs={worklogTabs(user).map(t => ({ key: t.id, label: t.label, svg: t.svg }))}
+        activeSub={view}
+        onSubChange={nv}
       />
       {/* 시스템 제목 바 */}
       <div style={{ background:'var(--theme,#0f172a)', padding:'6px 18px 8px', flexShrink:0, borderBottom:'2px solid #1d4ed8', position:'sticky', top:'var(--sysbar-h,38px)', zIndex:250 }}>

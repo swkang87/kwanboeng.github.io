@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102203"></script>
+<script src="sysbar.js?v=2026102204"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -436,6 +436,17 @@ const Login = Sysbar.createLoginComponent(React, { blockedRoles: [] });
 
 // ─── Main App ───
 const SysBar = Sysbar.createComponent(React);
+// 화면 안 탭 — 주소 project.html#탭키. 왼쪽 메뉴 하위 항목(SysBar subTabs)도 이 목록을 그대로 쓴다.
+// 「내 정보」 탭은 내 정보관리 화면(me.html)으로 옮겼다 — 옛 주소 #profile 은 그쪽으로 보낸다.
+const PROJECT_TABS = [
+  { k: 'mine', l: '내 프로젝트', i: '📁', svg: 'folder' },
+  { k: 'weekly', l: '주간보고', i: '📋', svg: 'list' },
+  { k: 'monthly', l: '월간달력', i: '📅', svg: 'cal' },
+  { k: 'projects', l: '전체 프로젝트', i: '📊', svg: 'chart' },
+  { k: 'admin', l: '관리', i: '⚙', svg: 'gear', adminOnly: true },
+];
+if (Sysbar.hashTab() === 'profile') location.replace('me.html');
+const PROJECT_INIT_VIEW = PROJECT_TABS.some(t => t.k === Sysbar.hashTab()) ? Sysbar.hashTab() : 'mine';
 function App() {
   const [user, setUser] = useState(() => {
     try {
@@ -457,7 +468,7 @@ function App() {
     } catch(e) { return null; }
   });
   const [ssoChecked, setSsoChecked] = useState(false);
-  const [view, setView] = useState('mine');
+  const [view, setView] = useState(PROJECT_INIT_VIEW);
   const [selProject, setSelProject] = useState(null);
   const [calDate, setCalDate] = useState(new Date());
   const [noPermModal, setNoPermModal] = useState(false);
@@ -493,14 +504,15 @@ function App() {
   useEffect(() => { if (user) loadAppData(); }, [user?.id]);
 
   // ── 탭 마운트 유지 (한번 방문한 탭은 display:none으로 유지) ──
-  const [mountedTabs, setMountedTabs] = useState(() => new Set(['mine']));
+  const [mountedTabs, setMountedTabs] = useState(() => new Set(['mine', PROJECT_INIT_VIEW]));
   const gp = (id) => {
-    history.pushState({ view: 'project', id, from: view }, '', '');
+    history.pushState({ view: 'project', id, from: view }, '');   // 주소 인자 생략 = 지금 주소(#탭키) 유지 — '' 를 주면 #이 지워진다
     setPrevView(view);
     setSelProject(id); setView('project');
   };
   const nv = (v) => {
-    history.pushState({ view: v }, '', '');
+    if (v === view && !selProject) return;   // 지금 탭을 다시 누르면 기록을 쌓지 않는다
+    history.pushState({ view: v }, '', '#' + v);
     setMountedTabs(prev => { const n = new Set(prev); n.add(v); return n; });
     setView(v); setSelProject(null);
   };
@@ -508,13 +520,26 @@ function App() {
   useEffect(() => {
     const onPop = (e) => {
       const s = e.state;
-      if (!s) { setView('mine'); setSelProject(null); return; }
-      if (s.view === 'project' && s.id) { setSelProject(s.id); setView('project'); if (s.from) setPrevView(s.from); }
-      else { setView(s.view || 'mine'); setSelProject(null); }
+      // 기록에 탭이 없으면(첫 화면 · 주소창에서 #탭키 입력) 주소의 탭으로
+      const v = (s && s.view) || Sysbar.hashTab() || 'mine';
+      if (v === 'profile') { location.replace('me.html'); return; }
+      if (v === 'project' && s && s.id) { setSelProject(s.id); setView('project'); if (s.from) setPrevView(s.from); }
+      else { setMountedTabs(prev => { const n = new Set(prev); n.add(v); return n; }); setView(v); setSelProject(null); }
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  // 탭 주소 맞추기 — 그 직급에 없는 탭이면 기본 탭(내 프로젝트), 주소(#탭키)는 지금 탭으로.
+  // 상세보기(view 'project')는 연 탭의 주소를 그대로 둔다(새로고침하면 그 탭으로).
+  useEffect(() => {
+    if (!user || view === 'project') return;
+    if (!PROJECT_TABS.some(t => t.k === view && (!t.adminOnly || isAdmin))) {
+      setMountedTabs(prev => { const n = new Set(prev); n.add('mine'); return n; });
+      setView('mine'); return;
+    }
+    if (location.hash !== '#' + view) history.replaceState({ view: view }, '', '#' + view);
+  }, [user ? user.id : null, isAdmin, view]);
 
   // 세션 서버 검증 — sessionStorage 는 초기 렌더용 캐시일 뿐이다.
   // 마운트 직후 실제 JWT 와 users.role 을 서버에서 확인하고, 캐시 role 은 버린다.
@@ -543,14 +568,8 @@ function App() {
   if (!ssoChecked) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', background:'var(--theme,#0f172a)', color:'#94a3b8', fontSize:14 }}>로딩 중...</div>;
   if (!user) return <Login supabaseClient={sb} onLogin={handleLogin} subtitle="공정관리 시스템" />;
 
-  const menuItems = [
-    { k: 'mine', l: '내 프로젝트', i: '📁' },
-    { k: 'weekly', l: '주간보고', i: '📋' },
-    { k: 'monthly', l: '월간달력', i: '📅' },
-    { k: 'projects', l: '전체 프로젝트', i: '📊' },
-    ...(isAdmin ? [{ k: 'admin', l: '관리', i: '⚙' }] : []),
-    { k: 'profile', l: '내 정보', i: '👤' },
-  ];
+  const menuItems = PROJECT_TABS.filter(t => !t.adminOnly || isAdmin);
+  const curTab = view === 'project' ? 'projects' : view;   // 상세보기는 「전체 프로젝트」 탭으로 표시(기존과 같음)
 
   const isContractor = user?.role === 'contractor';
 
@@ -563,7 +582,7 @@ function App() {
             <div style={{ fontSize:40, marginBottom:12 }}>🚫</div>
             <div style={{ fontSize:16, fontWeight:800, color:'#0f172a', marginBottom:8 }}>접근 권한 없음</div>
             <div style={{ fontSize:13, color:'#64748b', lineHeight:1.6, marginBottom:20 }}>
-              기술지원 계정은 공정관리 시스템만<br/>이용할 수 있습니다.
+              기술지원 계정은 공정관리와<br/>내 정보만 이용할 수 있습니다.
             </div>
             <button onClick={() => setNoPermModal(false)} style={{ padding:'10px 28px', background:'var(--theme,#0f172a)', color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:"'Noto Sans KR',sans-serif" }}>확인</button>
           </div>
@@ -578,6 +597,9 @@ function App() {
         onLogout={handleLogout}
         onDisabledClick={() => setNoPermModal(true)}
         noPrint={true}
+        subTabs={menuItems.map(t => ({ key: t.k, label: t.l, svg: t.svg }))}
+        activeSub={curTab}
+        onSubChange={nv}
       />
 
       {/* 2줄: 시스템 제목 */}
@@ -586,10 +608,10 @@ function App() {
         <p style={{ margin: 0, fontSize: 14, lineHeight: '1.3', fontWeight: 800, color: 'white', letterSpacing: -0.3 }}>공정 관리 시스템</p>
       </div>
 
-      {/* 3줄: 가로 네비 탭 */}
-      <div className="no-print" style={{ background: '#1e293b', padding: '0 14px', display: 'flex', alignItems: 'center', flexShrink: 0, height: 36, gap: 1, borderBottom: '1px solid var(--theme,#0f172a)', position: 'sticky', top: 'calc(var(--sysbar-h,38px) + 45px)', zIndex: 100, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      {/* 3줄: 가로 네비 탭 (PC 에서는 숨김 — 왼쪽 메뉴 하위 항목으로 보인다) */}
+      <div className="no-print sys-page-tabs" style={{ background: '#1e293b', padding: '0 14px', display: 'flex', alignItems: 'center', flexShrink: 0, height: 36, gap: 1, borderBottom: '1px solid var(--theme,#0f172a)', position: 'sticky', top: 'calc(var(--sysbar-h,38px) + 45px)', zIndex: 100, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {menuItems.map(t => (
-          <button key={t.k} onClick={() => nv(t.k)}
+          <button key={t.k} onClick={() => nv(t.k)} className={curTab === t.k ? 'sys-tab-on' : ''}
             style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 11px', background: (view === t.k || (view === 'project' && t.k === 'projects')) ? '#1d4ed8' : 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', color: (view === t.k || (view === 'project' && t.k === 'projects')) ? 'white' : '#94a3b8', fontFamily: "'Noto Sans KR',sans-serif", fontSize: 11, fontWeight: (view === t.k || (view === 'project' && t.k === 'projects')) ? 700 : 400, whiteSpace: 'nowrap', height: 26, flexShrink: 0 }}>
             {t.i && <span>{t.i}</span>}
             <span>{t.l}</span>
@@ -615,7 +637,6 @@ function App() {
           {mountedTabs.has('projects') && <ProjectList gp={gp} user={user} listFilter={listFilter} setListFilter={setListFilter} appData={appData} />}
         </div>
         {view === 'admin'   && isAdmin && <AdminPanel user={user} />}
-        {view === 'profile' && <ProfileView user={user} onLogout={handleLogout} />}
       </div>
 
     </div>
@@ -3569,85 +3590,6 @@ function UserList({ users, onSaved }) {
         </div>
       </div>
       <button className="btn btn-primary btn-sm" onClick={addUser} disabled={loading}>{loading?'추가 중...':'직원 추가'}</button>
-    </div>
-  );
-}
-
-// ─── Profile View ───
-function ProfileView({ user, onLogout }) {
-  const [curr, setCurr] = useState('');
-  const [next, setNext] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState('');
-  const [ok, setOk] = useState(false);
-
-  const savePw = async () => {
-    if (!curr || !next || !confirm) { setErr('모든 항목을 입력해주세요.'); return; }
-    if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
-    if (next.length < PW_MIN) { setErr('비밀번호는 ' + PW_MIN + '자 이상이어야 합니다.'); return; }
-    setLoading(true); setErr('');
-    // H-2: 비밀번호 변경을 change-own-password Edge Function 으로 위임한다.
-    // 서버가 현재 비밀번호를 재확인하고, 전화번호/아이디를 새 비밀번호로 쓰는 것을 거부하며,
-    // must_change_pw 플래그까지 같은 경로에서 내린다.
-    // (이전에는 별도 authClient 로 재로그인해 비밀번호를 바꾸고 그 세션을 signOut 했다.
-    //  이제 현재 세션을 건드리지 않는다.)
-    const chg = await Sysbar.Auth.changeOwnPassword(sb, curr, next);
-    if (!chg.ok) { setErr(chg.reason); setLoading(false); return; }
-    // 비밀번호 변경 기록 (change_logs)
-    // 비밀번호 변경 자체는 이미 성공했다. 기록 실패로 사용자를 놀라게 하지 않고
-    // 콘솔에만 남긴다(1727행 change_logs 처리와 동일 방침).
-    await sb.from('change_logs').insert({
-      project_id: null, field_name: '비밀번호변경', old_value: '', new_value: '변경완료',
-      changed_by: user.id, created_at: new Date().toISOString()
-    }).then(
-      (r) => { if (r && r.error) Sysbar.logError(r.error, '비밀번호 변경 기록'); },
-      (e) => { Sysbar.logError(e, '비밀번호 변경 기록'); }
-    );
-    setOk(true); setCurr(''); setNext(''); setConfirm('');
-    setLoading(false);
-  };
-
-  const ROLE_LABEL = { admin: '관리자', manager: '팀장', employee: '팀원', contractor: '기술지원' };
-
-  return (
-    <div style={{ maxWidth: 480, margin: '0 auto' }}>
-      {/* 프로필 카드 */}
-      <div className="card card-p" style={{ marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
-          <div style={{ width: 52, height: 52, borderRadius: '50%', background: user.role === 'admin' ? 'var(--theme,#0f172a)' : user.role === 'contractor' ? '#d97706' : '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, fontSize: 22, flexShrink: 0 }}>{user.name[0]}</div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 900, color: '#0f172a' }}>{user.name}</div>
-            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{ROLE_LABEL[user.role] || user.role} · {user.phone}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* 비밀번호 변경 */}
-      <div className="card card-p" style={{ marginBottom: 14 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 14 }}>🔒 비밀번호 변경</div>
-        {ok && <div className="alert alert-success" style={{ marginBottom: 12 }}>비밀번호가 변경되었습니다.</div>}
-        {err && <div className="alert alert-error" style={{ marginBottom: 12 }}>{err}</div>}
-        <div className="form-group">
-          <label className="form-label">현재 비밀번호</label>
-          <input type="password" className="form-input" value={curr} onChange={e => setCurr(e.target.value)} placeholder="현재 비밀번호" />
-        </div>
-        <div className="form-group">
-          <label className="form-label">새 비밀번호</label>
-          <input type="password" className="form-input" value={next} onChange={e => setNext(e.target.value)} placeholder={'새 비밀번호 (' + PW_MIN + '자 이상)'} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">새 비밀번호 확인</label>
-          <input type="password" className="form-input" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="새 비밀번호 재입력" onKeyDown={e => e.key === 'Enter' && savePw()} />
-        </div>
-        <button className="btn btn-primary" onClick={savePw} disabled={loading} style={{ marginTop: 4 }}>{loading ? '변경 중...' : '비밀번호 변경'}</button>
-      </div>
-
-      {/* 로그아웃 */}
-      <div className="card card-p">
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 10 }}>계정</div>
-        <button className="btn btn-secondary" onClick={onLogout} style={{ width: '100%' }}>로그아웃</button>
-      </div>
     </div>
   );
 }

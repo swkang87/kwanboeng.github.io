@@ -119,6 +119,25 @@
 
 ## ✅ 완료된 작업
 
+### 왼쪽 메뉴 하위 탭 + 「내 정보관리」 (2026-10-22, sysbar.js v3.3)
+- **화면 안 탭 = 왼쪽 메뉴 하위 항목**(공정관리 · 연차관리 · 업무일지). `SysBar` props `subTabs`([{key, label, svg?, badge?}]) · `activeSub` · `onSubChange(key)`.
+  **탭 목록은 화면이 직급별로 계산해 넘긴다**(sysbar 에 직급 규칙을 두지 않는다 — `PROJECT_TABS` · `leaveNavItems()` · `worklogTabs()` 한 곳에서 위 탭 줄·하위 항목·해시 검사가 같이 쓴다).
+  하위 항목 아이콘은 `SIDE_ICONS` 키(없으면 작은 점), `badge` > 0 이면 빨간 숫자(연차 결재 대기).
+- **아코디언**: 지금 보고 있는 메뉴만 펼친다. 관리포털 하위 6개도 관리포털 화면(activeKey 'admin')에서만 펼침.
+- **PC 에서는 화면 탭 줄을 숨긴다**: 탭 줄에 클래스 `sys-page-tabs`, 선택된 탭 버튼에 `sys-tab-on`(휴대폰에서 열 때 그 탭으로 가로 스크롤).
+  보조 클래스 `sys-mobile-only`(PC 왼쪽 메뉴일 때 숨김) / `sys-pc-only`(PC 왼쪽 메뉴일 때만 보임). 새 화면에 탭 줄을 만들면 같은 클래스를 쓸 것.
+- **탭 주소(해시)** = 기존 탭 키 그대로: `project.html#weekly` · `leave.html#apply` · `worklog.html#history` 등. `Sysbar.hashTab()` 으로 읽는다.
+  열 때 해시의 탭으로(그 직급에 없는 탭이면 기본 탭으로 바꾸고 주소도 고침), 탭을 바꾸면 `pushState(…, '#탭키')`, 뒤로가기는 popstate(기록에 탭이 없으면 주소의 탭).
+  ⚠️ `history.pushState(state, '', '')` 처럼 **주소 인자에 빈 문자열을 주면 `#` 이 지워진다** — 주소를 그대로 두려면 인자를 생략할 것(공정관리 상세보기 · 업무일지 전체 업무일지 일/주/월 기록이 이렇게 함).
+  공정관리 상세보기는 연 탭의 주소를 유지하고(새로고침하면 그 탭), 뒤로가기는 기존처럼 상세 → 목록.
+- **「내 정보관리」**: 메인 메뉴 「급여명세서」 자리. `SYS_MENUS` key `me` → `me.html`, 하위(고정 `subs`) = 내 정보(`me.html`) · 급여명세서(`PAYROLL.SLIP_PAGE`).
+  payslip.html 은 `activeKey="me" activeSub="payslip"`. 새 화면 **`me.html`** = 공정관리 「내 정보」(본인 비밀번호 변경 — `Auth.changeOwnPassword` + `change_logs` 기록, 규칙 그대로)
+  + 연차관리 「내 정보」(이름 · 직급 · 휴대폰)를 합침. 휴대폰에서는 급여명세서 카드(`sys-mobile-only`)도 보인다.
+  공정관리 · 연차관리의 「내 정보」 탭은 없앴고 옛 주소 `#profile` 은 `me.html` 로 보낸다. 관리자용 `ChangePasswordModal` 은 그대로(아래 「패턴·원칙」).
+- 협력업체: 메뉴 중 공정관리 · 내 정보관리(내 정보)만 열림(`contractorOk`). 급여명세서는 지금처럼 막힘. 첫 로그인 아이디·비밀번호 강제 변경은 로그인 화면(`createLoginComponent`)이 처리 — 무변경.
+- 시스템 → 권한 탭 「직원 고르기」에서 퇴사일이 지난 직원 제외(예외가 걸린 퇴사자는 「예외가 있는 사람」에서 골라 되돌릴 수 있음).
+- 캐시 버전 `sysbar.js?v=2026102204`(SysBar 화면 11개 + me.html). 백업: `backup/*_20261022_4.*`
+
 ### 기능 권한 표 — 부서 기본값 + 사람별 예외 + 다른 부서로 보기 (2026-10-22, 1차)
 - 구조·규칙은 위 「권한 설계 원칙 → 기능 권한 표」. DB 산출물은 저장소 밖 `security-fix\107~112_perm_*`.
 - 오픈 시점에 실제 권한 변화 없음: 예외 0행 상태에서 auth 연결 전 계정 × 8키 동치 검사 152건 FAIL 0(함수), 8개 표 실제 조회 행 수 152건 FAIL 0.

@@ -17,7 +17,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <body>
 <div id="app"></div>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102203"></script>
+<script src="sysbar.js?v=2026102204"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js" integrity="sha384-1qlE7MZPM2pHD/pBZCU/yB8UCP52RYL8bge/qNdfNBCWToySp8/M+JL2waXU4hjJ" crossorigin="anonymous"></script>
@@ -1157,19 +1157,6 @@ function AdminAudit({user,users,auditLogs,onRefresh}){
   );
 }
 
-// ── Profile ───────────────────────────────────────────────
-function ProfileView({user,onLogout,onRefresh}){
-
-  return(
-    <div>
-      <p style={{fontSize:16,fontWeight:700,color:'#0f172a',margin:'0 0 12px'}}>내 정보</p>
-      <div style={card}><div style={{display:'flex',gap:11,alignItems:'center'}}><div style={{width:42,height:42,borderRadius:10,background:'#1e40af',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:800,fontSize:17}}>{user.name[0]}</div><div><p style={{margin:'0 0 2px',fontSize:15,fontWeight:700,color:'#0f172a'}}>{user.name}</p><p style={{margin:0,fontSize:12,color:'#64748b'}}>{user.role==='admin'?'관리자':user.role==='manager'?'팀장':'팀원'} · {fmtPhone(user.phone)}</p></div></div></div>
-
-      <button onClick={onLogout} style={{...btn('danger'),width:'100%',padding:'11px',fontSize:13}}>로그아웃</button>
-    </div>
-  );
-}
-
 // ── Admin Dashboard ───────────────────────────────────────
 function AdminDash({user,users,teams,leaves,onNav}){
   const yr=thisYear(),td=today();
@@ -1198,6 +1185,16 @@ const LeaveLoginScreen = Sysbar.createLoginComponent(React, {
 });
 
 const SysBar = Sysbar.createComponent(React);
+// 화면 안 탭(직급별) — 주소 leave.html#탭키. 왼쪽 메뉴 하위 항목(SysBar subTabs)도 이 목록을 그대로 쓴다.
+// 「내 정보」 탭은 내 정보관리 화면(me.html)으로 옮겼다 — 옛 주소 #profile 은 그쪽으로 보낸다.
+function leaveNavItems(cu,pendingCount,mgrPending){
+  return cu.role==='admin'
+    ?[{k:'calendar',l:'캘린더',i:'📅',svg:'cal'},{k:'dashboard',l:'대시보드',i:'📊',svg:'grid'},{k:'admin_approve',l:'승인 관리',i:'✅',svg:'check',b:pendingCount},{k:'admin_teams',l:'팀 관리',i:'🏢',svg:'admin'},{k:'admin_users',l:'직원 관리',i:'👥',svg:'people'},{k:'admin_stats',l:'통계',i:'📈',svg:'chart'},{k:'admin_audit',l:'감사 로그',i:'📋',svg:'list'}]
+    :cu.role==='manager'
+    ?[{k:'calendar',l:'캘린더',i:'📅',svg:'cal'},{k:'dashboard',l:'대시보드',i:'🏠',svg:'grid'},{k:'team_approve',l:'팀원 결재',i:'✅',svg:'check',b:mgrPending},{k:'apply',l:'연차 신청',i:'✏️',svg:'pencil'},{k:'history',l:'신청 내역',i:'📋',svg:'clock'}]
+    :[{k:'calendar',l:'캘린더',i:'📅',svg:'cal'},{k:'dashboard',l:'대시보드',i:'🏠',svg:'grid'},{k:'apply',l:'연차 신청',i:'✏️',svg:'pencil'},{k:'history',l:'신청 내역',i:'📋',svg:'clock'}];
+}
+if(Sysbar.hashTab()==='profile')location.replace('me.html');
 function App(){
   // 세션 즉시 복원
   const initialUser = (() => {
@@ -1212,7 +1209,7 @@ function App(){
   const [leaves,setLeaves]=useState([]);
   const [auditLogs,setAuditLogs]=useState([]);
   const [cu,setCu]=useState(initialUser);
-  const [view,setView]=useState('calendar');
+  const [view,setView]=useState(()=>Sysbar.hashTab()||'calendar');
   const [syncing,setSyncing]=useState(false);
   const [lastSync,setLastSync]=useState('');
   const [isMobile,setIsMobile]=useState(typeof window!=='undefined'&&window.innerWidth<768);
@@ -1269,7 +1266,7 @@ function App(){
   // ── 로그인/로그아웃 핸들러 ──────────────────────────────────
   const handleLogin=(u)=>{
     setCu(u);
-    setView('calendar');
+    setView(Sysbar.hashTab()||'calendar');   // 주소의 탭(#탭키)으로 — 직급에 없는 탭이면 아래 효과가 기본 탭으로
     Sysbar.SessionManager.onLogin(()=>logout());
   };
   const logout=()=>{
@@ -1279,6 +1276,28 @@ function App(){
     setUsers([]);setTeams([]);setLeaves([]);setAuditLogs([]);
   };
   const refresh=()=>load();
+
+  // ── 탭 주소(#탭키) ──────────────────────────────────────
+  const changeView=(v)=>{
+    if(v===view)return;
+    history.pushState({view:v},'','#'+v);
+    setView(v);
+  };
+  useEffect(()=>{
+    const onPop=(e)=>{
+      const v=(e.state&&e.state.view)||Sysbar.hashTab()||'calendar';
+      if(v==='profile'){location.replace('me.html');return;}
+      setView(v);
+    };
+    window.addEventListener('popstate',onPop);
+    return()=>window.removeEventListener('popstate',onPop);
+  },[]);
+  // 그 직급에 없는 탭이면 기본 탭(캘린더), 주소는 지금 탭으로
+  useEffect(()=>{
+    if(!cu||cu.role==='contractor')return;
+    if(!leaveNavItems(cu,0,0).some(n=>n.k===view)){setView('calendar');return;}
+    if(location.hash!=='#'+view)history.replaceState({view:view},'','#'+view);
+  },[cu?cu.id:null,cu?cu.role:null,view]);
 
   // ── 로그인 화면 ──────────────────────────────────────────
   if(!cu) return <LeaveLoginScreen supabaseClient={sb} onLogin={handleLogin} />;
@@ -1300,19 +1319,15 @@ function App(){
   const pendingCount=leaves.filter(l=>['manager_approved','cancel_pending','pending'].includes(l.status)).length;
   const mgrPending=leaves.filter(l=>{const lu=users.find(u=>u.id===l.user_id);return lu?.team_id===cu.team_id&&lu?.id!==cu.id&&l.status==='pending';}).length;
 
-  const navItems=cu.role==='admin'
-    ?[{k:'calendar',l:'캘린더',i:'📅'},{k:'dashboard',l:'대시보드',i:'📊'},{k:'admin_approve',l:'승인 관리',i:'✅',b:pendingCount},{k:'admin_teams',l:'팀 관리',i:'🏢'},{k:'admin_users',l:'직원 관리',i:'👥'},{k:'admin_stats',l:'통계',i:'📈'},{k:'admin_audit',l:'감사 로그',i:'📋'},{k:'profile',l:'내 정보',i:'👤'}]
-    :cu.role==='manager'
-    ?[{k:'calendar',l:'캘린더',i:'📅'},{k:'dashboard',l:'대시보드',i:'🏠'},{k:'team_approve',l:'팀원 결재',i:'✅',b:mgrPending},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'profile',l:'내 정보',i:'👤'}]
-    :[{k:'calendar',l:'캘린더',i:'📅'},{k:'dashboard',l:'대시보드',i:'🏠'},{k:'apply',l:'연차 신청',i:'✏️'},{k:'history',l:'신청 내역',i:'📋'},{k:'profile',l:'내 정보',i:'👤'}];
+  const navItems=leaveNavItems(cu,pendingCount,mgrPending);
+  const subTabs=navItems.map(n=>({key:n.k,label:n.l,svg:n.svg,badge:n.b}));
 
-  const props={user:cu,users,teams,leaves,auditLogs,onRefresh:load,onNav:setView};
+  const props={user:cu,users,teams,leaves,auditLogs,onRefresh:load,onNav:changeView};
   const renderView=()=>{
     if(view==='dashboard')return cu.role==='admin'?<AdminDash {...props}/>:<EmpDashboard {...props}/>;
     if(view==='apply')return <ApplyView {...props}/>;
     if(view==='history')return <HistoryView {...props}/>;
     if(view==='calendar')return <CalView {...props}/>;
-    if(view==='profile')return <ProfileView {...props} onLogout={logout}/>;
     if(view==='team_approve')return <MgrApprove {...props}/>;
     if(view==='admin_approve')return <AdminApprove {...props} teams={teams}/>;
     if(view==='admin_teams')return <AdminTeams {...props}/>;
@@ -1336,6 +1351,7 @@ function App(){
           user={cu}
           teamName={teams.find(t=>t.id===cu.team_id)?.name||''}
           onLogout={logout}
+          subTabs={subTabs} activeSub={view} onSubChange={changeView}
         />
         {/* 제목 바 */}
         <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8'}}>
@@ -1349,7 +1365,7 @@ function App(){
         {/* 하단 탭 바 */}
         <div style={{position:'fixed',bottom:0,left:0,right:0,background:'white',borderTop:'1px solid #e2e8f0',display:'flex',zIndex:200,paddingBottom:'env(safe-area-inset-bottom)'}}>
           {mobileNav.map(item=>(
-            <button key={item.k} onClick={()=>setView(item.k)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3,background:'none',border:'none',cursor:'pointer',color:view===item.k?'#1e40af':'#94a3b8',padding:'8px 4px',position:'relative',fontFamily:"'Noto Sans KR',sans-serif",minHeight:56}}>
+            <button key={item.k} onClick={()=>changeView(item.k)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3,background:'none',border:'none',cursor:'pointer',color:view===item.k?'#1e40af':'#94a3b8',padding:'8px 4px',position:'relative',fontFamily:"'Noto Sans KR',sans-serif",minHeight:56}}>
               {item.b>0&&<span style={{position:'absolute',top:5,left:'50%',transform:'translateX(4px)',background:'#ef4444',color:'white',borderRadius:10,padding:'1px 5px',fontSize:9,fontWeight:700,minWidth:16,textAlign:'center'}}>{item.b}</span>}
               <span style={{fontSize:20,lineHeight:1}}>{item.i}</span>
               <span style={{fontSize:10,fontWeight:view===item.k?700:400,letterSpacing:-0.3}}>{item.l}</span>
@@ -1370,6 +1386,7 @@ function App(){
         user={cu}
         teamName={teams.find(t=>t.id===cu.team_id)?.name||''}
         onLogout={logout}
+        subTabs={subTabs} activeSub={view} onSubChange={changeView}
       />
 
       {/* 2줄: 시스템 제목 바 */}
@@ -1378,10 +1395,10 @@ function App(){
         <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>연차 관리 시스템</p>
       </div>
 
-      {/* 3줄: 가로 네비 탭 */}
-      <div style={{background:'#1e293b',padding:'0 14px',display:'flex',alignItems:'center',flexShrink:0,height:36,gap:1,borderBottom:'1px solid var(--theme,#0f172a)',position:'sticky',top:'calc(var(--sysbar-h,38px) + 45px)',zIndex:240,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none'}}>
+      {/* 3줄: 가로 네비 탭 (PC 에서는 숨김 — 왼쪽 메뉴 하위 항목으로 보인다) */}
+      <div className="sys-page-tabs" style={{background:'#1e293b',padding:'0 14px',display:'flex',alignItems:'center',flexShrink:0,height:36,gap:1,borderBottom:'1px solid var(--theme,#0f172a)',position:'sticky',top:'calc(var(--sysbar-h,38px) + 45px)',zIndex:240,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none'}}>
         {navItems.map(item=>(
-          <button key={item.k} onClick={()=>setView(item.k)}
+          <button key={item.k} onClick={()=>changeView(item.k)} className={view===item.k?'sys-tab-on':''}
             style={{display:'flex',alignItems:'center',gap:4,padding:'5px 11px',
               background:view===item.k?'#1d4ed8':'transparent',
               border:'none',borderRadius:4,cursor:'pointer',
@@ -1398,6 +1415,7 @@ function App(){
 
       {/* 콘텐츠 */}
       <div style={{flex:1,padding:'14px 12px',maxWidth:900,margin:'0 auto',width:'100%'}}>
+        {lastSync&&<div className="sys-pc-only" style={{textAlign:'right',fontSize:10,color:'#94a3b8',margin:'-6px 0 6px'}}>동기화 {lastSync}</div>}
         {renderView()}
       </div>
     </div>

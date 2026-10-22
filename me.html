@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="robots" content="noindex,nofollow"/>
+<title>내 정보</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #root, button, input, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
+<script src="config.js"></script>
+<script src="sysbar.js?v=2026102204"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f1f5f9;color:#0f172a;font-size:14px;overflow-x:hidden;}
+.me-title{position:sticky;top:var(--sysbar-h,38px);z-index:101;background:var(--theme,#0f172a);padding:6px 18px 8px;border-bottom:2px solid #1d4ed8;}
+.me-title .en{font-size:9px;line-height:1.2;color:#475569;letter-spacing:1px;text-transform:uppercase;font-weight:600;}
+.me-title .ko{font-size:14px;line-height:1.3;font-weight:800;color:#fff;letter-spacing:-.3px;}
+.me-page{max-width:480px;margin:0 auto;padding:18px 14px 48px;}
+.me-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;margin-bottom:14px;}
+.me-h{font-size:14px;font-weight:800;color:#0f172a;margin-bottom:14px;}
+.me-who{display:flex;align-items:center;gap:16px;}
+.me-av{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:22px;flex-shrink:0;}
+.me-name{font-size:18px;font-weight:900;color:#0f172a;}
+.me-sub{font-size:12px;color:#64748b;margin-top:2px;}
+.me-rows{margin-top:14px;border-top:1px solid #f1f5f9;}
+.me-row{display:flex;justify-content:space-between;gap:12px;padding:9px 2px;border-bottom:1px solid #f1f5f9;font-size:13px;}
+.me-row:last-child{border-bottom:none;}
+.me-row span{color:#64748b;}
+.me-row b{font-weight:600;color:#0f172a;text-align:right;word-break:break-all;}
+.me-fg{margin-bottom:12px;}
+.me-fl{display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:5px;}
+.me-fi{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;background:#fff;}
+.me-fi:focus{outline:none;border-color:#1d4ed8;}
+.me-al{font-size:12px;border-radius:8px;padding:9px 12px;margin-bottom:12px;line-height:1.6;}
+.me-al.ok{background:#dcfce7;color:#166534;}
+.me-al.e{background:#fee2e2;color:#991b1b;}
+.me-link{display:flex;align-items:center;justify-content:space-between;gap:10px;text-decoration:none;color:#0f172a;font-size:14px;font-weight:700;}
+.me-link small{display:block;font-size:12px;font-weight:400;color:#64748b;margin-top:2px;}
+.me-link i{font-style:normal;color:#94a3b8;font-size:18px;}
+.me-note{font-size:12px;color:#64748b;line-height:1.6;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// 내 정보관리 → 내 정보 (2026-10-22 신설)
+// 공정관리 「내 정보」 탭(비밀번호 변경)과 연차관리 「내 정보」 탭(기본 정보)을 합친 화면이다.
+// 협력업체도 쓸 수 있다(공정관리에서 쓰던 기능). 급여명세서는 왼쪽 메뉴 하위 항목 · 휴대폰에서는 아래 카드로 간다.
+// 관리자가 다른 직원 비밀번호를 바꾸는 흐름(project.html ChangePasswordModal)은 용도가 달라 그대로 둔다.
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+const PW_MIN = (window.APP_CONFIG && APP_CONFIG.AUTH_POLICY && APP_CONFIG.AUTH_POLICY.PASSWORD_MIN_LENGTH) || 8;
+const SLIP_PAGE = (window.APP_CONFIG && APP_CONFIG.PAYROLL && APP_CONFIG.PAYROLL.SLIP_PAGE) || 'payslip.html';
+const ROLE_LABEL = { admin: '관리자', manager: '팀장', employee: '팀원', contractor: '기술지원' };
+const SysBar = Sysbar.createComponent(React);
+const LoginScreen = Sysbar.createLoginComponent(React, { subtitle: '내 정보', blockedRoles: [] });
+
+function fmtPhone(p) {
+  if (!p) return '';
+  var n = String(p).replace(/\D/g, '');
+  return n.length === 11 ? n.slice(0, 3) + '-' + n.slice(3, 7) + '-' + n.slice(7) : p;
+}
+
+function MyInfo({ user, teamName, onLogout }) {
+  const [curr, setCurr] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState(false);
+
+  // 비밀번호 변경 — 공정관리 「내 정보」와 같은 규칙·같은 호출.
+  // H-2: change-own-password Edge Function 이 현재 비밀번호를 재확인하고, 전화번호/아이디를 새 비밀번호로 쓰는 것을 거부하며,
+  // must_change_pw 플래그까지 같은 경로에서 내린다. 현재 로그인 세션은 건드리지 않는다.
+  function savePw() {
+    if (!curr || !next || !confirm) { setErr('모든 항목을 입력해주세요.'); return; }
+    if (next !== confirm) { setErr('새 비밀번호가 일치하지 않습니다.'); return; }
+    if (next.length < PW_MIN) { setErr('비밀번호는 ' + PW_MIN + '자 이상이어야 합니다.'); return; }
+    setLoading(true); setErr('');
+    Sysbar.Auth.changeOwnPassword(sb, curr, next).then(function(chg) {
+      if (!chg.ok) { setErr(chg.reason); setLoading(false); return; }
+      // 비밀번호 변경 기록 (change_logs) — 변경 자체는 이미 성공했다. 기록 실패는 콘솔에만 남긴다.
+      return sb.from('change_logs').insert({
+        project_id: null, field_name: '비밀번호변경', old_value: '', new_value: '변경완료',
+        changed_by: user.id, created_at: new Date().toISOString()
+      }).then(
+        function(r) { if (r && r.error) Sysbar.logError(r.error, '비밀번호 변경 기록'); },
+        function(e) { Sysbar.logError(e, '비밀번호 변경 기록'); }
+      ).then(function() {
+        setOk(true); setCurr(''); setNext(''); setConfirm('');
+        setLoading(false);
+      });
+    });
+  }
+
+  var avBg = user.role === 'admin' ? 'var(--theme,#0f172a)' : user.role === 'contractor' ? '#d97706' : '#2563eb';
+  var isContractor = user.role === 'contractor';
+
+  return (
+    <div className="me-page">
+      {/* 기본 정보 */}
+      <div className="me-card">
+        <div className="me-who">
+          <div className="me-av" style={{ background: avBg }}>{(user.name || '?')[0]}</div>
+          <div>
+            <div className="me-name">{user.name}</div>
+            <div className="me-sub">{ROLE_LABEL[user.role] || user.role}{teamName ? ' · ' + teamName : ''}</div>
+          </div>
+        </div>
+        <div className="me-rows">
+          {user.username && <div className="me-row"><span>아이디</span><b>{user.username}</b></div>}
+          <div className="me-row"><span>휴대폰</span><b>{fmtPhone(user.phone) || '-'}</b></div>
+          {user.position && <div className="me-row"><span>직위</span><b>{user.position}</b></div>}
+        </div>
+      </div>
+
+      {/* 급여명세서 — 휴대폰에서만(PC 는 왼쪽 메뉴 하위 항목). 협력업체는 급여명세서 대상이 아니다 */}
+      {!isContractor && (
+        <div className="me-card sys-mobile-only">
+          <a className="me-link" href={SLIP_PAGE}>
+            <span>💰 급여명세서<small>확정된 지급 명세서 보기 (생년월일 확인)</small></span>
+            <i>›</i>
+          </a>
+        </div>
+      )}
+
+      {/* 비밀번호 변경 */}
+      <div className="me-card">
+        <div className="me-h">🔒 비밀번호 변경</div>
+        {ok && <div className="me-al ok">비밀번호가 변경되었습니다.</div>}
+        {err && <div className="me-al e">{err}</div>}
+        <div className="me-fg">
+          <label className="me-fl">현재 비밀번호</label>
+          <input type="password" className="me-fi" value={curr} onChange={function(e) { setCurr(e.target.value); }} placeholder="현재 비밀번호" />
+        </div>
+        <div className="me-fg">
+          <label className="me-fl">새 비밀번호</label>
+          <input type="password" className="me-fi" value={next} onChange={function(e) { setNext(e.target.value); }} placeholder={'새 비밀번호 (' + PW_MIN + '자 이상)'} />
+        </div>
+        <div className="me-fg">
+          <label className="me-fl">새 비밀번호 확인</label>
+          <input type="password" className="me-fi" value={confirm} onChange={function(e) { setConfirm(e.target.value); }} placeholder="새 비밀번호 재입력" onKeyDown={function(e) { if (e.key === 'Enter') savePw(); }} />
+        </div>
+        <button className="btn btn-primary" onClick={savePw} disabled={loading} style={{ marginTop: 4 }}>{loading ? '변경 중...' : '비밀번호 변경'}</button>
+      </div>
+
+      {/* 로그아웃 */}
+      <div className="me-card">
+        <div className="me-h" style={{ marginBottom: 10 }}>계정</div>
+        <button className="btn btn-secondary btn-block" onClick={onLogout}>로그아웃</button>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  var initialUser = (function() {
+    var v = Sysbar.Auth.getSession();
+    return (v && v.id && v.role) ? v : null;
+  })();
+  const [user, setUser] = useState(initialUser);
+  const [checked, setChecked] = useState(false);
+  const [teamName, setTeamName] = useState('');
+  const [denied, setDenied] = useState(false);
+
+  useEffect(function() {
+    if (!user || !user.team_id) { setTeamName(''); return; }
+    sb.from('teams').select('name').eq('id', user.team_id).single()
+      .then(function(r) { setTeamName((r.data && r.data.name) || ''); });
+  }, [user && user.team_id]);
+
+  // 캐시된 세션의 role 은 믿지 않고 서버 값으로 다시 확인한다.
+  useEffect(function() {
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    if (wasInvalidated || !initialUser) { if (wasInvalidated) setUser(null); setChecked(true); return; }
+    Sysbar.Auth.verifySession(sb).then(function(res) {
+      if (res && res.ok && res.user) setUser(res.user);
+      else if (res && res.reason !== 'auth-error') { Sysbar.Auth.logout(sb); setUser(null); }
+      setChecked(true);
+    });
+    Sysbar.SessionManager.onLogin(function() { logout(); });
+  }, []);
+
+  function handleLogin(u) {
+    setUser(u);
+    setChecked(true);
+    Sysbar.SessionManager.onLogin(function() { logout(); });
+  }
+  function logout() {
+    Sysbar.Auth.logout(sb);
+    setUser(null);
+  }
+
+  if (!user) return <LoginScreen supabaseClient={sb} onLogin={handleLogin} />;
+  if (!checked) return <div className="me-page"><div className="me-card me-note">확인 중...</div></div>;
+
+  return (
+    <div>
+      <SysBar sb={sb} activeKey="me" activeSub="info" user={user} teamName={teamName} onLogout={logout}
+        onDisabledClick={function() { setDenied(true); }} />
+      <div className="me-title">
+        <p className="en">{APP_CONFIG.COMPANY_EN}</p>
+        <p className="ko">내 정보관리</p>
+      </div>
+      {denied && (
+        <div className="me-page" style={{ paddingBottom: 0 }}>
+          <div className="me-al e" onClick={function() { setDenied(false); }}>기술지원 계정은 공정관리와 내 정보만 이용할 수 있습니다.</div>
+        </div>
+      )}
+      <MyInfo user={user} teamName={teamName} onLogout={logout} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
