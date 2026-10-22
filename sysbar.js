@@ -1,6 +1,11 @@
 /**
- * SYSBAR MODULE v3.1
+ * SYSBAR MODULE v3.2
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.2 변경사항 (기능 권한 표, 2026-10-22):
+ *  - PERM_DEFS · loadPerms(sb) · can(key) · canPortal() — DB has_perm()/my_perms() 결과로 메뉴·버튼 판정
+ *  - PORTAL_PAGES.need = 기능 권한 키. portalPerms(팀명 기준 판정)는 없앰
+ *  - 관리자 「다른 부서로 보기」(왼쪽 메뉴 아래 선택 상자 + 화면 맨 위 띠). SysBar 에 sb prop 을 넘긴다
  *
  * v3.1 변경사항 (왼쪽 메뉴):
  *  - PC(MOBILE_MAX_WIDTH 초과, 기본 769px~): 상단 막대 대신 왼쪽 고정 메뉴. [ 키 · 손잡이로 완전히 숨기기 (PC별 기억)
@@ -38,36 +43,117 @@
     { key:'admin',   icon:'🏢', svg:'admin',   label:'관리포털', url:'admin-worklog.html', adminOnly:true },
   ];
 
-  // ── 관리포털 하위 화면 (5개 admin-*.html 공용 — 여기 한 곳에서만 관리) ──
-  //   need: 'access' = 관리포털 접근자 전부, 'sal' = 급여 권한, 'ab' = 계정관리 권한
-  var PORTAL_PAGES = [
-    { key:'wl', svg:'note',   label:'업무일지', tabLabel:'📝 업무일지', href:'admin-worklog.html', need:'access' },
-    { key:'pf', svg:'chart',  label:'수금관리', tabLabel:'📊 수금관리', href:'admin-perf.html',    need:'access' },
-    { key:'py', svg:'wallet', label:'급여관리', tabLabel:'💼 급여관리', href:'admin-payroll.html', need:'sal'    },
-    { key:'ab', svg:'key',    label:'계정관리', tabLabel:'🔑 계정관리', href:'admin-account.html', need:'ab'     },
-    { key:'st', svg:'people', label:'직원관리', tabLabel:'👥 직원관리', href:'admin-staff.html',   need:'access' },
-    { key:'sy', svg:'gear',   label:'시스템',   tabLabel:'⚙️ 시스템',   href:'admin-system.html',  need:'ab'     },
+  // ── 기능 권한 표 (2026-10-22~) ─────────────────────────────────────────
+  //   키 목록은 DB 함수 public.perm_keys() 와 같아야 한다(키를 더하면 두 곳 모두).
+  //   기본값(= 이전 규칙)·예외(부서/사람) 판정은 DB has_perm() 이 하고, 화면은 my_perms() 결과만 쓴다.
+  //   pages = 이 권한으로 열리는 화면(권한 탭 안내용)
+  var PERM_DEFS = [
+    { key:'worklog_admin', label:((global.APP_CONFIG && global.APP_CONFIG.ADMIN_TEAM_NAME) || '관리포털') + ' 업무일지', desc:'관리포털 업무일지 화면',                        pages:['admin-worklog.html'] },
+    { key:'perf',          label:'수금관리',        desc:'수금·계약/잔금·예상수금',                        pages:['admin-perf.html'] },
+    { key:'tax',           label:'세금계산서',      desc:'수금관리 안 세금계산서·매칭확인 탭',             pages:['admin-perf.html'] },
+    { key:'payroll',       label:'급여 작성·명세서', desc:'급여관리 화면(명세서 작성·확정·메일)',          pages:['admin-payroll.html'] },
+    { key:'payroll_bank',  label:'송금·계좌',       desc:'송금내역 엑셀·송금 계좌·추가 송금 (급여 권한도 있어야 함)', pages:['admin-payroll.html'] },
+    { key:'staff',         label:'직원관리',        desc:'직원 정보 조회·수정',                            pages:['admin-staff.html'] },
+    { key:'account',       label:'계정관리',        desc:'계정(장부) 보기·입력',                           pages:['admin-account.html'] },
+    { key:'system',        label:'시스템',          desc:'사용량·백업 상태, 권한 표 보기',                 pages:['admin-system.html'] },
+  ];
+  // 표에서 바꿀 수 없는 규칙(권한 탭 🔒 안내)
+  var PERM_FIXED_RULES = [
+    '관리자는 항상 전부 켜져 있어요.',
+    '협력업체와 비활성 계정(아이디·비밀번호 변경 전, 퇴사)은 항상 전부 꺼져 있어요.',
+    '계정 아이디·비밀번호 초기화는 관리자만 할 수 있어요.',
+    '권한을 바꾸는 것은 관리자만 할 수 있어요.',
   ];
 
-  // 관리포털 권한 판정 (화면 표시용 — 실제 차단은 DB RLS / payroll_is_admin())
-  //   access = admin 또는 ADMIN_TEAM_NAME 팀
-  //   sal    = admin 또는 (관리팀 && contractor 아님)
-  //   ab     = admin 또는 관리팀
-  function portalPerms(user, teamName) {
-    var adminTeam = (global.APP_CONFIG && global.APP_CONFIG.ADMIN_TEAM_NAME) || '';
-    var isAdmin = !!(user && user.role === 'admin');
-    var inTeam  = !!(adminTeam && teamName === adminTeam);
-    var access  = isAdmin || inTeam;
-    return {
-      access: access,
-      sal:    isAdmin || (inTeam && !!user && user.role !== 'contractor'),
-      ab:     access,
-    };
+  // ── 관리포털 하위 화면 (admin-*.html 공용 — 여기 한 곳에서만 관리) ──
+  //   need = 이 화면을 여는 기능 권한 키(PERM_DEFS)
+  var PORTAL_PAGES = [
+    { key:'wl', svg:'note',   label:'업무일지', tabLabel:'📝 업무일지', href:'admin-worklog.html', need:'worklog_admin' },
+    { key:'pf', svg:'chart',  label:'수금관리', tabLabel:'📊 수금관리', href:'admin-perf.html',    need:'perf'          },
+    { key:'py', svg:'wallet', label:'급여관리', tabLabel:'💼 급여관리', href:'admin-payroll.html', need:'payroll'       },
+    { key:'ab', svg:'key',    label:'계정관리', tabLabel:'🔑 계정관리', href:'admin-account.html', need:'account'       },
+    { key:'st', svg:'people', label:'직원관리', tabLabel:'👥 직원관리', href:'admin-staff.html',   need:'staff'         },
+    { key:'sy', svg:'gear',   label:'시스템',   tabLabel:'⚙️ 시스템',   href:'admin-system.html',  need:'system'        },
+  ];
+
+  // ── 내 기능 권한 (my_perms() 결과를 이 창 sessionStorage 에 둔다. 로그인·로그아웃 때 지움) ──
+  //   관리자가 「다른 부서로 보기」를 고르면 그 부서 기준(team_perms) 값으로 메뉴·버튼만 판정한다.
+  //   데이터 접근은 언제나 DB 가 실제 계정 기준으로 판정한다(화면 표시만 바뀜).
+  var PERMS_KEY = _prefix + '_perms';
+  var VIEW_KEY  = _prefix + '_view_as';
+  function _ssGet(k) { try { var v = sessionStorage.getItem(k); return v ? JSON.parse(v) : null; } catch(e) { return null; } }
+  function _ssSet(k, v) { try { if (v == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, JSON.stringify(v)); } catch(e) {} }
+  function clearPerms() { _ssSet(PERMS_KEY, null); _ssSet(VIEW_KEY, null); }
+  function _me() { try { return Auth.getSession(); } catch(e) { return null; } }
+  function _realPerms() {
+    var c = _ssGet(PERMS_KEY), u = _me();
+    if (!c || !u || c.uid !== u.id) return null;
+    return c.perms || {};
   }
-  function portalCanShow(perms, need) {
-    if (need === 'sal') return perms.sal;
-    if (need === 'ab')  return perms.ab;
-    return perms.access;
+  function getViewAs() {
+    var u = _me();
+    if (!u || u.role !== 'admin') return null;   // 실제 관리자만
+    var v = _ssGet(VIEW_KEY);
+    return (v && v.team_id && v.perms) ? v : null;
+  }
+  function getPerms() { var v = getViewAs(); return v ? v.perms : _realPerms(); }
+  function can(key) { var p = getPerms(); return !!(p && p[key]); }
+  function canPortal() { return PORTAL_PAGES.some(function(pg) { return can(pg.need); }); }
+  function portalCanShow(pg) { return can(pg && pg.need); }
+
+  // 서버에서 내 권한을 다시 읽는다(화면을 열 때마다 — 관리자가 바꾼 권한이 새로고침으로 적용되게).
+  function loadPerms(sbClient) {
+    var u = _me();
+    if (!sbClient || !sbClient.rpc || !u) return Promise.resolve(getPerms());
+    return sbClient.rpc('my_perms').then(function(r) {
+      if (r.error || !r.data) { logError(r.error, '기능 권한 조회'); return getPerms(); }
+      _ssSet(PERMS_KEY, { uid: u.id, perms: r.data });
+      return getPerms();
+    }, function(err) { logError(err, '기능 권한 조회'); return getPerms(); });
+  }
+
+  // 다른 부서로 보기 (관리자만). team = {id, name} 또는 null(원래대로). 성공하면 true.
+  function setViewAs(sbClient, team) {
+    if (!team) { _ssSet(VIEW_KEY, null); return Promise.resolve(true); }
+    var u = _me();
+    if (!u || u.role !== 'admin' || !sbClient) return Promise.resolve(false);
+    return sbClient.rpc('team_perms', { p_team: team.id }).then(function(r) {
+      if (r.error || !r.data) { showError(r.error, '다른 부서로 보기'); return false; }
+      _ssSet(VIEW_KEY, { team_id: team.id, team_name: team.name, perms: r.data.perms || {} });
+      return true;
+    }, function(err) { showError(err, '다른 부서로 보기'); return false; });
+  }
+
+  // 「다른 부서로 보기」 띠 — React 밖(DOM)에 둔다. 권한 없는 화면의 안내 화면에서도 보여야 해서.
+  function renderViewBand() {
+    try {
+      var v = getViewAs();
+      var el = document.getElementById('sys-view-band');
+      if (!v) { if (el) el.parentNode.removeChild(el); return; }
+      if (!document.body) return;
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'sys-view-band';
+        el.className = 'no-print';
+        el.setAttribute('role', 'status');
+        el.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:8px 14px;'
+          + 'background:#f59e0b;color:#1c1917;font-size:13px;font-weight:700;line-height:1.4;text-align:center;';
+        document.body.insertBefore(el, document.body.firstChild);
+      }
+      el.textContent = '';
+      var t = document.createElement('span');
+      t.textContent = v.team_name + ' 입장으로 보는 중 — 메뉴·버튼만 바뀌고, 데이터는 관리자 권한으로 보여요';
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = '원래대로';
+      b.style.cssText = 'padding:4px 12px;border-radius:6px;border:1px solid #1c1917;background:#fff;color:#1c1917;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;';
+      b.onclick = function() { _ssSet(VIEW_KEY, null); location.reload(); };
+      el.appendChild(t); el.appendChild(b);
+    } catch(e) {}
+  }
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', renderViewBand);
+    else renderViewBand();
   }
 
   // ── PC 왼쪽 메뉴 선 아이콘 (24x24, stroke=currentColor → 테마 색 자동) ──
@@ -186,6 +272,10 @@
       '.sys-side-sub .sys-side-b{padding:7px 10px;font-size:12.5px;font-weight:500;gap:9px;}' +
       '.sys-side-sub .sys-side-b.on{background:#7c3aed;}' +
       '.sys-side-foot{padding:12px 12px 14px;border-top:1px solid rgba(255,255,255,.07);}' +
+      '.sys-side-view{padding:0 4px 10px;}' +
+      '.sys-side-view label{display:block;font-size:10.5px;color:#64748b;margin-bottom:4px;}' +
+      '.sys-side-view select{width:100%;padding:5px 6px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:12px;font-family:inherit;}' +
+      '.sys-side-view.on select{border-color:#f59e0b;color:#fbbf24;}' +
       '.sys-side-who{padding:0 4px 10px;}' +
       '.sys-side-who b{display:block;font-size:13px;color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
       '.sys-side-who span{display:block;font-size:11px;color:#64748b;margin-top:1px;}' +
@@ -405,6 +495,7 @@
      * clearSession()
      */
     function clearSession() {
+      clearPerms();   // 기능 권한 캐시 + 다른 부서로 보기
       sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem('kwanbo_uid');
       // 레거시 잔재 정리 (구버전 키 / localStorage 흔적)
@@ -497,6 +588,7 @@
         }
 
         // 로그인 성공
+        clearPerms();   // 이전 계정의 기능 권한 캐시가 남지 않게
         sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
         sessionStorage.removeItem('kwanbo_uid');
 
@@ -834,8 +926,48 @@
       var onDisabled = props.onDisabledClick || function(){};
       var noPrint    = props.noPrint         || false;
       var contractor = !!(user && user.role === 'contractor');
-      var canAdmin   = !!(user && (user.role === 'admin' || teamName === ((global.APP_CONFIG && global.APP_CONFIG.ADMIN_TEAM_NAME) || '관리팀')));
+      var sbClient   = props.sb || null;          // 기능 권한·부서 목록 조회용(없으면 이 창에 저장된 권한만 씀)
       var e = React.createElement;
+
+      // ── 기능 권한: 화면을 열 때마다 서버 값으로 다시 읽는다 ──
+      var permTick = React.useState(0);
+      var setPermTick = permTick[1];
+      React.useEffect(function() {
+        if (!user || !sbClient) return;
+        var alive = true;
+        loadPerms(sbClient).then(function() { if (alive) setPermTick(function(x) { return x + 1; }); });
+        return function() { alive = false; };
+      }, [user ? user.id : null]);
+      var canAdmin   = !!user && canPortal();    // 관리포털 메뉴 = 관리포털 권한이 하나라도 있으면
+
+      // ── 다른 부서로 보기 (실제 관리자만) ──
+      var isRealAdmin = !!(user && user.role === 'admin');
+      var viewAs = getViewAs();
+      var teamsState = React.useState([]);
+      var teams = teamsState[0], setTeams = teamsState[1];
+      React.useEffect(function() {
+        if (!isRealAdmin || !sbClient) return;
+        sbClient.from('teams').select('id,name').order('name').then(function(r) { if (!r.error && r.data) setTeams(r.data); });
+      }, [isRealAdmin]);
+      function onViewChange(ev) {
+        var id = ev.target.value;
+        var t = teams.filter(function(x) { return x.id === id; })[0] || null;
+        setViewAs(sbClient, t).then(function(ok) { if (ok) location.reload(); });
+      }
+      React.useEffect(function() { renderViewBand(); });
+
+      // ── 휴대폰 관리포털 탭 줄: 선택된 탭이 보이도록 가로 스크롤 ──
+      React.useEffect(function() {
+        var t = setTimeout(function() {
+          try {
+            var a = document.querySelector('.sys-portal-tabs .nav-btn.active');
+            var box = a && a.parentNode;
+            if (!box || box.scrollWidth <= box.clientWidth) return;
+            box.scrollLeft = Math.max(0, a.offsetLeft - (box.clientWidth - a.offsetWidth) / 2);
+          } catch(err) {}
+        }, 0);
+        return function() { clearTimeout(t); };
+      }, [permTick[0]]);
 
       // ── PC 왼쪽 메뉴: 접힘 상태 + body 클래스 + [ 단축키 ──
       var offState = React.useState(sideOffGet());
@@ -895,7 +1027,6 @@
 
       // ── PC 왼쪽 메뉴 ──
       var curFile = (function() { try { return (location.pathname.split('/').pop() || '').toLowerCase(); } catch(err) { return ''; } })();
-      var perms = portalPerms(user, teamName);
 
       var sideItems = [];
       SYS_MENUS.forEach(function(m) {
@@ -910,7 +1041,7 @@
         }
         if (m.key === 'admin') {
           sideItems.push(e('div', {key:'admin-sub', className:'sys-side-sub'},
-            PORTAL_PAGES.filter(function(pg) { return portalCanShow(perms, pg.need); }).map(function(pg) {
+            PORTAL_PAGES.filter(function(pg) { return can(pg.need); }).map(function(pg) {
               var on = activeKey === 'admin' && curFile === pg.href.toLowerCase();
               var sub = [sideIcon(React, pg.svg, 16), e('span', {key:'l'}, pg.label)];
               return on
@@ -928,6 +1059,14 @@
         ),
         e('nav', {key:'nav', className:'sys-side-nav'}, sideItems),
         e('div', {key:'foot', className:'sys-side-foot'},
+          (isRealAdmin && sbClient) ? e('div', {key:'view', className:'sys-side-view' + (viewAs ? ' on' : '')},
+            e('label', {htmlFor:'sys-view-sel'}, '다른 부서로 보기'),
+            e('select', {id:'sys-view-sel', value: viewAs ? viewAs.team_id : '', onChange:onViewChange},
+              [e('option', {key:'-', value:''}, '관리자 (원래)')].concat(teams.map(function(t) {
+                return e('option', {key:t.id, value:t.id}, t.name);
+              }))
+            )
+          ) : null,
           user ? e('div', {key:'who', className:'sys-side-who'},
             e('b', null, user.name + ' 님'),
             teamName ? e('span', null, teamName) : null
@@ -1233,8 +1372,16 @@
     SESSION_KEY: SESSION_KEY,
     SYS_MENUS:   SYS_MENUS,
     PORTAL_PAGES:  PORTAL_PAGES,
-    portalPerms:   portalPerms,
     portalCanShow: portalCanShow,
+    PERM_DEFS:        PERM_DEFS,
+    PERM_FIXED_RULES: PERM_FIXED_RULES,
+    loadPerms:     loadPerms,
+    can:           can,
+    canPortal:     canPortal,
+    getPerms:      getPerms,
+    getViewAs:     getViewAs,
+    setViewAs:     setViewAs,
+    clearPerms:    clearPerms,
     injectCss:   injectCss,
     createComponent:      createComponent,
     createLoginComponent: createLoginComponent,

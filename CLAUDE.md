@@ -9,8 +9,20 @@
 ### 권한 설계 원칙
 **급여 관련 기능은 admin + 관리팀(`payroll_is_admin()`), 나머지 관리 기능도 admin + 관리팀.**
 (2026-10-21 문구 정정 — 이전 문구 "급여 관련 기능만 admin 전용"은 실제 설계·DB와 달랐다)
-- 급여: `payroll_*` 표 · 직원 본인 명세서 함수(`payslip_*`) · `admin-payroll.html` · 관리포털 급여 탭(`canSal`).
-  화면 `canSal` = admin 또는 관리팀(contractor 제외), DB `payroll_is_admin()` = `is_manage_staff()` — 같은 기준.
+- 급여: `payroll_*` 표 · 직원 본인 명세서 함수(`payslip_*`) · `admin-payroll.html` · 관리포털 급여 탭.
+  화면 `Sysbar.can('payroll')`, DB `payroll_is_admin()` = `has_perm('payroll')` — 같은 판정(아래 기능 권한 표).
+  송금내역·계좌는 `payroll` + `payroll_bank` 둘 다 있어야 한다.
+- **기능 권한 표(2026-10-22~)** — 1차 범위 = 관리포털 6화면 + 세금계산서. 키 8개:
+  `worklog_admin` · `perf` · `tax` · `payroll` · `payroll_bank` · `staff` · `account` · `system`.
+  - 판정 순서(DB `has_perm('키')`): 고정 규칙(비활성·협력업체 → false, admin → true) → 사람 예외 → 부서 예외(`perm_overrides`)
+    → 기본값 `perm_default_for` (= 2026-10-22 이전 규칙: `tax` = admin + 팀장(role manager), 나머지 = admin + 관리팀).
+  - 키 목록은 DB `perm_keys()` 와 `sysbar.js` `Sysbar.PERM_DEFS` **두 곳을 같이** 고친다. `PORTAL_PAGES[].need` 도 키.
+  - 화면은 `Sysbar.can(키)` / `Sysbar.canPortal()`(my_perms() 를 sessionStorage 에 캐시, 화면을 열 때마다 다시 읽음).
+    새 화면도 `SysBar` 에 `sb={sb}` 를 넘길 것(권한·부서 목록 조회용). 팀명 비교로 권한을 판정하지 말 것.
+  - **권한 변경 = admin 전용**(관리팀은 시스템 → 권한 탭 읽기만). 변경 기록 `perm_change_logs`(트리거).
+  - 1차 범위 정책은 `(select has_perm('키'))`. **2차(공정관리 '관리' 탭·연차 결재·홈 공지·업무일지(직원) 등)는 `is_manage_staff()` 그대로.**
+    두 범위가 같이 쓰는 표(`contracts` · `shared_todos` · `users_private_list()`)는 `기존 판정 OR 새 키` — 2차에서 정리.
+  - 관리자 「다른 부서로 보기」(왼쪽 메뉴 아래·시스템 → 권한 탭)는 **화면 표시만** 바꾼다(이 창 sessionStorage). 데이터는 관리자 권한 그대로.
 - admin + 관리팀: 장부(`account_book`) · 직원관리 · 업무일지 · 실적 · 수금 등 나머지 관리 기능.
 - **계정 아이디·비밀번호 초기화는 admin 전용**(관리팀 불가). 초기화할 수 있으면 그 직원 계정으로
   로그인해 그 사람인 척 본인 급여명세서·개인 기록을 볼 수 있으므로 관리팀에는 허용하지 않는다.
@@ -106,6 +118,16 @@
 ---
 
 ## ✅ 완료된 작업
+
+### 기능 권한 표 — 부서 기본값 + 사람별 예외 + 다른 부서로 보기 (2026-10-22, 1차)
+- 구조·규칙은 위 「권한 설계 원칙 → 기능 권한 표」. DB 산출물은 저장소 밖 `security-fix\107~112_perm_*`.
+- 오픈 시점에 실제 권한 변화 없음: 예외 0행 상태에서 auth 연결 전 계정 × 8키 동치 검사 152건 FAIL 0(함수), 8개 표 실제 조회 행 수 152건 FAIL 0.
+- 화면: admin-*.html 6개 진입·탭 = `Sysbar.can`, admin-perf `canTax` = `can('tax')`, admin-payroll 송금내역·🏦 송금 계좌·추가 송금·내려받기 기록 = `can('payroll_bank')`.
+  관리포털 권한이 하나도 없으면 안내 화면, 이 화면 권한만 없으면 볼 수 있는 첫 관리포털 화면으로 이동.
+- admin-system.html 에 [상태] [권한] 탭. 권한 탭 = 🔒 고정 규칙 · 다른 부서로 보기 · 부서별 표(기본 → 켬 → 끔 순환) · 사람별 예외 · 변경 기록.
+- sysbar.js v3.2: `PERM_DEFS` · `PERM_FIXED_RULES` · `loadPerms` · `can` · `canPortal` · `getViewAs/setViewAs` · `clearPerms`. `portalPerms` 삭제.
+  휴대폰 관리포털 탭 줄은 열 때 선택된 탭으로 자동 가로 스크롤. 캐시 버전 `?v=2026102203`.
+- 백업: `backup/*_20261022_3.*`
 
 ### 왼쪽 메뉴 전환 — sysbar.js v3.1 (2026-10-22)
 동종업계 친구 회사 포털(관리 포털 데모)의 왼쪽 메뉴를 참고해 PC 네비게이션을 상단 막대 → 왼쪽 고정 메뉴로 전환.

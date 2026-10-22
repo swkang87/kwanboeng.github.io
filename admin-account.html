@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102202"></script>
+<script src="sysbar.js?v=2026102203"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
@@ -674,7 +674,7 @@ function LoginScreen({ onLogin }) {
     if (locked) return;
     if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
     setLoading(true); setErr('');
-    // allowedRoles: contractor만 차단 (팀 권한은 hasAccess로 판단)
+    // allowedRoles: contractor만 차단 (관리포털 권한은 로그인 뒤 기능 권한 표 — Sysbar.can 으로 판단)
     const result = await Sysbar.Auth.doLogin(sb, phone, pw, {
         allowedRoles: ['admin', 'manager', 'staff', 'employee'],
       });
@@ -740,7 +740,6 @@ function App() {
   const [user, setUser] = useState(initialUser);
   const [ssoChecked, setSsoChecked] = useState(!!initialUser);
   const [teamName, setTeamName] = useState('');
-  const [hasAccess, setHasAccess] = useState(false);
   const [accessChecked, setAccessChecked] = useState(false);
 
   useEffect(function() {
@@ -759,12 +758,12 @@ function App() {
 
   useEffect(function() {
     if (!user) return;
-    if (user.role === 'admin') { setTeamName('관리자'); setHasAccess(true); setAccessChecked(true); return; }
-    if (!user.team_id) { setHasAccess(false); setAccessChecked(true); return; }
-    sb.from('teams').select('name').eq('id', user.team_id).single().then(function(r) {
-      var name = r.data ? r.data.name : '';
-      setTeamName(name);
-      setHasAccess(name === (APP_CONFIG.ADMIN_TEAM_NAME || '관리팀'));
+    // 팀 이름(상단 메뉴 표시용)과 기능 권한(DB my_perms)을 함께 읽은 뒤 화면을 그린다
+    var teamP = user.role === 'admin' ? Promise.resolve('관리자')
+      : (!user.team_id ? Promise.resolve('')
+        : sb.from('teams').select('name').eq('id', user.team_id).single().then(function(r) { return r.data ? r.data.name : ''; }));
+    Promise.all([teamP, Sysbar.loadPerms(sb)]).then(function(res) {
+      setTeamName(res[0]);
       setAccessChecked(true);
     });
   }, [user ? user.id : null]);
@@ -776,7 +775,7 @@ function App() {
 
   function logout() {
     Sysbar.Auth.logout(sb);
-    setUser(null); setTeamName(''); setHasAccess(false);
+    setUser(null); setTeamName('');
   }
 
   if (!ssoChecked || (user && !accessChecked)) return (
@@ -787,7 +786,7 @@ function App() {
 
   if (!user) return <LoginScreen onLogin={handleLogin} />;
 
-  if (user.role !== 'admin' && !hasAccess) return (
+  if (!Sysbar.canPortal()) return (
     <div className="lwrap">
       <div className="lbox" style={{textAlign:'center'}}>
         <div style={{fontSize:48,marginBottom:16}}>🚫</div>
@@ -798,23 +797,18 @@ function App() {
     </div>
   );
 
-  // 급여관리 = admin + 관리팀(ADMIN_TEAM_NAME). contractor 는 관리팀 소속이어도 제외. DB 판정은 payroll_is_admin().
-  var _pp    = Sysbar.portalPerms(user, teamName);
-  var canSal = _pp.sal;
-  var canAb  = _pp.ab;
-
-  // 현재 페이지가 권한이 없는 페이지면 업무일지로 리다이렉트
-  if (CURRENT_PAGE === 'ab' && !canAb)  { location.replace('admin-worklog.html'); return null; }
-
-  function canShow(need) {
-    if (need === 'sal') return canSal;
-    if (need === 'ab')  return canAb;
-    return true;
+  // 이 화면 권한이 없으면 볼 수 있는 첫 관리포털 화면으로 보낸다 (권한 판정 = Sysbar.can → DB has_perm 과 같은 결과)
+  var MY_PAGE = PORTAL_PAGES.filter(function(pg) { return pg.key === CURRENT_PAGE; })[0];
+  if (MY_PAGE && !Sysbar.can(MY_PAGE.need)) {
+    var firstPage = PORTAL_PAGES.filter(function(pg) { return Sysbar.can(pg.need); })[0];
+    location.replace(firstPage ? firstPage.href : 'admin-worklog.html'); return null;
   }
+
+  function canShow(need) { return Sysbar.can(need); }
 
   return (
     <div>
-      <SysBar
+      <SysBar sb={sb}
         activeKey="admin"
         user={user}
         teamName={teamName}

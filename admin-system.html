@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102202"></script>
+<script src="sysbar.js?v=2026102203"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
@@ -71,6 +71,34 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font
 .ul .v{color:#64748b;white-space:nowrap;font-variant-numeric:tabular-nums;}
 .note{font-size:12px;color:#64748b;line-height:1.7;background:#f1f5f9;border-radius:10px;padding:12px 16px;}
 .note a{color:#6d28d9;font-weight:600;}
+/* ── 권한 탭 ── */
+.itabs{display:flex;gap:4px;margin-bottom:16px;background:#f1f5f9;padding:4px;border-radius:10px;width:fit-content;}
+.itab{padding:6px 14px;border:none;background:transparent;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:12px;font-weight:600;color:#64748b;cursor:pointer;}
+.itab.active{background:#fff;color:#7c3aed;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.st{font-size:14px;font-weight:700;color:#0f172a;}
+.al-i{background:#dbeafe;color:#1e40af;}
+.al-s{background:#dcfce7;color:#166534;}
+.lock{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:12px;color:#475569;line-height:1.7;}
+.lock-t{font-weight:700;color:#334155;margin-bottom:2px;}
+.lock ul{margin-left:18px;}
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid #e2e8f0;}
+.pt-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.pt-tbl th{background:#f8fafc;font-size:11px;font-weight:700;color:#475569;padding:8px 6px;border-bottom:1px solid #e2e8f0;white-space:nowrap;text-align:center;}
+.pt-tbl td{padding:6px;border-bottom:1px solid #f1f5f9;text-align:center;white-space:nowrap;}
+.pt-tbl tr:last-child td{border-bottom:none;}
+.pt-tbl .pt-name{text-align:left;font-weight:600;color:#0f172a;}
+.pc{min-width:62px;padding:5px 8px;border-radius:6px;border:1px solid #e2e8f0;background:#fff;color:#94a3b8;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;}
+.pc.pc-yes{color:#334155;}
+.pc.pc-on{background:#dcfce7;border-color:#86efac;color:#166534;}
+.pc.pc-off{background:#fee2e2;border-color:#fca5a5;color:#991b1b;}
+.pc:disabled{cursor:not-allowed;opacity:.85;}
+.seg{display:inline-flex;border:1px solid #e2e8f0;border-radius:7px;overflow:hidden;}
+.seg-b{padding:5px 10px;border:none;background:#fff;color:#64748b;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;}
+.seg-b+.seg-b{border-left:1px solid #e2e8f0;}
+.seg-b.on{background:#7c3aed;color:#fff;}
+.seg-b:disabled{cursor:not-allowed;opacity:.7;}
+.fin-y{color:#166534;font-weight:800;}
+.fin-n{color:#94a3b8;}
 /* ── 로그인 ── */
 .lwrap{min-height:100vh;background:linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e1b4b 50%,#4c1d95 100%);display:flex;align-items:center;justify-content:center;padding:20px;}
 .lbox{background:#fff;border-radius:20px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 32px 80px rgba(0,0,0,.5);}
@@ -220,8 +248,8 @@ function UsageCards({ data }) {
   );
 }
 
-// ── 시스템 화면 ───────────────────────────────────────────────────────────
-function SystemView() {
+// ── 시스템 화면 · 상태 탭 ─────────────────────────────────────────────────
+function StatusView() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -243,12 +271,9 @@ function SystemView() {
   useEffect(load, []);
 
   return (
-    <div className="page">
+    <div>
       <div className="ph">
-        <div>
-          <div className="pt">시스템</div>
-          <div className="ps">사용량과 백업 상태를 한눈에 봐요{data && data.checked_at ? ' · ' + fmtWhen(data.checked_at) + ' 기준' : ''}</div>
-        </div>
+        <div className="ps">사용량과 백업 상태를 한눈에 봐요{data && data.checked_at ? ' · ' + fmtWhen(data.checked_at) + ' 기준' : ''}</div>
         <button className="btn btn-s" onClick={load} disabled={loading}>{loading ? '불러오는 중...' : '새로 보기'}</button>
       </div>
 
@@ -263,6 +288,246 @@ function SystemView() {
         내려받기 사용량은 이 화면에서 볼 수 없어요. Supabase 대시보드에서 확인해요.{' '}
         <a href={DASHBOARD_USAGE_URL} target="_blank" rel="noopener noreferrer">Supabase 사용량 보기</a>
       </div>
+    </div>
+  );
+}
+
+// ── 시스템 화면 · 권한 탭 (기능 권한 표) ──────────────────────────────────
+//   부서 기본값 + 사람별 예외. 판정은 DB has_perm() — 여기서는 perm_overrides 행만 쓰고 지운다.
+//   바꾸기 = 관리자만(DB 정책도 같음). 관리팀(system 권한)은 읽기만.
+var PERM_NEXT = { 'default': 'on', 'on': 'off', 'off': 'default' };
+function ovrState(v) { return v === true ? 'on' : (v === false ? 'off' : 'default'); }
+
+function PermCell({ state, base, disabled, onClick }) {
+  var label = state === 'on' ? '켬' : (state === 'off' ? '끔' : (base ? '기본 ✓' : '기본 –'));
+  var cls = 'pc pc-' + state + (state === 'default' && base ? ' pc-yes' : '');
+  return <button type="button" className={cls} disabled={disabled} onClick={onClick}
+    title={disabled ? '관리자만 바꿀 수 있어요' : '누르면 기본 → 켬 → 끔 → 기본 순서로 바뀌어요'}>{label}</button>;
+}
+
+function PermView({ user }) {
+  var DEFS = Sysbar.PERM_DEFS;
+  var viewAs = Sysbar.getViewAs();
+  var isRealAdmin = user.role === 'admin';
+  var canEdit = isRealAdmin && !viewAs;
+
+  const [loading, setLoading] = useState(true);
+  const [teams, setTeams] = useState([]);
+  const [teamPerms, setTeamPerms] = useState({});
+  const [users, setUsers] = useState([]);
+  const [userOvr, setUserOvr] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [selUser, setSelUser] = useState('');
+  const [up, setUp] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  function loadSide() {
+    return Promise.all([
+      sb.from('perm_overrides').select('scope,target_id,perm_key,allow,updated_at').eq('scope', 'user'),
+      sb.from('perm_change_logs').select('*').order('changed_at', { ascending: false }).limit(30),
+    ]).then(function(r) {
+      if (r[0].error) Sysbar.showError(r[0].error, '사람별 예외 조회');
+      if (r[1].error) Sysbar.showError(r[1].error, '권한 변경 기록 조회');
+      setUserOvr(r[0].data || []);
+      setLogs(r[1].data || []);
+    });
+  }
+  function loadTeam(id) {
+    return sb.rpc('team_perms', { p_team: id }).then(function(r) {
+      if (r.error) { Sysbar.showError(r.error, '부서 권한 조회'); return; }
+      setTeamPerms(function(prev) { var m = Object.assign({}, prev); m[id] = r.data; return m; });
+    });
+  }
+  function loadUser(id) {
+    if (!id) { setUp(null); return Promise.resolve(); }
+    return sb.rpc('user_perms', { p_user: id }).then(function(r) {
+      if (r.error) { Sysbar.showError(r.error, '직원 권한 조회'); setUp(null); return; }
+      setUp(r.data);
+    });
+  }
+  useEffect(function() {
+    var ts = [];
+    Promise.all([
+      sb.from('teams').select('id,name').order('name'),
+      sb.from('users').select('id,name,team_id,role').order('name'),
+    ]).then(function(r) {
+      if (r[0].error) Sysbar.showError(r[0].error, '부서 목록 조회');
+      if (r[1].error) Sysbar.showError(r[1].error, '직원 목록 조회');
+      ts = r[0].data || [];
+      setTeams(ts);
+      setUsers(r[1].data || []);
+      return Promise.all(ts.map(function(t) { return loadTeam(t.id); }).concat([loadSide()]));
+    }).then(function() { setLoading(false); });
+  }, []);
+  useEffect(function() { loadUser(selUser); }, [selUser]);
+
+  function write(scope, target, key, next) {
+    if (!canEdit || busy) return;
+    setBusy(true); setMsg('');
+    var q = next === 'default'
+      ? sb.from('perm_overrides').delete().eq('scope', scope).eq('target_id', target).eq('perm_key', key).select('id')
+      : sb.from('perm_overrides').upsert({ scope: scope, target_id: target, perm_key: key, allow: next === 'on' },
+                                         { onConflict: 'scope,target_id,perm_key' }).select('id');
+    q.then(function(r) {
+      if (Sysbar.writeFailed(r, '권한 저장', { expectRows: true })) { setBusy(false); return; }
+      setMsg('저장했어요. 해당 직원은 새로고침하면 적용돼요.');
+      var after = scope === 'team' ? loadTeam(target) : loadUser(target);
+      Promise.all([after, loadSide()]).then(function() { setBusy(false); });
+    }, function(err) { Sysbar.showError(err, '권한 저장'); setBusy(false); });
+  }
+
+  function viewTeam(ev) {
+    var id = ev.target.value;
+    var t = teams.filter(function(x) { return x.id === id; })[0] || null;
+    Sysbar.setViewAs(sb, t).then(function(ok) { if (ok) location.reload(); });
+  }
+
+  var teamName = {}; teams.forEach(function(t) { teamName[t.id] = t.name; });
+  var userName = {}; users.forEach(function(u) { userName[u.id] = u.name; });
+  var keyLabel = {}; DEFS.forEach(function(d) { keyLabel[d.key] = d.label; });
+  var ovrByUser = {};
+  userOvr.forEach(function(o) { (ovrByUser[o.target_id] = ovrByUser[o.target_id] || []).push(o); });
+  var ovrUsers = Object.keys(ovrByUser);
+
+  if (loading) return <div className="loading">불러오는 중...</div>;
+
+  return (
+    <div>
+      <div className="lock">
+        <div className="lock-t">🔒 표에서 바꿀 수 없는 규칙</div>
+        <ul>{Sysbar.PERM_FIXED_RULES.map(function(t, i) { return <li key={i}>{t}</li>; })}</ul>
+      </div>
+
+      {!canEdit && (
+        <div className="al al-i">{viewAs ? '다른 부서로 보는 중에는 바꿀 수 없어요. 화면 맨 위 [원래대로]를 누르면 바꿀 수 있어요.' : '관리자만 바꿀 수 있어요. 지금은 보기만 할 수 있어요.'}</div>
+      )}
+      {msg && <div className="al al-s">{msg}</div>}
+
+      {isRealAdmin && (
+        <div className="card">
+          <div className="st">다른 부서로 보기</div>
+          <div className="ps" style={{ margin: '4px 0 10px' }}>고른 부서 직원에게 메뉴·버튼이 어떻게 보이는지 확인해요. 데이터는 관리자 권한 그대로 보여요. 이 창에서만 바뀌고, 로그아웃하면 원래대로 돌아와요.</div>
+          <select className="fi" style={{ maxWidth: 280 }} value={viewAs ? viewAs.team_id : ''} onChange={viewTeam}>
+            <option value="">관리자 (원래)</option>
+            {teams.map(function(t) { return <option key={t.id} value={t.id}>{t.name}</option>; })}
+          </select>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="st">부서별 기본값</div>
+        <div className="ps" style={{ margin: '4px 0 10px' }}>칸을 누르면 기본 → 켬 → 끔 → 기본 순서로 바뀌어요. 기본과 다르게 정한 칸은 색으로 표시돼요. 「기본」은 그 부서 일반 직원 기준이에요.</div>
+        <div className="tbl-wrap">
+          <table className="pt-tbl">
+            <thead><tr><th>부서</th>{DEFS.map(function(d) { return <th key={d.key} title={d.desc}>{d.label}</th>; })}</tr></thead>
+            <tbody>
+              {teams.map(function(t) {
+                var tp = teamPerms[t.id];
+                return (
+                  <tr key={t.id}>
+                    <td className="pt-name">{t.name}</td>
+                    {DEFS.map(function(d) {
+                      if (!tp) return <td key={d.key}>-</td>;
+                      var st = ovrState(tp.overrides[d.key]);
+                      return <td key={d.key}><PermCell state={st} base={!!tp.defaults[d.key]} disabled={!canEdit || busy}
+                        onClick={function() { write('team', t.id, d.key, PERM_NEXT[st]); }} /></td>;
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="uc-s">세금계산서의 기본값은 직급으로 정해져서(관리자·팀장) 부서 칸에는 「기본 –」로 보여요. 팀장은 기본으로 켜져 있어요.</div>
+      </div>
+
+      <div className="card">
+        <div className="st">사람별 예외</div>
+        <div className="ps" style={{ margin: '4px 0 10px' }}>사람별 예외는 부서 설정보다 먼저 적용돼요.</div>
+        <div className="uc-t">예외가 있는 사람 ({ovrUsers.length}명)</div>
+        {ovrUsers.length === 0 ? <div className="uc-s" style={{ marginBottom: 12 }}>아직 없어요.</div> : (
+          <ul className="ul" style={{ marginBottom: 12 }}>
+            {ovrUsers.map(function(id) {
+              return <li key={id}>
+                <a href="#" className="n" onClick={function(ev) { ev.preventDefault(); setSelUser(id); }}>{userName[id] || id}</a>
+                <span className="v">{ovrByUser[id].map(function(o) { return keyLabel[o.perm_key] + (o.allow ? ' 켬' : ' 끔'); }).join(' · ')}</span>
+              </li>;
+            })}
+          </ul>
+        )}
+        <select className="fi" style={{ maxWidth: 320, marginBottom: 12 }} value={selUser} onChange={function(e) { setSelUser(e.target.value); }}>
+          <option value="">직원 고르기</option>
+          {users.map(function(u) { return <option key={u.id} value={u.id}>{u.name}{u.team_id && teamName[u.team_id] ? ' (' + teamName[u.team_id] + ')' : ''}</option>; })}
+        </select>
+        {selUser && up && (
+          <div>
+            {up.fixed && <div className="al al-i">🔒 {up.fixed === 'admin' ? '관리자라서 항상 전부 켜져 있어요.' : (up.fixed === 'contractor' ? '협력업체라서 항상 전부 꺼져 있어요.' : '비활성 계정(아이디·비밀번호 변경 전 또는 퇴사)이라서 지금은 전부 꺼져 있어요.')}</div>}
+            <div className="tbl-wrap">
+              <table className="pt-tbl">
+                <thead><tr><th>기능</th><th>부서 기준</th><th>예외</th><th>최종</th></tr></thead>
+                <tbody>
+                  {DEFS.map(function(d) {
+                    var st = ovrState(up.overrides[d.key]);
+                    var dis = !canEdit || busy || up.fixed === 'admin';
+                    return (
+                      <tr key={d.key}>
+                        <td className="pt-name" title={d.desc}>{d.label}</td>
+                        <td>{up.base[d.key] ? '✓' : '–'}</td>
+                        <td>
+                          <div className="seg">
+                            {[['default', '기본 따름'], ['on', '켬'], ['off', '끔']].map(function(o) {
+                              return <button key={o[0]} type="button" disabled={dis}
+                                className={'seg-b' + (st === o[0] ? ' on' : '')}
+                                onClick={function() { if (st !== o[0]) write('user', selUser, d.key, o[0]); }}>{o[1]}</button>;
+                            })}
+                          </div>
+                        </td>
+                        <td className={up.perms[d.key] ? 'fin-y' : 'fin-n'}>{up.perms[d.key] ? '✓' : '–'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="st">권한 변경 기록 (최근 30건)</div>
+        {logs.length === 0 ? <div className="uc-s">아직 없어요.</div> : (
+          <ul className="ul">
+            {logs.map(function(l) {
+              var what = l.action === 'delete' ? '기본으로 되돌림' : (l.new_allow ? '켬' : '끔');
+              return <li key={l.id}>
+                <span className="n">{(l.scope === 'team' ? '부서 ' : '') + (l.target_name || '') + ' · ' + (keyLabel[l.perm_key] || l.perm_key) + ' → ' + what}</span>
+                <span className="v">{(l.changed_by_name || '') + ' · ' + fmtWhen(l.changed_at)}</span>
+              </li>;
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── 시스템 화면 (탭) ──────────────────────────────────────────────────────
+function SystemView({ user }) {
+  var initTab = (function() { try { return location.hash === '#perm' ? 'perm' : 'status'; } catch(e) { return 'status'; } })();
+  const [tab, setTab] = useState(initTab);
+  function go(t) {
+    setTab(t);
+    try { history.replaceState(null, '', t === 'perm' ? '#perm' : location.pathname + location.search); } catch(e) {}
+  }
+  return (
+    <div className="page">
+      <div className="pt" style={{ marginBottom: 12 }}>시스템</div>
+      <div className="itabs">
+        <button className={tab === 'status' ? 'itab active' : 'itab'} onClick={function() { go('status'); }}>상태</button>
+        <button className={tab === 'perm' ? 'itab active' : 'itab'} onClick={function() { go('perm'); }}>권한</button>
+      </div>
+      {tab === 'status' ? <StatusView /> : <PermView user={user} />}
     </div>
   );
 }
@@ -292,7 +557,7 @@ function LoginScreen({ onLogin }) {
     if (locked) return;
     if (!phone.trim()||!pw) { setErr('아이디와 비밀번호를 입력하세요.'); return; }
     setLoading(true); setErr('');
-    // allowedRoles: contractor만 차단 (팀 권한은 hasAccess로 판단)
+    // allowedRoles: contractor만 차단 (관리포털 권한은 로그인 뒤 기능 권한 표 — Sysbar.can 으로 판단)
     Sysbar.Auth.doLogin(sb, phone, pw, {
       allowedRoles: ['admin', 'manager', 'staff', 'employee'],
     }).then(function(result) {
@@ -353,7 +618,6 @@ function App() {
   const [user, setUser] = useState(initialUser);
   const [ssoChecked, setSsoChecked] = useState(!!initialUser);
   const [teamName, setTeamName] = useState('');
-  const [hasAccess, setHasAccess] = useState(false);
   const [accessChecked, setAccessChecked] = useState(false);
 
   useEffect(function() {
@@ -372,12 +636,12 @@ function App() {
 
   useEffect(function() {
     if (!user) return;
-    if (user.role === 'admin') { setTeamName('관리자'); setHasAccess(true); setAccessChecked(true); return; }
-    if (!user.team_id) { setHasAccess(false); setAccessChecked(true); return; }
-    sb.from('teams').select('name').eq('id', user.team_id).single().then(function(r) {
-      var name = r.data ? r.data.name : '';
-      setTeamName(name);
-      setHasAccess(Sysbar.portalPerms(user, name).access);
+    // 팀 이름(상단 메뉴 표시용)과 기능 권한(DB my_perms)을 함께 읽은 뒤 화면을 그린다
+    var teamP = user.role === 'admin' ? Promise.resolve('관리자')
+      : (!user.team_id ? Promise.resolve('')
+        : sb.from('teams').select('name').eq('id', user.team_id).single().then(function(r) { return r.data ? r.data.name : ''; }));
+    Promise.all([teamP, Sysbar.loadPerms(sb)]).then(function(res) {
+      setTeamName(res[0]);
       setAccessChecked(true);
     });
   }, [user ? user.id : null]);
@@ -389,7 +653,7 @@ function App() {
 
   function logout() {
     Sysbar.Auth.logout(sb);
-    setUser(null); setTeamName(''); setHasAccess(false);
+    setUser(null); setTeamName('');
   }
 
   if (!ssoChecked || (user && !accessChecked)) return (
@@ -400,7 +664,7 @@ function App() {
 
   if (!user) return <LoginScreen onLogin={handleLogin} />;
 
-  if (user.role !== 'admin' && !hasAccess) return (
+  if (!Sysbar.canPortal()) return (
     <div className="lwrap">
       <div className="lbox" style={{textAlign:'center'}}>
         <div className="ltit" style={{marginBottom:8}}>접근 권한 없음</div>
@@ -410,22 +674,18 @@ function App() {
     </div>
   );
 
-  var _pp    = Sysbar.portalPerms(user, teamName);
-  var canSal = _pp.sal;
-  var canAb  = _pp.ab;
-
-  // 시스템 화면 = 관리자 + 관리팀(need:'ab'). 권한이 없으면 업무일지로 보낸다. DB 판정은 system_usage() 안의 is_manage_staff().
-  if (!canAb) { location.replace('admin-worklog.html'); return null; }
-
-  function canShow(need) {
-    if (need === 'sal') return canSal;
-    if (need === 'ab')  return canAb;
-    return true;
+  // 이 화면 권한이 없으면 볼 수 있는 첫 관리포털 화면으로 보낸다 (권한 판정 = Sysbar.can → DB has_perm 과 같은 결과)
+  var MY_PAGE = PORTAL_PAGES.filter(function(pg) { return pg.key === CURRENT_PAGE; })[0];
+  if (MY_PAGE && !Sysbar.can(MY_PAGE.need)) {
+    var firstPage = PORTAL_PAGES.filter(function(pg) { return Sysbar.can(pg.need); })[0];
+    location.replace(firstPage ? firstPage.href : 'admin-worklog.html'); return null;
   }
+
+  function canShow(need) { return Sysbar.can(need); }
 
   return (
     <div>
-      <SysBar
+      <SysBar sb={sb}
         activeKey="admin"
         user={user}
         teamName={teamName}
