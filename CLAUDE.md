@@ -119,6 +119,13 @@
 
 ## ✅ 완료된 작업
 
+### 화면을 열 때 세션 만료 처리 통일 (2026-10-22, sysbar.js `?v=2026102205`)
+- **모든 SysBar 화면이 열 때 `Sysbar.SessionManager.checkOnLoad(sb)`** 를 부르고, 저장된 세션으로 들어오면 `onLogin(logoutCb)` 로 1시간 비활동 감시를 시작한다.
+  (이전: 공정관리는 만료 검사 없음 · 공정관리/연차/홈은 저장된 세션으로 들어오면 감시 안 함 → 화면마다 만료가 달랐다.) 새 화면도 같게 할 것.
+- `checkOnLoad(sb)` 만료 처리 = 세션 · 감시 키 3개 · 기능 권한 캐시 · 다른 부서로 보기 삭제 + 이 기기 로그인 토큰 `signOut({scope:'local'})`.
+- `loadPerms` 는 응답이 왔을 때 세션이 그대로일 때만 캐시에 쓴다(만료 정리 뒤 늦게 온 응답이 권한 캐시를 되살리던 경쟁).
+- 🔧 **임시 진단 기록 `[세션진단]`**(sysbar.js `_diag`, sessionStorage `<prefix>_diag`) — 로그인 직후 새로고침에 세션이 풀리는 원인 확인용. 원인 확인 후 삭제할 것.
+
 ### 왼쪽 메뉴 하위 탭 + 「내 정보관리」 (2026-10-22, sysbar.js v3.3)
 - **화면 안 탭 = 왼쪽 메뉴 하위 항목**(공정관리 · 연차관리 · 업무일지). `SysBar` props `subTabs`([{key, label, svg?, badge?}]) · `activeSub` · `onSubChange(key)`.
   **탭 목록은 화면이 직급별로 계산해 넘긴다**(sysbar 에 직급 규칙을 두지 않는다 — `PROJECT_TABS` · `leaveNavItems()` · `worklogTabs()` 한 곳에서 위 탭 줄·하위 항목·해시 검사가 같이 쓴다).

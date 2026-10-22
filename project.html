@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102204"></script>
+<script src="sysbar.js?v=2026102205"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -545,6 +545,8 @@ function App() {
   // 마운트 직후 실제 JWT 와 users.role 을 서버에서 확인하고, 캐시 role 은 버린다.
   // (개발자도구로 sessionStorage 에 role:'admin' 을 써넣어도 여기서 교정된다.)
   useEffect(() => {
+    // 열 때 1시간 비활동 만료 검사 — 다른 화면과 같게(2026-10-22). 만료면 이 기기 로그인 토큰까지 끝내고 로그인 화면.
+    if (Sysbar.SessionManager.checkOnLoad(sb)) { setUser(null); setSsoChecked(true); return; }
     Sysbar.Auth.verifySession(sb).then(function(r) {
       if (!r.ok) {
         // JWT 없음/프로필 없음 → 캐시는 verifySession 이 이미 비웠다.
@@ -554,6 +556,7 @@ function App() {
       } else {
         // 캐시가 아니라 서버가 돌려준 프로필로 교체한다.
         setUser(r.user);
+        Sysbar.SessionManager.onLogin(() => handleLogout());   // 1시간 비활동 감시(2026-10-22, 다른 화면과 같게)
       }
       setSsoChecked(true);
     });

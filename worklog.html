@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102204"></script>
+<script src="sysbar.js?v=2026102205"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -2099,7 +2099,7 @@ function App() {
 
   // checkOnLoad — 렌더 후 실행
   useEffect(() => {
-    const wasInvalidated = Sysbar.SessionManager.checkOnLoad();
+    const wasInvalidated = Sysbar.SessionManager.checkOnLoad(sb);
     if (wasInvalidated) { setUser(null); }
   }, []);
 
@@ -2129,7 +2129,8 @@ function App() {
 
   // SSO 복원 시 SessionManager 시작
   useEffect(() => {
-    if (initialUser && ssoChecked) { Sysbar.SessionManager.onLogin(() => logout()); }
+    // 열 때 만료로 세션이 지워졌으면 시작하지 않는다(2026-10-22)
+    if (initialUser && ssoChecked && Sysbar.Auth.getSession()) { Sysbar.SessionManager.onLogin(() => logout()); }
   }, []);
 
   if (!ssoChecked) return (

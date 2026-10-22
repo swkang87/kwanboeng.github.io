@@ -79,7 +79,7 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
 }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102204"></script>
+<script src="sysbar.js?v=2026102205"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -771,7 +771,7 @@ const SysBar=Sysbar.createComponent(React);
 function App(){
   const initUser=(()=>{
     try{
-      if(Sysbar.SessionManager.checkOnLoad())return null;
+      if(Sysbar.SessionManager.checkOnLoad(sb))return null;
       const raw=sessionStorage.getItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session');
       if(!raw)return null;
       const v=JSON.parse(raw);
@@ -847,6 +847,9 @@ function App(){
       }catch(e){}
     })();
   },[user]);
+
+  // 저장된 세션으로 들어왔으면 1시간 비활동 감시 시작(다른 화면과 같게 — 2026-10-22)
+  useEffect(()=>{ if(user) Sysbar.SessionManager.onLogin(()=>logout()); },[]);
 
   const handleLogin=u=>{
     if(u.role==='contractor'){window.location.replace('project.html');return;}
