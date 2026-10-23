@@ -168,6 +168,9 @@ const typeLabel=(type,days)=>{
   const d=Number(days);
   return d<1?daysLabel(d):`${type} ${daysLabel(d)}`;
 };
+// 날짜 단위 기간 고르기(2026-10-23) — 한 번 누르면 그날 하루(시작=종료). 하루가 잡힌 상태에서 더 뒤 날짜를 누르면 그날까지 기간,
+// 그 밖(같은 날·앞 날짜·기간이 잡힌 상태)에는 누른 날로 새 하루. 반환 {start, end}
+const pickRange=(start,end,d)=>(start&&end===start&&d>start)?{start:start,end:d}:{start:d,end:d};
 // 휴가 계획(leave_plans) — 일수는 신청 화면과 같은 규칙(날짜 단위 = 근무일 수, 시간 단위 = 시간 → 일)
 const planTime=p=>p.start_time?`${p.start_time.slice(0,5)}~${p.end_time.slice(0,5)}`:null;
 const planDays=p=>p.start_time?hoursToDays(calcHours(p.start_time.slice(0,5),p.end_time.slice(0,5))):countWD(p.start_date,p.end_date);
@@ -419,7 +422,7 @@ function MiniCal({yr,mo,onPrev,onNext,start,end,hoverDate,onHover,onDayClick,sin
     return'var(--theme,#0f172a)';
   };
   const inRange=(d)=>start&&end&&d>start&&d<end;
-  const inHover=(d)=>start&&!end&&hoverDate&&d>start&&d<=hoverDate;
+  const inHover=(d)=>start&&(!end||end===start)&&hoverDate&&d>start&&d<=hoverDate;   // 하루만 잡혔을 때 뒤 날짜 미리보기
   return(
     <div style={{background:'white',border:'1.5px solid #e2e8f0',borderRadius:10,padding:'10px 8px',marginBottom:11}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
@@ -494,9 +497,7 @@ function ApplyView({user,users,leaves,onRefresh,onNav,prefill,onApplied}){
 
   const handleDayClick=(d)=>{
     if(singleMode){setStart(d);setEnd(d);return;}
-    if(!start||end||(start&&d<start)){setStart(d);setEnd('');}
-    else if(d===start){setEnd(d);}
-    else{setEnd(d);}
+    const r=pickRange(start,end,d);setStart(r.start);setEnd(r.end);
   };
 
   const previewDays=()=>{
@@ -522,7 +523,6 @@ function ApplyView({user,users,leaves,onRefresh,onNav,prefill,onApplied}){
     setErr('');
     const pd=previewDays();
     if(!start){setErr('날짜를 선택해 주세요.');return;}
-    if(mode==='date'&&!end){setErr('종료일을 선택해 주세요.');return;}
     if(pd<=0){setErr('유효한 날짜/시간을 선택해 주세요.');return;}
     if(mode==='time'&&pd<0.25){setErr('최소 2시간 이상 선택해 주세요.');return;}
     if(type==='연차'&&pd>rem){setErr(`잔여 연차(${rem}일)가 부족합니다.`);return;}
@@ -673,8 +673,8 @@ function PlanView({user,users,teams,leaves,plans,memos,onRefresh,onApplyPlan}){
   const planned=mine.filter(p=>p.leave_type==='연차'&&p.start_date.startsWith(yr)).reduce((s,p)=>s+planDays(p),0);
   const after=Math.round((rem-planned)*100)/100;
 
-  const endD=f.mode==='time'?f.start:f.end;
-  const pd=f.mode==='time'?(f.st&&f.et?hoursToDays(calcHours(f.st,f.et)):0):(f.start&&f.end&&f.end>=f.start?countWD(f.start,f.end):0);
+  const endD=f.mode==='time'?f.start:(f.end||f.start);   // 종료일이 비면 시작일 하루
+  const pd=f.mode==='time'?(f.st&&f.et?hoursToDays(calcHours(f.st,f.et)):0):(f.start&&endD>=f.start?countWD(f.start,endD):0);
   const overlap=planOverlap(f.start,endD,user,users,teams,leaves,plans,f.id);
 
   const edit=p=>{
@@ -686,8 +686,7 @@ function PlanView({user,users,teams,leaves,plans,memos,onRefresh,onApplyPlan}){
   const save=async()=>{
     setErr('');
     if(!f.start){setErr('시작일을 골라 주세요.');return;}
-    if(f.mode==='date'&&!f.end){setErr('종료일을 골라 주세요.');return;}
-    if(f.mode==='date'&&f.end<f.start){setErr('종료일이 시작일보다 빠릅니다.');return;}
+    if(f.mode==='date'&&endD<f.start){setErr('종료일이 시작일보다 빠릅니다.');return;}
     if(endD<todayS){setErr('지난 날짜는 계획으로 넣을 수 없어요.');return;}
     if(pd<=0){setErr(f.mode==='time'?'유효한 시간을 골라 주세요.':'고른 기간에 근무일이 없어요.');return;}
     if(f.mode==='time'&&pd<0.25){setErr('최소 2시간 이상 골라 주세요.');return;}

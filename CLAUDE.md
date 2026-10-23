@@ -130,6 +130,10 @@
 
 ## ✅ 완료된 작업
 
+### 연차 신청 날짜 선택 — 한 번 누르면 하루 (2026-10-23)
+- leave.html 공통 함수 `pickRange(start,end,d)`: 한 번 누르면 시작=종료(하루), 하루가 잡힌 상태에서 뒤 날짜 → 기간, 그 밖(같은 날·앞 날짜·기간 상태) → 누른 날로 새 하루. 「종료일을 선택해 주세요」 삭제.
+  연차·공가 날짜 단위에 적용(시간 단위 그대로). 휴가 계획 탭은 입력칸 구조라 「종료일을 비우면 시작일 하루」로 같은 원칙. 하루가 잡힌 달력에서 뒤 날짜에 마우스를 올리면 기간 미리보기. 백업 `backup/leave_20261023_4.html`
+
 ### 연차 결재 대기 알림 정리 — 메인화면 배너 + 왼쪽 메뉴 숫자(모든 화면) (2026-10-23, sysbar.js v3.6 `?v=2026102303`)
 - **결재 대기 건수는 DB 함수 `my_pending_approvals()` 하나로 센다**(SECURITY DEFINER, authenticated 만). 산출물은 저장소 밖 `security-fix\122~125_pending_approvals_*`.
   `{team, final, cancel, total, *_list}` — team = 팀원 결재(**role manager**, 우리 팀·본인 제외 `pending`), final = 최종 승인(`has_perm('leave_approve')`, `manager_approved`),
