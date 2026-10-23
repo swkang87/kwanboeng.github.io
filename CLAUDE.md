@@ -130,6 +130,19 @@
 
 ## ✅ 완료된 작업
 
+### 연차 결재 대기 알림 정리 — 메인화면 배너 + 왼쪽 메뉴 숫자(모든 화면) (2026-10-23, sysbar.js v3.6 `?v=2026102303`)
+- **결재 대기 건수는 DB 함수 `my_pending_approvals()` 하나로 센다**(SECURITY DEFINER, authenticated 만). 산출물은 저장소 밖 `security-fix\122~125_pending_approvals_*`.
+  `{team, final, cancel, total, *_list}` — team = 팀원 결재(**role manager**, 우리 팀·본인 제외 `pending`), final = 최종 승인(`has_perm('leave_approve')`, `manager_approved`),
+  cancel = 취소 요청(같은 권한, `cancel_pending`). 목록은 오래 기다린 순 최대 3건 이름·기간·일수만(사유 없음). 비활성·협력업체 0.
+- sysbar.js: `loadApprovals(sb, force)`(이 창 sessionStorage `SESSION_PREFIX + '_approvals'` 1분 캐시, 바뀌면 `'sys-approvals'` 이벤트) · `refreshApprovals` ·
+  `approvalCounts()`(「다른 부서로 보기」 중이면 null) · `approvalBadges()`(`team_approve` = team, `admin_approve` = final + cancel).
+  왼쪽 메뉴 「연차관리」 상위 = total, 하위 「팀원 결재」「승인 관리」, 휴대폰 상단 막대 「📅 연차관리」에 숫자 — **모든 화면**. `clearPerms()` 가 캐시도 지운다.
+- leave.html: 탭 숫자(위 탭 줄·휴대폰 하단 바·더보기)도 `approvalBadges()`. 데이터를 다시 읽을 때(결재·승인 처리 뒤 포함) `refreshApprovals`.
+  **승인 관리 숫자 = 최종 승인 + 취소 요청**(이전에는 팀장 대기 `pending` 까지 더했다 — 그 탭 안 「팀장 대기」 숫자는 그대로).
+- home.html: 배너를 종류별 줄(팀원 결재 · 최종 승인 · 취소 요청)로, 줄마다 `leave.html#team_approve` / `#admin_approve`. 역할 리터럴 판정 없앰.
+- 작은 정리: 연차 신청 감사 기록의 신청 id(`res[0]?.id` → `res.id`), 휴가 계획 삭제 = 화면 안 확인 창(Modal), 캘린더 넓히기가 휴대폰 → PC 전환 뒤 다시 계산.
+- 백업: `backup/*_20261023_3.*`
+
 ### 연차관리 「휴가 계획」 — 정식 신청 전 휴가 예정 공유 + 겹침 알림 (2026-10-23, sysbar.js `?v=2026102302`)
 - **DB**: 표 `leave_plans`(계획) · `leave_plan_memos`(메모). 산출물은 저장소 밖 `security-fix\118~121_leave_plans_*`.
   - `leave_plans` 보기 = 내부 직원 전체(`is_internal_staff`), 쓰기(insert/update/delete) = **본인 행만**(`user_id = get_my_user_id()`, **관리자 예외 없음**).

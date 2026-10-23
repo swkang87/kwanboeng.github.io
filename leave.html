@@ -19,7 +19,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102302"></script>
+<script src="sysbar.js?v=2026102303"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js" integrity="sha384-1qlE7MZPM2pHD/pBZCU/yB8UCP52RYL8bge/qNdfNBCWToySp8/M+JL2waXU4hjJ" crossorigin="anonymous"></script>
@@ -291,8 +291,10 @@ function useCalWiden(){
       if(next!==gRef.current){gRef.current=next;setG(next);}
     };
     calc();
-    window.addEventListener('resize',calc);
-    return()=>window.removeEventListener('resize',calc);
+    let t2=null;
+    const onResize=()=>{calc();clearTimeout(t2);t2=setTimeout(calc,260);};   // sysbar 왼쪽 메뉴 여백 전환(.2s) 뒤 다시
+    window.addEventListener('resize',onResize);
+    return()=>{window.removeEventListener('resize',onResize);clearTimeout(t2);};
   },[]);
   return[ref,g?{marginLeft:-g,marginRight:-g}:null];
 }
@@ -532,7 +534,7 @@ function ApplyView({user,users,leaves,onRefresh,onNav,prefill,onApplied}){
     setBusy(true);
     try{
       const res=await sb.from('leave_requests').insert({user_id:user.id,type,start_date:start,end_date:endDate,start_time:singleMode?st:null,end_time:singleMode?et:null,days:pd,reason:reason||null,status:getStatus(),is_retroactive:isRetro,cancel_requested:false}).select().single().then(r=>r.data);
-      await audit(user.id,'연차신청',res[0]?.id,`${type} ${pd}일`);
+      await audit(user.id,'연차신청',res.id,`${type} ${pd}일`);   // single() 결과는 한 행 객체(2026-10-23 — res[0] 이라 늘 비어 있었다)
       setDone(true);onRefresh();
       if(onApplied&&res&&res.id)onApplied(res.id);   // 휴가 계획에서 온 신청이면 그 계획을 전환됨으로
     }catch{setErr('오류가 발생했습니다.');}
@@ -656,6 +658,7 @@ function PlanView({user,users,teams,leaves,plans,memos,onRefresh,onApplyPlan}){
   const [f,setF]=useState(blank);
   const [err,setErr]=useState('');
   const [busy,setBusy]=useState(false);
+  const [delPlan,setDelPlan]=useState(null);   // 삭제 확인 창에 띄운 계획
   const set=(k,v)=>setF(p=>Object.assign({},p,{[k]:v}));
   const todayS=today();
   const active=plans.filter(isActivePlan).slice().sort((a,b)=>a.start_date.localeCompare(b.start_date)||String(a.created_at).localeCompare(String(b.created_at)));
@@ -703,7 +706,7 @@ function PlanView({user,users,teams,leaves,plans,memos,onRefresh,onApplyPlan}){
     setBusy(false);setF(blank);onRefresh();
   };
   const del=async p=>{
-    if(!confirm(`이 휴가 계획을 지울까요?\n\n${planWhen(p)}`))return;
+    setDelPlan(null);
     const r=await sb.from('leave_plans').delete().eq('id',p.id).select();
     if(Sysbar.writeFailed(r,'휴가 계획 삭제',{expectRows:true}))return;
     if(f.id===p.id)setF(blank);
@@ -778,12 +781,24 @@ function PlanView({user,users,teams,leaves,plans,memos,onRefresh,onApplyPlan}){
             </div>
             <div style={{display:'flex',gap:5,flexShrink:0}}>
               <button onClick={()=>edit(p)} style={{...btn(),padding:'4px 9px',fontSize:11}}>수정</button>
-              <button onClick={()=>del(p)} style={{...btn('danger'),padding:'4px 9px',fontSize:11}}>삭제</button>
+              <button onClick={()=>setDelPlan(p)} style={{...btn('danger'),padding:'4px 9px',fontSize:11}}>삭제</button>
               <button onClick={()=>onApplyPlan(p)} style={{...btn('primary'),padding:'4px 9px',fontSize:11}}>이대로 신청</button>
             </div>
           </div>
         ))}
       </div>
+
+      {delPlan&&(
+        <div style={{position:'fixed',inset:0,zIndex:999}}>
+          <Modal title="휴가 계획 삭제" onClose={()=>setDelPlan(null)}>
+            <p className="plan-del-msg" style={{margin:'0 0 14px',fontSize:13,color:'#374151',lineHeight:1.6}}>이 휴가 계획을 지울까요?<br/><b>{planWhen(delPlan)}</b></p>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setDelPlan(null)} style={{...btn(),flex:1}}>취소</button>
+              <button onClick={()=>del(delPlan)} style={{...btn('danger'),flex:1}}>삭제</button>
+            </div>
+          </Modal>
+        </div>
+      )}
 
       <div style={card}>
         <p style={{margin:'0 0 8px',fontSize:13,fontWeight:700,color:'#0f172a'}}>전 직원 휴가 계획 <span style={{fontWeight:400,color:'#94a3b8',fontSize:12}}>{active.length}건 · 다가오는 순</span></p>
@@ -1443,6 +1458,8 @@ function App(){
   const [lastSync,setLastSync]=useState('');
   const [isMobile,setIsMobile]=useState(typeof window!=='undefined'&&window.innerWidth<768);
   const [moreOpen,setMoreOpen]=useState(false);   // 휴대폰 하단 바 「더보기」
+  const [,setApprTick]=useState(0);   // 결재 대기 숫자가 바뀌면 다시 그림
+  useEffect(()=>{const f=()=>setApprTick(t=>t+1);window.addEventListener('sys-approvals',f);return()=>window.removeEventListener('sys-approvals',f);},[]);
   // 기능 권한 — 화면을 열 때마다 서버 값으로 다시 읽고, 읽은 뒤에 탭 주소를 검사한다
   const [permsReady,setPermsReady]=useState(false);
   const [,setPermTick]=useState(0);
@@ -1471,6 +1488,7 @@ function App(){
       setAuditLogs(Array.isArray(a)?a:[]);
       setPlans(Array.isArray(pl)?pl:[]);
       const mm={};(Array.isArray(pm)?pm:[]).forEach(x=>{mm[x.plan_id]=x.memo;});setPlanMemos(mm);
+      Sysbar.refreshApprovals(sb);   // 결재 대기 숫자(캐시 무시) — 끝나면 'sys-approvals' 이벤트로 아래에서 다시 그림
     }catch(e){console.error(e);}
     setLoading(false);
   },[]);
@@ -1571,8 +1589,10 @@ function App(){
     );
   }
 
-  const pendingCount=leaves.filter(l=>['manager_approved','cancel_pending','pending'].includes(l.status)).length;
-  const mgrPending=leaves.filter(l=>{const lu=users.find(u=>u.id===l.user_id);return lu?.team_id===cu.team_id&&lu?.id!==cu.id&&l.status==='pending';}).length;
+  // 결재 대기 숫자 = DB my_pending_approvals(왼쪽 메뉴 · 메인화면 배너와 같은 값). 팀원 결재 = team, 승인 관리 = 최종 승인 + 취소 요청
+  const apprB=Sysbar.approvalBadges();
+  const pendingCount=apprB.admin_approve||0;
+  const mgrPending=apprB.team_approve||0;
 
   const navItems=leaveNavItems(cu,pendingCount,mgrPending);
   const subBadges={};navItems.forEach(n=>{subBadges[n.k]=n.b;});   // 왼쪽 메뉴 하위 항목 배지(이 화면에서만)

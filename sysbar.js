@@ -1,6 +1,9 @@
 /**
- * SYSBAR MODULE v3.5.1
+ * SYSBAR MODULE v3.6
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.6 (2026-10-23): 연차 결재 대기 건수 — loadApprovals/refreshApprovals/approvalCounts/approvalBadges(DB my_pending_approvals,
+ *   sessionStorage 1분 캐시). 왼쪽 메뉴 「연차관리」 상위·하위(팀원 결재·승인 관리) · 휴대폰 상단 막대 숫자(모든 화면). 다른 부서로 보기 중엔 숨김
  *
  * v3.5.1 (2026-10-23): 연차 탭 「휴가 계획」(plan) 추가, SIDE_ICONS.flag
  *
@@ -174,7 +177,8 @@
   var VIEW_KEY  = _prefix + '_view_as';
   function _ssGet(k) { try { var v = sessionStorage.getItem(k); return v ? JSON.parse(v) : null; } catch(e) { return null; } }
   function _ssSet(k, v) { try { if (v == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, JSON.stringify(v)); } catch(e) {} }
-  function clearPerms() { _ssSet(PERMS_KEY, null); _ssSet(VIEW_KEY, null); }
+  var APPR_KEY  = _prefix + '_approvals';   // 연차 결재 대기 건수(my_pending_approvals) — 아래 loadApprovals
+  function clearPerms() { _ssSet(PERMS_KEY, null); _ssSet(VIEW_KEY, null); _ssSet(APPR_KEY, null); }
   function _me() { try { return Auth.getSession(); } catch(e) { return null; } }
   function _realPerms() {
     var c = _ssGet(PERMS_KEY), u = _me();
@@ -223,6 +227,46 @@
       return true;
     }, function(err) { showError(err, '다른 부서로 보기'); return false; });
   }
+
+  // ── 연차 결재 대기 건수 (2026-10-23) ──
+  //   DB my_pending_approvals() 하나로 센다 → { team, final, cancel, total, *_list(최대 3건 이름·기간) }.
+  //   team = 팀원 결재(팀장), final = 최종 승인, cancel = 취소 요청(final·cancel 은 leave_approve 권한).
+  //   이 창 sessionStorage 에 1분 캐시 — 화면을 옮길 때마다 부르지 않게. 결재 처리 직후에는 refreshApprovals 로 다시 읽는다.
+  //   값이 바뀌면 창에 'sys-approvals' 이벤트를 보낸다(왼쪽 메뉴·홈 배너·연차 화면이 다시 그림).
+  var APPR_TTL = 60000;
+  var _apprInflight = null;
+  function getApprovals() {
+    var c = _ssGet(APPR_KEY), u = _me();
+    if (!c || !u || c.uid !== u.id) return null;
+    return c.data || null;
+  }
+  // 화면 표시용 — 「다른 부서로 보기」 중이면 null(데이터가 관리자 기준이라 숫자를 보이지 않는다)
+  function approvalCounts() { return getViewAs() ? null : getApprovals(); }
+  // 연차 화면 하위 탭 숫자: 팀원 결재 = team, 승인 관리 = final + cancel(둘 다 그 탭 「최종 승인」에서 처리)
+  function approvalBadges() {
+    var a = approvalCounts();
+    if (!a) return {};
+    return { team_approve: a.team || 0, admin_approve: (a.final || 0) + (a.cancel || 0) };
+  }
+  function loadApprovals(sbClient, force) {
+    var u = _me();
+    if (!sbClient || !sbClient.rpc || !u || u.role === 'contractor') return Promise.resolve(getApprovals());
+    var c = _ssGet(APPR_KEY);
+    if (!force && c && c.uid === u.id && (Date.now() - c.at) < APPR_TTL) return Promise.resolve(c.data);
+    if (_apprInflight && _apprInflight.uid === u.id && !force) return _apprInflight.p;
+    var p = sbClient.rpc('my_pending_approvals').then(function(r) {
+      if (r.error || !r.data) { logError(r.error, '결재 대기 건수 조회'); return getApprovals(); }
+      var now = _me();
+      if (!now || now.id !== u.id) return getApprovals();   // 응답 사이 로그아웃·만료 — 쓰지 않는다
+      _ssSet(APPR_KEY, { uid: u.id, at: Date.now(), data: r.data });
+      try { global.dispatchEvent(new Event('sys-approvals')); } catch(e) {}
+      return r.data;
+    }, function(err) { logError(err, '결재 대기 건수 조회'); return getApprovals(); });
+    _apprInflight = { uid: u.id, p: p };
+    p.then(function() { _apprInflight = null; }, function() { _apprInflight = null; });
+    return p;
+  }
+  function refreshApprovals(sbClient) { return loadApprovals(sbClient, true); }
 
   // 「다른 부서로 보기」 띠 — React 밖(DOM)에 둔다. 권한 없는 화면의 안내 화면에서도 보여야 해서.
   function renderViewBand() {
@@ -396,6 +440,8 @@
       '.sys-side-b[aria-expanded="true"] .sys-side-chev{transform:rotate(90deg);}' +
       '.sys-side-b.cur-open{cursor:default;}' +
       '.sys-side-wait{padding:7px 10px;font-size:12px;color:#64748b;}' +
+      '.sys-side-b .sys-side-badge + .sys-side-chev{margin-left:6px;}' +
+      '.sys-link-badge{display:inline-block;margin-left:3px;background:#ef4444;color:#fff;border-radius:8px;padding:0 4px;font-size:9px;font-weight:700;line-height:14px;vertical-align:1px;}' +
       '.sys-side-badge{margin-left:auto;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;line-height:16px;}' +
       '.sys-side-foot{padding:12px 12px 14px;border-top:1px solid rgba(255,255,255,.07);}' +
       '.sys-side-view{padding:0 4px 10px;}' +
@@ -1098,6 +1144,19 @@
       }, [user ? user.id : null]);
       var canAdmin   = !!user && canPortal();    // 관리포털 메뉴 = 관리포털 권한이 하나라도 있으면
 
+      // ── 연차 결재 대기 건수(모든 화면): 1분 캐시, 바뀌면 다시 그림 ──
+      var apprTick = React.useState(0);
+      React.useEffect(function() {
+        if (!user || !sbClient) return;
+        function onAppr() { apprTick[1](function(x) { return x + 1; }); }
+        global.addEventListener('sys-approvals', onAppr);
+        loadApprovals(sbClient);
+        return function() { global.removeEventListener('sys-approvals', onAppr); };
+      }, [user ? user.id : null]);
+      var appr = user ? approvalCounts() : null;
+      var apprBadges = approvalBadges();
+      function menuBadge(key) { return (key === 'leave' && appr && appr.total > 0) ? appr.total : 0; }
+
       // ── 다른 부서로 보기 (실제 관리자만) ──
       var isRealAdmin = !!(user && user.role === 'admin');
       var viewAs = getViewAs();
@@ -1168,7 +1227,8 @@
       var links = SYS_MENUS
         .filter(function(m){ return m.adminOnly ? canAdmin : true; })
         .map(function(m){
-          var label = m.icon + ' ' + m.label;
+          var mb = menuBadge(m.key);
+          var label = mb ? [m.icon + ' ' + m.label, e('span', {key:'b', className:'sys-link-badge'}, mb)] : m.icon + ' ' + m.label;
           if (m.key === activeKey) {
             var cls = m.key === 'admin' ? 'sys-link active-admin'
                     : m.key === 'home'  ? 'sys-link active-home'
@@ -1234,6 +1294,8 @@
         }
         var open = isCur || openKeys.indexOf(m.key) >= 0;
         var subId = 'sys-side-sub-' + m.key;
+        var mbadge = menuBadge(m.key);
+        if (mbadge) inner.push(e('span', {key:'b', className:'sys-side-badge', title:'결재 대기'}, mbadge));
         inner.push(e('span', {key:'c', className:'sys-side-chev', 'aria-hidden':'true'}, sideIcon(React, 'chevR', 14)));
         sideItems.push(e('button', {key:m.key, type:'button', 'aria-expanded': open ? 'true' : 'false', 'aria-controls':subId,
           'aria-current': isCur ? 'page' : undefined,
@@ -1255,7 +1317,8 @@
           subs = m.subs; subOn = isCur ? activeSub : null;
         } else {
           subs = sectionTabs(m.key, user).map(function(t) {
-            return { key:t.key, label:t.label, svg:t.svg, badge: isCur ? subBadges[t.key] : 0, href: isCur ? null : m.url + '#' + t.key };
+            var b = (m.key === 'leave' && apprBadges[t.key] !== undefined) ? apprBadges[t.key] : (isCur ? subBadges[t.key] : 0);
+            return { key:t.key, label:t.label, svg:t.svg, badge: b, href: isCur ? null : m.url + '#' + t.key };
           });
           subOn = isCur ? activeSub : null;
         }
@@ -1587,6 +1650,11 @@
     hashTab:     hashTab,
     SECTION_TABS:  SECTION_TABS,
     sectionTabs:   sectionTabs,
+    loadApprovals:    loadApprovals,
+    refreshApprovals: refreshApprovals,
+    getApprovals:     getApprovals,
+    approvalCounts:   approvalCounts,
+    approvalBadges:   approvalBadges,
     PORTAL_PAGES:  PORTAL_PAGES,
     portalCanShow: portalCanShow,
     PERM_DEFS:        PERM_DEFS,
