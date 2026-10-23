@@ -1,6 +1,8 @@
 /**
- * SYSBAR MODULE v3.5
+ * SYSBAR MODULE v3.5.1
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.5.1 (2026-10-23): 연차 탭 「휴가 계획」(plan) 추가, SIDE_ICONS.flag
  *
  * v3.5 변경사항 (왼쪽 메뉴 토글, 2026-10-23):
  *  - SECTION_TABS · sectionTabs(section, user): 공정관리·연차·업무일지 화면 안 탭 정의의 유일한 출처(직급·권한 규칙 포함)
@@ -93,6 +95,7 @@
       { key:'team_approve',  label:'팀원 결재', icon:'✅', svg:'check',  show:function(c) { return c.manager; } },
       { key:'apply',         label:'연차 신청', icon:'✏️', svg:'pencil', show:function(c) { return !c.admin; } },
       { key:'history',       label:'신청 내역', icon:'📋', svg:'clock',  show:function(c) { return !c.admin; } },
+      { key:'plan',          label:'휴가 계획', icon:'🗓️', svg:'flag',   show:function(c) { return !c.admin; } },   // 정식 신청 전 예정 공유(2026-10-23) — 신청 탭과 같은 사람
       { key:'admin_approve', label:'승인 관리', icon:'✅', svg:'check',  show:function(c) { return c.can('leave_approve'); } },
       { key:'admin_teams',   label:'팀 관리',   icon:'🏢', svg:'admin',  show:function(c) { return c.admin && c.can('leave_admin'); } },
       { key:'admin_users',   label:'직원 관리', icon:'👥', svg:'people', show:function(c) { return c.admin && c.can('leave_admin'); } },
@@ -278,6 +281,7 @@
     pencil:  '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
     clock:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     box:     '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
+    flag:    '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>',
     grid:    '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   };
   function sideIcon(React, name, size) {

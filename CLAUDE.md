@@ -130,6 +130,22 @@
 
 ## ✅ 완료된 작업
 
+### 연차관리 「휴가 계획」 — 정식 신청 전 휴가 예정 공유 + 겹침 알림 (2026-10-23, sysbar.js `?v=2026102302`)
+- **DB**: 표 `leave_plans`(계획) · `leave_plan_memos`(메모). 산출물은 저장소 밖 `security-fix\118~121_leave_plans_*`.
+  - `leave_plans` 보기 = 내부 직원 전체(`is_internal_staff`), 쓰기(insert/update/delete) = **본인 행만**(`user_id = get_my_user_id()`, **관리자 예외 없음**).
+    전환(`status 'converted'`)할 때 `leave_request_id` 는 본인 신청이어야 한다. 종류 check = `leave_requests_type_check` 와 같은 목록(연차·공가).
+    시간 단위(반차 등)는 `start_time`·`end_time`(하루 안). 지난 계획·전환된 계획은 **화면에서 숨김만**(행은 남김).
+  - **메모는 별도 표**(본인만 보기·쓰기) — 컬럼 권한으로 막으면 `select('*')` 가 권한 오류를 내서 실수에 약하다. 계획을 지우면 메모도 함께 지워진다(cascade).
+- **화면 leave.html**: 탭 `plan`(「휴가 계획」, `SECTION_TABS.leave` — 신청 탭과 같은 사람 = 관리자 아님). `PlanView` = 계획 추가·수정(날짜/시간 단위, 메모) ·
+  겹침 알림(그 기간 근무일마다 **승인된 연차**(캘린더 기준) + 다른 사람 계획, 같은 팀 먼저, **막지 않음**) · 내 계획(수정·삭제·이대로 신청) ·
+  「계획까지 쓰면 남는 연차」(신청 화면과 같은 잔여 규칙 − **올해 시작하는** 내 연차 계획 일수) · 전 직원 계획 목록(다가오는 순).
+  - **이대로 신청** = 기존 `ApplyView` 를 `prefill`(날짜·종류·시간)로 연다. 신청 로직은 그대로이고, 성공하면 `onApplied(신청 id)` → 계획 `converted`.
+    신청하지 않고 다른 탭으로 가면 채운 값은 버리고 계획은 그대로.
+  - 캘린더: 계획 = 옅은 팀색 + 점선 + 「예정」, 정식 연차 뒤에. 「계획 보기 켬/끔」(PC별 기억 `SESSION_PREFIX + '_leave_show_plans'`). 공용 헬퍼 `planDays`·`planTime`·`isActivePlan`·`calChipColor`.
+  - 같이 고침: 캘린더 넓히기(`useCalWiden`)가 PC 왼쪽 메뉴 폭을 빼지 않아 일요일 칸이 메뉴 밑으로 들어가던 문제(본문 폭 = 화면 폭 − body padding-left).
+- **home.html 통합 달력**: 계획을 같은 표시(점선·「예정」)로, 범례·연간 점에 「휴가 계획」. 조회는 계획 컬럼만(메모 안 읽음).
+- 백업: `backup/*_20261023_2.*`
+
 ### 왼쪽 메뉴 토글 — 상위는 펼치기만, 하위를 눌러야 이동 (2026-10-23, sysbar.js v3.5 `?v=2026102301`)
 - **`Sysbar.SECTION_TABS` 가 화면 안 탭 정의의 유일한 출처**(공정관리 `project` · 연차 `leave` · 업무일지 `worklog`).
   `{key, label, short?, icon, svg, show(c)}`, `c = {role, admin, manager, contractor, can}`. 직급·권한 규칙은 **여기에만** 둔다.

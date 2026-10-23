@@ -79,7 +79,7 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
 }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102301"></script>
+<script src="sysbar.js?v=2026102302"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -279,6 +279,7 @@ function CalendarView({user,teamName}){
   const getSun=d=>{const x=new Date(d);x.setDate(x.getDate()-x.getDay());return x;};
   const [ws,setWs]=useState(()=>getSun(now));
   const [leaves,setLeaves]=useState([]);
+  const [plans,setPlans]=useState([]);   // 휴가 계획(결재 전 예정) — 전환 전 · 끝나는 날이 오늘 이후만
   const [pevs,setPevs]=useState([]);
   const [cevs,setCevs]=useState([]);
   const [users,setUsers]=useState([]);
@@ -296,14 +297,16 @@ function CalendarView({user,teamName}){
   const load=async()=>{
     setLoading(true);
     try{
-      const [a,b,c,d,e,f]=await Promise.all([
+      const [a,b,c,d,e,f,g]=await Promise.all([
         getSb().from('leave_requests').select('*').in('status',['approved','manager_approved']),
         getSb().from('project_events').select('*,projects(name)'),
         getSb().from('company_events').select('*'),
         getSb().from('users').select('id,name,team_id'),
         getSb().from('teams').select('id,name'),
         getSb().from('projects').select('id,name,start_date,end_date,status'),
+        getSb().from('leave_plans').select('id,user_id,start_date,end_date,leave_type,start_time,end_time,status').eq('status','plan').gte('end_date',td),
       ]);
+      setPlans(g.data||[]);
       setLeaves(a.data||[]);setPevs(b.data||[]);setCevs(c.data||[]);setUsers(d.data||[]);setTeams(e.data||[]);setProjs(f.data||[]);
     }catch(ex){console.error(ex);}
     setLoading(false);
@@ -351,6 +354,23 @@ function CalendarView({user,teamName}){
         cur.setDate(cur.getDate()+1);n++;
       }
     });
+    // 휴가 계획(예정) — 연차와 같은 날짜 규칙(토·일·공휴일 제외), 옅은 팀색 + 점선
+    plans.forEach(pl=>{
+      let cur=new Date(pl.start_date+'T00:00:00');
+      const end=new Date(pl.end_date+'T00:00:00');
+      let n=0;
+      const u2=userById.get(pl.user_id);
+      const bd=tColor(pl.user_id);
+      const bg=/^#[0-9a-f]{6}$/i.test(bd)?bd+'26':'#f1f5f9';
+      const time=pl.start_time?pl.start_time.slice(0,5)+'~'+(pl.end_time||'').slice(0,5):'';
+      while(cur<=end&&n<31){
+        const ds=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
+        const dw=cur.getDay();
+        if(dw===0||dw===6||HOL[ds]||SUB[ds]){cur.setDate(cur.getDate()+1);n++;continue;}
+        add(ds,{k:'plan',label:(u2?u2.name:'')+' 예정',shortLabel:(u2?u2.name.charAt(0):'?')+'(예정)',fullName:u2?u2.name:'',type:pl.leave_type,time:time,bg:bg,tx:bd,bd:bd,raw:pl});
+        cur.setDate(cur.getDate()+1);n++;
+      }
+    });
     pevs.forEach(p=>{
       const c=evc(p.type);
       add(p.event_date,{k:'proj',type:p.type,label:p.title||p.type,bg:c.bg,tx:c.tx,bd:c.bd,pname:p.projects&&p.projects.name});
@@ -374,7 +394,7 @@ function CalendarView({user,teamName}){
     });
     return m;
   };
-  const evMap = useMemo(buildMap, [leaves, pevs, cevs, projs, userById, userColorById]);
+  const evMap = useMemo(buildMap, [leaves, plans, pevs, cevs, projs, userById, userColorById]);
 
   // ── 날짜 유틸 ──────────────────────────────────────────
   const mkDs=(y,m,d)=>y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
@@ -447,6 +467,7 @@ function CalendarView({user,teamName}){
     const projEvs=allEvs.filter(e=>e.k==='proj');
     const compEvs=allEvs.filter(e=>e.k==='comp');
     const lvEvs=allEvs.filter(e=>e.k==='leave');
+    const plEvs=allEvs.filter(e=>e.k==='plan');
     return(
       <div key={ds} className={'cal-cell'+(isTd?' today':'')}
         style={{background:bg,border:isTd?'2px solid #f59e0b':'0.5px solid #f1f5f9',cursor:allEvs.length||h||s?'pointer':'default'}}
@@ -474,6 +495,16 @@ function CalendarView({user,teamName}){
               </span>
             ))}
             {lvEvs.length>4&&<span style={{fontSize:7,color:'#94a3b8',alignSelf:'center'}}>+{lvEvs.length-4}</span>}
+          </div>
+        )}
+        {plEvs.length>0&&(
+          <div style={{display:'flex',flexWrap:'wrap',gap:2,marginTop:2}}>
+            {plEvs.slice(0,4).map((ev,j)=>(
+              <span key={'pl'+j} className="home-plan" style={{background:ev.bg,color:ev.tx,border:'1px dashed '+ev.bd,borderRadius:10,padding:'0 4px',fontSize:8,fontWeight:700,whiteSpace:'nowrap',flexShrink:0}} title={ev.fullName+' · 휴가 계획(예정)'}>
+                {ev.shortLabel}
+              </span>
+            ))}
+            {plEvs.length>4&&<span style={{fontSize:7,color:'#94a3b8',alignSelf:'center'}}>+{plEvs.length-4}</span>}
           </div>
         )}
       </div>
@@ -516,6 +547,7 @@ function CalendarView({user,teamName}){
             const projEvs=allEvs.filter(e=>e.k==='proj');
             const compEvs=allEvs.filter(e=>e.k==='comp');
             const lvEvs=allEvs.filter(e=>e.k==='leave');
+            const plEvs=allEvs.filter(e=>e.k==='plan');
             const isEmpty=!allEvs.length&&!h&&!s;
             return(
               <div key={ds} style={{background:bg,borderRight:'1px solid #f1f5f9',borderTop:'2px solid '+(isTd?'#f59e0b':isHol?'#fca5a5':(isSun||isSat)?'#e2e8f0':'#f1f5f9'),padding:'8px 6px',minHeight:160,cursor:isEmpty?'default':'pointer'}}
@@ -551,6 +583,13 @@ function CalendarView({user,teamName}){
                     <span style={{background:'rgba(255,255,255,0.25)',color:'#fff',borderRadius:3,padding:'0 4px',fontSize:8,fontWeight:700}}>
                       {ev.type==='공가'?'공가':'연차'}{ev.timeTag!=='DAY'?' · '+ev.timeTag:''}
                     </span>
+                  </div>
+                ))}
+                {/* 휴가 계획(예정) — 전부 표시 */}
+                {plEvs.map((ev,j)=>(
+                  <div key={'wpl'+j} className="home-plan" style={{background:ev.bg,border:'1px dashed '+ev.bd,borderRadius:5,padding:'3px 7px',marginBottom:5,display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                    <span style={{color:ev.tx,fontSize:10,fontWeight:800}}>{ev.fullName}</span>
+                    <span style={{color:ev.tx,fontSize:8,fontWeight:700}}>예정 · {ev.type}{ev.time?' '+ev.time:''}</span>
                   </div>
                 ))}
               </div>
@@ -605,6 +644,7 @@ function CalendarView({user,teamName}){
                     {(evMap[ds]||[]).filter(e=>e.k==='proj').length>0&&<div style={{width:4,height:4,borderRadius:'50%',background:'#3b82f6'}}/>}
                     {(evMap[ds]||[]).filter(e=>e.k==='comp').length>0&&<div style={{width:4,height:4,borderRadius:'50%',background:'#a855f7'}}/>}
                     {(evMap[ds]||[]).filter(e=>e.k==='leave').length>0&&<div style={{width:4,height:4,borderRadius:'50%',background:'#22c55e'}}/>}
+                    {(evMap[ds]||[]).filter(e=>e.k==='plan').length>0&&<div style={{width:4,height:4,borderRadius:'50%',boxSizing:'border-box',border:'1px dashed #22c55e'}}/>}
                   </div>
                 )}
               </div>
@@ -630,6 +670,9 @@ function CalendarView({user,teamName}){
         </div>
         <div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#64748b'}}>
           <div style={{width:8,height:8,borderRadius:'50%',background:'#22c55e'}}/><span>연차</span>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#64748b'}}>
+          <div style={{width:8,height:8,borderRadius:'50%',boxSizing:'border-box',border:'1px dashed #22c55e'}}/><span>휴가 계획</span>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:4,fontSize:10,color:'#64748b'}}>
           <div style={{width:10,height:10,borderRadius:'50%',background:'#1d4ed8',display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,color:'#fff',fontWeight:800}}>오</div><span>오늘</span>
@@ -699,6 +742,7 @@ function CalendarView({user,teamName}){
             </div>
             <div className="legend">
               <div className="legend-item"><div className="legend-dot" style={{background:'#2563eb'}}/><span>연차/공가(팀색)</span></div>
+              <div className="legend-item"><div className="legend-dot" style={{background:'#2563eb26',border:'1px dashed #2563eb',boxSizing:'border-box'}}/><span>휴가 계획(예정)</span></div>
               <div className="legend-item"><div className="legend-dot" style={{background:'#dbeafe',border:'1px solid #3b82f6'}}/><span>주요공정</span></div>
               <div className="legend-item"><div className="legend-dot" style={{background:'#f3e8ff',border:'1px solid #a855f7'}}/><span>회사일정</span></div>
               <div className="legend-item"><div className="legend-dot" style={{background:'#fee2e2',border:'1px solid #ef4444'}}/><span>공휴일</span></div>
@@ -737,6 +781,13 @@ function CalendarView({user,teamName}){
                       <span style={{background:ev.bg,color:'#fff',borderRadius:10,padding:'2px 10px',fontSize:13,fontWeight:800}}>{ev.fullName||ev.label}</span>
                       <span style={{fontSize:12,color:'#1e293b',fontWeight:700}}>{ev.type==='공가'?'공가':'연차'} · {ev.timeTag==='DAY'?'하루':ev.timeTag}</span>
                       {ev.raw&&ev.raw.start_time&&<span style={{fontSize:11,color:'#64748b'}}>{ev.raw.start_time.slice(0,5)}~{ev.raw.end_time&&ev.raw.end_time.slice(0,5)}</span>}
+                    </div>
+                  )}
+                  {ev.k==='plan'&&(
+                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                      <span style={{background:ev.bg,color:ev.tx,border:'1px dashed '+ev.bd,borderRadius:10,padding:'2px 10px',fontSize:13,fontWeight:800}}>{ev.fullName}</span>
+                      <span style={{fontSize:12,color:'#1e293b',fontWeight:700}}>휴가 계획(예정) · {ev.type}</span>
+                      {ev.time&&<span style={{fontSize:11,color:'#64748b'}}>{ev.time}</span>}
                     </div>
                   )}
                   {ev.k==='comp'&&(
