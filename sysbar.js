@@ -1,6 +1,8 @@
 /**
- * SYSBAR MODULE v3.6
+ * SYSBAR MODULE v3.7
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.7 (2026-10-23): 지금 화면의 상위 메뉴도 접기(열 때는 펼침, 접은 상태는 저장 안 함) · APP_VERSION(제품 버전, 회사명 아래 표시)
  *
  * v3.6 (2026-10-23): 연차 결재 대기 건수 — loadApprovals/refreshApprovals/approvalCounts/approvalBadges(DB my_pending_approvals,
  *   sessionStorage 1분 캐시). 왼쪽 메뉴 「연차관리」 상위·하위(팀원 결재·승인 관리) · 휴대폰 상단 막대 숫자(모든 화면). 다른 부서로 보기 중엔 숨김
@@ -55,6 +57,10 @@
 
   var _prefix = (global.APP_CONFIG && global.APP_CONFIG.SESSION_PREFIX) ? global.APP_CONFIG.SESSION_PREFIX : 'kwanbo';
   var SESSION_KEY = _prefix + '_session';
+
+  // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
+  //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
+  var APP_VERSION = '2.0.1';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -420,6 +426,8 @@
       '}' +
       '.sys-side-brand{display:flex;align-items:center;gap:10px;height:45px;box-sizing:border-box;padding:0 16px;text-decoration:none;color:#fff;border-bottom:1px solid rgba(255,255,255,.07);}' +
       '.sys-side-brand img{width:30px;height:30px;object-fit:contain;flex-shrink:0;}' +
+      '.sys-side-tt{display:flex;flex-direction:column;min-width:0;}' +
+      '.sys-side-ver{font-size:10px;font-weight:500;color:#64748b;line-height:1.2;letter-spacing:0;}' +
       '.sys-side-brand b{display:block;font-size:15px;font-weight:800;letter-spacing:-.3px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
       '.sys-side-nav{flex:1;min-height:0;overflow-y:auto;padding:12px 10px;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;}' +
       '.sys-side-b{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:8px;font-size:13.5px;font-weight:600;color:#94a3b8;text-decoration:none;cursor:pointer;border:none;background:transparent;font-family:inherit;text-align:left;width:100%;transition:background .12s,color .12s;}' +
@@ -438,7 +446,6 @@
       '.sys-side-dot:before{content:"";width:4px;height:4px;border-radius:50%;background:currentColor;}' +
       '.sys-side-chev{margin-left:auto;flex-shrink:0;opacity:.6;transition:transform .15s;}' +
       '.sys-side-b[aria-expanded="true"] .sys-side-chev{transform:rotate(90deg);}' +
-      '.sys-side-b.cur-open{cursor:default;}' +
       '.sys-side-wait{padding:7px 10px;font-size:12px;color:#64748b;}' +
       '.sys-side-b .sys-side-badge + .sys-side-chev{margin-left:6px;}' +
       '.sys-link-badge{display:inline-block;margin-left:3px;background:#ef4444;color:#fff;border-radius:8px;padding:0 4px;font-size:9px;font-weight:700;line-height:14px;vertical-align:1px;}' +
@@ -1222,6 +1229,11 @@
           return nx;
         });
       }
+      // 지금 화면의 상위 메뉴: 화면을 열 때(새로고침·다른 화면에서 이동) 항상 펼친 채 시작하고, 누르면 접기/펼치기.
+      //   접은 상태는 저장하지 않는다 — SysBar 가 그대로 있는 같은 화면 안 탭 전환·뒤로가기에서는 접은 채 유지(2026-10-23)
+      var curClosedState = React.useState(null);   // 접은 지금 화면 메뉴 키(activeKey) 또는 null
+      var curClosed = curClosedState[0] === activeKey;
+      function toggleCur() { curClosedState[1](function(v) { return v === activeKey ? null : activeKey; }); }
 
       // ── 휴대폰 상단 막대 (기존 그대로) ──
       var links = SYS_MENUS
@@ -1292,15 +1304,15 @@
                                : e('a', {key:m.key, href:m.url, className:'sys-side-b'}, inner));
           return;
         }
-        var open = isCur || openKeys.indexOf(m.key) >= 0;
+        var open = isCur ? !curClosed : openKeys.indexOf(m.key) >= 0;
         var subId = 'sys-side-sub-' + m.key;
         var mbadge = menuBadge(m.key);
         if (mbadge) inner.push(e('span', {key:'b', className:'sys-side-badge', title:'결재 대기'}, mbadge));
         inner.push(e('span', {key:'c', className:'sys-side-chev', 'aria-hidden':'true'}, sideIcon(React, 'chevR', 14)));
         sideItems.push(e('button', {key:m.key, type:'button', 'aria-expanded': open ? 'true' : 'false', 'aria-controls':subId,
           'aria-current': isCur ? 'page' : undefined,
-          className:'sys-side-b' + (isCur ? (m.key === 'admin' ? ' on-admin' : ' on-parent') + ' cur-open' : ''),
-          onClick:function() { if (!isCur) toggleOpen(m.key); }}, inner));
+          className:'sys-side-b' + (isCur ? (m.key === 'admin' ? ' on-admin' : ' on-parent') : ''),   // 접혀도 「지금 화면」 강조는 그대로
+          onClick:function() { if (isCur) toggleCur(); else toggleOpen(m.key); }}, inner));
         if (!open) return;
 
         // 하위 목록. 다른 화면의 목록은 권한을 다시 읽은 뒤에만 그린다(그 전엔 자리만)
@@ -1331,7 +1343,10 @@
       var side = e('aside', {key:'side', className:'sys-side no-print', 'aria-label':'메뉴'},
         e('a', {key:'brand', className:'sys-side-brand', href:cfg.HOME_URL||'home.html'},
           cfg.LOGO_URL ? e('img', {key:'i', src:cfg.LOGO_URL, alt:''}) : null,
-          e('b', {key:'t'}, cfg.COMPANY_SHORT || cfg.COMPANY_KO || '')
+          e('span', {key:'t', className:'sys-side-tt'},
+            e('b', {key:'n'}, cfg.COMPANY_SHORT || cfg.COMPANY_KO || ''),
+            e('span', {key:'v', className:'sys-side-ver'}, 'v' + APP_VERSION)
+          )
         ),
         e('nav', {key:'nav', className:'sys-side-nav'}, sideItems),
         e('div', {key:'foot', className:'sys-side-foot'},
@@ -1650,6 +1665,7 @@
     hashTab:     hashTab,
     SECTION_TABS:  SECTION_TABS,
     sectionTabs:   sectionTabs,
+    APP_VERSION:   APP_VERSION,
     loadApprovals:    loadApprovals,
     refreshApprovals: refreshApprovals,
     getApprovals:     getApprovals,
