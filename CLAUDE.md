@@ -130,6 +130,21 @@
 
 ## ✅ 완료된 작업
 
+### 왼쪽 메뉴 토글 — 상위는 펼치기만, 하위를 눌러야 이동 (2026-10-23, sysbar.js v3.5 `?v=2026102301`)
+- **`Sysbar.SECTION_TABS` 가 화면 안 탭 정의의 유일한 출처**(공정관리 `project` · 연차 `leave` · 업무일지 `worklog`).
+  `{key, label, short?, icon, svg, show(c)}`, `c = {role, admin, manager, contractor, can}`. 직급·권한 규칙은 **여기에만** 둔다.
+  `Sysbar.sectionTabs(section, user)` → 보이는 탭 `[{key,label,short,icon,svg}]`. 왼쪽 메뉴(어느 화면에서든) · 화면 탭 줄 · 휴대폰 하단 바 · 더보기 ·
+  해시 검사가 모두 이 함수를 쓴다(project `projectTabs()` · leave `leaveNavItems()` · worklog `worklogTabs()` 는 이 함수를 감싼 것뿐 — 규칙을 다시 쓰지 말 것).
+  새 탭은 SECTION_TABS 에 추가. 「다른 부서로 보기」 중에는 `can` 이 그 부서 기준.
+- **토글 규칙**: 하위가 있는 상위 메뉴(공정관리 · 연차관리 · 업무일지 · 내 정보관리 · 관리포털)는 `<button aria-expanded>` — 누르면 그 자리에서 펼치기/접기(이동 없음, 꺾쇠 회전).
+  하위를 눌러야 이동: 같은 화면 → `onSubChange(key)`(새로고침 없음), 다른 화면 → `page.html#탭키` 링크. 메인메뉴(하위 없음)는 바로 이동.
+  여러 개 동시에 펼침, PC별 기억 `localStorage[SESSION_PREFIX + '_side_open']`(키 배열). **지금 화면의 메뉴는 항상 펼침**(눌러도 접히지 않음).
+  협력업체의 막힌 메뉴는 펼치지 않고 `onDisabled` 안내. 휴대폰 상단 막대·메뉴 접기([ 키·손잡이)는 그대로. 펼친 것이 많으면 메뉴 영역만 스크롤.
+- SysBar props: `subTabs` 없앰 → **`subBadges`**({탭키: 숫자}, 그 화면에서만 — 다른 화면 메뉴에는 배지 없음) · `activeSub` · `onSubChange`.
+- 다른 화면의 하위 목록(관리포털 포함)은 **권한을 다시 읽은 뒤에** 그린다(그 전엔 「불러오는 중…」). 지금 화면의 목록은 이전처럼 바로.
+- 업무일지 휴대폰 하단 바도 `sectionTabs`(짧은 이름 `short`) — 작성이력 권한이 있으면 「이력」이 5번째로 보인다.
+- 백업: `backup/*_20261023.*`
+
 ### 화면을 열 때 세션 만료 처리 통일 (2026-10-22, sysbar.js `?v=2026102205`)
 - **모든 SysBar 화면이 열 때 `Sysbar.SessionManager.checkOnLoad(sb)`** 를 부르고, 저장된 세션으로 들어오면 `onLogin(logoutCb)` 로 1시간 비활동 감시를 시작한다.
   (이전: 공정관리는 만료 검사 없음 · 공정관리/연차/홈은 저장된 세션으로 들어오면 감시 안 함 → 화면마다 만료가 달랐다.) 새 화면도 같게 할 것.
@@ -154,9 +169,9 @@
 
 ### 왼쪽 메뉴 하위 탭 + 「내 정보관리」 (2026-10-22, sysbar.js v3.3)
 - **화면 안 탭 = 왼쪽 메뉴 하위 항목**(공정관리 · 연차관리 · 업무일지). `SysBar` props `subTabs`([{key, label, svg?, badge?}]) · `activeSub` · `onSubChange(key)`.
-  **탭 목록은 화면이 직급별로 계산해 넘긴다**(sysbar 에 직급 규칙을 두지 않는다 — `PROJECT_TABS` · `leaveNavItems()` · `worklogTabs()` 한 곳에서 위 탭 줄·하위 항목·해시 검사가 같이 쓴다).
+  ~~탭 목록은 화면이 직급별로 계산해 넘긴다~~ → **2026-10-23 부터 `Sysbar.SECTION_TABS` 한 곳**(위 「왼쪽 메뉴 토글」). `subTabs` prop 은 없어졌다.
   하위 항목 아이콘은 `SIDE_ICONS` 키(없으면 작은 점), `badge` > 0 이면 빨간 숫자(연차 결재 대기).
-- **아코디언**: 지금 보고 있는 메뉴만 펼친다. 관리포털 하위 6개도 관리포털 화면(activeKey 'admin')에서만 펼침.
+- ~~**아코디언**: 지금 보고 있는 메뉴만 펼친다~~ → 2026-10-23 토글 방식으로 바뀜(위 「왼쪽 메뉴 토글」).
 - **PC 에서는 화면 탭 줄을 숨긴다**: 탭 줄에 클래스 `sys-page-tabs`, 선택된 탭 버튼에 `sys-tab-on`(휴대폰에서 열 때 그 탭으로 가로 스크롤).
   보조 클래스 `sys-mobile-only`(PC 왼쪽 메뉴일 때 숨김) / `sys-pc-only`(PC 왼쪽 메뉴일 때만 보임). 새 화면에 탭 줄을 만들면 같은 클래스를 쓸 것.
 - **탭 주소(해시)** = 기존 탭 키 그대로: `project.html#weekly` · `leave.html#apply` · `worklog.html#history` 등. `Sysbar.hashTab()` 으로 읽는다.

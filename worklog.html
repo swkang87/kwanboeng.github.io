@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102207"></script>
+<script src="sysbar.js?v=2026102301"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -419,17 +419,10 @@ const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────
 const VIEWS = { MY_LOG: 'my_log', ALL_LOGS: 'all_logs', HISTORY: 'history', SUPPLY: 'supply', LOGS: 'logs' };
-// 화면 안 탭 — 주소 worklog.html#탭키. 위 탭 줄(PC 에서는 숨김)과 왼쪽 메뉴 하위 항목(SysBar subTabs)이 같은 목록을 쓴다.
+// 화면 안 탭 — 주소 worklog.html#탭키. 탭 정의(권한 규칙 포함)는 sysbar.js SECTION_TABS 한 곳에만 있다(키 = VIEWS 값).
+// 위 탭 줄(PC 에서는 숨김) · 휴대폰 하단 바 · 왼쪽 메뉴 하위 항목 · 주소 검사가 같은 목록을 쓴다.
 function worklogTabs(user) {
-  return [
-    { id: VIEWS.MY_LOG,   icon: '📝', svg: 'pencil', label: '내 업무일지' },
-    { id: VIEWS.ALL_LOGS, icon: '👥', svg: 'people', label: '전체 업무일지' },
-    { id: VIEWS.HISTORY,  icon: '📅', svg: 'cal',    label: '내 기록' },
-    { id: VIEWS.SUPPLY,   icon: '🧾', svg: 'box',    label: '비품관리' },
-    ...(user && Sysbar.can('worklog_history')   // 작성이력 = 기능 권한 worklog_history (기본 = 관리자)
-      ? [{ id: VIEWS.LOGS, icon: '🗒️', svg: 'list', label: '작성이력' }]
-      : []),
-  ];
+  return Sysbar.sectionTabs('worklog', user).map(t => ({ id: t.key, icon: t.icon, svg: t.svg, label: t.label, short: t.short }));
 }
 const STATUS = ['완료', '진행중', '보류'];
 const STATUS_CLS = { '완료': 'done-active', '진행중': 'prog-active', '보류': 'hold-active' };
@@ -2039,18 +2032,13 @@ function TopNavBar({ view, setView, user, onLogout, canWrite }) {
 }
 
 // ─── MOBILE NAV ────────────────────────────────────────────────────────────
-function MobileNav({ view, setView }) {
-  const ITEMS = [
-    { id: VIEWS.MY_LOG,  icon: '📝', label: '내 일지' },
-    { id: VIEWS.ALL_LOGS,icon: '👥', label: '전체' },
-    { id: VIEWS.HISTORY, icon: '📅', label: '기록' },
-    { id: VIEWS.SUPPLY,  icon: '🧾', label: '비품' },
-  ];
+function MobileNav({ view, setView, user }) {
+  const ITEMS = worklogTabs(user);
   return (
     <nav className="mobile-nav">
       {ITEMS.map(n => (
         <button key={n.id} className={`mn-item ${view===n.id?'active':''}`} onClick={() => setView(n.id)}>
-          <span>{n.icon}</span><span>{n.label}</span>
+          <span>{n.icon}</span><span>{n.short}</span>
         </button>
       ))}
     </nav>
@@ -2177,7 +2165,6 @@ function App() {
         user={user}
         teamName={userTeamName}
         onLogout={logout}
-        subTabs={worklogTabs(user).map(t => ({ key: t.id, label: t.label, svg: t.svg }))}
         activeSub={view}
         onSubChange={nv}
       />
@@ -2196,7 +2183,7 @@ function App() {
           {view === VIEWS.SUPPLY   && <SupplyView user={user} />}
           {view === VIEWS.LOGS     && Sysbar.can('worklog_history') && <LogsView user={user} />}
         </main>
-        <MobileNav view={view} setView={nv} />
+        <MobileNav view={view} setView={nv} user={user} />
       </div>
     </div>
   );

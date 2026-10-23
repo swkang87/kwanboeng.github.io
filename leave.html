@@ -19,7 +19,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102207"></script>
+<script src="sysbar.js?v=2026102301"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js" integrity="sha384-1qlE7MZPM2pHD/pBZCU/yB8UCP52RYL8bge/qNdfNBCWToySp8/M+JL2waXU4hjJ" crossorigin="anonymous"></script>
@@ -1187,19 +1187,12 @@ const LeaveLoginScreen = Sysbar.createLoginComponent(React, {
 });
 
 const SysBar = Sysbar.createComponent(React);
-// 화면 안 탭(직급별) — 주소 leave.html#탭키. 왼쪽 메뉴 하위 항목(SysBar subTabs)도 이 목록을 그대로 쓴다.
+// 화면 안 탭(직급별) — 주소 leave.html#탭키. 탭 정의(직급·권한 규칙 포함)는 sysbar.js SECTION_TABS 한 곳에만 있다.
 // 「내 정보」 탭은 내 정보관리 화면(me.html)으로 옮겼다 — 옛 주소 #profile 은 그쪽으로 보낸다.
-// 기능 권한(권한 표 2차): 승인 관리 = leave_approve, 통계·감사 로그 = leave_admin (기본 = 관리자).
-// 팀 관리·직원 관리는 부서·계정을 바꾸는 관리자 고정 규칙이라 관리자 + leave_admin. 팀원 결재는 팀장 직급 그대로.
+// 여기서는 이 화면의 모양(k·l·i)과 배지(b)만 붙인다 — 위 탭 줄 · 휴대폰 하단 바 · 더보기 · 주소 검사가 이것을 쓴다.
 function leaveNavItems(cu,pendingCount,mgrPending){
-  const admin=cu.role==='admin', can=Sysbar.can;
-  const items=[{k:'calendar',l:'캘린더',i:'📅',svg:'cal'},{k:'dashboard',l:'대시보드',i:admin?'📊':'🏠',svg:'grid'}];
-  if(cu.role==='manager')items.push({k:'team_approve',l:'팀원 결재',i:'✅',svg:'check',b:mgrPending});
-  if(!admin)items.push({k:'apply',l:'연차 신청',i:'✏️',svg:'pencil'},{k:'history',l:'신청 내역',i:'📋',svg:'clock'});
-  if(can('leave_approve'))items.push({k:'admin_approve',l:'승인 관리',i:'✅',svg:'check',b:pendingCount});
-  if(admin&&can('leave_admin'))items.push({k:'admin_teams',l:'팀 관리',i:'🏢',svg:'admin'},{k:'admin_users',l:'직원 관리',i:'👥',svg:'people'});
-  if(can('leave_admin'))items.push({k:'admin_stats',l:'통계',i:'📈',svg:'chart'},{k:'admin_audit',l:'감사 로그',i:'📋',svg:'list'});
-  return items;
+  const badges={team_approve:mgrPending,admin_approve:pendingCount};
+  return Sysbar.sectionTabs('leave',cu).map(t=>({k:t.key,l:t.label,i:t.icon,svg:t.svg,b:badges[t.key]||0}));
 }
 function App(){
   // 세션 즉시 복원
@@ -1337,7 +1330,7 @@ function App(){
   const mgrPending=leaves.filter(l=>{const lu=users.find(u=>u.id===l.user_id);return lu?.team_id===cu.team_id&&lu?.id!==cu.id&&l.status==='pending';}).length;
 
   const navItems=leaveNavItems(cu,pendingCount,mgrPending);
-  const subTabs=navItems.map(n=>({key:n.k,label:n.l,svg:n.svg,badge:n.b}));
+  const subBadges={};navItems.forEach(n=>{subBadges[n.k]=n.b;});   // 왼쪽 메뉴 하위 항목 배지(이 화면에서만)
 
   const props={user:cu,users,teams,leaves,auditLogs,onRefresh:load,onNav:changeView};
   const renderView=()=>{
@@ -1373,7 +1366,7 @@ function App(){
           user={cu}
           teamName={teams.find(t=>t.id===cu.team_id)?.name||''}
           onLogout={logout}
-          subTabs={subTabs} activeSub={view} onSubChange={changeView}
+          subBadges={subBadges} activeSub={view} onSubChange={changeView}
         />
         {/* 제목 바 */}
         <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8'}}>
@@ -1430,7 +1423,7 @@ function App(){
         user={cu}
         teamName={teams.find(t=>t.id===cu.team_id)?.name||''}
         onLogout={logout}
-        subTabs={subTabs} activeSub={view} onSubChange={changeView}
+        subBadges={subBadges} activeSub={view} onSubChange={changeView}
       />
 
       {/* 2줄: 시스템 제목 바 */}

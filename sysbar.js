@@ -1,6 +1,13 @@
 /**
- * SYSBAR MODULE v3.4
+ * SYSBAR MODULE v3.5
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.5 변경사항 (왼쪽 메뉴 토글, 2026-10-23):
+ *  - SECTION_TABS · sectionTabs(section, user): 공정관리·연차·업무일지 화면 안 탭 정의의 유일한 출처(직급·권한 규칙 포함)
+ *  - 하위가 있는 상위 메뉴(공정관리·연차관리·업무일지·내 정보관리·관리포털)는 누르면 펼치기/접기만(이동 없음).
+ *    하위 항목을 눌러야 이동: 같은 화면이면 onSubChange(탭 전환), 다른 화면이면 page.html#탭키. 메인메뉴는 바로 이동
+ *  - 여러 개 동시에 펼침, PC별 기억(localStorage SESSION_PREFIX + '_side_open'). 지금 화면의 메뉴는 항상 펼침
+ *  - SysBar props: subTabs 없앰 → subBadges({탭키: 숫자}, 그 화면에서만). 다른 화면 하위 목록은 권한을 다시 읽은 뒤에 그림
  *
  * v3.4 변경사항 (기능 권한 표 2차, 2026-10-22):
  *  - PERM_DEFS 에 공정관리·연차·업무일지·메인메뉴 키 9개 + group(권한 탭 묶음). PERM_GROUPS
@@ -64,6 +71,54 @@
   // ── 화면 안 탭 주소(해시) — project.html#weekly 처럼 기존 탭 키를 그대로 쓴다 ──
   //   읽기만 여기서. 그 직급에 없는 탭이면 각 화면이 기본 탭으로 바꾸고, 탭을 바꿀 때 각 화면이 history 에 쓴다.
   function hashTab() { try { return decodeURIComponent((global.location.hash || '').replace(/^#/, '')); } catch(e) { return ''; } }
+
+  // ── 화면 안 탭 정의 — 탭 목록의 유일한 출처 (2026-10-23) ──
+  //   왼쪽 메뉴 하위 항목(어느 화면에서든) · 각 화면의 위 탭 줄 · 휴대폰 하단 바 · 주소(#탭키) 검사가 모두 sectionTabs() 를 쓴다.
+  //   직급·권한 규칙은 여기에만 둔다(화면에 다시 쓰지 말 것). show(c) 가 없으면 모두에게 보임.
+  //   c = { role, admin, manager, contractor, can }. can 은 「다른 부서로 보기」 중이면 그 부서 기준(team_perms).
+  //   icon = 화면 탭 줄·휴대폰 하단 바(이모지, 함수면 c 로 계산), short = 휴대폰 하단 바 짧은 이름(없으면 label)
+  var SECTION_TABS = {
+    project: [
+      { key:'mine',     label:'내 프로젝트',   icon:'📁', svg:'folder' },
+      { key:'weekly',   label:'주간보고',      icon:'📋', svg:'list' },
+      { key:'monthly',  label:'월간달력',      icon:'📅', svg:'cal' },
+      { key:'projects', label:'전체 프로젝트', icon:'📊', svg:'chart' },
+      { key:'admin',    label:'관리',          icon:'⚙',  svg:'gear', show:function(c) { return c.can('project_admin'); } },
+    ],
+    // 연차: 승인 관리 = leave_approve, 통계·감사 로그 = leave_admin. 팀 관리·직원 관리는 관리자 고정 규칙이라 관리자 + leave_admin.
+    //   팀원 결재는 팀장 직급(결재 흐름). 관리자는 신청·내역 없음
+    leave: [
+      { key:'calendar',      label:'캘린더',    icon:'📅', svg:'cal' },
+      { key:'dashboard',     label:'대시보드',  icon:function(c) { return c.admin ? '📊' : '🏠'; }, svg:'grid' },
+      { key:'team_approve',  label:'팀원 결재', icon:'✅', svg:'check',  show:function(c) { return c.manager; } },
+      { key:'apply',         label:'연차 신청', icon:'✏️', svg:'pencil', show:function(c) { return !c.admin; } },
+      { key:'history',       label:'신청 내역', icon:'📋', svg:'clock',  show:function(c) { return !c.admin; } },
+      { key:'admin_approve', label:'승인 관리', icon:'✅', svg:'check',  show:function(c) { return c.can('leave_approve'); } },
+      { key:'admin_teams',   label:'팀 관리',   icon:'🏢', svg:'admin',  show:function(c) { return c.admin && c.can('leave_admin'); } },
+      { key:'admin_users',   label:'직원 관리', icon:'👥', svg:'people', show:function(c) { return c.admin && c.can('leave_admin'); } },
+      { key:'admin_stats',   label:'통계',      icon:'📈', svg:'chart',  show:function(c) { return c.can('leave_admin'); } },
+      { key:'admin_audit',   label:'감사 로그', icon:'📋', svg:'list',   show:function(c) { return c.can('leave_admin'); } },
+    ],
+    worklog: [
+      { key:'my_log',   label:'내 업무일지',   short:'내 일지', icon:'📝', svg:'pencil' },
+      { key:'all_logs', label:'전체 업무일지', short:'전체',    icon:'👥', svg:'people' },
+      { key:'history',  label:'내 기록',       short:'기록',    icon:'📅', svg:'cal' },
+      { key:'supply',   label:'비품관리',      short:'비품',    icon:'🧾', svg:'box' },
+      { key:'logs',     label:'작성이력',      short:'이력',    icon:'🗒️', svg:'list', show:function(c) { return c.can('worklog_history'); } },
+    ],
+  };
+  // section = 'project' | 'leave' | 'worklog', user = 로그인 사용자(없으면 이 창 세션)
+  //   → [{key, label, short, icon, svg}] (이 사람에게 보이는 것만, 정의 순서)
+  function sectionTabs(section, user) {
+    var defs = SECTION_TABS[section];
+    var u = user || _me();
+    if (!defs || !u) return [];
+    var role = u.role;
+    var c = { role: role, admin: role === 'admin', manager: role === 'manager', contractor: role === 'contractor', can: can };
+    return defs.filter(function(t) { return !t.show || t.show(c); }).map(function(t) {
+      return { key: t.key, label: t.label, short: t.short || t.label, icon: typeof t.icon === 'function' ? t.icon(c) : t.icon, svg: t.svg };
+    });
+  }
 
   // ── 기능 권한 표 (2026-10-22~) ─────────────────────────────────────────
   //   키 목록은 DB 함수 public.perm_keys() 와 같아야 한다(키를 더하면 두 곳 모두).
@@ -238,6 +293,12 @@
   var SIDE_OFF_KEY = _prefix + '_side_off';
   function sideOffGet() { try { return localStorage.getItem(SIDE_OFF_KEY) === '1'; } catch(e) { return false; } }
   function sideOffSet(v) { try { if (v) localStorage.setItem(SIDE_OFF_KEY, '1'); else localStorage.removeItem(SIDE_OFF_KEY); } catch(e) {} }
+  // 펼친 상위 메뉴(하위 있음) 저장 키 (PC별 기억). 지금 보고 있는 화면의 메뉴는 이 값과 무관하게 항상 펼친다
+  var SIDE_OPEN_KEY = _prefix + '_side_open';
+  function sideOpenGet() {
+    try { var v = JSON.parse(localStorage.getItem(SIDE_OPEN_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch(e) { return []; }
+  }
+  function sideOpenSet(list) { try { if (list.length) localStorage.setItem(SIDE_OPEN_KEY, JSON.stringify(list)); else localStorage.removeItem(SIDE_OPEN_KEY); } catch(e) {} }
 
   var CSS_INJECTED = false;
 
@@ -312,7 +373,7 @@
       '.sys-side-brand{display:flex;align-items:center;gap:10px;height:45px;box-sizing:border-box;padding:0 16px;text-decoration:none;color:#fff;border-bottom:1px solid rgba(255,255,255,.07);}' +
       '.sys-side-brand img{width:30px;height:30px;object-fit:contain;flex-shrink:0;}' +
       '.sys-side-brand b{display:block;font-size:15px;font-weight:800;letter-spacing:-.3px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
-      '.sys-side-nav{flex:1;overflow-y:auto;padding:12px 10px;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;}' +
+      '.sys-side-nav{flex:1;min-height:0;overflow-y:auto;padding:12px 10px;display:flex;flex-direction:column;gap:2px;scrollbar-width:thin;}' +
       '.sys-side-b{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:8px;font-size:13.5px;font-weight:600;color:#94a3b8;text-decoration:none;cursor:pointer;border:none;background:transparent;font-family:inherit;text-align:left;width:100%;transition:background .12s,color .12s;}' +
       '.sys-side-b:hover{background:rgba(255,255,255,.07);color:#fff;}' +
       '.sys-side-b .sys-ico{flex-shrink:0;}' +
@@ -327,6 +388,10 @@
       '.sys-side-sub.adm .sys-side-b.on{background:#7c3aed;cursor:default;}' +
       '.sys-side-dot{width:16px;height:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}' +
       '.sys-side-dot:before{content:"";width:4px;height:4px;border-radius:50%;background:currentColor;}' +
+      '.sys-side-chev{margin-left:auto;flex-shrink:0;opacity:.6;transition:transform .15s;}' +
+      '.sys-side-b[aria-expanded="true"] .sys-side-chev{transform:rotate(90deg);}' +
+      '.sys-side-b.cur-open{cursor:default;}' +
+      '.sys-side-wait{padding:7px 10px;font-size:12px;color:#64748b;}' +
       '.sys-side-badge{margin-left:auto;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;line-height:16px;}' +
       '.sys-side-foot{padding:12px 12px 14px;border-top:1px solid rgba(255,255,255,.07);}' +
       '.sys-side-view{padding:0 4px 10px;}' +
@@ -1009,19 +1074,22 @@
       var noPrint    = props.noPrint         || false;
       var contractor = !!(user && user.role === 'contractor');
       var sbClient   = props.sb || null;          // 기능 권한·부서 목록 조회용(없으면 이 창에 저장된 권한만 씀)
-      // 화면 안 탭 — 화면이 직급별로 계산한 목록을 그대로 받는다(직급 규칙을 여기 두지 않는다)
-      var subTabs     = props.subTabs || null;    // [{key, label, svg?, badge?}]
+      // 화면 안 탭 — 목록은 SECTION_TABS(sectionTabs)에서 계산한다. 화면은 지금 탭 · 탭 전환 · 배지만 넘긴다
       var activeSub   = props.activeSub;
       var onSubChange = props.onSubChange || null;
+      var subBadges   = props.subBadges || {};    // {탭키: 숫자} — 데이터가 있는 그 화면에서만(다른 화면 메뉴에는 배지 없음)
       var e = React.createElement;
 
       // ── 기능 권한: 화면을 열 때마다 서버 값으로 다시 읽는다 ──
+      //   permsLoaded 전에는 다른 화면의 하위 목록을 그리지 않는다(이전 캐시로 잘못된 목록이 잠깐 보이지 않게)
       var permTick = React.useState(0);
       var setPermTick = permTick[1];
+      var loadedState = React.useState(!sbClient);   // sb 가 없으면 다시 읽을 수 없으니 이 창 권한 그대로
+      var permsLoaded = loadedState[0], setPermsLoaded = loadedState[1];
       React.useEffect(function() {
         if (!user || !sbClient) return;
         var alive = true;
-        loadPerms(sbClient).then(function() { if (alive) setPermTick(function(x) { return x + 1; }); });
+        loadPerms(sbClient).then(function() { if (alive) { setPermsLoaded(true); setPermTick(function(x) { return x + 1; }); } });
         return function() { alive = false; };
       }, [user ? user.id : null]);
       var canAdmin   = !!user && canPortal();    // 관리포털 메뉴 = 관리포털 권한이 하나라도 있으면
@@ -1081,6 +1149,17 @@
       }, []);
       function toggleSide() { var nv = !sideOff; sideOffSet(nv); setSideOff(nv); }
 
+      // ── 상위 메뉴 펼침(하위 있음): 누르면 그 자리에서 펼치기/접기(이동 없음). 여러 개 동시에 열 수 있고 PC별 기억 ──
+      var openState = React.useState(sideOpenGet);
+      var openKeys = openState[0], setOpenKeys = openState[1];
+      function toggleOpen(key) {
+        setOpenKeys(function(prev) {
+          var nx = prev.indexOf(key) >= 0 ? prev.filter(function(k) { return k !== key; }) : prev.concat([key]);
+          sideOpenSet(nx);
+          return nx;
+        });
+      }
+
       // ── 휴대폰 상단 막대 (기존 그대로) ──
       var links = SYS_MENUS
         .filter(function(m){ return m.adminOnly ? canAdmin : true; })
@@ -1114,14 +1193,15 @@
       // ── PC 왼쪽 메뉴 ──
       var curFile = (function() { try { return (location.pathname.split('/').pop() || '').toLowerCase(); } catch(err) { return ''; } })();
 
-      // 하위 항목 하나. href 가 있으면 다른 화면으로(링크), 없으면 같은 화면 안 탭 전환(onSubChange)
-      function subItem(s, on) {
+      // 하위 항목 하나. href 가 있으면 다른 화면으로(링크 — 화면 탭이면 page.html#탭키), 없으면 같은 화면 안 탭 전환(onSubChange)
+      //   guard = 고정 링크(내 정보관리 하위)만 협력업체 판정. 화면 탭은 sectionTabs 가 이미 직급별로 거른 것
+      function subItem(s, on, guard) {
         var inner = [
           (s.svg && SIDE_ICONS[s.svg]) ? sideIcon(React, s.svg, 16) : e('span', {key:'i', className:'sys-side-dot', 'aria-hidden':'true'}),
           e('span', {key:'l'}, s.label)
         ];
         if (s.badge > 0) inner.push(e('span', {key:'b', className:'sys-side-badge'}, s.badge));
-        if (s.href && contractor && !contractorOk(s.key))   // 고정 링크(내 정보관리 하위)만 — 화면 탭은 화면이 이미 직급별로 거른 것
+        if (guard && contractor && !contractorOk(s.key))
           return e('div', {key:s.key, className:'sys-side-b disabled', onClick:onDisabled}, inner);
         if (s.href) {
           return on ? e('div', {key:s.key, className:'sys-side-b on', 'aria-current':'page'}, inner)
@@ -1132,37 +1212,53 @@
           onClick:function() { if (onSubChange) onSubChange(s.key); }}, inner);
       }
 
+      // 상위 메뉴: 하위가 없으면(메인메뉴) 바로 이동, 하위가 있으면 누를 때 펼치기/접기만(지금 화면의 메뉴는 항상 펼침)
       var sideItems = [];
       SYS_MENUS.forEach(function(m) {
         if (m.adminOnly && !canAdmin) return;
         var isCur = m.key === activeKey;
+        var kind = m.key === 'admin' ? 'admin' : m.subs ? 'fixed' : SECTION_TABS[m.key] ? 'section' : null;
         var inner = [sideIcon(React, m.svg), e('span', {key:'l'}, m.label)];
-        // 하위 항목은 지금 보고 있는 메뉴만 펼친다(아코디언)
+        if (contractor && !contractorOk(m.key)) {   // 막힌 메뉴는 펼치지 않고 안내
+          sideItems.push(e('div', {key:m.key, className:'sys-side-b disabled', onClick:onDisabled}, inner));
+          return;
+        }
+        if (!kind) {
+          sideItems.push(isCur ? e('div', {key:m.key, className:'sys-side-b on', 'aria-current':'page'}, inner)
+                               : e('a', {key:m.key, href:m.url, className:'sys-side-b'}, inner));
+          return;
+        }
+        var open = isCur || openKeys.indexOf(m.key) >= 0;
+        var subId = 'sys-side-sub-' + m.key;
+        inner.push(e('span', {key:'c', className:'sys-side-chev', 'aria-hidden':'true'}, sideIcon(React, 'chevR', 14)));
+        sideItems.push(e('button', {key:m.key, type:'button', 'aria-expanded': open ? 'true' : 'false', 'aria-controls':subId,
+          'aria-current': isCur ? 'page' : undefined,
+          className:'sys-side-b' + (isCur ? (m.key === 'admin' ? ' on-admin' : ' on-parent') + ' cur-open' : ''),
+          onClick:function() { if (!isCur) toggleOpen(m.key); }}, inner));
+        if (!open) return;
+
+        // 하위 목록. 다른 화면의 목록은 권한을 다시 읽은 뒤에만 그린다(그 전엔 자리만)
         var subs = null, subOn = null;
-        if (isCur && m.key === 'admin') {
+        var wait = !isCur && !permsLoaded && kind !== 'fixed';
+        if (wait) {
+          subs = null;
+        } else if (kind === 'admin') {
           subs = PORTAL_PAGES.filter(function(pg) { return can(pg.need); }).map(function(pg) {
             if (curFile === pg.href.toLowerCase()) subOn = pg.key;
             return { key:pg.key, label:pg.label, svg:pg.svg, href:pg.href };
           });
-        } else if (isCur && m.subs) {
-          subs = m.subs; subOn = activeSub;
-        } else if (isCur && subTabs && subTabs.length) {
-          subs = subTabs; subOn = activeSub;
-        }
-        var hasSubs = !!(subs && subs.length);
-        if (isCur && !hasSubs) {
-          sideItems.push(e('div', {key:m.key, className:'sys-side-b on', 'aria-current':'page'}, inner));
-        } else if (contractor && !contractorOk(m.key)) {
-          sideItems.push(e('div', {key:m.key, className:'sys-side-b disabled', onClick:onDisabled}, inner));
+        } else if (kind === 'fixed') {
+          subs = m.subs; subOn = isCur ? activeSub : null;
         } else {
-          sideItems.push(e('a', {key:m.key, href:m.url,
-            className:'sys-side-b' + (isCur ? (m.key === 'admin' ? ' on-admin' : ' on-parent') : '')}, inner));
+          subs = sectionTabs(m.key, user).map(function(t) {
+            return { key:t.key, label:t.label, svg:t.svg, badge: isCur ? subBadges[t.key] : 0, href: isCur ? null : m.url + '#' + t.key };
+          });
+          subOn = isCur ? activeSub : null;
         }
-        if (hasSubs) {
-          sideItems.push(e('div', {key:m.key + '-sub', className:'sys-side-sub' + (m.key === 'admin' ? ' adm' : '')},
-            subs.map(function(s) { return subItem(s, s.key === subOn); })
-          ));
-        }
+        sideItems.push(e('div', {key:m.key + '-sub', id:subId, className:'sys-side-sub' + (m.key === 'admin' ? ' adm' : '')},
+          wait ? e('div', {className:'sys-side-wait'}, '불러오는 중…')
+               : subs.map(function(s) { return subItem(s, s.key === subOn, kind === 'fixed'); })
+        ));
       });
 
       var side = e('aside', {key:'side', className:'sys-side no-print', 'aria-label':'메뉴'},
@@ -1485,6 +1581,8 @@
     SESSION_KEY: SESSION_KEY,
     SYS_MENUS:   SYS_MENUS,
     hashTab:     hashTab,
+    SECTION_TABS:  SECTION_TABS,
+    sectionTabs:   sectionTabs,
     PORTAL_PAGES:  PORTAL_PAGES,
     portalCanShow: portalCanShow,
     PERM_DEFS:        PERM_DEFS,

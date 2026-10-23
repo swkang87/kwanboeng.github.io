@@ -12,7 +12,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 — 그리면서 보낸 세션 확인 요청이 이동으로 중단되지 않게 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102207"></script>
+<script src="sysbar.js?v=2026102301"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -438,18 +438,11 @@ const Login = Sysbar.createLoginComponent(React, { blockedRoles: [] });
 
 // ─── Main App ───
 const SysBar = Sysbar.createComponent(React);
-// 화면 안 탭 — 주소 project.html#탭키. 왼쪽 메뉴 하위 항목(SysBar subTabs)도 이 목록을 그대로 쓴다.
+// 화면 안 탭 — 주소 project.html#탭키. 탭 정의(권한 규칙 포함)는 sysbar.js SECTION_TABS 한 곳에만 있다.
 // 「내 정보」 탭은 내 정보관리 화면(me.html)으로 옮겼다 — 옛 주소 #profile 은 그쪽으로 보낸다.
-const PROJECT_TABS = [
-  { k: 'mine', l: '내 프로젝트', i: '📁', svg: 'folder' },
-  { k: 'weekly', l: '주간보고', i: '📋', svg: 'list' },
-  { k: 'monthly', l: '월간달력', i: '📅', svg: 'cal' },
-  { k: 'projects', l: '전체 프로젝트', i: '📊', svg: 'chart' },
-  { k: 'admin', l: '관리', i: '⚙', svg: 'gear', need: 'project_admin' },   // need = 기능 권한 키(권한 표, 기본 = 관리자)
-];
 // 이 사람에게 보이는 탭 — 위 탭 줄 · 왼쪽 메뉴 하위 항목 · 주소 검사가 모두 이것을 쓴다
-const projectTabs = () => PROJECT_TABS.filter(t => !t.need || Sysbar.can(t.need));
-const PROJECT_INIT_VIEW = PROJECT_TABS.some(t => t.k === Sysbar.hashTab()) ? Sysbar.hashTab() : 'mine';
+const projectTabs = () => Sysbar.sectionTabs('project');
+const PROJECT_INIT_VIEW = Sysbar.SECTION_TABS.project.some(t => t.key === Sysbar.hashTab()) ? Sysbar.hashTab() : 'mine';
 function App() {
   const [user, setUser] = useState(() => {
     try {
@@ -545,7 +538,7 @@ function App() {
   // 상세보기(view 'project')는 연 탭의 주소를 그대로 둔다(새로고침하면 그 탭으로).
   useEffect(() => {
     if (!user || !permsReady || view === 'project') return;
-    if (!projectTabs().some(t => t.k === view)) {
+    if (!projectTabs().some(t => t.key === view)) {
       setMountedTabs(prev => { const n = new Set(prev); n.add('mine'); return n; });
       setView('mine'); return;
     }
@@ -614,7 +607,6 @@ function App() {
         onLogout={handleLogout}
         onDisabledClick={() => setNoPermModal(true)}
         noPrint={true}
-        subTabs={menuItems.map(t => ({ key: t.k, label: t.l, svg: t.svg }))}
         activeSub={curTab}
         onSubChange={nv}
       />
@@ -628,10 +620,10 @@ function App() {
       {/* 3줄: 가로 네비 탭 (PC 에서는 숨김 — 왼쪽 메뉴 하위 항목으로 보인다) */}
       <div className="no-print sys-page-tabs" style={{ background: '#1e293b', padding: '0 14px', display: 'flex', alignItems: 'center', flexShrink: 0, height: 36, gap: 1, borderBottom: '1px solid var(--theme,#0f172a)', position: 'sticky', top: 'calc(var(--sysbar-h,38px) + 45px)', zIndex: 100, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {menuItems.map(t => (
-          <button key={t.k} onClick={() => nv(t.k)} className={curTab === t.k ? 'sys-tab-on' : ''}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 11px', background: (view === t.k || (view === 'project' && t.k === 'projects')) ? '#1d4ed8' : 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', color: (view === t.k || (view === 'project' && t.k === 'projects')) ? 'white' : '#94a3b8', fontFamily: "'Noto Sans KR',sans-serif", fontSize: 11, fontWeight: (view === t.k || (view === 'project' && t.k === 'projects')) ? 700 : 400, whiteSpace: 'nowrap', height: 26, flexShrink: 0 }}>
-            {t.i && <span>{t.i}</span>}
-            <span>{t.l}</span>
+          <button key={t.key} onClick={() => nv(t.key)} className={curTab === t.key ? 'sys-tab-on' : ''}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 11px', background: (view === t.key || (view === 'project' && t.key === 'projects')) ? '#1d4ed8' : 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', color: (view === t.key || (view === 'project' && t.key === 'projects')) ? 'white' : '#94a3b8', fontFamily: "'Noto Sans KR',sans-serif", fontSize: 11, fontWeight: (view === t.key || (view === 'project' && t.key === 'projects')) ? 700 : 400, whiteSpace: 'nowrap', height: 26, flexShrink: 0 }}>
+            {t.icon && <span>{t.icon}</span>}
+            <span>{t.label}</span>
           </button>
         ))}
       </div>
