@@ -9,7 +9,7 @@
  *  2. 연락처 (Contact) 섹션 수정
  *  3. 색상 테마 (Theme Colors) 섹션 수정 (선택)
  *  4. Supabase 프로젝트 새로 생성 후 URL/KEY 교체
- *  5. 메뉴 활성화 여부 (active) 조정
+ *  5. 비회원 둘러보기 (GUEST) 사용 여부·숨길 메뉴 조정
  */
 
 var APP_CONFIG = {
@@ -122,50 +122,24 @@ var APP_CONFIG = {
   // worklog.html 비품관리 탭의 결제수단 드롭다운 (식대카드 역산 집계용)
   PAYMENT_METHODS: ['식대카드(유현수)','식대카드(이규민)','식대카드(이다빈)','식대카드(이창환)','법인카드','현금'],
 
-  // ── 시스템 메뉴 ───────────────────────────────────────────────
-  // active: true  → 클릭 가능
-  // active: false → 준비중 표시 (비활성)
-  MENUS: [
-    {
-      icon: '📊',
-      name: '공정관리',
-      desc: '주간보고·프로젝트 공정 현황',
-      url:  'project.html',
-      active: true,
-    },
-    {
-      icon: '📅',
-      name: '연차관리',
-      desc: '연차 신청·조회·잔여일수 확인',
-      url:  'leave.html',
-      active: true,
-    },
-    {
-      icon: '📝',
-      name: '업무일지',
-      desc: '일·주간 업무 기록 및 팀 현황 공유',
-      url:  'worklog.html',
-      active: true,
-    },
-    {
-      icon: '🏢',
-      name: '관리포털',
-      desc: '실적·급여·직원관리 (관리팀 전용)',
-      url:  'admin-portal.html',
-      active: true,
-    },
-
-  ],
-
   // ── 시스템 내부 링크 ──────────────────────────────────────────
   HOME_URL: 'home.html',
   INDEX_URL: 'index.html',  // 회사 홈페이지
 
   // ── 비회원 둘러보기 (guest.html, 2026-10-26) ──────────────────────
-  // 홈페이지 로그인 창의 「비회원으로 둘러보기」 → 메뉴 구조만 보여 준다. 어떤 메뉴를 눌러도 권한 없음 안내(데이터·서버 호출 없음).
+  // 홈페이지 로그인 창의 둘러보기 카드 → 메뉴 구조만 보여 준다. 어떤 메뉴를 눌러도 권한 없음 안내(데이터·서버 호출 없음).
   GUEST: {
-    ENABLED: true,             // false = 로그인 창에 버튼을 그리지 않고, guest.html 은 홈페이지로 보낸다
+    ENABLED: true,             // false = 로그인 창에 둘러보기 카드 대신 보안 안내를 그리고, guest.html 은 홈페이지로 보낸다
     HIDDEN_MENUS: ['admin'],   // 비회원에게 숨길 상위 메뉴 key (sysbar.js SYS_MENUS 의 key)
+    // 홈페이지 로그인 창 「둘러보기」 카드의 칩·설명 문구 (2026-10-26). key = sysbar.js SYS_MENUS 의 key — HIDDEN_MENUS 에 든 메뉴는 빠진다.
+    //   index.html 은 sysbar.js 를 불러오지 않으므로(공개 홈페이지에 시스템 화면 CSS·스크립트를 넣지 않음) 여기 둔다. 메뉴를 바꾸면 sysbar.js 와 함께.
+    //   label = 칩 글자, desc = 설명 문구에 쓸 이름(없으면 label). 칩은 장식이라 눌러도 개별 이동 없음(카드 전체가 guest.html 링크)
+    CARD_MENUS: [
+      { key: 'project', icon: '📊', label: '공정관리' },
+      { key: 'leave',   icon: '📅', label: '연차관리' },
+      { key: 'worklog', icon: '📝', label: '업무일지' },
+      { key: 'me',      icon: '👤', label: '내 정보', desc: '급여명세서' },
+    ],
   },
 
   // ── 급여명세서 (admin-payroll.html / payslip.html) ─────────────

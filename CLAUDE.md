@@ -92,6 +92,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.1.1 · 2026-10-26 · 홈페이지 로그인 창 정리 — 빠른 메뉴 삭제 + 둘러보기 카드
   - 2.1.0 · 2026-10-26 · 비회원 둘러보기 화면(guest.html) — 로그인 없이 메뉴 구조만
   - 2.0.1 · 2026-10-23 · 시작점 — 왼쪽 메뉴 지금 화면 메뉴도 접기 + 회사명 아래 버전 표시
 
@@ -142,8 +143,19 @@
 
 ## ✅ 완료된 작업
 
+### 홈페이지 로그인 창 정리 — 빠른 메뉴 삭제 + 둘러보기 카드 (2026-10-26, v2.1.1, sysbar.js `?v=2026102602`)
+- index.html 로그인 창의 「빠른 메뉴」(카드 4개 — 관리포털 포함, 안내 문구)와 그 CSS·JS(`.modal-grid`·`.modal-item*`·`.modal-menu-label`·`.modal-divider`, 카드 만들기)를 삭제.
+  빠른 메뉴 카드는 그냥 각 화면 링크였고 로그인 흐름과 엮인 것이 없었다. 페이지 제목·모달 로고·회사명 설정은 남김. `config.js` `MENUS`(빠른 메뉴 전용)도 삭제.
+- 새 구성: 머리 → 로그인 폼 → 「또는」 구분선(`.modal-or`) → **둘러보기 카드**(`.modal-guest-card`, 카드 전체가 `guest.html` 링크 하나, 키보드 Tab·Enter) → 「계정 문의: 관리자에게 문의해 주세요」.
+  카드 칩·설명 문구 = `config.js` `GUEST.CARD_MENUS` − `HIDDEN_MENUS`(칩은 장식, `aria-hidden`). 작은 버튼 `.modal-guest-btn` 은 카드로 합쳐 삭제.
+  카드·「또는」은 로그인 폼 상태에서만(로그인 상태·강제 변경 화면에는 없음 — 로그인 폼 HTML 안에서 `_guestCardHtml()` 로 그림).
+- `GUEST.ENABLED=false` 면 카드 대신 로그인 버튼 아래 보안 안내(`.modal-secure`) — **자동 로그아웃 시간은 넣지 않았다**(값이 sysbar.js SessionManager 안에 있고 index.html 은 sysbar.js 를 불러오지 않음).
+  바닥 버전 표시도 같은 이유로 생략. **index.html 에 sysbar.js 를 넣지 말 것** — 공개 홈페이지에 시스템 화면 전역 CSS(글꼴·`.btn`)와 「다른 부서로 보기」 띠가 들어간다.
+- 백업 `backup/*_20261026_2.*`.
+
 ### 비회원 둘러보기 — 로그인 없이 메뉴 구조만 (2026-10-26, v2.1.0, sysbar.js v3.8 `?v=2026102601`)
-- 입구: index.html 로그인 창 로그인 버튼 아래 「비회원으로 둘러보기」(테두리 버튼, `.modal-guest-btn`) → **`guest.html`**. `APP_CONFIG.GUEST.ENABLED` 가 false 면 버튼 없음.
+- 입구: index.html 로그인 창 로그인 버튼 아래 「비회원으로 둘러보기」 → **`guest.html`**. `APP_CONFIG.GUEST.ENABLED` 가 false 면 없음.
+  (같은 날 v2.1.1 에서 작은 버튼 `.modal-guest-btn` → 둘러보기 카드로 바뀜 — 위 항목)
   index.html 은 **`index.html#erp` 로 열리면 로그인 창을 연다**(열고 나서 `#erp` 는 주소에서 지움) — 비회원 화면의 「로그인」이 이 주소.
 - config.js `GUEST { ENABLED, HIDDEN_MENUS:['admin'] }`(관리포털은 상위·하위 모두 숨김).
 - sysbar.js: `SysBar` 에 `guest` prop → 별도 컴포넌트 `GuestSysBar`(로그인 사용자 경로는 그대로 — 관리자·팀장·직원·협력업체 메뉴 HTML 이 이전과 같음을 비교 확인).
@@ -747,6 +759,8 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 ### SYS_MENUS 이중 관리 해소
 `sysbar.js`의 `SYS_MENUS`가 `config.js`의 `MENUS`와 별개로 하드코딩됨.
 화이트라벨 시 config에서 메뉴를 빼도 시스템바 드롭다운엔 여전히 남는 구조 — 미해결.
+→ 2026-10-26 `config.js` `MENUS`(홈페이지 로그인 창 빠른 메뉴 전용)는 빠른 메뉴와 함께 삭제. 대신 로그인 창 둘러보기 카드용 `GUEST.CARD_MENUS`
+(key·아이콘·이름)가 SYS_MENUS 의 작은 복제로 남아 있다(index.html 이 sysbar.js 를 불러오지 않기 때문). 메뉴를 바꾸면 두 곳을 같이.
 
 ### index.html 회사명·연락처 하드코딩 config 주입 전환
 title / footer / 연락처 등이 하드코딩된 상태.

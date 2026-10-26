@@ -433,40 +433,10 @@ ul { list-style:none; }
 }
 .modal-close:hover { background:rgba(255,255,255,.2); }
 
-/* 모달 메뉴 그리드 */
+/* 모달 본문 */
 .modal-body { padding:28px 32px 32px; }
-.modal-menu-label {
-  font-size:.68rem; font-weight:700; letter-spacing:.14em;
-  color:var(--gray); margin-bottom:14px;
-  text-transform:uppercase;
-}
-.modal-grid {
-  display:grid; grid-template-columns:1fr 1fr;
-  gap:10px; margin-bottom:24px;
-}
-.modal-item {
-  display:flex; flex-direction:column; align-items:flex-start;
-  gap:6px; padding:16px;
-  border:1.5px solid var(--border); border-radius:8px;
-  cursor:pointer; transition:border-color .2s, background .2s, transform .15s;
-  text-decoration:none; color:inherit;
-}
-.modal-item:hover {
-  border-color:var(--navy2); background:var(--bg);
-  transform:translateY(-2px);
-}
-.modal-item-ico { font-size:1.4rem; }
-.modal-item-name {
-  font-size:.82rem; font-weight:700; color:var(--ink);
-}
-.modal-item-desc {
-  font-size:.71rem; color:var(--gray); line-height:1.4;
-}
 
 /* 로그인 폼 */
-.modal-divider {
-  height:1px; background:var(--border); margin-bottom:20px;
-}
 .modal-form { display:flex; flex-direction:column; gap:10px; }
 .modal-input {
   width:100%; padding:11px 14px;
@@ -484,14 +454,39 @@ ul { list-style:none; }
   letter-spacing:.04em;
 }
 .modal-login-btn:hover { background:var(--navy2); }
-/* 비회원 둘러보기 (guest.html) — 로그인 버튼과 구분되게 테두리만 */
-.modal-guest-btn {
-  display:block; width:100%; padding:10px; margin-bottom:20px; /* 아래 구분선과 띄움(위는 폼 gap) */
-  background:#fff; border:1.5px solid var(--border); border-radius:6px;
-  color:var(--gray); font-size:.8rem; font-weight:600; text-align:center; text-decoration:none;
-  font-family:'Pretendard',sans-serif; transition:border-color .2s, color .2s;
+/* 「또는」 구분선 + 비회원 둘러보기 카드 (guest.html) — 로그인 버튼보다 눈에 덜 띄게: 옅은 남색 바탕 + 테두리 */
+.modal-or {
+  display:flex; align-items:center; gap:12px; margin:20px 0 16px;
+  font-size:.72rem; color:var(--gray);
 }
-.modal-guest-btn:hover { border-color:var(--navy); color:var(--navy); }
+.modal-or::before, .modal-or::after { content:''; flex:1; height:1px; background:var(--border); }
+.modal-guest-card {
+  display:block; padding:16px 18px;
+  background:#f3f6fb; border:1.5px solid #dbe3ef; border-radius:10px;
+  color:inherit; text-decoration:none;
+  transition:border-color .2s, transform .15s, box-shadow .2s;
+}
+.modal-guest-card:hover, .modal-guest-card:focus-visible {
+  border-color:var(--navy2); transform:translateY(-2px);
+  box-shadow:0 6px 18px rgba(13,32,68,.08); outline:none;
+}
+.mgc-t { font-size:.86rem; font-weight:700; color:var(--navy); word-break:keep-all; }
+.mgc-nw { white-space:nowrap; } /* 휴대폰에서 화살표만 다음 줄로 떨어지지 않게 */
+.mgc-t span[aria-hidden] { display:inline-block; transition:transform .2s; }
+.modal-guest-card:hover .mgc-t span[aria-hidden] { transform:translateX(3px); }
+.mgc-d { font-size:.74rem; color:var(--gray); line-height:1.55; margin-top:6px; word-break:keep-all; }
+.mgc-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.mgc-chip {
+  display:inline-flex; align-items:center; gap:4px; padding:3px 9px;
+  background:#fff; border:1px solid #dbe3ef; border-radius:999px;
+  font-size:.7rem; font-weight:600; color:var(--ink); white-space:nowrap;
+}
+/* 둘러보기를 끈 경우(GUEST.ENABLED=false) 로그인 버튼 아래 안내 */
+.modal-secure {
+  margin-top:16px; padding:10px 12px; border-radius:6px;
+  background:#f8fafc; border:1px solid var(--border);
+  font-size:.74rem; color:var(--gray); line-height:1.55;
+}
 .modal-note {
   text-align:center; font-size:.72rem; color:var(--gray);
   margin-top:10px; line-height:1.6;
@@ -647,7 +642,7 @@ ul { list-style:none; }
   color:var(--navy);
 }
 /* Pretendard for nav/UI elements */
-.nav-erp, .pf, .modal-login-btn, .modal-menu-label {
+.nav-erp, .pf, .modal-login-btn {
   font-family:'Pretendard',sans-serif;
 }
 .sdesc { font-size:.88rem; color:var(--gray); line-height:1.85; font-weight:300; }
@@ -1000,7 +995,6 @@ footer {
   .certs-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .cert { padding:24px 14px; overflow-wrap:anywhere; }
   .cert-tag { white-space:normal; }
-  .modal-grid { grid-template-columns:1fr; }
   .modal-box { margin:16px; }
   .hero-content { padding-bottom:96px; }
   .svc-hd, .proj-hd { flex-direction:column; align-items:flex-start; }
@@ -1182,7 +1176,6 @@ footer {
       <button class="modal-close" id="modalClose">✕</button>
     </div>
 
-    <!-- 메뉴 그리드 (config.js에서 동적 생성) -->
     <div class="modal-body">
 
       <!-- 로그인 / 사용자 섹션 -->
@@ -1190,16 +1183,7 @@ footer {
         <!-- JS로 동적 생성 (로그인 폼 or 로그인 상태 표시) -->
       </div>
 
-      <div class="modal-divider"></div>
-      <div class="modal-menu-label">빠른 메뉴</div>
-      <div class="modal-grid" id="erpMenuGrid">
-        <!-- JS로 동적 생성 -->
-      </div>
-
-      <div class="modal-note" style="margin-top:4px;">
-        각 메뉴를 클릭하면 해당 시스템으로 이동합니다.<br/>
-        <span style="color:var(--gray);">계정 문의 : 관리자에게 문의해 주세요</span>
-      </div>
+      <div class="modal-note" style="margin-top:20px;">계정 문의: 관리자에게 문의해 주세요</div>
     </div>
   </div>
 </div>
@@ -1974,10 +1958,9 @@ footer {
 <script>
 
 
-/* ── config.js 기반 동적 메뉴 생성 ── */
+/* ── config.js 기반 제목·모달 머리 ── */
 (function() {
-  const grid = document.getElementById('erpMenuGrid');
-  if (!grid || typeof APP_CONFIG === 'undefined') return;
+  if (typeof APP_CONFIG === 'undefined') return;
 
   // 페이지 title 동적 설정
   document.title = APP_CONFIG.COMPANY_KO + ' | ' + APP_CONFIG.COMPANY_EN;
@@ -1988,30 +1971,6 @@ footer {
   var coName = document.getElementById('modalCoName');
   if (coName) { coName.textContent = APP_CONFIG.COMPANY_KO; coName.href = APP_CONFIG.HOME_URL; }
 
-  APP_CONFIG.MENUS.forEach(function(menu) {
-    if (menu.active) {
-      const a = document.createElement('a');
-      a.href = menu.url;
-      a.className = 'modal-item';
-      a.innerHTML =
-        '<div class="modal-item-ico">' + menu.icon + '</div>' +
-        '<div class="modal-item-name">' + menu.name + '</div>' +
-        '<div class="modal-item-desc">' + menu.desc + '</div>';
-      grid.appendChild(a);
-    } else {
-      const a = document.createElement('a');
-      a.className = 'modal-item';
-      a.style.cssText = 'opacity:.45;cursor:default;pointer-events:none;';
-      a.innerHTML =
-        '<div class="modal-item-ico">' + menu.icon + '</div>' +
-        '<div style="display:flex;align-items:center;gap:6px;">' +
-          '<div class="modal-item-name">' + menu.name + '</div>' +
-          '<span style="font-size:.6rem;background:var(--gray);color:#fff;border-radius:3px;padding:1px 5px;font-weight:600;">준비중</span>' +
-        '</div>' +
-        '<div class="modal-item-desc">' + menu.desc + '</div>';
-      grid.appendChild(a);
-    }
-  });
 })();
 
 /* ── 모달 로그인 / SSO ── */
@@ -2027,6 +1986,25 @@ function _bfSet(v) { localStorage.setItem(_BF_KEY, JSON.stringify(v)); }
 function _bfCheck() { var s=_bfGet(); if(s.lockedAt){ var el=Date.now()-s.lockedAt; if(el<_BF_LOCK_MS) return {locked:true,remainSec:Math.ceil((_BF_LOCK_MS-el)/1000)}; _bfSet({count:0,lockedAt:0}); } return {locked:false}; }
 function _bfFail() { var s=_bfGet(); s.count=(s.count||0)+1; if(s.count>=_BF_MAX) s.lockedAt=Date.now(); _bfSet(s); }
 function _bfClear() { localStorage.removeItem(_BF_KEY); }
+
+// 로그인 폼 아래 — 둘러보기를 켜면(GUEST.ENABLED) 「또는」 + 비회원 둘러보기 카드(guest.html), 끄면 보안 안내.
+// 칩·설명의 메뉴 = config GUEST.CARD_MENUS − HIDDEN_MENUS (이 페이지는 sysbar.js 를 불러오지 않는다). 칩은 장식(카드 전체가 링크 하나)
+// 자동 로그아웃 시간은 sysbar.js SessionManager 안 값이라 이 페이지에서 읽을 수 없어 문구에 넣지 않는다
+function _guestCardHtml() {
+  var g = APP_CONFIG.GUEST || {};
+  if (!g.ENABLED) return '<div class="modal-secure">🔒 임직원 전용 보안 접속이에요 · 오래 사용하지 않으면 자동으로 로그아웃돼요</div>';
+  var hidden = Array.isArray(g.HIDDEN_MENUS) ? g.HIDDEN_MENUS : ['admin'];
+  var menus = (g.CARD_MENUS || []).filter(function(m) { return hidden.indexOf(m.key) < 0; });
+  var names = menus.map(function(m) { return m.desc || m.label; });
+  var desc = (names.length ? names.join(' · ') + '까지, ' : '') + '회사 업무를 한 시스템에서 관리해요';
+  var chips = menus.map(function(m) { return '<span class="mgc-chip">' + m.icon + ' ' + m.label + '</span>'; }).join('');
+  return '<div class="modal-or"><span>또는</span></div>' +
+    '<a class="modal-guest-card" href="guest.html">' +
+      '<div class="mgc-t">처음 오셨나요? 종합정보시스템 <span class="mgc-nw">둘러보기 <span aria-hidden="true">→</span></span></div>' +
+      '<div class="mgc-d">' + desc + '</div>' +
+      (chips ? '<div class="mgc-chips" aria-hidden="true">' + chips + '</div>' : '') +
+    '</a>';
+}
 
 function renderLoginSection(user) {
   const sec = document.getElementById('modalLoginSection');
@@ -2067,9 +2045,8 @@ function renderLoginSection(user) {
         '<input class="modal-input" id="mPw" type="password" placeholder="비밀번호" autocomplete="current-password"/>' +
         '<div id="mErr" style="font-size:.75rem;color:#e11d48;min-height:18px;"></div>' +
         '<button class="modal-login-btn" id="mLoginBtn">로그인</button>' +
-        // 비회원 둘러보기 — 메뉴 구조만 보는 화면(guest.html). config GUEST.ENABLED 가 false 면 그리지 않는다
-        ((APP_CONFIG.GUEST && APP_CONFIG.GUEST.ENABLED) ? '<a class="modal-guest-btn" href="guest.html">비회원으로 둘러보기</a>' : '') +
-      '</div>';
+      '</div>' +
+      _guestCardHtml();
 
     var loginBtn = document.getElementById('mLoginBtn');
     var errEl = document.getElementById('mErr');
