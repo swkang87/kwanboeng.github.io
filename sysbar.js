@@ -1,6 +1,9 @@
 /**
- * SYSBAR MODULE v3.7
+ * SYSBAR MODULE v3.8
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.8 (2026-10-26): 비회원 모드 — SysBar guest prop(guest.html). 서버 호출 0, sb 없이 동작. 메뉴 = SYS_MENUS − GUEST.HIDDEN_MENUS,
+ *   하위 = SECTION_TABS 의 관리자·팀장·직원 탭 합집합(guestSectionTabs). 누르면 이동 없이 onGuestBlocked(key, title). 펼침 기억은 별도 키
  *
  * v3.7 (2026-10-23): 지금 화면의 상위 메뉴도 접기(열 때는 펼침, 접은 상태는 저장 안 함) · APP_VERSION(제품 버전, 회사명 아래 표시)
  *
@@ -60,7 +63,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.0.1';
+  var APP_VERSION = '2.1.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -130,6 +133,29 @@
     return defs.filter(function(t) { return !t.show || t.show(c); }).map(function(t) {
       return { key: t.key, label: t.label, short: t.short || t.label, icon: typeof t.icon === 'function' ? t.icon(c) : t.icon, svg: t.svg };
     });
+  }
+
+  // ── 비회원 둘러보기(guest.html, 2026-10-26) — 메뉴 구조만 보여 준다. 서버 호출·데이터 없음 ──
+  //   하위 탭 = 관리자·팀장·직원 중 누구에게든 보이는 탭(합집합, SECTION_TABS 정의 순서). 비회원용 목록을 따로 두지 않는다 —
+  //   실제 탭이 늘면 자동 반영. 권한 키로 거르는 탭은 켜진 것으로 본다(관리자는 항상 켜짐). 협력업체에게만 보이는 탭은 빠진다.
+  var GUEST_ROLES = ['admin', 'manager', 'employee'];
+  function _canAll() { return true; }
+  function guestSectionTabs(section) {
+    var defs = SECTION_TABS[section] || [];
+    return defs.filter(function(t) {
+      if (!t.show) return true;
+      return GUEST_ROLES.some(function(r) {
+        return t.show({ role: r, admin: r === 'admin', manager: r === 'manager', contractor: false, can: _canAll });
+      });
+    }).map(function(t) {
+      return { key: t.key, label: t.label, short: t.short || t.label, svg: t.svg };
+    });
+  }
+  // 비회원에게 보이는 상위 메뉴 = SYS_MENUS − APP_CONFIG.GUEST.HIDDEN_MENUS (설정이 없으면 관리포털만 숨김)
+  function guestMenus() {
+    var g = (global.APP_CONFIG && global.APP_CONFIG.GUEST) || {};
+    var hidden = Array.isArray(g.HIDDEN_MENUS) ? g.HIDDEN_MENUS : ['admin'];
+    return SYS_MENUS.filter(function(m) { return hidden.indexOf(m.key) < 0; });
   }
 
   // ── 기능 권한 표 (2026-10-22~) ─────────────────────────────────────────
@@ -353,6 +379,15 @@
     try { var v = JSON.parse(localStorage.getItem(SIDE_OPEN_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch(e) { return []; }
   }
   function sideOpenSet(list) { try { if (list.length) localStorage.setItem(SIDE_OPEN_KEY, JSON.stringify(list)); else localStorage.removeItem(SIDE_OPEN_KEY); } catch(e) {} }
+  // 비회원 모드는 따로 기억한다(로그인 사용자의 펼침·접힘과 섞이지 않게)
+  var GUEST_OPEN_KEY = _prefix + '_guest_side_open';
+  var GUEST_OFF_KEY  = _prefix + '_guest_side_off';
+  function guestOpenGet() {
+    try { var v = JSON.parse(localStorage.getItem(GUEST_OPEN_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch(e) { return []; }
+  }
+  function guestOpenSet(list) { try { if (list.length) localStorage.setItem(GUEST_OPEN_KEY, JSON.stringify(list)); else localStorage.removeItem(GUEST_OPEN_KEY); } catch(e) {} }
+  function guestOffGet() { try { return localStorage.getItem(GUEST_OFF_KEY) === '1'; } catch(e) { return false; } }
+  function guestOffSet(v) { try { if (v) localStorage.setItem(GUEST_OFF_KEY, '1'); else localStorage.removeItem(GUEST_OFF_KEY); } catch(e) {} }
 
   var CSS_INJECTED = false;
 
@@ -1121,7 +1156,128 @@
     if (!React) { console.error('[sysbar] React가 없습니다.'); return null; }
     injectCss();
 
+    // ── 비회원 모드 (guest.html) — 서버 호출 없음(sb 를 받지 않는다). 메뉴를 눌러도 이동하지 않고 onGuestBlocked(key, title) ──
+    //   props: activeKey / activeSub = 마지막으로 누른 메뉴 강조(표시만), onGuestBlocked(key, title), onHome() = 회사명을 눌렀을 때
+    //   key = 상위 메뉴 key 또는 '상위/하위', title = '연차관리 › 휴가 계획'
+    function GuestSysBar(props) {
+      var cfg = global.APP_CONFIG || {};
+      var e = React.createElement;
+      var activeKey = props.activeKey || null, activeSub = props.activeSub || null;
+      var blocked = props.onGuestBlocked || function(){};
+      var onHome = props.onHome || function(){};
+      var loginUrl = (cfg.INDEX_URL || 'index.html') + '#erp';   // index.html 이 #erp 로 열리면 로그인 창을 연다
+      var menus = guestMenus();
+
+      var offState = React.useState(guestOffGet());
+      var sideOff = offState[0], setSideOff = offState[1];
+      React.useEffect(function() {
+        document.body.classList.add('sys-has-side');
+        return function() { document.body.classList.remove('sys-has-side'); document.body.classList.remove('sys-side-off'); };
+      }, []);
+      React.useEffect(function() { document.body.classList.toggle('sys-side-off', !!sideOff); }, [sideOff]);
+      React.useEffect(function() {
+        function onKey(ev) {
+          if (ev.key !== '[' || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+          var t = ev.target, tg = t && t.tagName;
+          if (tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT' || (t && t.isContentEditable)) return;
+          ev.preventDefault();
+          setSideOff(function(v) { var nv = !v; guestOffSet(nv); return nv; });
+        }
+        document.addEventListener('keydown', onKey);
+        return function() { document.removeEventListener('keydown', onKey); };
+      }, []);
+      function toggleSide() { var nv = !sideOff; guestOffSet(nv); setSideOff(nv); }
+
+      // 상위 메뉴 펼침 — 실제와 같은 토글(여러 개 동시에, 이 PC 에 기억). 비회원 전용 키
+      var openState = React.useState(guestOpenGet);
+      var openKeys = openState[0], setOpenKeys = openState[1];
+      function toggleOpen(key) {
+        setOpenKeys(function(prev) {
+          var nx = prev.indexOf(key) >= 0 ? prev.filter(function(k) { return k !== key; }) : prev.concat([key]);
+          guestOpenSet(nx);
+          return nx;
+        });
+      }
+      // 하위 목록: 내 정보관리 = 고정 subs, 화면 탭 = SECTION_TABS 합집합, 없으면(메인메뉴) null
+      function subsOf(m) {
+        if (m.subs) return m.subs.map(function(s) { return { key: s.key, label: s.label, svg: s.svg }; });
+        return SECTION_TABS[m.key] ? guestSectionTabs(m.key) : null;
+      }
+
+      // 휴대폰 상단 막대: 같은 메뉴, 누르면 안내
+      var links = menus.map(function(m) {
+        var on = m.key === activeKey;
+        return e('button', {key:m.key, type:'button', className:'sys-link' + (on ? ' active' : ''), style: on ? {cursor:'pointer'} : undefined,
+          onClick:function() { blocked(m.key, m.label); }}, m.icon + ' ' + m.label);
+      });
+      var topBar = e('div', {key:'top', className:'sys-bar no-print'},
+        e('a', {key:'home-link', href:cfg.INDEX_URL||'index.html', className:'sys-co', title:'홈페이지'}, '🌐'),
+        e('button', {key:'co', type:'button', className:'sys-co', style:{background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',padding:0}, onClick:onHome}, cfg.COMPANY_KO||''),
+        links,
+        e('div', {key:'right', className:'sys-right'},
+          e('span', {className:'sys-user'}, '비회원'),
+          e('a', {className:'sys-logout', href:loginUrl, style:{textDecoration:'none'}}, '로그인')
+        )
+      );
+
+      var sideItems = [];
+      menus.forEach(function(m) {
+        var subs = subsOf(m);
+        var inner = [sideIcon(React, m.svg), e('span', {key:'l'}, m.label)];
+        if (!subs) {
+          sideItems.push(e('button', {key:m.key, type:'button', className:'sys-side-b' + (m.key === activeKey ? ' on' : ''), style:{cursor:'pointer'},
+            onClick:function() { blocked(m.key, m.label); }}, inner));
+          return;
+        }
+        var open = openKeys.indexOf(m.key) >= 0;
+        var subId = 'sys-side-sub-' + m.key;
+        inner.push(e('span', {key:'c', className:'sys-side-chev', 'aria-hidden':'true'}, sideIcon(React, 'chevR', 14)));
+        sideItems.push(e('button', {key:m.key, type:'button', 'aria-expanded': open ? 'true' : 'false', 'aria-controls':subId,
+          className:'sys-side-b' + (m.key === activeKey ? ' on-parent' : ''),
+          onClick:function() { toggleOpen(m.key); }}, inner));
+        if (!open) return;
+        sideItems.push(e('div', {key:m.key + '-sub', id:subId, className:'sys-side-sub'},
+          subs.map(function(s) {
+            var on = m.key === activeKey && s.key === activeSub;
+            return e('button', {key:s.key, type:'button', className:'sys-side-b' + (on ? ' on' : ''),
+              onClick:function() { blocked(m.key + '/' + s.key, m.label + ' › ' + s.label); }},
+              (s.svg && SIDE_ICONS[s.svg]) ? sideIcon(React, s.svg, 16) : e('span', {key:'i', className:'sys-side-dot', 'aria-hidden':'true'}),
+              e('span', {key:'l'}, s.label));
+          })
+        ));
+      });
+
+      var side = e('aside', {key:'side', className:'sys-side no-print', 'aria-label':'메뉴'},
+        e('button', {key:'brand', type:'button', className:'sys-side-brand', onClick:onHome,
+          style:{background:'none',border:'none',borderBottom:'1px solid rgba(255,255,255,.07)',width:'100%',cursor:'pointer',fontFamily:'inherit',textAlign:'left'}},
+          cfg.LOGO_URL ? e('img', {key:'i', src:cfg.LOGO_URL, alt:''}) : null,
+          e('span', {key:'t', className:'sys-side-tt'},
+            e('b', {key:'n'}, cfg.COMPANY_SHORT || cfg.COMPANY_KO || ''),
+            e('span', {key:'v', className:'sys-side-ver'}, 'v' + APP_VERSION)
+          )
+        ),
+        e('nav', {key:'nav', className:'sys-side-nav'}, sideItems),
+        e('div', {key:'foot', className:'sys-side-foot'},
+          e('div', {key:'who', className:'sys-side-who'}, e('b', null, '비회원'), e('span', null, '둘러보기')),
+          e('div', {key:'btns', className:'sys-side-btns'},
+            e('a', {key:'hp', href:cfg.INDEX_URL||'index.html', className:'sys-side-btn', title:'홈페이지'}, sideIcon(React, 'globe', 14), '홈페이지'),
+            e('a', {key:'li', href:loginUrl, className:'sys-side-btn'}, sideIcon(React, 'user', 14), '로그인')
+          )
+        )
+      );
+
+      var tog = e('button', {
+        key:'tog', type:'button', className:'sys-side-tog no-print', onClick:toggleSide,
+        title: sideOff ? '메뉴 펴기 ( [ 키 )' : '메뉴 접기 ( [ 키 )',
+        'aria-label': sideOff ? '메뉴 펴기' : '메뉴 접기'
+      }, sideIcon(React, sideOff ? 'chevR' : 'chevL', 14));
+
+      return e(React.Fragment, null, topBar, side, tog);
+    }
+
     return function SysBar(props) {
+      // 비회원 모드는 별도 컴포넌트(훅 순서가 다르다). guest 값은 화면이 열려 있는 동안 바뀌지 않는다
+      if (props.guest) return React.createElement(GuestSysBar, props);
       var cfg        = global.APP_CONFIG || {};
       var user       = props.user;
       var activeKey  = props.activeKey;
@@ -1666,6 +1822,8 @@
     SECTION_TABS:  SECTION_TABS,
     sectionTabs:   sectionTabs,
     APP_VERSION:   APP_VERSION,
+    guestSectionTabs: guestSectionTabs,
+    guestMenus:    guestMenus,
     loadApprovals:    loadApprovals,
     refreshApprovals: refreshApprovals,
     getApprovals:     getApprovals,

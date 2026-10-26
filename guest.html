@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="robots" content="noindex, nofollow"/>
+<title>둘러보기</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #root, button, input, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
+<script src="config.js"></script>
+<script src="sysbar.js?v=2026102601"></script>
+<script>
+// 비회원 둘러보기 (2026-10-26) — 메뉴 구조만 보여 준다. 서버 호출 0회(Supabase 스크립트를 불러오지 않는다), 데이터 표시 없음.
+// 열기 전 확인(서버 호출 없이 이 창에 저장된 값만):
+//  · 설정 GUEST.ENABLED 가 false → 홈페이지로
+//  · 로그인 세션(sessionStorage SESSION_PREFIX + '_session', 다른 화면과 같은 Sysbar.Auth.getSession 판정)이 있고
+//    1시간 비활동 만료(Sysbar.SessionManager.checkOnLoad)가 아니면 → 메인메뉴로
+(function() {
+  var cfg = window.APP_CONFIG || {};
+  var go = null;
+  if (!(cfg.GUEST && cfg.GUEST.ENABLED)) go = cfg.INDEX_URL || 'index.html';
+  else if (!Sysbar.SessionManager.checkOnLoad() && Sysbar.Auth.getSession()) go = cfg.HOME_URL || 'home.html';
+  if (go) { window.__guestLeave = true; location.replace(go); }
+})();
+</script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f1f5f9;color:#0f172a;font-size:14px;overflow-x:hidden;}
+.gs-title{position:sticky;top:var(--sysbar-h,38px);z-index:101;background:var(--theme,#0f172a);padding:6px 18px 8px;border-bottom:2px solid #1d4ed8;}
+.gs-title .en{font-size:9px;line-height:1.2;color:#475569;letter-spacing:1px;text-transform:uppercase;font-weight:600;}
+.gs-title .ko{font-size:14px;line-height:1.3;font-weight:800;color:#fff;letter-spacing:-.3px;}
+.gs-page{max-width:480px;margin:0 auto;padding:40px 16px 48px;}
+.gs-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:32px 22px;text-align:center;}
+.gs-logo{width:64px;height:64px;object-fit:contain;margin:0 auto 12px;display:block;}
+.gs-co{font-size:20px;font-weight:900;color:#0f172a;letter-spacing:-.4px;}
+.gs-sys{font-size:14px;font-weight:600;color:#475569;margin-top:4px;}
+.gs-ver{display:inline-block;margin-top:8px;font-size:11px;color:#64748b;background:#f1f5f9;border-radius:10px;padding:2px 9px;}
+.gs-lock{font-size:40px;line-height:1;margin-bottom:12px;}
+.gs-path{font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;word-break:keep-all;}
+.gs-h{font-size:18px;font-weight:900;color:#0f172a;}
+.gs-msg{font-size:13px;color:#64748b;margin-top:14px;line-height:1.6;}
+.gs-btns{display:flex;gap:8px;justify-content:center;margin-top:20px;flex-wrap:wrap;}
+.gs-btns .btn{min-width:120px;}
+.gs-menu{margin-top:16px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;}
+.gs-menu-h{font-size:13px;font-weight:800;color:#0f172a;margin-bottom:10px;}
+.gs-mi{padding:9px 0;border-top:1px solid #f1f5f9;}
+.gs-mi:first-of-type{border-top:none;}
+.gs-mi-b{background:none;border:none;font-size:13px;font-weight:700;color:#0f172a;cursor:pointer;padding:0;font-family:inherit;}
+.gs-subs{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+.gs-sub{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;padding:3px 9px;font-size:12px;color:#475569;cursor:pointer;font-family:inherit;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+// 비회원 둘러보기 — 메뉴(SysBar guest 모드)를 누르면 화면 이동 없이 가운데에 권한 없음 안내.
+// sb(Supabase) 를 만들지 않는다. 메뉴 목록은 sysbar.js(guestMenus · guestSectionTabs)에서만 계산한다.
+const CFG = window.APP_CONFIG || {};
+const SysBar = Sysbar.createComponent(React);
+const LOGIN_URL = (CFG.INDEX_URL || 'index.html') + '#erp';
+
+function LoginButtons({ onHome }) {
+  return (
+    <div className="gs-btns">
+      <a className="btn btn-primary" href={LOGIN_URL}>로그인</a>
+      {onHome ? <button type="button" className="btn btn-secondary" onClick={onHome}>처음으로</button> : null}
+    </div>
+  );
+}
+
+// 휴대폰에는 왼쪽 메뉴가 없어 하위 메뉴가 안 보이므로, 첫 화면 아래에 메뉴 구성을 함께 보여 준다(PC 는 왼쪽 메뉴로 충분 — 숨김)
+function MobileMenuList({ onBlocked }) {
+  return (
+    <div className="gs-menu sys-mobile-only">
+      <div className="gs-menu-h">메뉴 구성</div>
+      {Sysbar.guestMenus().map(function(m) {
+        var subs = m.subs ? m.subs : (Sysbar.SECTION_TABS[m.key] ? Sysbar.guestSectionTabs(m.key) : []);
+        return (
+          <div className="gs-mi" key={m.key}>
+            <button type="button" className="gs-mi-b" onClick={function() { onBlocked(m.key, m.label); }}>{m.icon} {m.label}</button>
+            {subs.length > 0 && (
+              <div className="gs-subs">
+                {subs.map(function(s) {
+                  return <button type="button" className="gs-sub" key={s.key}
+                    onClick={function() { onBlocked(m.key + '/' + s.key, m.label + ' › ' + s.label); }}>{s.label}</button>;
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function App() {
+  const [blocked, setBlocked] = useState(null);   // { key, title } — 마지막으로 누른 메뉴
+
+  function onBlocked(key, title) {
+    setBlocked({ key: key, title: title });
+    try { window.scrollTo(0, 0); } catch (e) {}
+  }
+  function goHome() { setBlocked(null); }
+
+  var parts = blocked ? blocked.key.split('/') : [];
+
+  return (
+    <div>
+      <SysBar guest activeKey={parts[0] || null} activeSub={parts[1] || null} onGuestBlocked={onBlocked} onHome={goHome} />
+      <div className="gs-title">
+        <p className="en">{CFG.COMPANY_EN}</p>
+        <p className="ko">{blocked ? blocked.title : '둘러보기'}</p>
+      </div>
+      <div className="gs-page">
+        {blocked ? (
+          <div className="gs-card" role="alert">
+            <div className="gs-lock" aria-hidden="true">🔒</div>
+            <div className="gs-path">{blocked.title}</div>
+            <div className="gs-h">권한이 없습니다</div>
+            <div className="gs-msg">직원 로그인 후 이용할 수 있어요</div>
+            <LoginButtons onHome={goHome} />
+          </div>
+        ) : (
+          <div>
+            <div className="gs-card">
+              {CFG.LOGO_URL ? <img className="gs-logo" src={CFG.LOGO_URL} alt="" /> : null}
+              <div className="gs-co">{CFG.COMPANY_KO || CFG.COMPANY_SHORT || ''}</div>
+              <div className="gs-sys">종합정보시스템</div>
+              <div className="gs-ver">v{Sysbar.APP_VERSION}</div>
+              <div className="gs-msg">직원 로그인 후 이용할 수 있어요</div>
+              <LoginButtons />
+            </div>
+            <MobileMenuList onBlocked={onBlocked} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+if (!window.__guestLeave) ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

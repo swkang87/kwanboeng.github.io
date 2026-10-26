@@ -484,6 +484,14 @@ ul { list-style:none; }
   letter-spacing:.04em;
 }
 .modal-login-btn:hover { background:var(--navy2); }
+/* 비회원 둘러보기 (guest.html) — 로그인 버튼과 구분되게 테두리만 */
+.modal-guest-btn {
+  display:block; width:100%; padding:10px; margin-bottom:20px; /* 아래 구분선과 띄움(위는 폼 gap) */
+  background:#fff; border:1.5px solid var(--border); border-radius:6px;
+  color:var(--gray); font-size:.8rem; font-weight:600; text-align:center; text-decoration:none;
+  font-family:'Pretendard',sans-serif; transition:border-color .2s, color .2s;
+}
+.modal-guest-btn:hover { border-color:var(--navy); color:var(--navy); }
 .modal-note {
   text-align:center; font-size:.72rem; color:var(--gray);
   margin-top:10px; line-height:1.6;
@@ -2059,6 +2067,8 @@ function renderLoginSection(user) {
         '<input class="modal-input" id="mPw" type="password" placeholder="비밀번호" autocomplete="current-password"/>' +
         '<div id="mErr" style="font-size:.75rem;color:#e11d48;min-height:18px;"></div>' +
         '<button class="modal-login-btn" id="mLoginBtn">로그인</button>' +
+        // 비회원 둘러보기 — 메뉴 구조만 보는 화면(guest.html). config GUEST.ENABLED 가 false 면 그리지 않는다
+        ((APP_CONFIG.GUEST && APP_CONFIG.GUEST.ENABLED) ? '<a class="modal-guest-btn" href="guest.html">비회원으로 둘러보기</a>' : '') +
       '</div>';
 
     var loginBtn = document.getElementById('mLoginBtn');
@@ -2318,6 +2328,14 @@ document.getElementById('modalClose').addEventListener('click', closeErp);
 document.getElementById('footerErpBtn').addEventListener('click', openErp);
 modal.addEventListener('click', e => { if(e.target === modal) closeErp(); });
 document.addEventListener('keydown', e => { if(e.key==='Escape') closeErp(); });
+// index.html#erp 로 들어오면 로그인 창을 연다(비회원 둘러보기 화면의 「로그인」). 주소의 #erp 는 지워 새로고침 때 다시 열리지 않게
+function openErpFromHash() {
+  if (location.hash !== '#erp') return;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch(e) {}
+  openErp();
+}
+openErpFromHash();
+window.addEventListener('hashchange', openErpFromHash);
 
 /* 히어로 슬라이드 */
 const slides = document.querySelectorAll('.hero-slide');

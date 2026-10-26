@@ -161,6 +161,13 @@ var APP_CONFIG = {
   HOME_URL: 'home.html',
   INDEX_URL: 'index.html',  // 회사 홈페이지
 
+  // ── 비회원 둘러보기 (guest.html, 2026-10-26) ──────────────────────
+  // 홈페이지 로그인 창의 「비회원으로 둘러보기」 → 메뉴 구조만 보여 준다. 어떤 메뉴를 눌러도 권한 없음 안내(데이터·서버 호출 없음).
+  GUEST: {
+    ENABLED: true,             // false = 로그인 창에 버튼을 그리지 않고, guest.html 은 홈페이지로 보낸다
+    HIDDEN_MENUS: ['admin'],   // 비회원에게 숨길 상위 메뉴 key (sysbar.js SYS_MENUS 의 key)
+  },
+
   // ── 급여명세서 (admin-payroll.html / payslip.html) ─────────────
   // 회사명·연락처·주소는 위 회사 정보·연락처 값을 그대로 쓴다.
   PAYROLL: {
