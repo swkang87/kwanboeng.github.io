@@ -12,6 +12,7 @@
 - 급여: `payroll_*` 표 · 직원 본인 명세서 함수(`payslip_*`) · `admin-payroll.html` · 관리포털 급여 탭.
   화면 `Sysbar.can('payroll')`, DB `payroll_is_admin()` = `has_perm('payroll')` — 같은 판정(아래 기능 권한 표).
   송금내역·계좌는 `payroll` + `payroll_bank` 둘 다 있어야 한다.
+  **급여 열람 기록 조회만 admin 전용**(고정 규칙, 2026-10-27 작업지시서 결정) — 아래 「급여 열람 기록」.
 - **기능 권한 표(2026-10-22~)** — 키 17개. 권한 탭에서 화면 그룹(`Sysbar.PERM_GROUPS`)별로 묶어 보인다.
   - 1차(관리포털 + 세금계산서): `worklog_admin` · `perf` · `tax` · `payroll` · `payroll_bank` · `staff` · `account` · `system`
   - 2차(공정관리·연차·업무일지·메인메뉴): `project_admin`(공정관리 관리 탭) · `project_manage`(프로젝트·주간보고·주요공정 삭제, 수정 로그,
@@ -92,6 +93,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.2.0 · 2026-10-27 · 급여 열람 기록(감사 로그) — payroll_access_logs + 급여관리 「열람 기록」 탭(admin)
   - 2.1.1 · 2026-10-26 · 홈페이지 로그인 창 정리 — 빠른 메뉴 삭제 + 둘러보기 카드
   - 2.1.0 · 2026-10-26 · 비회원 둘러보기 화면(guest.html) — 로그인 없이 메뉴 구조만
   - 2.0.1 · 2026-10-23 · 시작점 — 왼쪽 메뉴 지금 화면 메뉴도 접기 + 회사명 아래 버전 표시
@@ -142,6 +144,23 @@
 ---
 
 ## ✅ 완료된 작업
+
+### 급여 열람 기록(감사 로그) (2026-10-27, v2.2.0, sysbar.js v3.9 `?v=2026102701`)
+- **표 `payroll_access_logs`**(행위자·이름·행동·대상 직원·귀속연월·종류·부가정보 JSON·일시). 산출물은 저장소 밖 `security-fixW~130_payroll_access_logs_*`,
+  저장소 사본 `supabase/sql/payroll_access_logs.sql`.
+  - **행위자·이름·일시는 BEFORE INSERT 트리거 `payroll_access_log_fill()`(SECURITY DEFINER)이 `auth.uid()` 로 채운다** — 클라이언트 값은 버림(위조 불가).
+    대상 이름도 트리거가 채움. 행동별 자격: `self_slip_view` = 대상이 `payroll_my_employee_ids()` 안(본인), 나머지 = `payroll_is_admin()`.
+  - RLS: 추가 = 본인 명의(`actor_user_id = get_my_user_id()`), 조회 = **admin(활성)만**, 수정·삭제 정책 없음 + 권한 회수 + `payroll_audit_block` 트리거(소유자도 불가). 자동 삭제 없음.
+  - 행동 코드(DB 값): `run_view`(급여 편집 화면을 귀속연월·종류별로 처음 불러올 때) · `slip_view`(관리자 명세서 미리보기) ·
+    `excel_download`(급여대장 월·연간) · `mail_send`(알림 메일 일괄 발송 — 결과와 무관하게 시도 기록, 수신자별 결과는 `payroll_mail_logs`) · `self_slip_view`(payslip.html 본인 명세서).
+  - **이미 다른 표에 남는 것은 다시 쓰지 않는다**: 확정·확정 취소 = `payroll_audit_logs`(payroll_runs 상태 변경 트리거), 송금내역 내려받기 = `payroll_transfer_exports`.
+    급여 데이터 수정 기록은 `change_logs` 가 아니라 `payroll_audit_logs` 에 있다.
+- **조회 함수 `payroll_access_log_list(p_from, p_to, p_actor, p_target, p_action)`**(SECURITY DEFINER, admin 외 42501) = 위 세 곳을 합쳐 최신순(`src` = access · audit · transfer).
+- **기록 함수는 `Sysbar.logPayrollAccess(sb, action, {employeeId, period, runType, detail})` 하나** — 항상 이행하는 Promise, 실패는 콘솔 경고만(열람·내려받기·발송을 막지 않음).
+  insert 뒤에 `.select()` 를 붙이지 말 것(조회 권한 없는 사람도 쓴다). 중복 방지 = `PAYROLL.ACCESS_LOG.DEDUP_ACTIONS`(열람 3종)를 같은 내용이면 `DEDUP_SECONDS`(60) 안에 다시 안 씀(이 창 sessionStorage).
+- 화면: admin-payroll.html 맨 위 탭 줄 「🔍 열람 기록」(`user.role==='admin'` 이고 「다른 부서로 보기」 아님) — 기간(기본 최근 `DEFAULT_DAYS` 일)·행위자·대상 직원·행동 필터,
+  1000건 넘으면 `fetchAllPaged`, 200건씩 「더 보기」, 📥 엑셀(SheetJS). 문구·행동 이름·파일명은 `config.js` `PAYROLL.ACCESS_LOG`.
+- 기록하지 않는 것: 월별수당 탭, 설정 탭(대상자·계좌 목록), 테스트 메일 1통. 백업 `backup/*_20261027.*`.
 
 ### 홈페이지 로그인 창 정리 — 빠른 메뉴 삭제 + 둘러보기 카드 (2026-10-26, v2.1.1, sysbar.js `?v=2026102602`)
 - index.html 로그인 창의 「빠른 메뉴」(카드 4개 — 관리포털 포함, 안내 문구)와 그 CSS·JS(`.modal-grid`·`.modal-item*`·`.modal-menu-label`·`.modal-divider`, 카드 만들기)를 삭제.

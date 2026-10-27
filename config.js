@@ -160,6 +160,27 @@ var APP_CONFIG = {
     LEAVER_VIEW_MONTHS: 3,            // 퇴사자가 퇴사일 이후 본인 명세서를 볼 수 있는 개월 수 (0 = 퇴사일 당일까지)
                                       // 기간 안에는 알림 메일도 받는다. 급여 화면을 열 때 DB(payroll_mail_settings)로 복사된다.
     TYPE_LABELS:      { pay: '지급용', report: '신고용' },
+    // ── 급여 열람 기록 (DB payroll_access_logs — 누가·언제·누구의 몇 월분을·무엇을 했는지. 조회는 admin 만, 수정·삭제 불가) ──
+    //   급여관리 화면 [열람 기록] 탭(admin 에게만 보임)의 문구 · 기록 종류 이름 · 엑셀 파일명. 키(행동 코드)는 DB 값이라 바꾸지 말 것.
+    ACCESS_LOG: {
+      TAB_LABEL:     '열람 기록',
+      TITLE:         '급여 열람 기록',
+      NOTE:          '누가 언제 누구의 몇 월분 급여를 보거나 내려받았는지 남은 기록입니다. 기록은 누구도 수정·삭제할 수 없고 자동으로 지워지지 않습니다.',
+      ACTIONS: {
+        run_view:       '급여대장 열람',
+        slip_view:      '명세서 열람(관리)',
+        excel_download: '엑셀 내려받기',
+        confirm:        '확정',
+        unconfirm:      '확정 취소',
+        mail_send:      '알림 메일 일괄 발송',
+        self_slip_view: '본인 명세서 열람',
+      },
+      EXCEL_KINDS:   { ledger_month: '급여대장(월)', ledger_year: '급여대장(연간)', transfer: '송금내역' },
+      DEDUP_SECONDS: 60,                                        // 같은 열람 기록을 이 시간(초) 안에 다시 남기지 않음 (0 = 끔)
+      DEDUP_ACTIONS: ['run_view', 'slip_view', 'self_slip_view'], // 중복 방지 대상(내려받기·발송은 매번 남김)
+      DEFAULT_DAYS:  30,                                        // 화면을 열 때 기간 필터(최근 N일)
+      EXCEL_FILE:    '급여_열람기록_{FROM}_{TO}',                 // 기록 엑셀 파일명 (.xlsx 자동)
+    },
     // 급여대장 엑셀 내려받기 ({YYYY} {YY} {MM} {TYPE} {COMPANY} {STATUS} 치환)
     EXCEL_FILE_MONTH:   '급여_{YYYY}-{MM}',      // 이번 달 파일명 (.xlsx 자동)
     EXCEL_FILE_YEAR:    '급여_{YYYY}',           // 연간 파일명

@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102602"></script>
+<script src="sysbar.js?v=2026102701"></script>
 <script src="payslip-render.js?v=20260929"></script>
 <script src="payroll-excel.js?v=20261002"></script>
 <script src="payroll-transfer.js?v=20261009"></script>
@@ -711,6 +711,9 @@ function MailPanel({ run, empIds, empMap, usersMap, onSentCount }) {
       setBusy(false);
       var d = r && r.data;
       var err = (d && d.error) || (r && r.error && r.error.message);
+      // 결과와 관계없이 발송 시도를 기록한다(받는 사람별 결과는 payroll_mail_logs)
+      Sysbar.logPayrollAccess(getSb(), 'mail_send', { period: run.period, runType: run.run_type,
+        detail: { revised: !!revised, targets: n, ok: !err && !!(d && d.ok), sent: (d && d.sent) || 0, failed: (d && d.failed) || 0 } });
       if (err || !d || !d.ok) { setMsg({ t: 'e', s: '발송하지 못했습니다: ' + (err || '응답 없음') }); loadLogs(); return; }
       setMsg({ t: d.failed ? 'w' : 's',
                s: d.note ? d.note : ('발송 ' + d.sent + '명' + (d.failed ? ' · 실패 ' + d.failed + '명 — 아래 표에서 사유를 확인한 뒤 다시 보내세요.' : ' 완료')) });
@@ -1219,6 +1222,8 @@ function ExportModal({ period, onClose }) {
     exportPayrollExcel(kind, kind === 'month' ? period : year).then(function(r) {
       setBusy(false);
       if (r.empty) { setRes({ t: 'w', s: '내려받을 급여 데이터가 없습니다.' }); return; }
+      Sysbar.logPayrollAccess(getSb(), 'excel_download', { period: kind === 'month' ? period : year,
+        detail: { kind: kind === 'month' ? 'ledger_month' : 'ledger_year', file: r.file, sheets: r.sheets.length } });
       setRes({ t: r.warnings.length ? 'w' : 's', file: r.file, sheets: r.sheets, warnings: r.warnings });
     }).catch(function(e) {
       setBusy(false);
@@ -1391,6 +1396,7 @@ function EditTab({ user, period, runType, isMobile }) {
   const [methodEmp, setMethodEmp] = useState(null);
   const [askUnconfirm, setAskUnconfirm] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  var viewLogged = useRef(false);   // 급여대장 열람 기록은 이 화면(귀속연월·종류)을 처음 불러올 때 한 번만
 
   var locked = !!(run && run.status === 'confirmed');
 
@@ -1456,6 +1462,10 @@ function EditTab({ user, period, runType, isMobile }) {
           setMailSent(Object.keys(sentSet).length);
           setDirty(false);
           setLoading(false);
+          if (!viewLogged.current) {
+            viewLogged.current = true;
+            Sysbar.logPayrollAccess(sb, 'run_view', { period: period, runType: runType, detail: { has_run: !!theRun } });
+          }
         });
       });
     }).catch(function(e) { reportErr(e); setLoading(false); });
@@ -1609,6 +1619,8 @@ function EditTab({ user, period, runType, isMobile }) {
 
   function openPreview(empId) {
     var emp = empMap[empId];
+    Sysbar.logPayrollAccess(getSb(), 'slip_view', { employeeId: empId, period: period, runType: runType,
+                                                    detail: { saved: !!slipByEmp[empId] } });
     setPreview(buildModel({ period: period, runType: runType, payDate: payDate, person: personOf(emp, usersMap), emp: emp,
                             cols: cols, cellsRow: cells[empId] || {}, slip: slipByEmp[empId], locked: locked }));
   }
@@ -2747,18 +2759,173 @@ function SettingsTab({ user }) {
   );
 }
 
+// ── 열람 기록 탭 (admin 전용) ─────────────────────────────────────
+// DB payroll_access_log_list() = payroll_access_logs(열람·내려받기·메일 발송·직원 본인 열람)
+//   + payroll_audit_logs 의 확정·확정 취소 + payroll_transfer_exports(송금내역 내려받기). 함수가 admin 외에는 거부한다.
+// 문구·기록 종류 이름은 config.js PAYROLL.ACCESS_LOG.
+var ALOG = PCFG.ACCESS_LOG || {};
+var ALOG_ACTIONS = ALOG.ACTIONS || {};
+var ALOG_KINDS = ALOG.EXCEL_KINDS || {};
+var ALOG_BADGE = { run_view: 'bb', slip_view: 'bp', self_slip_view: 'bgr', excel_download: 'ba', confirm: 'bg', unconfirm: 'br', mail_send: 'bb' };
+var ALOG_SHOW = 200;
+function alogActionLabel(a) { return ALOG_ACTIONS[a] || a; }
+function alogPeriod(x) {
+  if (!x.period) return '';
+  var p = x.period.length === 7 ? fmtPeriodKo(x.period) : x.period + '년';
+  return p + (x.run_type ? ' ' + (TYPE_LABELS[x.run_type] || x.run_type) : '');
+}
+function alogDetail(x) {
+  var d = x.detail || {};
+  if (x.action === 'excel_download') {
+    var t = ALOG_KINDS[d.kind] || d.kind || '';
+    if (d.format) t += ' · ' + (d.format === 'xlsx' ? '.xlsx' : '.xls');
+    if (d.rows != null) t += ' · ' + d.rows + '건';
+    if (d.sheets != null) t += ' · 시트 ' + d.sheets + '개';
+    return t;
+  }
+  if (x.action === 'mail_send') {
+    return (d.revised ? '수정 안내 · ' : '') + '대상 ' + (d.targets || 0) + '명 · 발송 ' + (d.sent || 0)
+      + (d.failed ? ' · 실패 ' + d.failed : '') + (d.ok ? '' : ' · 오류');
+  }
+  if (x.action === 'confirm' && d.revision != null) return d.revision + '차 확정';
+  if (x.action === 'run_view' && d.has_run === false) return '저장된 묶음 없음';
+  if (x.action === 'slip_view' && d.saved === false) return '저장 전 미리보기';
+  return '';
+}
+function dayStart(ds) { var p = ds.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+
+function AccessLogTab() {
+  var t0 = today();
+  var f0 = localDateStr(new Date(Date.now() - (ALOG.DEFAULT_DAYS || 30) * 86400000));
+  const [from, setFrom] = useState(f0);
+  const [to, setTo] = useState(t0);
+  const [actor, setActor] = useState('');
+  const [target, setTarget] = useState('');
+  const [action, setAction] = useState('');
+  const [rows, setRows] = useState(null);
+  const [show, setShow] = useState(ALOG_SHOW);
+  const [people, setPeople] = useState({ users: [], emps: [] });
+
+  useEffect(function() {
+    var sb = getSb();
+    Promise.all([
+      sb.from('users').select('id,name').order('name'),
+      sb.from('payroll_employees').select('id,user_id,name'),
+    ]).then(function(r) {
+      if (r[0].error) Sysbar.showError(r[0].error, '직원 목록');
+      if (r[1].error) Sysbar.showError(r[1].error, '대상자 목록');
+      var users = r[0].data || [];
+      var um = {}; users.forEach(function(u) { um[u.id] = u; });
+      var emps = (r[1].data || []).map(function(e) {
+        return { id: e.id, name: e.user_id ? ((um[e.user_id] || {}).name || '') : (e.name || '') };
+      }).sort(function(a, b) { return a.name.localeCompare(b.name, 'ko'); });
+      setPeople({ users: users, emps: emps });
+    });
+  }, []);
+
+  // 기간·필터는 서버 함수에서 거른다. 1000건 넘으면 나눠 받는다(fetchAllPaged).
+  function load() {
+    if (!from || !to || from > to) { setRows([]); return; }
+    setRows(null); setShow(ALOG_SHOW);
+    var end = dayStart(to); end.setDate(end.getDate() + 1);
+    var args = { p_from: dayStart(from).toISOString(), p_to: end.toISOString(),
+                 p_actor: actor || null, p_target: target || null, p_action: action || null };
+    fetchAllPaged(function() { return getSb().rpc('payroll_access_log_list', args); }, '열람 기록 조회')
+      .then(function(list) { setRows(list); })
+      .catch(function(e) { reportErr(e); setRows([]); });
+  }
+  useEffect(function() { load(); }, [from, to, actor, target, action]);
+
+  function downloadExcel() {
+    if (!rows || !rows.length || !window.XLSX) return;
+    var aoa = [['일시', '행위자', '행동', '대상 직원', '귀속', '내용']];
+    rows.forEach(function(x) {
+      aoa.push([fmtDateTime(x.at), x.actor_name || '', alogActionLabel(x.action), x.target_name || '', alogPeriod(x), alogDetail(x)]);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 17 }, { wch: 10 }, { wch: 18 }, { wch: 10 }, { wch: 16 }, { wch: 40 }];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, ALOG.TAB_LABEL || 'log');
+    var name = String(ALOG.EXCEL_FILE || '{FROM}_{TO}').replace('{FROM}', from).replace('{TO}', to) + '.xlsx';
+    XLSX.writeFile(wb, name);
+  }
+
+  var sel = { width: 'auto', padding: '5px 8px', fontSize: 12 };
+  var list = rows || [];
+  return (
+    <div className="card">
+      <div className="sh">
+        <div className="st">{ALOG.TITLE || ALOG.TAB_LABEL}</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="btn btn-s btn-sm" onClick={load}>새로고침</button>
+          <button className="btn btn-s btn-sm" disabled={!list.length} onClick={downloadExcel}>📥 엑셀</button>
+        </div>
+      </div>
+      {ALOG.NOTE && <div className="al al-i" style={{ fontSize: 12 }}>{ALOG.NOTE}</div>}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+        <input type="date" className="fi" style={sel} value={from} max={to} onChange={function(e){ if (e.target.value) setFrom(e.target.value); }} />
+        <span style={{ color: '#94a3b8' }}>~</span>
+        <input type="date" className="fi" style={sel} value={to} min={from} onChange={function(e){ if (e.target.value) setTo(e.target.value); }} />
+        <select className="fi" style={sel} value={actor} onChange={function(e){ setActor(e.target.value); }}>
+          <option value="">행위자 전체</option>
+          {people.users.map(function(u) { return <option key={u.id} value={u.id}>{u.name}</option>; })}
+        </select>
+        <select className="fi" style={sel} value={target} onChange={function(e){ setTarget(e.target.value); }}>
+          <option value="">대상 직원 전체</option>
+          {people.emps.map(function(e) { return <option key={e.id} value={e.id}>{e.name}</option>; })}
+        </select>
+        <select className="fi" style={sel} value={action} onChange={function(e){ setAction(e.target.value); }}>
+          <option value="">행동 전체</option>
+          {Object.keys(ALOG_ACTIONS).map(function(k) { return <option key={k} value={k}>{ALOG_ACTIONS[k]}</option>; })}
+        </select>
+        {rows && <span style={{ fontSize: 12, color: '#64748b' }}>{list.length}건</span>}
+      </div>
+      {!rows ? <div className="loading">불러오는 중...</div> : list.length === 0 ? <div className="loading">기록이 없습니다.</div> : (
+        <div>
+          <div className="tbl-wrap">
+            <table>
+              <thead><tr><th>일시</th><th>행위자</th><th>행동</th><th>대상 직원</th><th>귀속</th><th>내용</th></tr></thead>
+              <tbody>
+                {list.slice(0, show).map(function(x) {
+                  return (
+                    <tr key={x.src + x.id}>
+                      <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDateTime(x.at)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{x.actor_name || '-'}</td>
+                      <td><span className={'badge ' + (ALOG_BADGE[x.action] || 'bgr')}>{alogActionLabel(x.action)}</span></td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{x.target_name || '-'}</td>
+                      <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}>{alogPeriod(x) || '-'}</td>
+                      <td style={{ fontSize: 12, color: '#64748b' }}>{alogDetail(x)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {list.length > show && (
+            <div style={{ textAlign: 'center', marginTop: 10 }}>
+              <button className="btn btn-s btn-sm" onClick={function(){ setShow(show + ALOG_SHOW); }}>더 보기 ({list.length - show}건 남음)</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 급여관리 본문 ────────────────────────────────────────────────
 function PayrollView({ user }) {
   const [tab, setTab] = useState('edit');
   const [period, setPeriod] = useState(defaultPeriod());
   const [runType, setRunType] = useState('pay');
   var isMobile = useIsMobile();
+  // 열람 기록 = admin 전용(DB 함수도 admin 외 거부). 「다른 부서로 보기」 중에는 그 부서처럼 숨긴다.
+  var canAccessLog = !!user && user.role === 'admin' && !Sysbar.getViewAs();
 
   return (
     <div className="page">
       <div className="pr-head">
         <span className="pr-title">💼 급여관리</span>
-        {tab !== 'settings' && (
+        {tab !== 'settings' && tab !== 'access' && (
           <div className="pr-period">
             <button className="pr-pbtn" onClick={function(){ setPeriod(shiftPeriod(period, -1)); }}>◀</button>
             <input type="month" className="pr-month" value={period}
@@ -2771,6 +2938,7 @@ function PayrollView({ user }) {
           <button className={tab === 'edit' ? 'itab active' : 'itab'} onClick={function(){ setTab('edit'); }}>✎ 급여 편집</button>
           <button className={tab === 'allowance' ? 'itab active' : 'itab'} onClick={function(){ setTab('allowance'); }}>📊 월별수당</button>
           <button className={tab === 'settings' ? 'itab active' : 'itab'} onClick={function(){ setTab('settings'); }}>⚙ 설정</button>
+          {canAccessLog && <button className={tab === 'access' ? 'itab active' : 'itab'} onClick={function(){ setTab('access'); }}>🔍 {ALOG.TAB_LABEL || '열람 기록'}</button>}
         </div>
       </div>
       <MailSyncNote user={user} />
@@ -2783,6 +2951,7 @@ function PayrollView({ user }) {
       {tab === 'edit' && <EditTab key={period + runType} user={user} period={period} runType={runType} isMobile={isMobile} />}
       {tab === 'allowance' && <AllowanceTab period={period} isMobile={isMobile} />}
       {tab === 'settings' && <SettingsTab user={user} />}
+      {tab === 'access' && canAccessLog && <AccessLogTab />}
     </div>
   );
 }

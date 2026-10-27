@@ -1,6 +1,9 @@
 /**
- * SYSBAR MODULE v3.8
+ * SYSBAR MODULE v3.9
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.9 (2026-10-27): 급여 열람 기록 — logPayrollAccess(sb, action, opts). DB payroll_access_logs 에 한 줄(행위자·일시는 DB 가 채움).
+ *   실패해도 화면 동작을 막지 않음(콘솔 경고만). 열람 행동은 같은 기록을 짧은 시간 안에 다시 남기지 않음(PAYROLL.ACCESS_LOG.DEDUP_*)
  *
  * v3.8 (2026-10-26): 비회원 모드 — SysBar guest prop(guest.html). 서버 호출 0, sb 없이 동작. 메뉴 = SYS_MENUS − GUEST.HIDDEN_MENUS,
  *   하위 = SECTION_TABS 의 관리자·팀장·직원 탭 합집합(guestSectionTabs). 누르면 이동 없이 onGuestBlocked(key, title). 펼침 기억은 별도 키
@@ -63,7 +66,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.1.1';
+  var APP_VERSION = '2.2.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -1675,6 +1678,57 @@
     });
   }
 
+  // ── 급여 열람 기록 (DB payroll_access_logs, 2026-10-27~) ─────────────────
+  //   action: 'run_view'(급여대장 화면) · 'slip_view'(관리자 명세서 미리보기) · 'excel_download'(급여대장 엑셀) ·
+  //           'mail_send'(알림 메일 일괄 발송) · 'self_slip_view'(직원 본인 명세서). 확정·확정 취소와 송금내역 내려받기는
+  //           이미 DB 가 다른 표(payroll_audit_logs · payroll_transfer_exports)에 남기므로 여기서 다시 쓰지 않는다.
+  //   opts: { employeeId, period, runType, detail }. 행위자·이름·일시는 DB 트리거가 로그인 계정으로 채운다(보내도 무시됨).
+  //   반환: Promise(항상 이행). 실패는 콘솔 경고만 — 열람·내려받기·발송을 막지 않는다.
+  //   중복 방지: config PAYROLL.ACCESS_LOG.DEDUP_ACTIONS 의 행동은 같은 내용이면 DEDUP_SECONDS 안에 다시 남기지 않는다
+  //   (이 창 sessionStorage — 새로고침해도 유지).
+  var ACCESS_DEDUP_KEY = _prefix + '_payroll_access_recent';
+  function _accessCfg() {
+    var p = (global.APP_CONFIG && global.APP_CONFIG.PAYROLL && global.APP_CONFIG.PAYROLL.ACCESS_LOG) || {};
+    return {
+      sec: (p.DEDUP_SECONDS == null) ? 60 : p.DEDUP_SECONDS,
+      acts: p.DEDUP_ACTIONS || ['run_view', 'slip_view', 'self_slip_view'],
+    };
+  }
+  function logPayrollAccess(sbClient, action, opts) {
+    try {
+      opts = opts || {};
+      if (!sbClient || !sbClient.from || !action) return Promise.resolve(false);
+      var cfg = _accessCfg();
+      var row = {
+        action: action,
+        target_employee_id: opts.employeeId || null,
+        period: opts.period || null,
+        run_type: opts.runType || null,
+        detail: opts.detail || {},
+      };
+      var key = null, now = Date.now(), recent = null;
+      if (cfg.sec > 0 && cfg.acts.indexOf(action) !== -1) {
+        var u = _me();
+        key = [u ? u.id : '', action, row.target_employee_id || '', row.period || '', row.run_type || '', JSON.stringify(row.detail)].join('|');
+        recent = _ssGet(ACCESS_DEDUP_KEY) || {};
+        Object.keys(recent).forEach(function(k) { if (now - recent[k] > cfg.sec * 1000) delete recent[k]; });
+        if (recent[key]) return Promise.resolve(false);
+      }
+      // 조회 권한이 없는 사람도 쓰므로 결과 행을 돌려받지 않는다(.select() 붙이지 말 것)
+      return sbClient.from('payroll_access_logs').insert(row).then(function(r) {
+        if (r && r.error) { console.warn('[급여 열람 기록] 남기지 못했습니다:', r.error.message || r.error); return false; }
+        if (key) { recent[key] = now; _ssSet(ACCESS_DEDUP_KEY, recent); }
+        return true;
+      }, function(e) {
+        console.warn('[급여 열람 기록] 남기지 못했습니다:', (e && e.message) || e);
+        return false;
+      });
+    } catch (e) {
+      console.warn('[급여 열람 기록] 남기지 못했습니다:', (e && e.message) || e);
+      return Promise.resolve(false);
+    }
+  }
+
   // ── 로그인 아이디 규칙 (config.js AUTH_POLICY) ───────────────────
   // 서버(change-own-password)도 같은 규칙·같은 문구로 다시 검사한다. 여기는 입력 중 안내용.
   function authPolicy() {
@@ -1848,6 +1902,7 @@
     Auth:                 Auth,
     showError:    showError,
     invokeAuthed: invokeAuthed,
+    logPayrollAccess: logPayrollAccess,
     logError:     logError,
     writeFailed:  writeFailed,
     describeError: describeError,
