@@ -118,9 +118,10 @@
     isSurveyOnly: function (lics) { return !!lics && lics.length === 1 && lics[0].name === SURVEY; },
     fileName: function (v) { return String(v['용역명'] || '착수계').replace(/[\\\/:*?"<>|]/g, '_') + '_착수계.hwpx'; },
     rows: {
-      // fit = 서식 쪽이 원래 담도록 설계된 반복 행 수. 넘으면 그 쪽의 빈 줄을 줄여 서명란을 지킨다
-      '명단': { merge: MERGE2, fit: 1 },
-      '보안': { merge: MERGE2, fit: 1 },
+      // fit = 그 쪽이 빈 줄을 줄이지 않고 담는 반복 행 수(사업책임 줄 제외, 2026-10-29 한글로 잼: 인력 2 · 명단 5 · 보안각서 7 — 한 줄 여유를 둠).
+      // 넘으면 넘친 행 높이만큼만 표 아래 빈 줄을 줄여 서명란을 지키고, 넘지 않으면 서식 간격 그대로
+      '명단': { merge: MERGE2, fit: 4 },
+      '보안': { merge: MERGE2, fit: 6 },
       '인력': { merge: MERGE2, fit: 1 },
       '측량명단': { merge: [{ col: 0, by: '분야' }], fit: 3 },
       '측량보안': { merge: [{ col: 0, by: '분야' }], fit: 3 },
@@ -192,21 +193,22 @@
         if (p && !p.sealImg && !noSeal[p.id]) { noSeal[p.id] = true; warnings.push(F.name(p.name) + ': 도장 이미지가 없어 보안각서 서명 칸이 비어요.'); }
       });
 
+      // 공공측량업 줄(일반 표): 학력,자격증 칸 = 측량 기술등급 분야, 자격증번호 칸 = 등급. 등급이 없으면 대표 자격·번호 + 경고
       function surveyQual(p) {
-        if (p.survey_grade) return (p.survey_field ? p.survey_field + ' ' : '') + p.survey_grade;
+        if (p.survey_grade) return [p.survey_field || '', p.survey_grade];
         warnings.push(F.name(p.name) + ': 측량 기술등급이 없어 ' + SURVEY + ' 줄에 대표 자격을 넣었어요.');
-        return p.qual || '';
+        return [p.qual || '', p.qual_no || ''];
       }
       // 일반(면허별) 표: 면허마다 책임 1줄 + 참여 N줄
       var rowsGen = [];
       if (!surveyOnly) lics.forEach(function (l) {
         var ppl = (l.lead ? [[l.lead, '책임']] : []).concat((l.members || []).map(function (m) { return [m, '참여']; }));
         ppl.forEach(function (pr) {
-          var p = pr[0], isSv = l.name === SURVEY;
+          var p = pr[0], q = l.name === SURVEY ? surveyQual(p) : [p.qual || '', p.qual_no || ''];
           rowsGen.push({
             '분야': l.name, '구분': pr[1], '구분키': l.name + '|' + pr[1],
             '성명': F.name(p.name), '생년월일': F.birth(p.birth_date),
-            '자격': isSv ? surveyQual(p) : (p.qual || ''), '자격번호': isSv ? '' : (p.qual_no || ''),
+            '자격': q[0], '자격번호': q[1],
             '도장:기술자': p.sealImg || null
           });
         });
