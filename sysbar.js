@@ -73,7 +73,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.4.2';
+  var APP_VERSION = '2.4.3';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -1807,6 +1807,82 @@
     }, function(e) { return { ok: false, message: '파일을 읽지 못했습니다: ' + ((e && e.message) || e) }; });
   }
 
+  // ── 끌어다 놓기 올리기 (2026-10-29) ──────────────────────────────
+  // dropZone(el, opts) → { destroy } — el 에 파일을 끌어다 놓으면 checkUpload 로 형식을 확인해 넘긴다.
+  //   opts = { kinds, maxMB, multiple, onFiles(list), onError(message, errors), busy() }
+  //   list = [{file, kind, mime, ext, body}] (형식 확인 통과). 한 개만 받는 곳에 여러 개를 놓으면 「한 개만 올려 주세요.」
+  //   여러 개를 받는 곳은 통과한 것만 onFiles 로 넘기고, 형식이 다른 것은 errors=[{name, message}] 로 onError.
+  //   끌고 들어오면 el 에 클래스 sys-drop-on. 영역이 하나라도 있는 동안 페이지 전체에서 파일 놓기 기본 동작
+  //   (브라우저가 파일을 열어 버림)을 막는다 — 영역이 모두 없어지면(화면을 떠나면) 원래대로.
+  // checkFiles(files, opts) → Promise<{ok:[…], errors:[…]}> — 클릭으로 고른 파일도 같은 규칙으로 검사
+  // canDrop() → 끌어다 놓기가 되는 환경(마우스가 있는 PC)이면 true. 휴대폰은 클릭으로 고르기만 안내한다.
+  var _dropZones = 0;
+  function _hasFiles(e) { return !!(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0); }
+  function _pageGuard(e) { if (_hasFiles(e)) { e.preventDefault(); if (e.type === 'dragover') e.dataTransfer.dropEffect = 'none'; } }
+  function _dropCss() {
+    if (document.getElementById('sys-drop-css')) return;
+    var s = document.createElement('style');
+    s.id = 'sys-drop-css';
+    s.textContent =
+      '.sys-drop{border:2px dashed #cbd5e1;border-radius:12px;background:#f8fafc;transition:background .15s,border-color .15s;}' +
+      '.sys-drop.sys-drop-on{border-color:#7c3aed;background:#f5f3ff;}';
+    document.head.appendChild(s);
+  }
+  function canDrop() {
+    try { return 'ondrop' in document.createElement('div') && !!(global.matchMedia && global.matchMedia('(pointer:fine)').matches); }
+    catch (e) { return false; }
+  }
+  function checkFiles(files, opts) {
+    opts = opts || {};
+    var list = Array.prototype.slice.call(files || []);
+    if (!list.length) return Promise.resolve({ ok: [], errors: [] });
+    if (!opts.multiple && list.length > 1) return Promise.resolve({ ok: [], errors: [{ name: '', message: '한 개만 올려 주세요.' }] });
+    return Promise.all(list.map(function(f) {
+      return checkUpload(f, opts.kinds, opts.maxMB).then(function(c) { return { file: f, c: c }; });
+    })).then(function(rs) {
+      var ok = [], errors = [];
+      rs.forEach(function(r) {
+        if (r.c.ok) ok.push({ file: r.file, kind: r.c.kind, mime: r.c.mime, ext: r.c.ext, body: r.c.body });
+        else errors.push({ name: r.file.name || '', message: r.c.message });
+      });
+      return { ok: ok, errors: errors };
+    });
+  }
+  function dropZone(el, opts) {
+    opts = opts || {};
+    if (!el) return { destroy: function() {} };
+    _dropCss();
+    el.classList.add('sys-drop');
+    var depth = 0;
+    function busy() { return !!(opts.busy && opts.busy()); }
+    function on(e) { if (!_hasFiles(e)) return; e.preventDefault(); depth++; if (!busy()) el.classList.add('sys-drop-on'); }
+    function over(e) { if (!_hasFiles(e)) return; e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = busy() ? 'none' : 'copy'; }
+    function off(e) { if (!_hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) el.classList.remove('sys-drop-on'); }
+    function drop(e) {
+      if (!_hasFiles(e)) return;
+      e.preventDefault(); e.stopPropagation();
+      depth = 0; el.classList.remove('sys-drop-on');
+      if (busy()) return;
+      checkFiles(e.dataTransfer.files, opts).then(function(r) {
+        if (r.errors.length && opts.onError) opts.onError(r.errors[0].message, r.errors);
+        if (r.ok.length && opts.onFiles) opts.onFiles(r.ok);
+      });
+    }
+    el.addEventListener('dragenter', on); el.addEventListener('dragover', over);
+    el.addEventListener('dragleave', off); el.addEventListener('drop', drop);
+    if (!_dropZones++) { global.addEventListener('dragover', _pageGuard); global.addEventListener('drop', _pageGuard); }
+    var alive = true;
+    return {
+      destroy: function() {
+        if (!alive) return; alive = false;
+        el.removeEventListener('dragenter', on); el.removeEventListener('dragover', over);
+        el.removeEventListener('dragleave', off); el.removeEventListener('drop', drop);
+        el.classList.remove('sys-drop', 'sys-drop-on');
+        if (!--_dropZones) { global.removeEventListener('dragover', _pageGuard); global.removeEventListener('drop', _pageGuard); }
+      }
+    };
+  }
+
   // ── 로그인 아이디 규칙 (config.js AUTH_POLICY) ───────────────────
   // 서버(change-own-password)도 같은 규칙·같은 문구로 다시 검사한다. 여기는 입력 중 안내용.
   function authPolicy() {
@@ -1982,6 +2058,9 @@
     invokeAuthed: invokeAuthed,
     logPayrollAccess: logPayrollAccess,
     checkUpload:  checkUpload,
+    dropZone:     dropZone,
+    checkFiles:   checkFiles,
+    canDrop:      canDrop,
     logError:     logError,
     writeFailed:  writeFailed,
     describeError: describeError,

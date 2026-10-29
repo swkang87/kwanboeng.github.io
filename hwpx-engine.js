@@ -13,6 +13,9 @@
  *   {{#블록:이름}} … {{/블록:이름}}   이 표시만 든 문단 사이를 데이터 수만큼 복제(두 번째부터 쪽 나누기). 표시 문단은 지운다.
  *                           0개면 블록을 통째로 지운다. 표시 문단에 구역 속성(secPr)이 있으면 다음 문단으로 옮긴다.
  *   {{도장:키}} / {{도장:키@자리}}    그 문단에 글 앞으로(IN_FRONT_OF_TEXT) 그림. 크기·위치는 정의 pictures[토큰] (없으면 '도장:키').
+ *                           값은 자리까지 붙은 키(도장:키@자리)가 있으면 그것, 없으면 도장:키.
+ *                           pictures[토큰].outOfCell 이면 표 칸 안 그림을 표가 든 문단으로 옮겨 그 칸 가운데에 둔다
+ *                           (칸보다 큰 도장도 행 높이를 바꾸지 않음). zigzag:n 이면 한 표 안에서 위에서부터 왼쪽·오른쪽 번갈아 n 만큼.
  *   {{이미지:키}}          글자처럼 취급하는 그림. 정의 pictures 의 상자(boxW×boxH) 안에 비율 유지.
  *   그림 토큰의 값 = images 에 등록한 그림 id. 값이 없으면 토큰만 지우고 warnings 에 남긴다.
  *
@@ -203,6 +206,7 @@
       expandRows(ctx, secEl);
       shrinkSpacers(ctx, secEl);
       replaceTokens(ctx, secEl);
+      placeOutOfCell(ctx, secEl);
     });
     if (data.title) setTitle(doc, data.title);
     var leftovers = [];
@@ -543,7 +547,9 @@
       var m = /^(도장|이미지):(.+)$/.exec(key);
       if (m) {
         var base = m[1] + ':' + m[2].split('@')[0];
-        var imgId = lookup(scopes, base);
+        // 자리별 값(도장:회사@공문)이 있으면 그것, 없으면 기본 키(도장:회사)
+        var imgId = lookup(scopes, key);
+        if (imgId === undefined) imgId = lookup(scopes, base);
         if (!pics) return '';
         if (!imgId) { ctx.warnings.push('그림 없음: ' + base); return ''; }
         var pic = makePic(ctx, key, m[1], imgId);
@@ -608,7 +614,88 @@
         ? '<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
         : '<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="' + (pdef.flowWithText === 0 ? 0 : 1) + '" allowOverlap="1" holdAnchorAndSO="0" vertRelTo="' + (pdef.vertRelTo || 'PARA') + '" horzRelTo="' + (pdef.horzRelTo || 'COLUMN') + '" vertAlign="' + va + '" horzAlign="' + ha + '" vertOffset="' + u32(vy) + '" horzOffset="' + u32(hx) + '"/>') +
       '<hp:outMargin left="0" right="0" top="0" bottom="0"/></hp:pic>';
-    return parseXml(xml).c[0];
+    var node = parseXml(xml).c[0];
+    if (pdef.outOfCell && !inline) node._outCell = { pdef: pdef, w: w, h: h };
+    return node;
+  }
+
+  // 표가 든 문단의 정렬과 글자 폭(쪽 폭 − 쪽 여백 − 문단 여백). 모르면 null
+  function tblPara(ctx, secEl, tbl) {
+    var p = null;
+    (function w(nd) { if (p || nd.t !== 'el') return; if (nd.n === 'hp:p' && kids(nd, 'hp:run').some(function (r) { return r.c.indexOf(tbl) >= 0; })) { p = nd; return; } nd.c.forEach(w); })(secEl);
+    var pg = findAll(secEl, 'hp:pagePr')[0], mg = pg && kid(pg, 'hp:margin');
+    var hdr = ctx.doc.files['Contents/header.xml'] || '';
+    if (!p || !pg || !mg) return null;
+    var m = new RegExp('<hh:paraPr id="' + attr(p, 'paraPrIDRef') + '"[\\s\\S]*?</hh:paraPr>').exec(hdr);
+    if (!m) return null;
+    var al = /<hh:align horizontal="(\w+)"/.exec(m[0]);
+    var ml = /<hc:left value="(-?\d+)"/.exec(m[0]), mr = /<hc:right value="(-?\d+)"/.exec(m[0]);
+    var width = (+attr(pg, 'width') || 0) - (+attr(mg, 'left') || 0) - (+attr(mg, 'right') || 0) - (+attr(mg, 'gutter') || 0)
+      - (ml ? +ml[1] : 0) - (mr ? +mr[1] : 0);
+    return { align: al ? al[1] : 'LEFT', width: width };
+  }
+
+  // 칸 밖 그림(pictures[토큰].outOfCell): 표 칸 안 그림은 칸보다 크면 행이 같이 커진다. 그래서 표가 든 문단으로 옮기고
+  // 그 칸의 가운데(+ vertOffset/horzOffset)에 둔다. zigzag 가 있으면 한 표 안에서 위에서부터 왼쪽·오른쪽 번갈아 그만큼 비킨다
+  // (큰 도장이 이웃 줄 도장과 겹치지 않게). 행 높이는 그대로.
+  function placeOutOfCell(ctx, secEl) {
+    var found = [];
+    (function w(nd, stack) {
+      if (nd.t !== 'el') return;
+      if (nd.n === 'hp:pic' && nd._outCell) {
+        var tc = null, tbl = null, tblRun = null, picRun = stack[stack.length - 1];
+        for (var i = stack.length - 1; i >= 0; i--) {
+          if (!tc && stack[i].n === 'hp:tc') tc = stack[i];
+          else if (tc && stack[i].n === 'hp:tbl') { tbl = stack[i]; tblRun = stack[i - 1]; break; }
+        }
+        if (tbl && tblRun && tblRun.n === 'hp:run') found.push({ pic: nd, tc: tc, tbl: tbl, tblRun: tblRun, picRun: picRun });
+        else ctx.warnings.push('칸 밖 그림: 표 칸 안이 아니라 그대로 둠');
+        return;
+      }
+      stack.push(nd);
+      nd.c.slice().forEach(function (x) { w(x, stack); });
+      stack.pop();
+    })(secEl, []);
+    var perTbl = [];
+    found.forEach(function (f) { if (perTbl.indexOf(f.tbl) < 0) perTbl.push(f.tbl); });
+    perTbl.forEach(function (tbl) {
+      var rowH = [], colW = [];
+      kids(tbl, 'hp:tr').forEach(function (tr) {
+        kids(tr, 'hp:tc').forEach(function (tc) {
+          var ad = cellAddr(tc), sp = cellSpan(tc), sz = cellSz(tc);
+          if (+attr(sp, 'rowSpan') === 1) rowH[+attr(ad, 'rowAddr')] = +attr(sz, 'height');
+          if (+attr(sp, 'colSpan') === 1) colW[+attr(ad, 'colAddr')] = +attr(sz, 'width');
+        });
+      });
+      function sum(a, n) { var s = 0; for (var i = 0; i < n; i++) s += a[i] || 0; return s; }
+      var om = kid(tbl, 'hp:outMargin');
+      var top = om ? +attr(om, 'top') || 0 : 0, left = om ? +attr(om, 'left') || 0 : 0;
+      // 글자처럼 놓인 표는 문단 정렬을 따른다: 오른쪽·가운데 정렬 문단이면 남는 폭만큼(가운데는 절반) 표가 오른쪽에 있다
+      var tp = tblPara(ctx, secEl, tbl);
+      if (tp) {
+        var sz0 = kid(tbl, 'hp:sz');
+        var spare = tp.width - (+attr(sz0, 'width') || 0) - left - (om ? +attr(om, 'right') || 0 : 0);
+        if (spare > 0) left += tp.align === 'RIGHT' ? spare : tp.align === 'CENTER' ? Math.round(spare / 2) : 0;
+      }
+      var list = found.filter(function (f) { return f.tbl === tbl; });
+      list.sort(function (a, b) { return +attr(cellAddr(a.tc), 'rowAddr') - +attr(cellAddr(b.tc), 'rowAddr'); });
+      list.forEach(function (f, k) {
+        var o = f.pic._outCell, d = o.pdef;
+        var ad = cellAddr(f.tc), sz = cellSz(f.tc);
+        var r = +attr(ad, 'rowAddr'), c = +attr(ad, 'colAddr');
+        var zig = d.zigzag ? (k % 2 ? 1 : -1) * d.zigzag : 0;
+        var y = top + sum(rowH, r) + Math.round((+attr(sz, 'height') - o.h) / 2) + (d.vertOffset || 0);
+        var x = left + sum(colW, c) + Math.round((+attr(sz, 'width') - o.w) / 2) + (d.horzOffset || 0) + zig;
+        var pos = kid(f.pic, 'hp:pos');
+        setAttr(pos, 'flowWithText', '0'); setAttr(pos, 'vertRelTo', 'PARA'); setAttr(pos, 'horzRelTo', 'PARA');
+        setAttr(pos, 'vertAlign', 'TOP'); setAttr(pos, 'horzAlign', 'LEFT');
+        setAttr(pos, 'vertOffset', String(u32(y))); setAttr(pos, 'horzOffset', String(u32(x)));
+        f.picRun.c = f.picRun.c.filter(function (x2) { return x2 !== f.pic; });
+        var at = f.tblRun.c.indexOf(f.tbl);
+        f.tblRun.c.splice(at + 1, 0, f.pic);
+        delete f.pic._outCell;
+      });
+    });
   }
 
   function setTitle(doc, title) {

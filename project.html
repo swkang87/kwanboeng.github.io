@@ -12,12 +12,12 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 — 그리면서 보낸 세션 확인 요청이 이동으로 중단되지 않게 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102904"></script>
+<script src="sysbar.js?v=2026102905"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
-<script src="contract-parser.js?v=2026102904"></script>
+<script src="contract-parser.js?v=2026102905"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -2759,64 +2759,50 @@ function ciSaveAmount(projectId, amount, r, existing) {
   return q.then(res => !Sysbar.writeFailed(res, '계약금액 저장', { expectRows: true }));
 }
 
-// 업로드 버튼 + 판독
+// 업로드 버튼 + 판독 — 끌어다 놓기·형식 확인은 공용 Sysbar.dropZone / Sysbar.checkFiles
 function ContractImportBar({ onParsed }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [over, setOver] = useState(false);
   const inputRef = useRef(null);
-  const depth = useRef(0);   // 자식 요소를 지날 때 dragleave 가 연달아 와도 깜빡이지 않게
+  const boxRef = useRef(null);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
+  const drop = Sysbar.canDrop();
 
-  // 이 화면이 열려 있는 동안 드롭 영역 밖에 파일을 놓아도 브라우저가 PDF를 열어 버리지 않게 막는다
-  useEffect(() => {
-    const stop = (e) => { if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0) e.preventDefault(); };
-    window.addEventListener('dragover', stop);
-    window.addEventListener('drop', stop);
-    return () => { window.removeEventListener('dragover', stop); window.removeEventListener('drop', stop); };
-  }, []);
-
-  const isPdf = (f) => f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
-
-  const handle = (files) => {
-    const list = Array.prototype.slice.call(files || []);
-    if (!list.length) return;
-    const file = list.find(isPdf);
-    if (!file) { setErr('PDF 파일만 올릴 수 있습니다.'); return; }
+  const handle = (list) => {
+    const file = list[0] && list[0].file;
+    if (!file) return;
     if (!window.ContractParser) { setErr('계약서 판독기(contract-parser.js)를 불러오지 못했습니다.'); return; }
     setBusy(true); setErr('');
     ContractParser.parseFile(file, { bizNo: APP_CONFIG.COMPANY_BIZ_NO }).then(r => {
       setBusy(false);
       if (!r.ok) { setErr(r.error); return; }
-      if (list.length > 1) console.info('여러 파일 중 첫 번째 PDF만 처리:', file.name);
       onParsed(r, file);
     }, ex => { setBusy(false); setErr('계약서를 읽는 중 오류: ' + (ex && ex.message ? ex.message : ex)); });
   };
+  const handleRef = useRef(handle);
+  handleRef.current = handle;
+  useEffect(() => {
+    const z = Sysbar.dropZone(boxRef.current, { kinds: ['pdf'], busy: () => busyRef.current,
+      onFiles: (l) => handleRef.current(l), onError: (m) => setErr(m) });
+    return () => z.destroy();
+  }, []);
 
-  const pick = (e) => { const files = e.target.files; handle(files); e.target.value = ''; };
-  const onEnter = (e) => { e.preventDefault(); depth.current += 1; if (!busy) setOver(true); };
-  const onLeave = (e) => { e.preventDefault(); depth.current = Math.max(0, depth.current - 1); if (depth.current === 0) setOver(false); };
-  const onOver  = (e) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = busy ? 'none' : 'copy'; };
-  const onDrop  = (e) => {
-    e.preventDefault(); depth.current = 0; setOver(false);
-    if (busy) return;
-    handle(e.dataTransfer && e.dataTransfer.files);
+  const pick = (e) => {
+    const files = e.target.files; e.target.value = '';
+    Sysbar.checkFiles(files, { kinds: ['pdf'] }).then(r => { if (r.errors.length) setErr(r.errors[0].message); else handle(r.ok); });
   };
 
   return (
-    <div onDragEnter={onEnter} onDragLeave={onLeave} onDragOver={onOver} onDrop={onDrop}
-      style={{ marginBottom: 14, padding: 12, borderRadius: 8, transition: 'background .15s, border-color .15s',
-        border: over ? '2px dashed #2563eb' : '1px dashed #cbd5e1', background: over ? '#eff6ff' : '#f8fafc' }}>
-      {over ? (
-        <div style={{ padding: '14px 0', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>여기에 계약서 PDF를 놓으세요</div>
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => inputRef.current && inputRef.current.click()} disabled={busy}>
-            {busy ? '계약서 읽는 중...' : '📄 계약서 PDF로 채우기'}
-          </button>
-          <span style={{ fontSize: 11, color: '#64748b' }}>버튼을 누르거나 PDF를 이 상자에 끌어다 놓으세요. 나라장터 용역계약서·용역변경계약서 (변경계약서는 기존 프로젝트 변경 화면으로 넘어갑니다).</span>
-        </div>
-      )}
-      <input ref={inputRef} type="file" accept=".pdf" style={{ display: 'none' }} onChange={pick} />
+    <div ref={boxRef} style={{ marginBottom: 14, padding: 12, cursor: busy ? 'default' : 'pointer' }}
+      onClick={(e) => { if (!busy && e.target.tagName !== 'INPUT' && inputRef.current) inputRef.current.click(); }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button className="btn btn-secondary btn-sm" disabled={busy}>
+          {busy ? '계약서 읽는 중...' : '📄 계약서 PDF로 채우기'}
+        </button>
+        <span style={{ fontSize: 11, color: '#64748b' }}>{drop ? '계약서 PDF를 이 상자에 끌어다 놓거나 클릭해서 고르세요.' : '눌러서 계약서 PDF를 고르세요.'} 나라장터 용역계약서·용역변경계약서 (변경계약서는 기존 프로젝트 변경 화면으로 넘어갑니다).</span>
+      </div>
+      <input ref={inputRef} type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} onChange={pick} onClick={(e) => e.stopPropagation()} />
       {err && <div className="alert alert-error" style={{ marginTop: 10, marginBottom: 0 }}>{err}</div>}
     </div>
   );

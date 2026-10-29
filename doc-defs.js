@@ -98,7 +98,9 @@
   var LICENSES = ['교통', '도로공항', '상하수도', '수질관리', '토질지질', '구조', '도시계획', '수자원개발', '조경', SURVEY];
   var LEAD_FIELD = '사업책임기술자';
   var MERGE2 = [{ col: 0, by: '분야' }, { col: 1, by: '구분키' }];   // 분야 칸 → 그 면허 전체, 구분 칸 → 책임 1줄 / 참여 전체
-  var SEAL_S = { w: 2300, h: 2300, horzAlign: 'CENTER', horzRelTo: 'PARA', horzOffset: 0, vertAlign: 'CENTER', vertOffset: 0 };
+  // 일반 모양 보안각서 서명 칸(폭 8426 · 행 높이 2612): 원본처럼 약 13mm 도장을 칸 밖 그림으로 줄 가운데에, 왼쪽·오른쪽 번갈아
+  // (칸 안 그림은 칸보다 크면 행이 커져 쪽이 넘침). 3800 + 엇갈림 1500 → 칸 안쪽(양쪽 약 800 여유)에 들어가고 이웃 줄 도장과 안 겹침
+  var SEAL_S = { w: 3800, h: 3800, outOfCell: true, zigzag: 1500 };
 
   var CHAKSU = {
     key: 'chaksu',
@@ -138,7 +140,7 @@
       '도장:회사@칸': { w: 4300, h: 4300, horzAlign: 'RIGHT', horzOffset: 600, vertOffset: 1220 },
       // 보안각서 서명 칸 — 측량 모양(행 높이 4593): 칸 가운데
       '도장:기술자': { w: 3700, h: 3700, horzAlign: 'CENTER', horzRelTo: 'PARA', horzOffset: 0, vertAlign: 'CENTER', vertOffset: 0 },
-      // 일반 모양(행 높이 2612)은 작게
+      // 일반 모양(행 높이 2612) — 위 SEAL_S
       '도장:기술자@작게': SEAL_S,
       '도장:사업책임@작게': SEAL_S,
       // 자격증 사본: 원래 그림 상자 안에 비율 유지
@@ -146,7 +148,7 @@
     },
     // in = { title, amount, amountText, contractDate, startDate, endDate, receiver, vias:[{name, docNo}], issueDate, submitDate,
     //        lead:기술자, licenses:[{name, lead:기술자, members:[기술자]}], plan:불(인력·장비 투입 계획서 포함),
-    //        equipment:[{name,spec,qty,unit}], attach:{schedule, bill, cems}, sealImg }
+    //        equipment:[{name,spec,qty,unit}], attach:{schedule, bill, cems}, sealImg(서류 도장), letterSealImg(공문 도장) }
     // 기술자 = { id, name, birth_date, gender, address, hire_date, dept, position, duty, qual, qual_no,
     //           survey_field, survey_grade, sealImg, certImg }
     build: function (inp) {
@@ -171,8 +173,10 @@
       vars['사업_자격'] = lead ? (lead.qual || '') : '';
       vars['사업_자격번호'] = lead ? (lead.qual_no || '') : '';
       vars['도장:사업책임'] = lead ? (lead.sealImg || null) : null;
+      // 회사 도장 두 자리: 공문 직인 자리(도장:회사@공문) = 공문 도장, 나머지 (印) 자리 = 서류 도장
       vars['도장:회사'] = inp.sealImg || null;
-      if (!inp.sealImg) warnings.push('회사 도장이 없습니다.');
+      vars['도장:회사@공문'] = inp.letterSealImg || null;
+      if (!inp.sealImg) warnings.push('서류 도장이 없습니다.');
 
       // 같은 사람이 여러 자리에 → 경고만 (측량 단독의 사업책임 = 공공측량업 책임은 같은 자리로 본다)
       var seen = {}, dup = {};
@@ -242,6 +246,7 @@
 
       var vias = (inp.vias || []).filter(function (v) { return v && (v.name || v.docNo); });
       if (!vias.length) warnings.push('경유처가 없어 공문이 빠집니다.');
+      else if (!inp.letterSealImg) warnings.push('공문 도장이 없습니다.');
       var blkLetter = vias.map(function (v) { return { '경유': v.name || '', '문서번호': CHAKSU.docNo(v.docNo, inp.issueDate || inp.startDate) }; });
       // 재직증명서·자격증 사본: 사업책임기술자 1명
       var blkCert = lead ? [{

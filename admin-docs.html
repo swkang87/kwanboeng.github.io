@@ -10,16 +10,16 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102904"></script>
+<script src="sysbar.js?v=2026102905"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
-<script src="contract-parser.js?v=2026102904"></script>
-<script src="hwpx-engine.js?v=2026102904"></script>
-<script src="doc-defs.js?v=2026102904"></script>
+<script src="contract-parser.js?v=2026102905"></script>
+<script src="hwpx-engine.js?v=2026102905"></script>
+<script src="doc-defs.js?v=2026102905"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
@@ -161,6 +161,39 @@ function SignedImg({ bucket, path, local, big }) {
     return function() { alive = false; };
   }, [bucket, path, local]);
   return <div className={big ? 'thumb lg' : 'thumb'}>{url ? <img src={url} alt="" /> : (path || local ? '…' : '없음')}</div>;
+}
+
+// 끌어다 놓기 + 클릭해서 고르기 상자. 형식 확인은 공용 Sysbar.dropZone / Sysbar.checkFiles(= checkUpload)
+// onFiles([{file, kind, mime, ext, body}]) · onError(첫 안내 문구, [{name, message}]). 휴대폰은 클릭 안내만
+function DropBox({ kinds, multiple, maxMB, accept, text, clickText, small, inline, disabled, onFiles, onError, children }) {
+  const box = useRef(null), inp = useRef(null), cb = useRef({});
+  cb.current = { onFiles: onFiles, onError: onError, disabled: disabled };
+  const canDrop = Sysbar.canDrop();
+  function opts() { return { kinds: kinds, multiple: !!multiple, maxMB: maxMB }; }
+  function give(r) {
+    if (r.errors.length && cb.current.onError) cb.current.onError(r.errors[0].message, r.errors);
+    if (r.ok.length && cb.current.onFiles) cb.current.onFiles(r.ok);
+  }
+  useEffect(function() {
+    var o = opts();
+    var z = Sysbar.dropZone(box.current, Object.assign(o, {
+      busy: function() { return !!cb.current.disabled; },
+      onFiles: function(l) { give({ ok: l, errors: [] }); },
+      onError: function(m, errs) { give({ ok: [], errors: errs || [{ name: '', message: m }] }); }
+    }));
+    return function() { z.destroy(); };
+  }, []);
+  function open() { if (!cb.current.disabled && inp.current) inp.current.click(); }
+  function pick(e) { var fs = e.target.files; e.target.value = ''; Sysbar.checkFiles(fs, opts()).then(give); }
+  return (
+    <div ref={box} role="button" tabIndex={0} onClick={open} onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
+      style={{ display: inline ? 'inline-flex' : 'block', alignItems: 'center', gap: 6, padding: small ? '4px 10px' : '22px 16px', textAlign: 'center',
+        cursor: disabled ? 'default' : 'pointer', fontSize: small ? 12 : 13, fontWeight: small ? 600 : 700, color: '#475569', borderWidth: small ? 1 : 2, opacity: disabled ? .6 : 1 }}>
+      <span>{canDrop ? text : (clickText || text)}</span>
+      {children}
+      <input ref={inp} type="file" hidden multiple={!!multiple} accept={accept} onChange={pick} onClick={function(e) { e.stopPropagation(); }} />
+    </div>
+  );
 }
 
 function Warn({ list, cls }) {
@@ -392,7 +425,24 @@ function EngineersView() {
   const [all, setAll] = useState(false);
   const [edit, setEdit] = useState(null);
   const [msg, setMsg] = useState(null);
+  const [bulk, setBulk] = useState(false);
   function reload() { loadEngineers().then(setList); }
+  // 일괄 올리기 대상 = 재직 명부. 같은 이름이 둘 이상이면 고르지 않음([수정]에서 직접)
+  function resolveEng(b) {
+    var hit = (list || []).filter(function(e) { return e.active && normName(e.name) === normName(b); });
+    if (!hit.length) return { note: '재직 명부에 이 이름이 없어요. 파일 이름을 성명으로 바꿔 주세요.' };
+    if (hit.length > 1) return { dup: true, label: hit[0].name, note: '같은 이름이 ' + hit.length + '명 — [수정]에서 직접 올려 주세요.' };
+    return { target: hit[0], exists: !!hit[0].seal_path, label: hit[0].name + ' (' + (hit[0].birth_date || '') + ')' };
+  }
+  function saveEng(r) {
+    var e = r.res.target;
+    return uploadImg(ENG_BUCKET, e.id + '/seal', r.file).then(function(p) {
+      if (!p) return '그림을 올리지 못했어요';
+      return sb.from('doc_engineers').update({ seal_path: p }).eq('id', e.id).select('id').then(function(res) {
+        return res.error ? res.error.message : (!res.data || !res.data.length ? '저장 안 됨' : null);
+      });
+    });
+  }
   useEffect(function() {
     reload();
     sb.from('users').select('id,name').order('name').then(function(r) { setUsers(r.data || []); });
@@ -417,10 +467,11 @@ function EngineersView() {
           <button className="btn btn-p sm" onClick={function() { setEdit({}); }}>+ 기술자 추가</button>
           <label className="btn btn-s sm">📥 엑셀 일괄 올리기<input type="file" accept=".xlsx,.xls" hidden onChange={onXl} /></label>
           <button className="btn btn-s sm" onClick={downloadXlTemplate}>양식 내려받기</button>
+          <button className="btn btn-s sm" onClick={function() { setBulk(true); }}>🖋 도장 일괄 올리기</button>
           <span style={{ flex: 1 }} />
           <label className="chk"><input type="checkbox" checked={all} onChange={function(e) { setAll(e.target.checked); }} /> 퇴사자도 보기</label>
         </div>
-        <div className="note" style={{ marginBottom: 10 }}>엑셀은 성명 + 생년월일이 같은 사람이 있으면 갱신, 없으면 새로 추가해요. 도장·자격증 사본 그림은 [수정]에서 올려요. 주민등록번호 전체는 저장하지 않아요(생년월일 + 성별로 앞자리만 만들어요).</div>
+        <div className="note" style={{ marginBottom: 10 }}>엑셀은 성명 + 생년월일이 같은 사람이 있으면 갱신, 없으면 새로 추가해요. 도장은 「도장 일괄 올리기」(파일 이름 = 성명) 또는 [수정], 자격증 사본은 [수정]에서 올려요. 주민등록번호 전체는 저장하지 않아요(생년월일 + 성별로 앞자리만 만들어요).</div>
         {msg && <Warn list={msg.list} cls={msg.cls} />}
         <div className="tbl-wrap">
           <table className="tb">
@@ -449,18 +500,108 @@ function EngineersView() {
         </div>
       </div>
       {edit && <EngineerModal eng={edit.id ? edit : null} users={users} onClose={function() { setEdit(null); }} onSaved={function() { setEdit(null); reload(); }} />}
+      {bulk && <BulkSealModal title="도장 일괄 올리기" resolve={resolveEng} save={saveEng} onClose={function() { setBulk(false); }} onDone={reload}
+        help="파일 이름(확장자 뺀 것, 띄어쓰기 무시)을 재직 명부의 성명과 맞춰요. 예: 홍길동.png → 홍길동. 이미 도장이 있는 사람은 「덮어쓰기」를 켠 것만 바꿔요." />}
+    </div>
+  );
+}
+
+// ═══════════════════════ 도장 일괄 올리기 ═══════════════════════
+// 파일 이름(확장자 뺀 것, 공백 무시) → 대상. resolve(이름) = { target, exists, create, label, note }
+//   target 이 있으면 그 대상에 올림(이미 그림이 있으면 exists — 「덮어쓰기」를 켠 것만), create 면 새로 만들어 올림, 둘 다 없으면 매칭 안 됨
+// save(줄) → Promise<오류 문구 | null>
+const normName = function(x) { return String(x || '').replace(/\s+/g, ''); };
+function baseName(n) { return String(n || '').replace(/\.[^.]*$/, ''); }
+function BulkSealModal({ title, help, resolve, save, onClose, onDone }) {
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  // 한 번 놓은 파일 중 형식이 다른 것(errs)과 통과한 것(list)이 따로 오므로 앞 상태에 이어 붙인다
+  function add(list, errs) { setRows(function(prev) { return merge(prev, list, errs); }); setDone(false); }
+  function merge(prev, list, errs) {
+    var next = prev.slice();
+    (list || []).forEach(function(c) {
+      next = next.filter(function(r) { return r.name !== c.file.name; });
+      next.push({ name: c.file.name, file: c.file, res: resolve(baseName(c.file.name)), over: false, out: '' });
+    });
+    (errs || []).forEach(function(e) {
+      if (!e.name) return;
+      next = next.filter(function(r) { return r.name !== e.name; });
+      next.push({ name: e.name, file: null, res: { note: e.message }, over: false, out: '' });
+    });
+    return next;
+  }
+  function willSend(r) { return !!r.file && !r.out && !!(r.res.create || (r.res.target && (!r.res.exists || r.over))); }
+  var n = rows.filter(willSend).length;
+  function run() {
+    setBusy(true);
+    var cur = rows.slice();
+    var chain = Promise.resolve();
+    cur.forEach(function(r, i) {
+      if (!willSend(r)) return;
+      chain = chain.then(function() {
+        return save(r).then(function(err) { cur[i] = Object.assign({}, r, { out: err ? '❌ ' + err : '✅ 올림' }); setRows(cur.slice()); });
+      });
+    });
+    chain.then(function() { setBusy(false); setDone(true); onDone(); });
+  }
+  return (
+    <div className="modal-bg" onClick={function(e) { if (e.target === e.currentTarget && !busy) onClose(); }}>
+      <div className="modal">
+        <h3>{title}</h3>
+        <div className="note" style={{ marginBottom: 10 }}>{help}</div>
+        <DropBox multiple kinds={['png', 'jpg']} maxMB={IMG_MAX_MB} accept="image/png,image/jpeg" disabled={busy}
+          text="도장 그림(PNG) 여러 개를 여기에 끌어다 놓거나 클릭해서 고르세요" clickText="눌러서 도장 그림(PNG)을 고르세요 (여러 개 가능)"
+          onFiles={function(l) { add(l, []); }} onError={function(m, errs) { add([], errs); }} />
+        {rows.length > 0 && (
+          <div className="tbl-wrap" style={{ margin: '12px 0' }}>
+            <table className="tb">
+              <thead><tr><th>파일</th><th>대상</th><th>상태</th><th>덮어쓰기</th><th></th></tr></thead>
+              <tbody>
+                {rows.map(function(r, i) {
+                  var st = !r.file ? <span className="tag tag-no">형식 오류</span>
+                    : r.res.create ? <span className="tag tag-p">새로 만듦</span>
+                    : r.res.dup ? <span className="tag tag-no">같은 이름 여러 명</span>
+                    : !r.res.target ? <span className="tag tag-no">매칭 안 됨</span>
+                    : r.res.exists ? <span className="tag tag-g">이미 도장 있음</span> : <span className="tag tag-ok">새로 올림</span>;
+                  return (
+                    <tr key={r.name}>
+                      <td>{r.name}</td>
+                      <td style={{ fontWeight: 700 }}>{r.res.label || '-'}</td>
+                      <td>{st}{r.res.note && <div className="note" style={{ whiteSpace: 'normal' }}>{r.res.note}</div>}</td>
+                      <td>{r.file && r.res.target && r.res.exists ? <input type="checkbox" checked={r.over} disabled={busy || !!r.out} onChange={function(e) { setRows(rows.map(function(x, j) { return j === i ? Object.assign({}, x, { over: e.target.checked }) : x; })); }} /> : ''}</td>
+                      <td>{r.out}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
+          <button className="btn btn-s" onClick={onClose} disabled={busy}>닫기</button>
+          <button className="btn btn-p" onClick={run} disabled={busy || !n}>{busy ? '올리는 중…' : (done && !n ? '끝' : '올리기 (' + n + '개)')}</button>
+        </div>
+      </div>
     </div>
   );
 }
 
 // ═══════════════════════ 회사 도장 ═══════════════════════
 const SEAL_KINDS = ['사용인감', '법인인감', '직인'];
+// 착수계 두 자리의 기본 도장 = 그 용도(kind)의 도장(기본값 표시가 있으면 그것, 없으면 순서상 첫째). 그 용도가 없으면 기본값 → 첫째
+const SEAL_FOR_LETTER = '직인', SEAL_FOR_DOC = '사용인감';
+function pickSeal(list, kind) {
+  var k = list.filter(function(s) { return s.kind === kind; });
+  return k.filter(function(s) { return s.is_default; })[0] || k[0] || list.filter(function(s) { return s.is_default; })[0] || list[0] || null;
+}
 function SealsView() {
   const [list, setList] = useState(null);
   const [form, setForm] = useState(null);
   const [file, setFile] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [bulk, setBulk] = useState(false);
   function reload() {
     sb.from('doc_company_seals').select('*').order('sort_order').order('created_at').then(function(r) {
       if (r.error) Sysbar.showError(r.error, '회사 도장 읽기');
@@ -493,12 +634,43 @@ function SealsView() {
       });
     }, function(ex) { setBusy(false); Sysbar.showError(ex, '회사 도장 저장'); });
   }
+  // 일괄 올리기: 파일 이름 = 용도(사용인감.png · 직인.png · 법인인감.png). 그 용도의 도장이 있으면 그 도장 그림을 바꾸고, 없으면 새로 만든다
+  function resolveSeal(b) {
+    var kind = SEAL_KINDS.filter(function(k) { return normName(k) === normName(b); })[0];
+    if (!kind) return { note: '파일 이름을 용도(' + SEAL_KINDS.join(' · ') + ')로 바꿔 주세요.' };
+    var same = list.filter(function(s) { return s.kind === kind; });
+    var t = same.filter(function(s) { return s.active; })[0] || same[0];
+    if (t) return { target: t, exists: !!t.image_path, label: t.name + ' (' + kind + ')' };
+    return { create: kind, label: kind + ' (새 도장)' };
+  }
+  function saveSeal(r) {
+    var mk = r.res.create
+      ? sb.from('doc_company_seals').insert({ name: r.res.create, kind: r.res.create, active: true,
+          is_default: r.res.create === SEAL_FOR_DOC && !list.some(function(s) { return s.is_default; }), sort_order: list.length + 1 }).select('id')
+      : Promise.resolve({ data: [{ id: r.res.target.id }] });
+    return mk.then(function(res) {
+      if (res.error || !res.data || !res.data.length) return (res.error && res.error.message) || '도장을 만들지 못했어요';
+      var id = res.data[0].id;
+      return uploadImg(SEAL_BUCKET, 'company/' + id, r.file).then(function(p) {
+        if (!p) return '그림을 올리지 못했어요';
+        return sb.from('doc_company_seals').update({ image_path: p }).eq('id', id).select('id').then(function(r2) {
+          return r2.error ? r2.error.message : (!r2.data || !r2.data.length ? '저장 안 됨' : null);
+        });
+      });
+    });
+  }
   if (!list) return <div className="loading">불러오는 중…</div>;
   return (
     <div className="card">
       <div className="st">회사 도장</div>
       <div className="note" style={{ marginBottom: 12 }}>배경이 투명한 PNG 를 권장해요. 기본값으로 정한 도장이 서류 만들기에서 미리 골라져요. 쓰지 않는 도장은 「사용」을 끄세요.</div>
-      <div className="row" style={{ marginBottom: 12 }}><button className="btn btn-p sm" onClick={function() { open(null); }}>+ 도장 추가</button></div>
+      <div className="note" style={{ marginBottom: 12 }}>착수계는 공문 직인 자리에 용도 「{SEAL_FOR_LETTER}」, 나머지 「(印)」 자리에 용도 「{SEAL_FOR_DOC}」 도장을 미리 골라요(서류 만들기에서 바꿀 수 있어요).</div>
+      <div className="row" style={{ marginBottom: 12 }}>
+        <button className="btn btn-p sm" onClick={function() { open(null); }}>+ 도장 추가</button>
+        <button className="btn btn-s sm" onClick={function() { setBulk(true); }}>🖋 도장 일괄 올리기</button>
+      </div>
+      {bulk && <BulkSealModal title="회사 도장 일괄 올리기" resolve={resolveSeal} save={saveSeal} onClose={function() { setBulk(false); }} onDone={reload}
+        help={'파일 이름(확장자 뺀 것)을 용도와 맞춰요: ' + SEAL_KINDS.map(function(k) { return k + '.png'; }).join(' · ') + '. 그 용도의 도장이 없으면 새로 만들어요.'} />}
       <div className="row" style={{ alignItems: 'stretch' }}>
         {list.map(function(s) {
           return (
@@ -526,10 +698,9 @@ function SealsView() {
             </div>
             <div className="row" style={{ marginBottom: 10 }}>
               <SignedImg bucket={SEAL_BUCKET} path={form.image_path} local={file} big />
-              <label className="btn btn-s sm">그림 고르기<input type="file" accept="image/png,image/jpeg" hidden onChange={function(e) {
-                var fl = e.target.files && e.target.files[0]; e.target.value = '';
-                if (!fl) return; pickImgChecked(fl, function(x) { setErr(''); setFile(x); }, setErr);
-              }} /></label>
+              <DropBox small kinds={['png', 'jpg']} maxMB={IMG_MAX_MB} accept="image/png,image/jpeg"
+                text="그림을 끌어다 놓거나 클릭" clickText="그림 고르기"
+                onFiles={function(l) { setErr(''); setFile(l[0].file); }} onError={setErr} />
             </div>
             <div className="row" style={{ marginBottom: 14 }}>
               <label className="chk"><input type="checkbox" checked={!!form.is_default} onChange={function(e) { setForm(Object.assign({}, form, { is_default: e.target.checked })); }} /> 기본값</label>
@@ -618,20 +789,16 @@ function TemplateBar({ def, onState }) {
     });
   }
   useEffect(reload, [def.key]);
-  function up(e) {
-    var file = e.target.files && e.target.files[0]; e.target.value = '';
-    if (!file) return;
-    if (!/\.hwpx$/i.test(file.name || '')) { setMsg(/\.hwp$/i.test(file.name || '') ? '한글 서식 파일(.hwpx)만 올릴 수 있습니다. 한글에서 「다른 이름으로 저장 → HWPX」로 저장해 올려 주세요.' : '한글 서식 파일(.hwpx)만 올릴 수 있습니다.'); return; }
+  // 확장자 + ZIP 시그니처 + 안의 mimetype(application/hwp+zip) 확인(DropBox → Sysbar.checkFiles) → 바이트를 application/hwp+zip 으로 올림
+  // (한글이 깔린 PC 는 file.type 이 application/haansofthwpx 라, File 을 그대로 올리면 버킷이 거부했다)
+  function up(l) {
+    var c = l[0];
+    if (!/\.hwpx$/i.test(c.file.name || '')) { setMsg('한글 서식 파일(.hwpx)만 올릴 수 있습니다.'); return; }
     setBusy(true); setMsg('');
-    // 확장자 + ZIP 시그니처 + 안의 mimetype(application/hwp+zip) 확인 → 바이트를 application/hwp+zip 으로 올림
-    // (한글이 깔린 PC 는 file.type 이 application/haansofthwpx 라, File 을 그대로 올리면 버킷이 거부했다)
-    Sysbar.checkUpload(file, ['hwpx'], 20).then(function(c) {
-      if (!c.ok) { setBusy(false); setMsg(c.message); return; }
-      return sb.storage.from(TPL_BUCKET).upload(def.template, c.body, { upsert: true, contentType: c.mime }).then(function(r) {
-        setBusy(false);
-        if (r.error) { Sysbar.showError(r.error, '서식 올리기'); return; }
-        reload();
-      });
+    sb.storage.from(TPL_BUCKET).upload(def.template, c.body, { upsert: true, contentType: c.mime }).then(function(r) {
+      setBusy(false);
+      if (r.error) { Sysbar.showError(r.error, '서식 올리기'); return; }
+      reload();
     }).catch(function(ex) { setBusy(false); Sysbar.showError(ex, '서식 올리기'); });
   }
   function down() {
@@ -644,7 +811,9 @@ function TemplateBar({ def, onState }) {
       {info === undefined ? '…' : (info
         ? <span className="tag tag-ok">올림 · {(info.updated_at || info.created_at || '').slice(0, 10)}</span>
         : <span className="tag tag-no">없음 — 올려 주세요</span>)}
-      <label className="btn btn-s sm">{busy ? '올리는 중…' : '서식 올리기'}<input type="file" accept=".hwpx" hidden onChange={up} disabled={busy} /></label>
+      <DropBox small inline kinds={['hwpx']} maxMB={20} accept=".hwpx" disabled={busy}
+        text={busy ? '올리는 중…' : '서식 올리기 (끌어다 놓기 가능)'} clickText={busy ? '올리는 중…' : '서식 올리기'}
+        onFiles={up} onError={function(m) { setMsg(m); }} />
       {info && <button className="btn btn-s sm" onClick={down}>서식 내려받기</button>}
       {msg && <span className="tag tag-no" style={{ whiteSpace: 'normal' }}>{msg}</span>}
     </div>
@@ -685,7 +854,8 @@ function ChaksuView() {
   const [attach, setAttach] = useState(function() { var o = {}; def.attachments.forEach(function(a) { o[a.key] = !!a.on; }); return o; });
   const [equip, setEquip] = useState([]);
   const [seals, setSeals] = useState([]);
-  const [sealId, setSealId] = useState('');
+  const [sealId, setSealId] = useState('');        // 서류 도장 — 「(印)」 자리
+  const [lsealId, setLsealId] = useState('');      // 공문 도장 — 공문 직인 자리
   const [logs, setLogs] = useState([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
@@ -702,8 +872,9 @@ function ChaksuView() {
     });
     sb.from('doc_company_seals').select('*').eq('active', true).order('sort_order').then(function(r) {
       var l = r.data || []; setSeals(l);
-      var d = l.filter(function(s) { return s.is_default; })[0] || l[0];
+      var d = pickSeal(l, SEAL_FOR_DOC), dl = pickSeal(l, SEAL_FOR_LETTER);
       if (d) setSealId(d.id);
+      if (dl) setLsealId(dl.id);
     });
     reloadLogs();
   }, []);
@@ -756,7 +927,6 @@ function ChaksuView() {
     ContractParser.parseFile(blob, { bizNo: APP_CONFIG.COMPANY_BIZ_NO }).then(applyParsed,
       function(ex) { setParseMsg({ cls: 'al-e', list: ['계약서를 읽지 못했어요: ' + (ex && ex.message ? ex.message : ex)] }); });
   }
-  function onPdf(e) { var file = e.target.files && e.target.files[0]; e.target.value = ''; if (file) parseBlob(file); }
   function fromStored(o) {
     sb.storage.from(PDF_BUCKET).download(f.project_id + '/' + o.name).then(function(r) {
       if (r.error || !r.data) { Sysbar.showError(r.error || new Error('파일 없음'), '보관된 계약서 읽기'); return; }
@@ -781,6 +951,7 @@ function ChaksuView() {
     return q ? { qual: q.qual, qual_no: q.qual_no, cert_path: q.cert_path || e.cert_path } : { qual: e.qual, qual_no: e.qual_no, cert_path: e.cert_path };
   }
   var seal = seals.filter(function(s) { return s.id === sealId; })[0];
+  var lseal = seals.filter(function(s) { return s.id === lsealId; })[0];
   // 화면 입력 → 서류 정의 입력. want(그림 id, 버킷, 경로) 는 그림을 받을 목록에 올리고 id 를 돌려준다(미리 보기에서는 있는지만)
   function makeInp(want) {
     function person(id, isLead) {
@@ -804,7 +975,8 @@ function ChaksuView() {
       }),
       plan: plan, attach: attach,
       equipment: plan ? equip.filter(function(q) { return q.on; }).map(function(q) { return { name: q.name, spec: q.spec, qty: Number(q.qty), unit: q.unit }; }) : [],
-      sealImg: seal ? want('seal', SEAL_BUCKET, seal.image_path) : null
+      sealImg: seal ? want('seal', SEAL_BUCKET, seal.image_path) : null,
+      letterSealImg: lseal ? want('lseal', SEAL_BUCKET, lseal.image_path) : null
     };
   }
   var preview = def.build(makeInp(function(id, b, path) { return path ? id : null; }));
@@ -842,7 +1014,8 @@ function ChaksuView() {
         licenses: inp.licenses.map(function(l) { return { name: l.name, lead: idn(l.lead), members: l.members.map(idn) }; }),
         survey_only: data.surveyOnly, plan: plan, attach: data.attachList,
         equipment: inp.equipment.map(function(q) { return q.name; }),
-        seal: seal ? seal.id : null, vias: f.vias.map(function(v) { return v.name; }), file: fname
+        seal: seal ? seal.id : null, letter_seal: lseal ? lseal.id : null,
+        seal_names: { doc: seal ? seal.name : null, letter: lseal ? lseal.name : null }, vias: f.vias.map(function(v) { return v.name; }), file: fname
       };
       return sb.from('doc_issue_logs').insert({ doc_type: def.key, project_id: f.project_id || null, title: f.title.trim(), doc_numbers: docNos, detail: detail })
         .then(function(lr) {
@@ -908,10 +1081,14 @@ function ChaksuView() {
               {projOpts.map(function(p) { return <option key={p.id} value={p.id}>{p.name}{p.client ? ' · ' + p.client : ''}</option>; })}
             </select></div>
         </div>
-        <div className="row">
-          <label className="btn btn-s sm">📎 계약서 PDF 로 채우기<input type="file" accept="application/pdf,.pdf" hidden onChange={onPdf} /></label>
+        <DropBox kinds={['pdf']} accept="application/pdf,.pdf"
+          text="📎 계약서 PDF를 여기에 끌어다 놓거나 클릭해서 고르세요" clickText="📎 눌러서 계약서 PDF를 고르세요"
+          onFiles={function(l) { parseBlob(l[0].file); }} onError={function(m) { setParseMsg({ cls: 'al-e', list: [m] }); }}>
+          <div className="note" style={{ fontWeight: 400, marginTop: 4 }}>나라장터 용역계약서·변경계약서 — 놓으면 바로 읽어 아래 내용을 채워요</div>
+        </DropBox>
+        {pdfs.length > 0 && <div className="row" style={{ marginTop: 8 }}>
           {pdfs.map(function(o) { return <button key={o.name} className="btn btn-s sm" onClick={function() { fromStored(o); }}>보관된 계약서: {o.name}</button>; })}
-        </div>
+        </div>}
         {parseMsg && <div style={{ marginTop: 10 }}><Warn list={parseMsg.list} cls={parseMsg.cls} /></div>}
       </div>
 
@@ -1043,18 +1220,28 @@ function ChaksuView() {
         </div>
         <div className="card">
           <div className="st"><span className="no">5</span>회사 도장</div>
-          <div className="row">
-            {seals.map(function(s) {
-              return (
-                <label key={s.id} className="pick" style={{ flexDirection: 'column', cursor: 'pointer', borderColor: s.id === sealId ? '#7c3aed' : '#e2e8f0' }}>
-                  <SignedImg bucket={SEAL_BUCKET} path={s.image_path} />
-                  <span className="chk"><input type="radio" name="seal" checked={s.id === sealId} onChange={function() { setSealId(s.id); }} /> {s.name}</span>
-                  <span className="tag tag-p">{s.kind}</span>
-                </label>
-              );
-            })}
-            {!seals.length && <div className="note">「회사 도장」 탭에서 먼저 등록하세요.</div>}
-          </div>
+          {!seals.length && <div className="note">「회사 도장」 탭에서 먼저 등록하세요.</div>}
+          {seals.length > 0 && [
+            ['공문 도장', '공문 직인 자리 (경유처마다 공문)', lsealId, setLsealId, 'lseal'],
+            ['서류 도장', '공문 밖 서류의 「대표이사 (印)」 자리', sealId, setSealId, 'dseal']
+          ].map(function(g) {
+            return (
+              <div key={g[4]} style={{ marginBottom: 8 }}>
+                <div className="fl">{g[0]} <span className="note" style={{ fontWeight: 400 }}>— {g[1]}</span></div>
+                <div className="row">
+                  {seals.map(function(s) {
+                    return (
+                      <label key={s.id} className="pick" style={{ flexDirection: 'column', cursor: 'pointer', borderColor: s.id === g[2] ? '#7c3aed' : '#e2e8f0' }}>
+                        <SignedImg bucket={SEAL_BUCKET} path={s.image_path} />
+                        <span className="chk"><input type="radio" name={g[4]} checked={s.id === g[2]} onChange={function() { g[3](s.id); }} /> {s.name}</span>
+                        <span className="tag tag-p">{s.kind}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
