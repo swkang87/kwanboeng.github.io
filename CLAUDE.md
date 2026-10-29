@@ -13,8 +13,8 @@
   화면 `Sysbar.can('payroll')`, DB `payroll_is_admin()` = `has_perm('payroll')` — 같은 판정(아래 기능 권한 표).
   송금내역·계좌는 `payroll` + `payroll_bank` 둘 다 있어야 한다.
   **급여 열람 기록 조회만 admin 전용**(고정 규칙, 2026-10-27 작업지시서 결정) — 아래 「급여 열람 기록」.
-- **기능 권한 표(2026-10-22~)** — 키 17개. 권한 탭에서 화면 그룹(`Sysbar.PERM_GROUPS`)별로 묶어 보인다.
-  - 1차(관리포털 + 세금계산서): `worklog_admin` · `perf` · `tax` · `payroll` · `payroll_bank` · `staff` · `account` · `system`
+- **기능 권한 표(2026-10-22~)** — 키 18개. 권한 탭에서 화면 그룹(`Sysbar.PERM_GROUPS`)별로 묶어 보인다.
+  - 1차(관리포털 + 세금계산서): `worklog_admin` · `perf` · `tax` · `payroll` · `payroll_bank` · `staff` · `account` · `system` · `docs`(서류작성, 2026-10-29)
   - 2차(공정관리·연차·업무일지·메인메뉴): `project_admin`(공정관리 관리 탭) · `project_manage`(프로젝트·주간보고·주요공정 삭제, 수정 로그,
     계약·계약서 PDF) · `leave_approve`(연차 최종 승인) · `leave_admin`(연차 통계·감사 로그) · `worklog_all`(다른 사람 업무일지 보기) ·
     `worklog_history`(업무일지 작성이력) · `supply_admin`(다른 사람 비품 수정·삭제) · `notice`(공지 작성·남의 공지 수정) · `company_events`(회사 일정)
@@ -93,6 +93,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.3.0 · 2026-10-29 · 관리포털 「서류작성」 — HWPX 공문서 엔진 + 착수계, 기술자 명부·회사 도장·장비(권한 키 docs)
   - 2.2.0 · 2026-10-27 · 급여 열람 기록(감사 로그) — payroll_access_logs + 급여관리 「열람 기록」 탭(admin)
   - 2.1.1 · 2026-10-26 · 홈페이지 로그인 창 정리 — 빠른 메뉴 삭제 + 둘러보기 카드
   - 2.1.0 · 2026-10-26 · 비회원 둘러보기 화면(guest.html) — 로그인 없이 메뉴 구조만
@@ -144,6 +145,25 @@
 ---
 
 ## ✅ 완료된 작업
+
+### 관리포털 「서류작성」 — HWPX 공문서 만들기 + 착수계 (2026-10-29, v2.3.0, sysbar.js v3.10 `?v=2026102901`)
+- 화면 **`admin-docs.html`**(PORTAL_PAGES `dc`, 권한 키 **`docs`** = 기본 admin + 관리팀). 탭 [서류 만들기][기술자 명부][회사 도장][장비](`#eng` `#seal` `#eq`).
+- **엔진 `hwpx-engine.js`**(전역 `HwpxEngine`, JSZip 3.10.1 cdnjs SRI) — 회사 값 없음. 서식 HWPX 안의 표시를 채운다:
+  `{{토큰}}` 치환(이스케이프, 바뀐 문단 linesegarray 삭제) · `{{#행:이름}}` 표 행 복제(rowAddr·rowCnt·mergeCol rowSpan 병합, `fit` 넘으면 그 쪽 빈 줄을 줄임) ·
+  `{{#블록:이름}}…{{/블록:이름}}` 문단 묶음 복제(둘째부터 쪽 나누기, 0개면 삭제, secPr 옮김) · `{{도장:키[@자리]}}` 글 앞 그림 · `{{이미지:키}}` 글자처럼 그림(상자 안 비율 유지) ·
+  저장 때 mimetype 첫 항목 STORE · 남은 `{{ }}` 는 `leftovers` 로 알림. 같은 파일을 Node 에서도 돌린다(검증 스크립트는 저장소 밖 `docs-work\`).
+- **서류 정의 `doc-defs.js`**(전역 `DocDefs`) — 서류마다 `{key, template, fileName, rows, pictures, build(inp)}` 데이터. 표기 함수 `DocDefs.F`
+  (이름 「홍 길 동」, 생년월일 「90.01.31」, 본문 「2026/09/03」, 하단 「2026.  09.  03.」, 입사일 「09. 03. 03」, 금액 「일금 …원정 (￦ …)」, 수신 「…구청장」, 문서번호 = `DOCS.DOC_NO_PREFIX`+YY-번호호).
+  **새 서류 = DEFS 에 정의 추가 + 서식 HWPX 를 버킷에 올리기**(화면 코드는 그대로).
+- **서식 HWPX 는 저장소에 두지 않는다** — 비공개 버킷 `doc-templates`(화면 「서식 올리기」). 샘플에서 만든 토큰 서식·만든 스크립트는 저장소 밖 `docs-work\`(개인정보 포함 샘플 — 커밋 금지).
+- DB(저장소 밖 `security-fix\131~134_docs_*`): `doc_engineers`(명부, 주민번호 전체 저장 안 함 = 생년월일+성별, 퇴사 = `active` false, 성명+생년월일 유일) ·
+  `doc_engineer_quals`(추가 자격) · `doc_company_seals`(기본값 1개) · `doc_equipment` · `doc_issue_logs`(추가만, 작성자·일시 트리거, 수정·삭제 불가).
+  RLS 전부 `has_perm('docs')`, 명부·도장·장비는 **삭제 정책 없음**(끄기만). 버킷 `doc-templates`·`seals`·`engineer-files` 비공개, storage 정책 select/insert/update 만(삭제 없음).
+  그림은 **짧은 만료 signed URL**(`DOCS.SIGNED_URL_SECONDS`)로만 보이고, 올릴 때마다 새 경로(`<id>/seal_<시각>.png`).
+- 착수계 흐름: 프로젝트 고르기 또는 계약서 PDF(기존 `contract-parser.js`, 보관된 계약서도) → 내용 확인(변경계약은 변경 후 총완수일, 경유 = 기관관리번호·담당부서 → 「…과장」,
+  경유마다 문서번호 — 직전 발급 번호 + 1 을 미리 채움) → 책임·참여기술자(분야·자격·순서, 도장 없으면 경고) → 재직증명서·자격증 대상(기본 책임기술자) → 장비 → 회사 도장 → ⬇ HWPX + 발급 이력.
+- config.js 신규 `DOCS { 버킷 3개, SIGNED_URL_SECONDS, IMAGE_MAX_MB, DOC_NO_PREFIX, LEAD_FIELD, 서명·공문 주소, 우편번호, 전화·전송·이메일, 결재 줄, EQUIPMENT_UNIT }`.
+  contract-parser.js 에 `clientMgmtNo`(기관관리번호). 백업 `backup/*_20261029.*`.
 
 ### 급여 열람 기록(감사 로그) (2026-10-27, v2.2.0, sysbar.js v3.9 `?v=2026102701`)
 - **표 `payroll_access_logs`**(행위자·이름·행동·대상 직원·귀속연월·종류·부가정보 JSON·일시). 산출물은 저장소 밖 `security-fixW~130_payroll_access_logs_*`,

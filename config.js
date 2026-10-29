@@ -72,6 +72,28 @@ var APP_CONFIG = {
     DEFAULT_STATUS:   '진행중',        // 계약서로 등록할 때의 상태
   },
 
+  // ── 서류작성 (관리포털 admin-docs.html — 착수계 등 HWPX 자동 작성) ──────
+  // 서식 HWPX 는 회사별 파일이라 저장소에 두지 않고 TEMPLATE_BUCKET 에 올린다. 서식 안 {{토큰}} 값 중 회사 고유값은 여기서 읽는다.
+  // 회사명은 COMPANY_KO·COMPANY_KO_EM, 대표이사는 CEO_NAMES 를 쓴다(공동대표면 「첫 사람 외 N인」).
+  DOCS: {
+    TEMPLATE_BUCKET: 'doc-templates',   // 서식 HWPX (비공개)
+    SEAL_BUCKET:     'seals',           // 회사 도장 이미지 (비공개)
+    ENGINEER_BUCKET: 'engineer-files',  // 기술자 도장·자격증 사본 이미지 (비공개)
+    SIGNED_URL_SECONDS: 60,             // 이미지 미리보기 주소 유효 시간(초)
+    IMAGE_MAX_MB:    5,                 // 올릴 수 있는 이미지 크기(PNG·JPG)
+    DOC_NO_PREFIX:   '관보',            // 문서번호 = 접두어 + 연도 2자리 + '-' + 번호 + '호' (관보26-191호)
+    LEAD_FIELD:      '사업책임기술자',  // 표에서 책임기술자 줄의 분야 이름
+    SIGN_ADDRESS:    '부산광역시 연제구 거제대로 270',                 // 서류 하단 서명란 주소
+    LETTER_ADDRESS:  '부산광역시 연제구 거제대로 270, 종근당B/D 301호', // 공문 하단 주소
+    ZIP:             '47521',
+    TEL:             '051-853-2633',
+    FAX:             '051-853-4893',
+    EMAIL:           'kwanboeng@naver.com',
+    APPROVAL_DEPT:   '관리부',                          // 공문 하단 결재란 부서
+    APPROVAL_LINE:   ['대리  안소영', '실장  강승우'],  // 공문 하단 결재란 (직위  이름)
+    EQUIPMENT_UNIT:  '대',                              // 장비 수량 단위 기본값
+  },
+
   // ── 로그인 정책 (화면 안내·검사 기준. 서버 함수와 Supabase Auth 최소 길이도 같은 값으로 맞춘다) ──
   // 직원관리 화면(admin)을 열 때 DB(auth_policy)로 복사되어 서버 함수도 같은 규칙을 쓴다.
   AUTH_POLICY: {

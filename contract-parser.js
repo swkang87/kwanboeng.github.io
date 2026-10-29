@@ -277,6 +277,7 @@
       clientDept: g('client', '담당부서'),
       clientManager: clientTelM ? trim(clientTelM[1]) : g('client', '담당'),
       clientTel: clientTelM ? clientTelM[2] : '',
+      clientMgmtNo: g('main', '기관관리번호'),   // 발주기관 관리번호(예: 건설과-2850) — 서류작성 경유처
       demandOrg: g('demand', '기관명'),
       demandAddr: g('demand', '주소'),
       demandManager: g('demand', '담당자'),

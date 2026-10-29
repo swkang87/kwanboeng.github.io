@@ -1,6 +1,8 @@
 /**
- * SYSBAR MODULE v3.9
+ * SYSBAR MODULE v3.10
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.10 (2026-10-29): 관리포털 「서류작성」(admin-docs.html, 권한 키 docs) — PERM_DEFS · PORTAL_PAGES 'dc' · SIDE_ICONS.doc
  *
  * v3.9 (2026-10-27): 급여 열람 기록 — logPayrollAccess(sb, action, opts). DB payroll_access_logs 에 한 줄(행위자·일시는 DB 가 채움).
  *   실패해도 화면 동작을 막지 않음(콘솔 경고만). 열람 행동은 같은 기록을 짧은 시간 안에 다시 남기지 않음(PAYROLL.ACCESS_LOG.DEDUP_*)
@@ -66,7 +68,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.2.0';
+  var APP_VERSION = '2.3.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -176,6 +178,7 @@
     { key:'staff',         group:'관리포털', label:'직원관리',        desc:'직원 정보 조회·수정',                            pages:['admin-staff.html'] },
     { key:'account',       group:'관리포털', label:'계정관리',        desc:'계정(장부) 보기·입력',                           pages:['admin-account.html'] },
     { key:'system',        group:'관리포털', label:'시스템',          desc:'사용량·백업 상태, 권한 표 보기',                 pages:['admin-system.html'] },
+    { key:'docs',          group:'관리포털', label:'서류작성',        desc:'착수계 등 공문서 만들기, 기술자 명부·회사 도장·장비 관리', pages:['admin-docs.html'] },
     { key:'project_admin',   group:'공정관리', label:'관리 탭',           desc:'공정관리 「관리」 탭(프로젝트 등록·수정, 직원 목록)',                                  pages:['project.html#admin'] },
     { key:'project_manage',  group:'공정관리', label:'삭제·수정 로그·계약', desc:'프로젝트·주간보고·주요공정 삭제, 수정 로그 보기, 계약금액·계약서 PDF 저장 (관리 탭 안 기능은 관리 탭 권한도 있어야 함)', pages:['project.html#admin'] },
     { key:'leave_approve',   group:'연차',     label:'최종 승인',          desc:'연차 「승인 관리」 탭(최종 승인·반려·취소 승인). 팀장 「팀원 결재」는 직급 규칙 그대로',  pages:['leave.html#admin_approve'] },
@@ -202,6 +205,7 @@
     { key:'py', svg:'wallet', label:'급여관리', tabLabel:'💼 급여관리', href:'admin-payroll.html', need:'payroll'       },
     { key:'ab', svg:'key',    label:'계정관리', tabLabel:'🔑 계정관리', href:'admin-account.html', need:'account'       },
     { key:'st', svg:'people', label:'직원관리', tabLabel:'👥 직원관리', href:'admin-staff.html',   need:'staff'         },
+    { key:'dc', svg:'doc',    label:'서류작성', tabLabel:'📄 서류작성', href:'admin-docs.html',    need:'docs'          },
     { key:'sy', svg:'gear',   label:'시스템',   tabLabel:'⚙️ 시스템',   href:'admin-system.html',  need:'system'        },
   ];
 
@@ -348,6 +352,7 @@
     key:     '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
     people:  '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2a4.5 4.5 0 0 1 5 4.8"/>',
     gear:    '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+    doc:     '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
     globe:   '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
     out:     '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4"/>',
     chevL:   '<path d="M15 18l-6-6 6-6"/>',
