@@ -29,18 +29,12 @@
     slash: function (d) { var p = parts(d); return p ? p.y + '/' + p.m + '/' + p.d : ''; },
     // 서류 하단 날짜 2026.  09.  03.
     bottom: function (d) { var p = parts(d); return p ? p.y + '.  ' + p.m + '.  ' + p.d + '.' : ''; },
-    // 공문 시행일 2026. 09. 03.
+    // 공문 시행일 · 재직증명서 생년월일 2026. 09. 03.
     dotted: function (d) { var p = parts(d); return p ? p.y + '. ' + p.m + '. ' + p.d + '.' : ''; },
     // 생년월일 90.01.31
     birth: function (d) { var p = parts(d); return p ? p.y.slice(2) + '.' + p.m + '.' + p.d : ''; },
     // 입사일 09. 03. 03
     hire: function (d) { var p = parts(d); return p ? p.y.slice(2) + '. ' + p.m + '. ' + p.d : ''; },
-    // 주민번호 앞자리 + 성별 자리만: 900131-1****** (2000년 이후 출생은 3·4). 전체 번호는 저장하지 않는다.
-    rrn: function (d, gender) {
-      var p = parts(d); if (!p) return '';
-      var g = (+p.y >= 2000 ? 3 : 1) + (gender === 'F' ? 1 : 0);
-      return p.y.slice(2) + p.m + p.d + '-' + (gender ? g : '*') + '******';
-    },
     gender: function (g) { return g === 'M' ? '남' : (g === 'F' ? '여' : ''); },
     // 숫자 → 한글 금액 (일천·일백은 '일'을 붙이고 십은 그대로: 20,800,000 → 이천팔십만)
     korean: function (n) {
@@ -248,9 +242,9 @@
       if (!vias.length) warnings.push('경유처가 없어 공문이 빠집니다.');
       else if (!inp.letterSealImg) warnings.push('공문 도장이 없습니다.');
       var blkLetter = vias.map(function (v) { return { '경유': v.name || '', '문서번호': CHAKSU.docNo(v.docNo, inp.issueDate || inp.startDate) }; });
-      // 재직증명서·자격증 사본: 사업책임기술자 1명
+      // 재직증명서·자격증 사본: 사업책임기술자 1명. 재직증명서에는 주민등록번호 칸이 없고 생년월일만(네 자리 연도 1977. 03. 28.)
       var blkCert = lead ? [{
-        '성명': F.name(lead.name), '생년월일': F.birth(lead.birth_date), '주민번호': F.rrn(lead.birth_date, lead.gender),
+        '성명': F.name(lead.name), '생년월일': F.dotted(lead.birth_date),
         '주소': lead.address || '', '입사일': F.hire(lead.hire_date), '성별': F.gender(lead.gender),
         '부서': lead.dept || '', '직위': lead.position || '', '담당업무': lead.duty || '',
         '재직기간': lead.hire_date ? F.hire(lead.hire_date) + '. - 현재' : ''
