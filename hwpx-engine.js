@@ -703,6 +703,21 @@
     if (t) t.c = [{ t: 'text', v: esc(title) }];
   }
 
+  // 서식 버전 표시: content.hpf 의 <opf:meta name="kbsys-template">값</opf:meta>. 서류 정의의 templateVersion 과 다르면 화면이 만들기를 막는다.
+  // (서식을 한글에서 고쳐 다시 저장하면 이 표시가 없어질 수 있다 → 「예전 버전」으로 보인다. 서식은 만드는 스크립트로 다시 만들 것)
+  var VER_META = 'kbsys-template';
+  function templateVersion(doc) {
+    var m = findAll(doc.hpf, 'opf:meta').filter(function (x) { return attr(x, 'name') === VER_META; })[0];
+    var v = m ? m.c.filter(function (x) { return x.t === 'text'; }).map(function (x) { return unesc(x.v); }).join('').trim() : '';
+    return v || null;
+  }
+  function setTemplateVersion(doc, v) {
+    var md = findAll(doc.hpf, 'opf:metadata')[0];
+    if (!md) throw new Error('content.hpf 에 metadata 가 없습니다.');
+    md.c = md.c.filter(function (x) { return !(x.t === 'el' && x.n === 'opf:meta' && attr(x, 'name') === VER_META); });
+    md.c.push(el('opf:meta', { name: VER_META, content: 'text' }, [{ t: 'text', v: esc(v) }]));
+  }
+
   /* ================= 저장 ================= */
   function save(doc, opts) {
     var JSZip = getZipLib();
@@ -736,6 +751,8 @@
     fill: fill,
     save: save,
     imageSize: imageSize,
+    templateVersion: templateVersion,
+    setTemplateVersion: setTemplateVersion,
     // 서식 만들기 스크립트·검증용
     _xml: { parse: parseXml, serialize: serialize, attr: attr, setAttr: setAttr, kids: kids, kid: kid, findAll: findAll, clone: clone, el: el, textOf: textOf, esc: esc, unesc: unesc }
   };

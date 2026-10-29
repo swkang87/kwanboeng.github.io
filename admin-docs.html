@@ -10,16 +10,16 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102906"></script>
+<script src="sysbar.js?v=2026102907"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
-<script src="contract-parser.js?v=2026102906"></script>
-<script src="hwpx-engine.js?v=2026102906"></script>
-<script src="doc-defs.js?v=2026102906"></script>
+<script src="contract-parser.js?v=2026102907"></script>
+<script src="hwpx-engine.js?v=2026102907"></script>
+<script src="doc-defs.js?v=2026102907"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
@@ -398,7 +398,9 @@ function importXl(file, engineers) {
     var errors = [], jobs = [], added = 0, updated = 0;
     rows.slice(1).forEach(function(r, i) {
       var line = i + 2, row = {};
-      XL_KEYS.forEach(function(k, j) { if (idx[j] >= 0) row[k] = r[idx[j]]; });
+      // 빈 칸 = 「모름」: 이미 있는 사람은 그 칸을 건드리지 않는다(빈 자격번호 칸이 저장된 번호를 지우던 문제 — 2026-10-29). 지우려면 [수정]
+      var blank = {};
+      XL_KEYS.forEach(function(k, j) { if (idx[j] >= 0) { row[k] = r[idx[j]]; if (String(r[idx[j]] === null || r[idx[j]] === undefined ? '' : r[idx[j]]).trim() === '') blank[k] = true; } });
       row.name = String(row.name || '').trim();
       if (!row.name) return;
       ['birth_date', 'hire_date'].forEach(function(k) { if (k in row) row[k] = xlDate(row[k]); });
@@ -409,6 +411,7 @@ function importXl(file, engineers) {
       if ('sort_order' in row) row.sort_order = parseInt(row.sort_order, 10) || 0;
       ['address', 'dept', 'position', 'duty', 'default_field', 'qual', 'qual_no', 'survey_field', 'survey_grade'].forEach(function(k) { if (k in row) row[k] = String(row[k]).trim() || null; });
       var same = engineers.filter(function(e) { return e.name.replace(/\s/g, '') === row.name.replace(/\s/g, '') && e.birth_date === row.birth_date; })[0];
+      if (same) Object.keys(blank).forEach(function(k) { if (k !== 'name' && k !== 'birth_date') delete row[k]; });
       var q = same ? sb.from('doc_engineers').update(row).eq('id', same.id).select('id') : sb.from('doc_engineers').insert(row).select('id');
       jobs.push(q.then(function(res) {
         if (res.error || !res.data || !res.data.length) { errors.push(line + '번째 줄 ' + row.name + ': ' + ((res.error && res.error.message) || '저장 안 됨')); return; }
@@ -471,7 +474,7 @@ function EngineersView() {
           <span style={{ flex: 1 }} />
           <label className="chk"><input type="checkbox" checked={all} onChange={function(e) { setAll(e.target.checked); }} /> 퇴사자도 보기</label>
         </div>
-        <div className="note" style={{ marginBottom: 10 }}>엑셀은 성명 + 생년월일이 같은 사람이 있으면 갱신, 없으면 새로 추가해요. 도장은 「도장 일괄 올리기」(파일 이름 = 성명) 또는 [수정], 자격증 사본은 [수정]에서 올려요. 주민등록번호 전체는 저장하지 않아요(생년월일 + 성별로 앞자리만 만들어요).</div>
+        <div className="note" style={{ marginBottom: 10 }}>엑셀은 성명 + 생년월일이 같은 사람이 있으면 갱신, 없으면 새로 추가해요. 이미 있는 사람의 빈 칸은 그대로 둬요(지우려면 [수정]). 도장은 「도장 일괄 올리기」(파일 이름 = 성명) 또는 [수정], 자격증 사본은 [수정]에서 올려요. 주민등록번호 전체는 저장하지 않아요(생년월일 + 성별로 앞자리만 만들어요).</div>
         {msg && <Warn list={msg.list} cls={msg.cls} />}
         <div className="tbl-wrap">
           <table className="tb">
@@ -799,14 +802,24 @@ function EquipmentView() {
 
 // ═══════════════════════ 서류 만들기 ═══════════════════════
 // 서식 파일(비공개 버킷) 상태 + 올리기·내려받기
+// onState({ has: 올라 있음, ok: 버전이 서류 정의(def.templateVersion)와 같음, ver: 서식 안 버전 표시 })
 function TemplateBar({ def, onState }) {
   const [info, setInfo] = useState(undefined);
+  const [ver, setVer] = useState(undefined);       // undefined = 확인 중, null = 표시 없음(예전 서식)
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   function reload() {
+    setVer(undefined);
     sb.storage.from(TPL_BUCKET).list('', { search: def.template }).then(function(r) {
       var hit = (r.data || []).filter(function(o) { return o.name === def.template; })[0] || null;
-      setInfo(hit); onState(!!hit);
+      setInfo(hit);
+      if (!hit) { onState({ has: false, ok: false, ver: null }); return; }
+      onState({ has: true, ok: false, ver: undefined });
+      // 서식 안의 버전 표시를 읽는다(서식은 약 70KB)
+      downloadBytes(TPL_BUCKET, def.template).then(function(b) { return HwpxEngine.open(b); }).then(function(doc) {
+        var v = HwpxEngine.templateVersion(doc);
+        setVer(v); onState({ has: true, ok: v === def.templateVersion, ver: v });
+      }, function(ex) { setVer(null); onState({ has: true, ok: false, ver: null }); setMsg('서식을 읽지 못했어요: ' + (ex && ex.message ? ex.message : ex)); });
     });
   }
   useEffect(reload, [def.key]);
@@ -832,6 +845,10 @@ function TemplateBar({ def, onState }) {
       {info === undefined ? '…' : (info
         ? <span className="tag tag-ok">올림 · {(info.updated_at || info.created_at || '').slice(0, 10)}</span>
         : <span className="tag tag-no">없음 — 올려 주세요</span>)}
+      {info && ver === undefined && <span className="tag tag-g">버전 확인 중…</span>}
+      {info && ver !== undefined && (ver === def.templateVersion
+        ? <span className="tag tag-ok">서식 버전 {ver}</span>
+        : <span className="tag tag-no" style={{ whiteSpace: 'normal' }}>서식이 예전 버전이에요{ver ? '(' + ver + ')' : ''} — 새 서식({def.templateVersion})을 다시 올려 주세요</span>)}
       <DropBox small inline kinds={['hwpx']} maxMB={20} accept=".hwpx" disabled={busy}
         text={busy ? '올리는 중…' : '서식 올리기 (끌어다 놓기 가능)'} clickText={busy ? '올리는 중…' : '서식 올리기'}
         onFiles={up} onError={function(m) { setMsg(m); }} />
@@ -861,7 +878,9 @@ const EMPTY_FORM = { project_id: '', title: '', amount: '', amountText: '', cont
 
 function ChaksuView() {
   const def = DocDefs.get('chaksu');
-  const [hasTpl, setHasTpl] = useState(false);
+  const [tpl, setTpl] = useState({ has: false, ok: false, ver: null });   // 서식 상태(TemplateBar)
+  const [certSep, setCertSep] = useState(false);   // 자격증 사본 그림이 없을 때 「따로 붙임」(붙임 문구 그대로)
+  const [confirm, setConfirm] = useState(null);    // 내려받기 전 확인 창 { list, go }
   const [projects, setProjects] = useState([]);
   const [pq, setPq] = useState('');
   const [pdfs, setPdfs] = useState([]);
@@ -1009,11 +1028,13 @@ function ChaksuView() {
       plan: plan, attach: attach,
       equipment: plan ? equip.filter(function(q) { return q.on; }).map(function(q) { return { name: q.name, spec: q.spec, qty: Number(q.qty), unit: q.unit }; }) : [],
       sealImg: seal ? want('seal', SEAL_BUCKET, seal.image_path) : null,
-      letterSealImg: lseal ? want('lseal', SEAL_BUCKET, lseal.image_path) : null
+      letterSealImg: lseal ? want('lseal', SEAL_BUCKET, lseal.image_path) : null,
+      certSeparate: certSep
     };
   }
   var preview = def.build(makeInp(function(id, b, path) { return path ? id : null; }));
-  var preWarn = (hasTpl ? [] : ['서식 파일이 없어요. 위 「서식 올리기」로 ' + def.template + ' 를 먼저 올리세요.']).concat(preview.warnings);
+  var preWarn = (!tpl.has ? ['서식 파일이 없어요. 위 「서식 올리기」로 ' + def.template + ' 를 먼저 올리세요.']
+    : (tpl.ver !== undefined && !tpl.ok ? ['서식이 예전 버전이에요 — 다시 올려 주세요(필요한 버전 ' + def.templateVersion + '). 그때까지 만들기를 막아 둡니다.'] : [])).concat(preview.warnings);
 
   // 7) 만들기
   function generate() {
@@ -1034,13 +1055,24 @@ function ChaksuView() {
       data.images = images;
       return HwpxEngine.open(res[0]);
     }).then(function(doc) {
+      // 화면을 연 뒤 다른 사람이 서식을 바꿨을 수도 있으므로 받은 서식으로 다시 확인
+      var v = HwpxEngine.templateVersion(doc);
+      if (v !== def.templateVersion) throw new Error('서식이 예전 버전이에요(' + (v || '버전 표시 없음') + ') — 새 서식(' + def.templateVersion + ')을 다시 올려 주세요.');
       var out = HwpxEngine.fill(doc, def, data);
       return HwpxEngine.save(doc).then(function(blob) { return { blob: blob, out: out }; });
     }).then(function(r) {
-      saveBlob(r.blob, fname);
       // 도장 없는 기술자는 서류 정의가 이름과 함께 알렸으므로 엔진의 같은 알림은 뺀다
       var warns = (data.warnings || []).concat((r.out.warnings || []).filter(function(w) { return !/^그림 없음: 도장:(기술자|사업책임)/.test(w); }));
-      if (r.out.leftovers && r.out.leftovers.length) warns.push('채우지 못한 표시가 남았어요: ' + r.out.leftovers.join(', '));
+      if (r.out.leftovers && r.out.leftovers.length) warns.unshift('채우지 못한 표시가 남았어요: ' + r.out.leftovers.join(', ') + ' — 서식을 확인하세요.');
+      // 확인할 것이 있으면 내려받기 전에 확인 창(그래도 내려받기 / 취소)
+      if (warns.length) setConfirm({ list: warns, go: function() { finish(r, warns); } });
+      else finish(r, warns);
+    }).catch(function(ex) {
+      setBusy(false);
+      setResult({ cls: 'al-e', list: ['만들지 못했어요: ' + (ex && ex.message ? ex.message : ex)] });
+    });
+    function finish(r, warns) {
+      saveBlob(r.blob, fname);
       function idn(p) { return p ? { id: p.id, name: p.name } : null; }
       var detail = {
         lead: idn(inp.lead),
@@ -1055,11 +1087,8 @@ function ChaksuView() {
           if (lr.error) warns.push('발급 이력을 저장하지 못했어요: ' + lr.error.message);
           setBusy(false); reloadLogs();
           setResult({ cls: warns.length ? 'al-w' : 'al-s', list: ['내려받았어요: ' + fname + ' — 한글에서 열어 확인하세요.'].concat(warns) });
-        });
-    }).catch(function(ex) {
-      setBusy(false);
-      setResult({ cls: 'al-e', list: ['만들지 못했어요: ' + (ex && ex.message ? ex.message : ex)] });
-    });
+        }, function(ex) { setBusy(false); setResult({ cls: 'al-w', list: ['내려받았어요: ' + fname, '발급 이력을 저장하지 못했어요: ' + (ex && ex.message ? ex.message : ex)] }); });
+    }
   }
 
   var qp = pq.trim();
@@ -1099,7 +1128,7 @@ function ChaksuView() {
       <div className="card">
         <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
           <div className="st" style={{ margin: 0 }}>📄 {def.name}</div>
-          <TemplateBar def={def} onState={setHasTpl} />
+          <TemplateBar def={def} onState={setTpl} />
         </div>
         <div className="note">{def.desc}</div>
       </div>
@@ -1245,6 +1274,12 @@ function ChaksuView() {
           {def.attachments.map(function(a) {
             return <label key={a.key} className="chk" style={{ display: 'block', marginBottom: 6 }}><input type="checkbox" checked={!!attach[a.key]} onChange={function(e) { setAttach(Object.assign({}, attach, { [a.key]: e.target.checked })); }} /> {a.label} <span className="note">(따로 붙이는 서류 — 붙임 목록에만)</span></label>;
           })}
+          {preview.noCert && (
+            <div className="al al-w" style={{ marginTop: 6 }}>
+              사업책임기술자의 자격증 사본 그림이 없어 자격증 쪽이 빠져요.
+              <label className="chk" style={{ display: 'block', marginTop: 4 }}><input type="checkbox" checked={certSep} onChange={function(e) { setCertSep(e.target.checked); }} /> 자격증 사본은 따로 붙임 (붙임 3번 「재직증명서, 자격증 사본」 그대로 — 끄면 「재직증명서」)</label>
+            </div>
+          )}
           <div className="fl" style={{ marginTop: 8 }}>공문 붙임 목록 미리 보기</div>
           <ol className="note" style={{ margin: '4px 0 0 18px', padding: 0 }}>
             {preview.attachList.map(function(n, i) { return <li key={i}>{n} 1부.{i === preview.attachList.length - 1 ? '  끝.' : ''}</li>; })}
@@ -1296,7 +1331,19 @@ function ChaksuView() {
       <div className="card">
         <div className="st"><span className="no">6</span>만들기</div>
         <Warn list={preWarn} />
-        <button className="btn btn-p" onClick={generate} disabled={busy || !hasTpl}>{busy ? '만드는 중…' : '⬇ HWPX 내려받기'}</button>
+        <button className="btn btn-p" onClick={generate} disabled={busy || !tpl.ok}>{busy ? '만드는 중…' : '⬇ HWPX 내려받기'}</button>
+        {confirm && (
+          <div className="modal-bg">
+            <div className="modal" style={{ maxWidth: 560 }}>
+              <h3>내려받기 전에 확인하세요</h3>
+              <Warn list={confirm.list} cls="al-w" />
+              <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
+                <button className="btn btn-s" onClick={function() { setConfirm(null); setBusy(false); setResult({ cls: 'al-i', list: ['내려받지 않았어요. 고친 뒤 다시 만드세요.'] }); }}>취소</button>
+                <button className="btn btn-p" onClick={function() { var go = confirm.go; setConfirm(null); go(); }}>그래도 내려받기</button>
+              </div>
+            </div>
+          </div>
+        )}
         {result && <div style={{ marginTop: 12 }}><Warn list={result.list} cls={result.cls} /></div>}
       </div>
 

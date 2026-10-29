@@ -101,6 +101,9 @@
     name: '착수계',
     desc: '공문 · 착수신고서 · 책임기술자 지정 · 재직증명서 · 자격증 사본 · (선택) 인력/장비 투입 계획 · 참여기술자 명단 · 보안각서',
     template: 'chaksu.hwpx',
+    // 서식 버전 = 서식 HWPX 가 마지막으로 바뀐 제품 버전. 서식 안 표시(HwpxEngine.templateVersion)와 다르면 화면이 만들기를 막는다.
+    // 서식을 바꾸면 여기와 서식 만드는 스크립트(docs-work/node/build_template2.js — 이 값을 읽어 넣음)를 같이 올린다
+    templateVersion: '2.4.4',
     licenses: LICENSES,
     survey: SURVEY,
     docNoPrefix: '관보',
@@ -142,7 +145,8 @@
     },
     // in = { title, amount, amountText, contractDate, startDate, endDate, receiver, vias:[{name, docNo}], issueDate, submitDate,
     //        lead:기술자, licenses:[{name, lead:기술자, members:[기술자]}], plan:불(인력·장비 투입 계획서 포함),
-    //        equipment:[{name,spec,qty,unit}], attach:{schedule, bill, cems}, sealImg(서류 도장), letterSealImg(공문 도장) }
+    //        equipment:[{name,spec,qty,unit}], attach:{schedule, bill, cems}, sealImg(서류 도장), letterSealImg(공문 도장),
+    //        certSeparate:불(사업책임기술자 자격증 사본 그림이 없을 때 「따로 붙임」 — 붙임 문구를 그대로 둠) }
     // 기술자 = { id, name, birth_date, gender, address, hire_date, dept, position, duty, qual, qual_no,
     //           survey_field, survey_grade, sealImg, certImg }
     build: function (inp) {
@@ -170,7 +174,7 @@
       // 회사 도장 두 자리: 공문 직인 자리(도장:회사@공문) = 공문 도장, 나머지 (印) 자리 = 서류 도장
       vars['도장:회사'] = inp.sealImg || null;
       vars['도장:회사@공문'] = inp.letterSealImg || null;
-      if (!inp.sealImg) warnings.push('서류 도장이 없습니다.');
+      if (!inp.sealImg) warnings.push('서류 도장이 없어요(고르지 않았거나 그림이 없음) — 「대표이사 (印)」 자리가 비어요.');
 
       // 같은 사람이 여러 자리에 → 경고만 (측량 단독의 사업책임 = 공공측량업 책임은 같은 자리로 본다)
       var seen = {}, dup = {};
@@ -183,13 +187,15 @@
       });
       Object.keys(dup).forEach(function (id) { warnings.push(F.name(dup[id].name) + ': 여러 자리에 들어 있어요. 확인하세요.'); });
 
-      // 도장 없는 사람 (한 번씩)
-      var noSeal = {};
+      // 도장 없는 사람 · 자격번호 없는 사람 — 한 줄에 모아서(한 사람은 한 번)
+      var noSeal = {}, noSealN = [], noNo = {}, noNoN = [];
       var everyone = [lead];
       lics.forEach(function (l) { everyone.push(l.lead); (l.members || []).forEach(function (m) { everyone.push(m); }); });
       everyone.forEach(function (p) {
-        if (p && !p.sealImg && !noSeal[p.id]) { noSeal[p.id] = true; warnings.push(F.name(p.name) + ': 도장 이미지가 없어 보안각서 서명 칸이 비어요.'); }
+        if (p && !p.sealImg && !noSeal[p.id]) { noSeal[p.id] = true; noSealN.push(F.name(p.name)); }
       });
+      if (noSealN.length) warnings.push('도장 그림이 없는 기술자: ' + noSealN.join(', ') + ' — 보안각서 서명 칸이 비어요.');
+      function needNo(p) { if (p && !p.qual_no && !noNo[p.id]) { noNo[p.id] = true; noNoN.push(F.name(p.name)); } }
 
       // 공공측량업 줄(일반 표): 학력,자격증 칸 = 측량 기술등급 분야, 자격증번호 칸 = 등급. 등급이 없으면 대표 자격·번호 + 경고
       function surveyQual(p) {
@@ -203,6 +209,7 @@
         var ppl = (l.lead ? [[l.lead, '책임']] : []).concat((l.members || []).map(function (m) { return [m, '참여']; }));
         ppl.forEach(function (pr) {
           var p = pr[0], q = l.name === SURVEY ? surveyQual(p) : [p.qual || '', p.qual_no || ''];
+          if (l.name !== SURVEY) needNo(p);
           rowsGen.push({
             '분야': l.name, '구분': pr[1], '구분키': l.name + '|' + pr[1],
             '성명': F.name(p.name), '생년월일': F.birth(p.birth_date),
@@ -223,6 +230,8 @@
           });
         });
       }
+      if (!surveyOnly) needNo(lead);
+      if (noNoN.length) warnings.push('자격번호가 없는 기술자: ' + noNoN.join(', ') + ' — 명단 표 자격증번호 칸이 비어요(명부에서 넣어 주세요).');
       var rowsEq = (inp.equipment || []).map(function (q) {
         return { '장비명': q.name || '', '규격': q.spec || '', '수량': (q.qty === null || q.qty === undefined || q.qty === '' ? '' : q.qty) + (q.unit || '') };
       });
@@ -230,7 +239,9 @@
 
       // 붙임 목록: 실제 넣은 서류 순서대로 번호, 마지막 줄 끝에 「끝.」
       var at = inp.attach || {};
-      var names = ['착수신고서', '과업 책임기술자 선임계', '재직증명서, 자격증 사본'];
+      // 사업책임기술자 자격증 사본 그림이 없으면 그 쪽이 빠지므로 붙임 3번 = 「재직증명서」(「따로 붙임」을 고르면 문구 그대로)
+      var noCert = !!lead && !lead.certImg;
+      var names = ['착수신고서', '과업 책임기술자 선임계', noCert && !inp.certSeparate ? '재직증명서' : '재직증명서, 자격증 사본'];
       if (inp.plan) names.push('인력 및 장비투입 계획서');
       names.push('분야별 참여 기술자 명단', '보안각서');
       CHAKSU.attachments.forEach(function (a) { if (at[a.key]) names.push(a.label); });
@@ -240,7 +251,11 @@
 
       var vias = (inp.vias || []).filter(function (v) { return v && (v.name || v.docNo); });
       if (!vias.length) warnings.push('경유처가 없어 공문이 빠집니다.');
-      else if (!inp.letterSealImg) warnings.push('공문 도장이 없습니다.');
+      else if (!inp.letterSealImg) warnings.push('공문 도장이 없어요(고르지 않았거나 그림이 없음) — 공문 직인 자리가 비어요.');
+      vias.forEach(function (v) {
+        if (!String(v.docNo || '').trim()) warnings.push('경유 「' + (v.name || '(이름 없음)') + '」: 문서번호가 비어 있어요.');
+        if (!String(v.name || '').trim()) warnings.push('문서번호 ' + v.docNo + ' 의 경유처 이름이 비어 있어요.');
+      });
       var blkLetter = vias.map(function (v) { return { '경유': v.name || '', '문서번호': CHAKSU.docNo(v.docNo, inp.issueDate || inp.startDate) }; });
       // 재직증명서·자격증 사본: 사업책임기술자 1명. 재직증명서에는 주민등록번호 칸이 없고 생년월일만(네 자리 연도 1977. 03. 28.)
       var blkCert = lead ? [{
@@ -252,7 +267,8 @@
       var blkLic = [];
       if (lead) {
         if (lead.certImg) blkLic.push({ '이미지:자격증': lead.certImg });
-        else warnings.push(F.name(lead.name) + ': 자격증 사본 이미지가 없어 그 쪽을 뺐어요.');
+        else warnings.push(F.name(lead.name) + ': 자격증 사본 그림이 없어 자격증 쪽이 빠져요 — ' +
+          (inp.certSeparate ? '붙임 3번은 「재직증명서, 자격증 사본」 그대로(따로 붙임).' : '붙임 3번을 「재직증명서」로 바꿨어요.'));
       }
       var one = [{}], none = [];
       return {
@@ -270,6 +286,7 @@
           '보안_일반': surveyOnly ? none : one, '보안_측량': surveyOnly ? one : none
         },
         attachList: names,
+        noCert: noCert,
         surveyOnly: surveyOnly,
         warnings: warnings
       };
