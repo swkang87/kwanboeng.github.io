@@ -5,7 +5,11 @@
  *   {{토큰}}                값 치환 (XML 특수문자는 자동 이스케이프). 값이 바뀐 문단은 줄 배치 정보(linesegarray)를 지워
  *                           한글이 열 때 다시 계산하게 한다.
  *   {{#행:이름}}            표의 데이터 행 1줄(이 표시가 든 행)을 데이터 수만큼 복제. rowAddr·rowCnt·표 높이 갱신,
- *                           정의의 mergeCol(열 번호)·mergeBy(값 이름)가 있으면 같은 값이 이어지는 칸을 rowSpan 으로 병합.
+ *                           정의의 merge:[{col, by}] (열 번호·묶음 값 이름, 여러 개 가능)가 있으면 같은 값이 이어지는 칸을
+ *                           rowSpan 으로 병합. by 값은 표시 글자와 달라도 된다(예: 분야+구분으로 묶고 칸에는 '참여'만).
+ *                           예전 mergeCol·mergeBy 도 그대로 쓴다.
+ *   {{#끝행}}               이 표시가 든 행은 지우고, 그 칸들의 테두리(borderFillIDRef, 열 번호별)를 채운 뒤 표의 맨 아래에
+ *                           닿는 칸에 입힌다. 반복 행을 늘리거나 줄여도 표 아래 굵은 선이 맨 끝 행에 오게 한다.
  *   {{#블록:이름}} … {{/블록:이름}}   이 표시만 든 문단 사이를 데이터 수만큼 복제(두 번째부터 쪽 나누기). 표시 문단은 지운다.
  *                           0개면 블록을 통째로 지운다. 표시 문단에 구역 속성(secPr)이 있으면 다음 문단으로 옮긴다.
  *   {{도장:키}} / {{도장:키@자리}}    그 문단에 글 앞으로(IN_FRONT_OF_TEXT) 그림. 크기·위치는 정의 pictures[토큰] (없으면 '도장:키').
@@ -18,7 +22,7 @@
  *     return HwpxEngine.save(doc);                     // Blob (Node 에서는 Uint8Array)
  *   });
  *   data = { title, vars:{토큰:값}, rows:{이름:[{토큰:값}]}, blocks:{이름:[{토큰:값}]}, images:{id:{bytes:Uint8Array, ext:'png'}} }
- *   def  = { rows:{이름:{mergeCol, mergeBy}}, pictures:{토큰:{…}} } — 서류 정의(doc-defs.js)
+ *   def  = { rows:{이름:{merge:[{col, by}], fit}}, pictures:{토큰:{…}} } — 서류 정의(doc-defs.js)
  */
 (function (root) {
   'use strict';
@@ -345,6 +349,28 @@
 
   function expandTable(ctx, tbl, scope) {
     var trs = kids(tbl, 'hp:tr');
+    // {{#끝행}}: 테두리 견본 행을 떼어 둔다
+    var lastBf = null;
+    for (var li = 0; li < trs.length; li++) {
+      if (textOf(trs[li]).indexOf('{{#끝행}}') < 0) continue;
+      var lt = trs[li], lh = 0;
+      lastBf = {};
+      kids(lt, 'hp:tc').forEach(function (tc) {
+        lastBf[attr(cellAddr(tc), 'colAddr')] = attr(tc, 'borderFillIDRef');
+        if (attr(cellSpan(tc), 'rowSpan') === '1') lh = Math.max(lh, +attr(cellSz(tc), 'height'));
+      });
+      var lrow = +attr(cellAddr(kids(lt, 'hp:tc')[0]), 'rowAddr');
+      for (var lj = li + 1; lj < trs.length; lj++) {
+        kids(trs[lj], 'hp:tc').forEach(function (tc) { var ca = cellAddr(tc); setAttr(ca, 'rowAddr', String(+attr(ca, 'rowAddr') - 1)); });
+      }
+      tbl.c = tbl.c.filter(function (x) { return x !== lt; });
+      setAttr(tbl, 'rowCnt', String(+attr(tbl, 'rowCnt') - 1));
+      var lsz = kid(tbl, 'hp:sz');
+      if (lsz) setAttr(lsz, 'height', String(Math.max(0, +attr(lsz, 'height') - lh)));
+      tbl._dirty = true;
+      trs = kids(tbl, 'hp:tr');
+      break;
+    }
     for (var ri = 0; ri < trs.length; ri++) {
       var name = rowMarker(trs[ri]);
       if (!name) continue;
@@ -360,26 +386,27 @@
         kids(tr, 'hp:tc').forEach(function (tc) { setAttr(cellAddr(tc), 'rowAddr', String(baseRow + k)); });
         return tr;
       });
-      // 같은 값이 이어지면 병합
-      if (rdef.mergeCol !== undefined && rdef.mergeBy) {
+      // 같은 값이 이어지면 병합 (열마다 따로)
+      var merges = rdef.merge || ((rdef.mergeCol !== undefined && rdef.mergeBy) ? [{ col: rdef.mergeCol, by: rdef.mergeBy }] : []);
+      merges.forEach(function (m) {
         var k0 = 0;
         while (k0 < clones.length) {
-          var v = items[k0][rdef.mergeBy], k1 = k0 + 1;
-          while (k1 < clones.length && v && items[k1][rdef.mergeBy] === v) k1++;
+          var v = items[k0][m.by], k1 = k0 + 1;
+          while (k1 < clones.length && v && items[k1][m.by] === v) k1++;
           if (k1 - k0 > 1) {
-            var head = cellAtCol(clones[k0], rdef.mergeCol);
+            var head = cellAtCol(clones[k0], m.col);
             if (head) {
               setAttr(cellSpan(head), 'rowSpan', String(k1 - k0));
               setAttr(cellSz(head), 'height', String(+attr(cellSz(head), 'height') * (k1 - k0)));
               for (var kk = k0 + 1; kk < k1; kk++) {
-                var c2 = cellAtCol(clones[kk], rdef.mergeCol);
+                var c2 = cellAtCol(clones[kk], m.col);
                 clones[kk].c = clones[kk].c.filter(function (x) { return x !== c2; });
               }
             }
           }
           k0 = k1;
         }
-      }
+      });
       var delta = clones.length - 1;
       // 아래 행 번호 밀기
       for (var rj = ri + 1; rj < trs.length; rj++) {
@@ -394,6 +421,21 @@
       if (rdef.fit && clones.length > rdef.fit) tbl._extra = (tbl._extra || 0) + (clones.length - rdef.fit) * rowH;
       trs = kids(tbl, 'hp:tr');
       ri += delta;
+    }
+    // 맨 아래에 닿는 칸에 끝행 테두리
+    if (lastBf) {
+      var bottom = -1, cells = [];
+      kids(tbl, 'hp:tr').forEach(function (tr) {
+        kids(tr, 'hp:tc').forEach(function (tc) {
+          var end = +attr(cellAddr(tc), 'rowAddr') + (+attr(cellSpan(tc), 'rowSpan') || 1) - 1;
+          cells.push([tc, end]);
+          if (end > bottom) bottom = end;
+        });
+      });
+      cells.forEach(function (ce) {
+        var bf = lastBf[attr(cellAddr(ce[0]), 'colAddr')];
+        if (ce[1] === bottom && bf) setAttr(ce[0], 'borderFillIDRef', bf);
+      });
     }
   }
   // 표가 서식 설계(fit 행)보다 길어지면, 그 표가 든 문단부터 다음 쪽 나누기 전까지의 빈 문단을 늘어난 높이만큼 지운다

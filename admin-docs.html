@@ -10,16 +10,16 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102901"></script>
+<script src="sysbar.js?v=2026102902"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
-<script src="contract-parser.js?v=2026102901"></script>
-<script src="hwpx-engine.js?v=2026102901"></script>
-<script src="doc-defs.js?v=2026102901"></script>
+<script src="contract-parser.js?v=2026102902"></script>
+<script src="hwpx-engine.js?v=2026102902"></script>
+<script src="doc-defs.js?v=2026102902"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
@@ -79,6 +79,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font
 .pick{border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;background:#fff;}
 .pick.lead{border-color:#c4b5fd;background:#faf5ff;}
 .pick .nm{font-weight:700;min-width:64px;}
+.lic{border:1px dashed #cbd5e1;border-radius:12px;padding:10px 12px;margin-bottom:10px;background:#f8fafc;}
+.lic .pick{margin-bottom:4px;}
 .chk{display:inline-flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;}
 .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;}
 .modal{background:#fff;border-radius:14px;width:100%;max-width:720px;padding:22px;}
@@ -106,6 +108,9 @@ const IMG_MAX_MB  = DC.IMAGE_MAX_MB || 5;
 const EQ_UNIT     = DC.EQUIPMENT_UNIT || '대';
 const PDF_BUCKET  = (APP_CONFIG.CONTRACT_IMPORT || {}).PDF_BUCKET || '';
 const F = DocDefs.F;
+const CHAKSU_DEF = DocDefs.get('chaksu');
+const SURVEY_FIELD = '측량및지형공간정보';
+const SURVEY_GRADES = ['고급', '중급', '초급', '초급기능사'];
 
 const localDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const today = () => localDateStr(new Date());
@@ -169,7 +174,7 @@ function Warn({ list, cls }) {
 }
 
 // ═══════════════════════ 기술자 명부 ═══════════════════════
-const ENG_COLS = 'id,name,birth_date,gender,address,hire_date,dept,position,duty,default_field,qual,qual_no,seal_path,cert_path,active,sort_order,user_id,memo';
+const ENG_COLS = 'id,name,birth_date,gender,address,hire_date,dept,position,duty,default_field,qual,qual_no,survey_field,survey_grade,seal_path,cert_path,active,sort_order,user_id,memo';
 function loadEngineers() {
   return Promise.all([
     sb.from('doc_engineers').select(ENG_COLS).order('sort_order').order('name'),
@@ -183,7 +188,7 @@ function loadEngineers() {
   });
 }
 
-const EMPTY_ENG = { name:'', birth_date:'', gender:'M', address:'', hire_date:'', dept:'', position:'', duty:'', default_field:'', qual:'', qual_no:'', active:true, sort_order:0, user_id:null, memo:'' };
+const EMPTY_ENG = { name:'', birth_date:'', gender:'M', address:'', hire_date:'', dept:'', position:'', duty:'', default_field:'', qual:'', qual_no:'', survey_field:'', survey_grade:'', active:true, sort_order:0, user_id:null, memo:'' };
 
 function EngineerModal({ eng, users, onClose, onSaved }) {
   const [f, setF] = useState(Object.assign({}, EMPTY_ENG, eng || {}));
@@ -209,7 +214,7 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(f.birth_date || '')) { setErr('생년월일을 2000-01-31 처럼 입력하세요.'); return; }
     setBusy(true); setErr('');
     var row = {};
-    ['name','birth_date','gender','address','hire_date','dept','position','duty','default_field','qual','qual_no','active','sort_order','user_id','memo'].forEach(function(k) {
+    ['name','birth_date','gender','address','hire_date','dept','position','duty','default_field','qual','qual_no','survey_field','survey_grade','active','sort_order','user_id','memo'].forEach(function(k) {
       var v = f[k];
       if (typeof v === 'string') v = v.trim();
       row[k] = (v === '' ? null : v);
@@ -254,7 +259,7 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
           <div><label className="fl">생년월일 *</label><input className="fi" type="date" value={f.birth_date || ''} onChange={function(e) { set('birth_date', e.target.value); }} /></div>
           <div><label className="fl">성별</label>
             <select className="fi" value={f.gender || ''} onChange={function(e) { set('gender', e.target.value || null); }}>
-              <option value="M">남</option><option value="F">여</option>
+              <option value="">미입력</option><option value="M">남</option><option value="F">여</option>
             </select></div>
         </div>
         <div style={{ marginBottom: 10 }}><label className="fl">주소</label><input className="fi" value={f.address || ''} onChange={function(e) { set('address', e.target.value); }} /></div>
@@ -265,10 +270,27 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
           <div><label className="fl">담당업무</label><input className="fi" value={f.duty || ''} onChange={function(e) { set('duty', e.target.value); }} /></div>
         </div>
         <div className="g4" style={{ marginBottom: 10 }}>
-          <div><label className="fl">기본 분야</label><input className="fi" value={f.default_field || ''} placeholder="예: 도로공항" onChange={function(e) { set('default_field', e.target.value); }} /></div>
+          <div><label className="fl">기본 분야(면허)</label>
+            <select className="fi" value={f.default_field || ''} onChange={function(e) { set('default_field', e.target.value); }}>
+              <option value="">없음</option>
+              {CHAKSU_DEF.licenses.concat(f.default_field && CHAKSU_DEF.licenses.indexOf(f.default_field) < 0 ? [f.default_field] : []).map(function(l) { return <option key={l} value={l}>{l}</option>; })}
+            </select></div>
           <div><label className="fl">자격</label><input className="fi" value={f.qual || ''} onChange={function(e) { set('qual', e.target.value); }} /></div>
           <div><label className="fl">자격번호</label><input className="fi" value={f.qual_no || ''} onChange={function(e) { set('qual_no', e.target.value); }} /></div>
           <div><label className="fl">표시 순서</label><input className="fi" type="number" value={f.sort_order} onChange={function(e) { set('sort_order', e.target.value); }} /></div>
+        </div>
+        <div className="g2" style={{ marginBottom: 10 }}>
+          <div><label className="fl">측량 기술등급 분야</label>
+            <input className="fi" list="survey-fields" value={f.survey_field || ''} placeholder={SURVEY_FIELD} onChange={function(e) { set('survey_field', e.target.value); }} />
+            <datalist id="survey-fields"><option value={SURVEY_FIELD} /></datalist></div>
+          <div><label className="fl">측량 기술등급 ({CHAKSU_DEF.survey} 줄에 씀)</label>
+            <select className="fi" value={f.survey_grade || ''} onChange={function(e) {
+              var g = e.target.value;
+              setF(Object.assign({}, f, { survey_grade: g, survey_field: g && !f.survey_field ? SURVEY_FIELD : f.survey_field }));
+            }}>
+              <option value="">없음</option>
+              {SURVEY_GRADES.concat(f.survey_grade && SURVEY_GRADES.indexOf(f.survey_grade) < 0 ? [f.survey_grade] : []).map(function(g) { return <option key={g} value={g}>{g}</option>; })}
+            </select></div>
         </div>
         <div className="g2" style={{ marginBottom: 10 }}>
           <div><label className="fl">계정 연결 (선택)</label>
@@ -324,8 +346,8 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
 }
 
 // 엑셀 일괄 올리기
-const XL_HEAD = ['성명', '생년월일', '성별', '주소', '입사일', '부서', '직위', '담당업무', '기본분야', '자격', '자격번호', '재직', '표시순서'];
-const XL_KEYS = ['name', 'birth_date', 'gender', 'address', 'hire_date', 'dept', 'position', 'duty', 'default_field', 'qual', 'qual_no', 'active', 'sort_order'];
+const XL_HEAD = ['성명', '생년월일', '성별', '주소', '입사일', '부서', '직위', '담당업무', '기본분야', '자격', '자격번호', '측량기술등급분야', '측량기술등급', '재직', '표시순서'];
+const XL_KEYS = ['name', 'birth_date', 'gender', 'address', 'hire_date', 'dept', 'position', 'duty', 'default_field', 'qual', 'qual_no', 'survey_field', 'survey_grade', 'active', 'sort_order'];
 function xlDate(v) {
   if (v === null || v === undefined || v === '') return null;
   if (v instanceof Date) return localDateStr(v);
@@ -334,8 +356,8 @@ function xlDate(v) {
   return m ? m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0') : 'bad';
 }
 function downloadXlTemplate() {
-  var ws = XLSX.utils.aoa_to_sheet([XL_HEAD, ['', '1990-01-31', '남', '', '2020-03-02', '', '', '', '', '', '', 'Y', 1]]);
-  ws['!cols'] = XL_HEAD.map(function(h) { return { wch: h === '주소' ? 36 : 12 }; });
+  var ws = XLSX.utils.aoa_to_sheet([XL_HEAD, ['', '1990-01-31', '남', '', '2020-03-02', '', '', '', '', '', '', '', '', 'Y', 1]]);
+  ws['!cols'] = XL_HEAD.map(function(h) { return { wch: h === '주소' ? 36 : (h.length > 6 ? 18 : 12) }; });
   var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '기술자 명부');
   XLSX.writeFile(wb, '기술자명부_양식.xlsx');
 }
@@ -358,7 +380,7 @@ function importXl(file, engineers) {
       if ('gender' in row) { var g = String(row.gender).trim(); row.gender = /^(남|M)/i.test(g) ? 'M' : (/^(여|F)/i.test(g) ? 'F' : null); }
       if ('active' in row) { var a = String(row.active).trim(); row.active = !(a === 'N' || a === 'n' || a === '퇴사' || a === '0' || a === 'false'); }
       if ('sort_order' in row) row.sort_order = parseInt(row.sort_order, 10) || 0;
-      ['address', 'dept', 'position', 'duty', 'default_field', 'qual', 'qual_no'].forEach(function(k) { if (k in row) row[k] = String(row[k]).trim() || null; });
+      ['address', 'dept', 'position', 'duty', 'default_field', 'qual', 'qual_no', 'survey_field', 'survey_grade'].forEach(function(k) { if (k in row) row[k] = String(row[k]).trim() || null; });
       var same = engineers.filter(function(e) { return e.name.replace(/\s/g, '') === row.name.replace(/\s/g, '') && e.birth_date === row.birth_date; })[0];
       var q = same ? sb.from('doc_engineers').update(row).eq('id', same.id).select('id') : sb.from('doc_engineers').insert(row).select('id');
       jobs.push(q.then(function(res) {
@@ -408,7 +430,7 @@ function EngineersView() {
         {msg && <Warn list={msg.list} cls={msg.cls} />}
         <div className="tbl-wrap">
           <table className="tb">
-            <thead><tr><th>순서</th><th>성명</th><th>생년월일</th><th>부서 · 직위</th><th>기본 분야</th><th>자격</th><th>도장</th><th>자격증</th><th>재직</th><th></th></tr></thead>
+            <thead><tr><th>순서</th><th>성명</th><th>생년월일</th><th>부서 · 직위</th><th>기본 분야</th><th>자격</th><th>측량 등급</th><th>도장</th><th>자격증</th><th>재직</th><th></th></tr></thead>
             <tbody>
               {shown.map(function(e) {
                 return (
@@ -419,6 +441,7 @@ function EngineersView() {
                     <td>{[e.dept, e.position].filter(Boolean).join(' · ')}</td>
                     <td>{e.default_field || ''}</td>
                     <td>{e.qual || ''}{e.quals.length ? <span className="tag tag-p" style={{ marginLeft: 4 }}>+{e.quals.length}</span> : null}</td>
+                    <td>{e.survey_grade || ''}</td>
                     <td>{e.seal_path ? <span className="tag tag-ok">있음</span> : <span className="tag tag-no">없음</span>}</td>
                     <td>{e.cert_path ? <span className="tag tag-ok">있음</span> : <span className="tag tag-no">없음</span>}</td>
                     <td>{e.active ? '재직' : '퇴사'}</td>
@@ -426,7 +449,7 @@ function EngineersView() {
                   </tr>
                 );
               })}
-              {!shown.length && <tr><td colSpan="10" className="loading">등록된 기술자가 없어요.</td></tr>}
+              {!shown.length && <tr><td colSpan="11" className="loading">등록된 기술자가 없어요.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -655,11 +678,10 @@ function ChaksuView() {
   const [parseMsg, setParseMsg] = useState(null);
   const [engs, setEngs] = useState([]);
   const [lead, setLead] = useState('');
-  const [members, setMembers] = useState([]);
-  const [fields, setFields] = useState({});
+  const [lics, setLics] = useState([]);            // [{name, lead:기술자 id, members:[id]}] — 면허 순서 = 표 순서
   const [qualPick, setQualPick] = useState({});
-  const [certIds, setCertIds] = useState([]);
-  const [licIds, setLicIds] = useState([]);
+  const [plan, setPlan] = useState(false);          // 인력 및 장비투입 계획서
+  const [attach, setAttach] = useState(function() { var o = {}; def.attachments.forEach(function(a) { o[a.key] = !!a.on; }); return o; });
   const [equip, setEquip] = useState([]);
   const [seals, setSeals] = useState([]);
   const [sealId, setSealId] = useState('');
@@ -741,72 +763,64 @@ function ChaksuView() {
     });
   }
 
-  // 3) 기술자
+  // 3) 기술자: 사업책임기술자 1명 + 면허별(책임 1 · 참여 N)
   var byId = {}; engs.forEach(function(e) { byId[e.id] = e; });
-  var people = (lead ? [lead] : []).concat(members.filter(function(id) { return id !== lead; }));
-  function chooseLead(id) {
-    setLead(id);
-    setMembers(members.filter(function(x) { return x !== id; }));
-    if (id) { setCertIds([id]); setLicIds([id]); }
+  var surveyOnly = def.isSurveyOnly(lics);
+  function setLic(i, patch) { setLics(lics.map(function(l, j) { return j === i ? Object.assign({}, l, patch) : l; })); }
+  function addLic(name) {
+    if (!name || lics.some(function(l) { return l.name === name; })) return;
+    // 측량 단독(잠금)에서 면허를 더하면 잠금이 풀린다 — 공공측량업 책임은 그때까지 쓰던 사업책임기술자로 채워 둔다
+    var cur = surveyOnly ? lics.map(function(l) { return l.name === def.survey && !l.lead ? Object.assign({}, l, { lead: lead }) : l; }) : lics;
+    setLics(cur.concat([{ name: name, lead: '', members: [] }]));
   }
-  function addMember(id) { if (id && id !== lead && members.indexOf(id) < 0) setMembers(members.concat([id])); }
-  function move(i, d) {
-    var m = members.slice(), j = i + d; if (j < 0 || j >= m.length) return;
-    var t = m[i]; m[i] = m[j]; m[j] = t; setMembers(m);
-  }
-  function removeMember(id) {
-    setMembers(members.filter(function(x) { return x !== id; }));
-    setCertIds(certIds.filter(function(x) { return x !== id; })); setLicIds(licIds.filter(function(x) { return x !== id; }));
-  }
-  function toggle(list, setter, id) { setter(list.indexOf(id) >= 0 ? list.filter(function(x) { return x !== id; }) : list.concat([id])); }
-  function fieldOf(id, i) { return fields[id] !== undefined ? fields[id] : (byId[id].default_field || (i === 0 ? (DC.LEAD_FIELD || '') : '')); }
+  function moveIn(arr, i, d) { var a = arr.slice(), j = i + d; if (j < 0 || j >= a.length) return a; var t = a[i]; a[i] = a[j]; a[j] = t; return a; }
   function qualOf(e) {
     var pick = qualPick[e.id];
     var q = pick ? e.quals.filter(function(x) { return x.id === pick; })[0] : null;
     return q ? { qual: q.qual, qual_no: q.qual_no, cert_path: q.cert_path || e.cert_path } : { qual: e.qual, qual_no: e.qual_no, cert_path: e.cert_path };
   }
-
-  var preWarn = [];
-  if (!hasTpl) preWarn.push('서식 파일이 없어요. 위 「서식 올리기」로 ' + def.template + ' 를 먼저 올리세요.');
-  people.forEach(function(id) {
-    var e = byId[id]; if (!e) return;
-    if (!e.seal_path) preWarn.push(e.name + ': 도장 그림이 없어 보안각서 서명 칸이 비어요.');
-    if (licIds.indexOf(id) >= 0 && !qualOf(e).cert_path) preWarn.push(e.name + ': 자격증 사본이 없어 자격증 쪽에서 빠져요.');
-  });
   var seal = seals.filter(function(s) { return s.id === sealId; })[0];
-  if (!seal) preWarn.push('회사 도장을 고르세요.');
-  else if (!seal.image_path) preWarn.push('고른 회사 도장에 그림이 없어요.');
+  // 화면 입력 → 서류 정의 입력. want(그림 id, 버킷, 경로) 는 그림을 받을 목록에 올리고 id 를 돌려준다(미리 보기에서는 있는지만)
+  function makeInp(want) {
+    function person(id, isLead) {
+      var e = byId[id]; if (!e) return null;
+      var q = qualOf(e);
+      return {
+        id: e.id, name: e.name, birth_date: e.birth_date, gender: e.gender, address: e.address, hire_date: e.hire_date,
+        dept: e.dept, position: e.position, duty: e.duty, qual: q.qual, qual_no: q.qual_no,
+        survey_field: e.survey_field, survey_grade: e.survey_grade,
+        sealImg: want('s' + e.id, ENG_BUCKET, e.seal_path),
+        certImg: isLead ? want('c' + e.id, ENG_BUCKET, q.cert_path) : null
+      };
+    }
+    return {
+      title: f.title.trim(), amount: numOf(f.amount), amountText: f.amountText.trim() || '',
+      contractDate: f.contractDate, startDate: f.startDate, endDate: f.endDate, receiver: f.receiver.trim(),
+      vias: f.vias, issueDate: f.issueDate || f.startDate, submitDate: f.submitDate || f.startDate,
+      lead: person(lead, true),
+      licenses: lics.map(function(l) {
+        return { name: l.name, lead: person(surveyOnly ? lead : l.lead), members: l.members.map(function(id) { return person(id); }).filter(Boolean) };
+      }),
+      plan: plan, attach: attach,
+      equipment: plan ? equip.filter(function(q) { return q.on; }).map(function(q) { return { name: q.name, spec: q.spec, qty: Number(q.qty), unit: q.unit }; }) : [],
+      sealImg: seal ? want('seal', SEAL_BUCKET, seal.image_path) : null
+    };
+  }
+  var preview = def.build(makeInp(function(id, b, path) { return path ? id : null; }));
+  var preWarn = (hasTpl ? [] : ['서식 파일이 없어요. 위 「서식 올리기」로 ' + def.template + ' 를 먼저 올리세요.']).concat(preview.warnings);
 
   // 7) 만들기
   function generate() {
     if (!f.title.trim()) { setResult({ cls: 'al-e', list: ['용역명을 입력하세요.'] }); return; }
-    if (!lead) { setResult({ cls: 'al-e', list: ['책임기술자를 고르세요.'] }); return; }
+    if (!lead) { setResult({ cls: 'al-e', list: ['사업책임기술자를 고르세요.'] }); return; }
     setBusy(true); setResult(null);
-    var images = {}, jobs = [];
+    var images = {}, jobs = [], asked = {};
     function want(id, bucket, path) {
       if (!path) return null;
-      jobs.push(downloadBytes(bucket, path).then(function(b) { images[id] = { bytes: b }; }));
+      if (!asked[id]) { asked[id] = true; jobs.push(downloadBytes(bucket, path).then(function(b) { images[id] = { bytes: b }; })); }
       return id;
     }
-    var sealImg = seal ? want('seal', SEAL_BUCKET, seal.image_path) : null;
-    function person(id, i) {
-      var e = byId[id], q = qualOf(e);
-      return {
-        id: e.id, name: e.name, birth_date: e.birth_date, gender: e.gender, address: e.address, hire_date: e.hire_date,
-        dept: e.dept, position: e.position, duty: e.duty, field: fieldOf(id, i), qual: q.qual, qual_no: q.qual_no,
-        sealImg: want('s' + e.id, ENG_BUCKET, e.seal_path),
-        certImg: licIds.indexOf(id) >= 0 ? want('c' + e.id, ENG_BUCKET, q.cert_path) : null
-      };
-    }
-    var ps = people.map(person);
-    var inp = {
-      title: f.title.trim(), amount: numOf(f.amount), amountText: f.amountText.trim() || '',
-      contractDate: f.contractDate, startDate: f.startDate, endDate: f.endDate, receiver: f.receiver.trim(),
-      vias: f.vias, issueDate: f.issueDate || f.startDate, submitDate: f.submitDate || f.startDate,
-      lead: ps[0], members: ps.slice(1), certIds: certIds, licenseIds: licIds,
-      equipment: equip.filter(function(q) { return q.on; }).map(function(q) { return { name: q.name, spec: q.spec, qty: Number(q.qty), unit: q.unit }; }),
-      sealImg: sealImg
-    };
+    var inp = makeInp(want);
     var data = def.build(inp);
     var fname = def.fileName(data.vars);
     var docNos = data.blocks['공문'].map(function(b) { return b['문서번호']; }).filter(Boolean);
@@ -818,12 +832,14 @@ function ChaksuView() {
       return HwpxEngine.save(doc).then(function(blob) { return { blob: blob, out: out }; });
     }).then(function(r) {
       saveBlob(r.blob, fname);
-      // 도장 없는 기술자는 위(서류 정의)에서 이름과 함께 알렸으므로 엔진의 같은 알림은 뺀다
-      var warns = (data.warnings || []).concat((r.out.warnings || []).filter(function(w) { return !/^그림 없음: 도장:기술자/.test(w); }));
+      // 도장 없는 기술자는 서류 정의가 이름과 함께 알렸으므로 엔진의 같은 알림은 뺀다
+      var warns = (data.warnings || []).concat((r.out.warnings || []).filter(function(w) { return !/^그림 없음: 도장:(기술자|사업책임)/.test(w); }));
       if (r.out.leftovers && r.out.leftovers.length) warns.push('채우지 못한 표시가 남았어요: ' + r.out.leftovers.join(', '));
+      function idn(p) { return p ? { id: p.id, name: p.name } : null; }
       var detail = {
-        engineers: ps.map(function(p) { return { id: p.id, name: p.name }; }),
-        cert: certIds, license: licIds,
+        lead: idn(inp.lead),
+        licenses: inp.licenses.map(function(l) { return { name: l.name, lead: idn(l.lead), members: l.members.map(idn) }; }),
+        survey_only: data.surveyOnly, plan: plan, attach: data.attachList,
         equipment: inp.equipment.map(function(q) { return q.name; }),
         seal: seal ? seal.id : null, vias: f.vias.map(function(v) { return v.name; }), file: fname
       };
@@ -842,6 +858,34 @@ function ChaksuView() {
   var qp = pq.trim();
   var projOpts = projects.filter(function(p) { return !qp || (p.name || '').indexOf(qp) >= 0 || (p.client || '').indexOf(qp) >= 0 || p.id === f.project_id; }).slice(0, 200);
   var amountPreview = f.amountText.trim() || (numOf(f.amount) ? F.amount(numOf(f.amount)) : '');
+  // 기술자 고르기 목록: 그 면허가 기본 분야인 사람을 위로
+  function engOpts(licName, skip) {
+    var l = engs.filter(function(e) { return !skip || skip.indexOf(e.id) < 0; });
+    var a = l.filter(function(e) { return licName && e.default_field === licName; }), b = l.filter(function(e) { return !(licName && e.default_field === licName); });
+    return a.concat(b).map(function(e) {
+      var g = licName === def.survey ? (e.survey_grade ? ' · 측량 ' + e.survey_grade : ' · 측량 등급 없음') : (e.qual ? ' · ' + e.qual : '');
+      return <option key={e.id} value={e.id}>{e.name}{e.default_field ? ' (' + e.default_field + ')' : ''}{g}</option>;
+    });
+  }
+  function qualSel(id) {
+    var e = byId[id]; if (!e) return null;
+    return e.quals.length ? (
+      <select className="fi sm" style={{ width: 170 }} value={qualPick[id] || ''} onChange={function(ev) { setQualPick(Object.assign({}, qualPick, { [id]: ev.target.value })); }}>
+        <option value="">{e.qual || '(대표 자격 없음)'}</option>
+        {e.quals.map(function(q) { return <option key={q.id} value={q.id}>{q.qual}</option>; })}
+      </select>
+    ) : <span className="note">{e.qual || '자격 없음'}</span>;
+  }
+  function tags(id, licName) {
+    var e = byId[id]; if (!e) return null;
+    return (
+      <span>
+        {licName === def.survey && <span className={'tag ' + (e.survey_grade ? 'tag-g' : 'tag-no')}>{e.survey_grade ? '측량 ' + e.survey_grade : '측량 등급 없음'}</span>}
+        {!e.seal_path && <span className="tag tag-no" style={{ marginLeft: 4 }}>도장 없음</span>}
+      </span>
+    );
+  }
+  var leftLics = def.licenses.filter(function(n) { return !lics.some(function(l) { return l.name === n; }); });
 
   return (
     <div>
@@ -900,7 +944,7 @@ function ChaksuView() {
             <div key={i} className="row" style={{ marginBottom: 6 }}>
               <input className="fi sm" style={{ flex: 2, minWidth: 140 }} placeholder="경유 (예: 건설과장)" value={v.name} onChange={function(e) { set('vias', f.vias.map(function(x, j) { return j === i ? Object.assign({}, x, { name: e.target.value }) : x; })); }} />
               <input className="fi sm" style={{ width: 90 }} placeholder="번호" value={v.docNo} onChange={function(e) { set('vias', f.vias.map(function(x, j) { return j === i ? Object.assign({}, x, { docNo: e.target.value }) : x; })); }} />
-              <span className="note">{F.docNo(v.docNo, f.issueDate || f.startDate)}</span>
+              <span className="note">{def.docNo(v.docNo, f.issueDate || f.startDate)}</span>
               <button className="btn btn-d sm" onClick={function() { set('vias', f.vias.filter(function(x, j) { return j !== i; })); }}>삭제</button>
             </div>
           );
@@ -914,59 +958,87 @@ function ChaksuView() {
 
       <div className="card">
         <div className="st"><span className="no">3</span>기술자</div>
-        <div className="g2" style={{ marginBottom: 10 }}>
-          <div><label className="fl">책임기술자</label>
-            <select className="fi" value={lead} onChange={function(e) { chooseLead(e.target.value); }}>
-              <option value="">— 고르세요 —</option>
-              {engs.map(function(e) { return <option key={e.id} value={e.id}>{e.name}{e.qual ? ' · ' + e.qual : ''}</option>; })}
-            </select></div>
-          <div><label className="fl">참여기술자 추가</label>
-            <select className="fi" value="" onChange={function(e) { addMember(e.target.value); }}>
-              <option value="">— 골라서 추가 —</option>
-              {engs.filter(function(e) { return e.id !== lead && members.indexOf(e.id) < 0; }).map(function(e) { return <option key={e.id} value={e.id}>{e.name}{e.default_field ? ' · ' + e.default_field : ''}</option>; })}
-            </select></div>
+        {!engs.length && <div className="note" style={{ marginBottom: 8 }}>재직 중인 기술자가 없어요. 「기술자 명부」 탭에서 먼저 등록하세요.</div>}
+        <div className="pick lead">
+          <span className="tag tag-p">사업책임기술자</span>
+          <select className="fi sm" style={{ width: 230 }} value={lead} onChange={function(e) { setLead(e.target.value); }}>
+            <option value="">— 고르세요 (필수) —</option>
+            {engOpts('')}
+          </select>
+          {lead && qualSel(lead)}
+          {lead && tags(lead, surveyOnly ? def.survey : '')}
         </div>
-        {!engs.length && <div className="note">재직 중인 기술자가 없어요. 「기술자 명부」 탭에서 먼저 등록하세요.</div>}
-        {people.map(function(id, i) {
-          var e = byId[id]; if (!e) return null;
-          var mi = members.indexOf(id);
+        <div className="note" style={{ margin: '4px 0 12px' }}>재직증명서·자격증 사본은 사업책임기술자 1명만 들어가요.</div>
+
+        {lics.map(function(l, i) {
+          var locked = surveyOnly && l.name === def.survey;
+          var leadId = locked ? lead : l.lead;
           return (
-            <div key={id} className={i === 0 ? 'pick lead' : 'pick'}>
-              <span className={'tag ' + (i === 0 ? 'tag-p' : 'tag-g')}>{i === 0 ? '책임' : '참여 ' + i}</span>
-              <span className="nm">{e.name}</span>
-              <input className="fi sm" style={{ width: 140 }} placeholder="분야" value={fieldOf(id, i)} onChange={function(ev) { setFields(Object.assign({}, fields, { [id]: ev.target.value })); }} />
-              {e.quals.length ? (
-                <select className="fi sm" style={{ width: 170 }} value={qualPick[id] || ''} onChange={function(ev) { setQualPick(Object.assign({}, qualPick, { [id]: ev.target.value })); }}>
-                  <option value="">{e.qual || '(대표 자격 없음)'}</option>
-                  {e.quals.map(function(q) { return <option key={q.id} value={q.id}>{q.qual}</option>; })}
-                </select>
-              ) : <span className="note">{e.qual || '자격 없음'}</span>}
-              {!e.seal_path && <span className="tag tag-no">도장 없음</span>}
-              <span style={{ flex: 1 }} />
-              <label className="chk"><input type="checkbox" checked={certIds.indexOf(id) >= 0} onChange={function() { toggle(certIds, setCertIds, id); }} /> 재직증명서</label>
-              <label className="chk"><input type="checkbox" checked={licIds.indexOf(id) >= 0} onChange={function() { toggle(licIds, setLicIds, id); }} /> 자격증 사본</label>
-              {i > 0 && <button className="btn btn-s sm" onClick={function() { move(mi, -1); }} disabled={mi === 0}>▲</button>}
-              {i > 0 && <button className="btn btn-s sm" onClick={function() { move(mi, 1); }} disabled={mi === members.length - 1}>▼</button>}
-              {i > 0 && <button className="btn btn-d sm" onClick={function() { removeMember(id); }}>빼기</button>}
+            <div key={l.name} className="lic">
+              <div className="row" style={{ marginBottom: 6 }}>
+                <b style={{ minWidth: 80 }}>{l.name}</b>
+                <span style={{ flex: 1 }} />
+                <button className="btn btn-s sm" onClick={function() { setLics(moveIn(lics, i, -1)); }} disabled={i === 0} title="위로">▲</button>
+                <button className="btn btn-s sm" onClick={function() { setLics(moveIn(lics, i, 1)); }} disabled={i === lics.length - 1} title="아래로">▼</button>
+                <button className="btn btn-d sm" onClick={function() { setLics(lics.filter(function(x, j) { return j !== i; })); }}>면허 빼기</button>
+              </div>
+              <div className="pick">
+                <span className="tag tag-p">책임</span>
+                {locked ? <span className="nm">{byId[lead] ? byId[lead].name : '(사업책임기술자를 먼저 고르세요)'}</span> : (
+                  <select className="fi sm" style={{ width: 230 }} value={l.lead} onChange={function(e) { setLic(i, { lead: e.target.value }); }}>
+                    <option value="">— 고르세요 (필수) —</option>
+                    {engOpts(l.name)}
+                  </select>
+                )}
+                {leadId && !locked && qualSel(leadId)}
+                {leadId && tags(leadId, l.name)}
+              </div>
+              {locked && <div className="note" style={{ margin: '2px 0 6px' }}>🔒 {def.survey} 하나만 있을 때는 사업책임기술자가 {def.survey} 책임기술자예요(측량 서식 — 분야 / 성명 / 생년월일 / 기술등급분야 / 등급).</div>}
+              {l.members.map(function(id, k) {
+                var e = byId[id]; if (!e) return null;
+                return (
+                  <div key={id} className="pick">
+                    <span className="tag tag-g">참여 {k + 1}</span>
+                    <span className="nm">{e.name}</span>
+                    {qualSel(id)}
+                    {tags(id, l.name)}
+                    <span style={{ flex: 1 }} />
+                    <button className="btn btn-s sm" onClick={function() { setLic(i, { members: moveIn(l.members, k, -1) }); }} disabled={k === 0}>▲</button>
+                    <button className="btn btn-s sm" onClick={function() { setLic(i, { members: moveIn(l.members, k, 1) }); }} disabled={k === l.members.length - 1}>▼</button>
+                    <button className="btn btn-d sm" onClick={function() { setLic(i, { members: l.members.filter(function(x) { return x !== id; }) }); }}>빼기</button>
+                  </div>
+                );
+              })}
+              <select className="fi sm" style={{ width: 260, marginTop: 4 }} value="" onChange={function(e) { var v = e.target.value; if (v && l.members.indexOf(v) < 0) setLic(i, { members: l.members.concat([v]) }); }}>
+                <option value="">+ 참여기술자 추가</option>
+                {engOpts(l.name, l.members.concat([leadId]))}
+              </select>
             </div>
           );
         })}
-        <div className="note">같은 분야가 이어지면 명단 표에서 분야 칸이 합쳐져요. 재직증명서·자격증 사본은 기본으로 책임기술자만 체크돼요.</div>
+        {leftLics.length > 0 && (
+          <select className="fi" style={{ width: 260 }} value="" onChange={function(e) { addLic(e.target.value); }}>
+            <option value="">+ 면허 추가</option>
+            {leftLics.map(function(n) { return <option key={n} value={n}>{n}</option>; })}
+          </select>
+        )}
+        <div className="note" style={{ marginTop: 8 }}>
+          명단·보안각서 표: 첫 줄 사업책임기술자, 그다음 면허 순서대로 책임 1명 + 참여(분야 칸·참여 칸은 세로로 합쳐져요). 면허가 없으면 사업책임기술자 줄만 들어가요.
+          같은 사람을 여러 자리에 넣으면 경고만 해요.
+        </div>
       </div>
 
       <div className="g2">
         <div className="card">
-          <div className="st"><span className="no">4</span>장비</div>
-          {equip.map(function(q, i) {
-            return (
-              <div key={q.id} className="row" style={{ marginBottom: 6 }}>
-                <label className="chk" style={{ flex: 1 }}><input type="checkbox" checked={q.on} onChange={function(e) { setEquip(equip.map(function(x, j) { return j === i ? Object.assign({}, x, { on: e.target.checked }) : x; })); }} /> {q.name} <span className="note">{q.spec || ''}</span></label>
-                <input className="fi sm" type="number" style={{ width: 64 }} value={q.qty} onChange={function(e) { setEquip(equip.map(function(x, j) { return j === i ? Object.assign({}, x, { qty: e.target.value }) : x; })); }} />
-                <span className="note">{q.unit}</span>
-              </div>
-            );
+          <div className="st"><span className="no">4</span>붙임 서류</div>
+          <label className="chk" style={{ display: 'block', marginBottom: 6 }}><input type="checkbox" checked={plan} onChange={function(e) { setPlan(e.target.checked); }} /> 인력 및 장비투입 계획서 넣기</label>
+          {def.attachments.map(function(a) {
+            return <label key={a.key} className="chk" style={{ display: 'block', marginBottom: 6 }}><input type="checkbox" checked={!!attach[a.key]} onChange={function(e) { setAttach(Object.assign({}, attach, { [a.key]: e.target.checked })); }} /> {a.label} <span className="note">(따로 붙이는 서류 — 붙임 목록에만)</span></label>;
           })}
-          {!equip.length && <div className="note">등록된 장비가 없어요.</div>}
+          <div className="fl" style={{ marginTop: 8 }}>공문 붙임 목록 미리 보기</div>
+          <ol className="note" style={{ margin: '4px 0 0 18px', padding: 0 }}>
+            {preview.attachList.map(function(n, i) { return <li key={i}>{n} 1부.{i === preview.attachList.length - 1 ? '  끝.' : ''}</li>; })}
+          </ol>
         </div>
         <div className="card">
           <div className="st"><span className="no">5</span>회사 도장</div>
@@ -984,6 +1056,22 @@ function ChaksuView() {
           </div>
         </div>
       </div>
+
+      {plan && (
+        <div className="card">
+          <div className="st">장비 (인력 및 장비투입 계획서)</div>
+          {equip.map(function(q, i) {
+            return (
+              <div key={q.id} className="row" style={{ marginBottom: 6 }}>
+                <label className="chk" style={{ flex: 1 }}><input type="checkbox" checked={q.on} onChange={function(e) { setEquip(equip.map(function(x, j) { return j === i ? Object.assign({}, x, { on: e.target.checked }) : x; })); }} /> {q.name} <span className="note">{q.spec || ''}</span></label>
+                <input className="fi sm" type="number" style={{ width: 64 }} value={q.qty} onChange={function(e) { setEquip(equip.map(function(x, j) { return j === i ? Object.assign({}, x, { qty: e.target.value }) : x; })); }} />
+                <span className="note">{q.unit}</span>
+              </div>
+            );
+          })}
+          {!equip.length && <div className="note">등록된 장비가 없어요.</div>}
+        </div>
+      )}
 
       <div className="card">
         <div className="st"><span className="no">6</span>만들기</div>

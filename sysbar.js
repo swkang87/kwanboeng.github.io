@@ -1,6 +1,8 @@
 /**
- * SYSBAR MODULE v3.10
+ * SYSBAR MODULE v3.11
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.11 (2026-10-29): APP_VERSION 2.4.0 — 착수계 개편(면허별 기술자 · 측량 단독 서식). sysbar 동작 변경 없음
  *
  * v3.10 (2026-10-29): 관리포털 「서류작성」(admin-docs.html, 권한 키 docs) — PERM_DEFS · PORTAL_PAGES 'dc' · SIDE_ICONS.doc
  *
@@ -68,7 +70,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.3.0';
+  var APP_VERSION = '2.4.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
