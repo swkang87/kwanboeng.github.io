@@ -10,16 +10,16 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026102902"></script>
+<script src="sysbar.js?v=2026102903"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
-<script src="contract-parser.js?v=2026102902"></script>
-<script src="hwpx-engine.js?v=2026102902"></script>
-<script src="doc-defs.js?v=2026102902"></script>
+<script src="contract-parser.js?v=2026102903"></script>
+<script src="hwpx-engine.js?v=2026102903"></script>
+<script src="doc-defs.js?v=2026102903"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
@@ -118,26 +118,21 @@ const won = (n) => (n === null || n === undefined || n === '' || isNaN(Number(n)
 const numOf = (s) => { var n = parseInt(String(s || '').replace(/[^0-9]/g, ''), 10); return isNaN(n) ? null : n; };
 const GENDER_KO = { M: '남', F: '여' };
 
-// 그림 파일 검사(png·jpeg, 크기)
-function imgExt(file) {
-  if (!file) return '';
-  if (file.type === 'image/png' || /\.png$/i.test(file.name || '')) return 'png';
-  if (file.type === 'image/jpeg' || /\.jpe?g$/i.test(file.name || '')) return 'jpg';
-  return '';
-}
-function checkImg(file) {
-  if (!imgExt(file)) return 'PNG 또는 JPG 그림만 올릴 수 있어요.';
-  if (file.size > IMG_MAX_MB * 1024 * 1024) return '그림은 ' + IMG_MAX_MB + 'MB 이하만 올릴 수 있어요.';
-  return '';
+// 그림 파일 검사: 실제 바이트로 PNG·JPG 확인(브라우저 file.type 은 믿지 않음 — Sysbar.checkUpload). 고를 때 미리 알림
+function pickImgChecked(file, onOk, onErr) {
+  Sysbar.checkUpload(file, ['png', 'jpg'], IMG_MAX_MB).then(function(r) { if (r.ok) onOk(file); else onErr(r.message); });
 }
 // 저장 경로: 올릴 때마다 새 이름(삭제 권한이 없고, 같은 이름이면 브라우저가 옛 그림을 보여 줄 수 있어서)
+// 바이트 + 표준 MIME 으로 올린다(File 을 그대로 넘기면 supabase-js 가 contentType 대신 file.type 을 씀)
 function uploadImg(bucket, prefix, file) {
-  var path = prefix + '_' + Date.now() + '.' + imgExt(file);
-  return sb.storage.from(bucket).upload(path, file, { upsert: false, contentType: imgExt(file) === 'png' ? 'image/png' : 'image/jpeg' })
-    .then(function(res) {
+  return Sysbar.checkUpload(file, ['png', 'jpg'], IMG_MAX_MB).then(function(c) {
+    if (!c.ok) { Sysbar.showError(new Error(c.message), '그림 올리기'); return null; }
+    var path = prefix + '_' + Date.now() + '.' + c.ext;
+    return sb.storage.from(bucket).upload(path, c.body, { upsert: false, contentType: c.mime }).then(function(res) {
       if (res.error) { Sysbar.showError(res.error, '그림 올리기'); return null; }
       return path;
-    }, function(err) { Sysbar.showError(err, '그림 올리기'); return null; });
+    });
+  }).catch(function(err) { Sysbar.showError(err, '그림 올리기'); return null; });
 }
 function downloadBytes(bucket, path) {
   return sb.storage.from(bucket).download(path).then(function(res) {
@@ -203,8 +198,7 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
     return function(e) {
       var file = e.target.files && e.target.files[0]; e.target.value = '';
       if (!file) return;
-      var m = checkImg(file); if (m) { setErr(m); return; }
-      setErr(''); setter(file);
+      pickImgChecked(file, function(fl) { setErr(''); setter(fl); }, setErr);
     };
   }
   function setQ(i, k, v) { setQuals(quals.map(function(q, j) { return j === i ? Object.assign({}, q, { [k]: v }) : q; })); }
@@ -323,8 +317,8 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
                 <span className={'tag ' + (q._file || q.cert_path ? 'tag-ok' : 'tag-g')}>{q._file ? '새 사본' : (q.cert_path ? '사본 있음' : '사본 없음')}</span>
                 <label className="btn btn-s sm">사본<input type="file" accept="image/png,image/jpeg" hidden onChange={function(e) {
                   var file = e.target.files && e.target.files[0]; e.target.value = '';
-                  if (!file) return; var m = checkImg(file); if (m) { setErr(m); return; }
-                  setQ(i, '_file', file);
+                  if (!file) return;
+                  pickImgChecked(file, function(fl) { setErr(''); setQ(i, '_file', fl); }, setErr);
                 }} /></label>
                 <button className="btn btn-d sm" onClick={function() {
                   if (q.id) setDelQ(delQ.concat([q.id]));
@@ -534,7 +528,7 @@ function SealsView() {
               <SignedImg bucket={SEAL_BUCKET} path={form.image_path} local={file} big />
               <label className="btn btn-s sm">그림 고르기<input type="file" accept="image/png,image/jpeg" hidden onChange={function(e) {
                 var fl = e.target.files && e.target.files[0]; e.target.value = '';
-                if (!fl) return; var m = checkImg(fl); if (m) { setErr(m); return; } setErr(''); setFile(fl);
+                if (!fl) return; pickImgChecked(fl, function(x) { setErr(''); setFile(x); }, setErr);
               }} /></label>
             </div>
             <div className="row" style={{ marginBottom: 14 }}>
@@ -616,6 +610,7 @@ function EquipmentView() {
 function TemplateBar({ def, onState }) {
   const [info, setInfo] = useState(undefined);
   const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
   function reload() {
     sb.storage.from(TPL_BUCKET).list('', { search: def.template }).then(function(r) {
       var hit = (r.data || []).filter(function(o) { return o.name === def.template; })[0] || null;
@@ -626,13 +621,18 @@ function TemplateBar({ def, onState }) {
   function up(e) {
     var file = e.target.files && e.target.files[0]; e.target.value = '';
     if (!file) return;
-    if (!/\.hwpx$/i.test(file.name)) { Sysbar.showError(new Error('HWPX 파일만 올릴 수 있어요.'), '서식 올리기'); return; }
-    setBusy(true);
-    sb.storage.from(TPL_BUCKET).upload(def.template, file, { upsert: true, contentType: 'application/hwp+zip' }).then(function(r) {
-      setBusy(false);
-      if (r.error) { Sysbar.showError(r.error, '서식 올리기'); return; }
-      reload();
-    }, function(ex) { setBusy(false); Sysbar.showError(ex, '서식 올리기'); });
+    if (!/\.hwpx$/i.test(file.name || '')) { setMsg(/\.hwp$/i.test(file.name || '') ? '한글 서식 파일(.hwpx)만 올릴 수 있습니다. 한글에서 「다른 이름으로 저장 → HWPX」로 저장해 올려 주세요.' : '한글 서식 파일(.hwpx)만 올릴 수 있습니다.'); return; }
+    setBusy(true); setMsg('');
+    // 확장자 + ZIP 시그니처 + 안의 mimetype(application/hwp+zip) 확인 → 바이트를 application/hwp+zip 으로 올림
+    // (한글이 깔린 PC 는 file.type 이 application/haansofthwpx 라, File 을 그대로 올리면 버킷이 거부했다)
+    Sysbar.checkUpload(file, ['hwpx'], 20).then(function(c) {
+      if (!c.ok) { setBusy(false); setMsg(c.message); return; }
+      return sb.storage.from(TPL_BUCKET).upload(def.template, c.body, { upsert: true, contentType: c.mime }).then(function(r) {
+        setBusy(false);
+        if (r.error) { Sysbar.showError(r.error, '서식 올리기'); return; }
+        reload();
+      });
+    }).catch(function(ex) { setBusy(false); Sysbar.showError(ex, '서식 올리기'); });
   }
   function down() {
     downloadBytes(TPL_BUCKET, def.template).then(function(b) { saveBlob(new Blob([b], { type: 'application/hwp+zip' }), def.template); },
@@ -646,6 +646,7 @@ function TemplateBar({ def, onState }) {
         : <span className="tag tag-no">없음 — 올려 주세요</span>)}
       <label className="btn btn-s sm">{busy ? '올리는 중…' : '서식 올리기'}<input type="file" accept=".hwpx" hidden onChange={up} disabled={busy} /></label>
       {info && <button className="btn btn-s sm" onClick={down}>서식 내려받기</button>}
+      {msg && <span className="tag tag-no" style={{ whiteSpace: 'normal' }}>{msg}</span>}
     </div>
   );
 }

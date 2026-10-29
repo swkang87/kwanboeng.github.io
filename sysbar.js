@@ -1,6 +1,9 @@
 /**
- * SYSBAR MODULE v3.11
+ * SYSBAR MODULE v3.12
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.12 (2026-10-29): checkUpload(file, kinds, maxMB) — 올릴 파일을 실제 바이트로 확인(png·jpg·pdf·hwpx) → 표준 MIME + ArrayBuffer.
+ *   File 을 그대로 올리면 supabase-js 가 contentType 대신 브라우저 file.type 을 써서 한컴 MIME 등이 버킷에서 거부된다
  *
  * v3.11 (2026-10-29): APP_VERSION 2.4.0 — 착수계 개편(면허별 기술자 · 측량 단독 서식). sysbar 동작 변경 없음
  *
@@ -70,7 +73,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.4.0';
+  var APP_VERSION = '2.4.1';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -1736,6 +1739,74 @@
     }
   }
 
+  // ── 올릴 파일 형식 확인 (2026-10-29) ─────────────────────────────
+  // 브라우저가 붙이는 file.type 은 PC·프로그램마다 다르다(한글이 깔린 PC 는 .hwpx 를 application/haansofthwpx 로 보냄).
+  // 그리고 supabase-js 는 File(Blob)을 받으면 FormData 로 보내면서 contentType 옵션을 무시하고 file.type 을 쓴다.
+  // → 실제 앞부분 바이트로 형식을 확인하고, 바이트(ArrayBuffer) + 표준 MIME 으로 올린다(이때는 contentType 이 그대로 쓰인다).
+  // checkUpload(file, kinds, maxMB) → Promise<{ok:true, kind, mime, ext, body} | {ok:false, message}>
+  //   kinds: ['png','jpg'] · ['hwpx'] · ['pdf'] 중 허용할 것
+  var UPLOAD_KINDS = {
+    png:  { mime: 'image/png',           ext: 'png'  },
+    jpg:  { mime: 'image/jpeg',          ext: 'jpg'  },
+    pdf:  { mime: 'application/pdf',     ext: 'pdf'  },
+    hwpx: { mime: 'application/hwp+zip', ext: 'hwpx' },
+  };
+  function _startsWith(b, arr, off) { off = off || 0; for (var i = 0; i < arr.length; i++) if (b[off + i] !== arr[i]) return false; return true; }
+  function _ascii(b, off, len) { var s = ''; for (var i = 0; i < len && off + i < b.length; i++) s += String.fromCharCode(b[off + i]); return s; }
+  // ZIP 안 mimetype 항목(압축 안 함)의 내용. 맨 앞부터 로컬 헤더를 따라가며 찾는다(HWPX 는 보통 첫 항목).
+  function _zipMimetype(b) {
+    var off = 0;
+    for (var n = 0; n < 64 && off + 30 <= b.length; n++) {
+      if (!_startsWith(b, [0x50, 0x4B, 0x03, 0x04], off)) return null;
+      var flag = b[off + 6] | (b[off + 7] << 8), method = b[off + 8] | (b[off + 9] << 8);
+      var csize = (b[off + 18] | (b[off + 19] << 8) | (b[off + 20] << 16) | (b[off + 21] << 24)) >>> 0;
+      var nlen = b[off + 26] | (b[off + 27] << 8), xlen = b[off + 28] | (b[off + 29] << 8);
+      var name = _ascii(b, off + 30, nlen), data = off + 30 + nlen + xlen;
+      if (name === 'mimetype') return method === 0 ? _ascii(b, data, csize).trim() : null;
+      if (flag & 8) return null;   // 크기가 뒤에 적힌 항목 — 더 따라갈 수 없음
+      off = data + csize;
+    }
+    return null;
+  }
+  function _sniff(b) {
+    if (_startsWith(b, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) return 'png';
+    if (_startsWith(b, [0xFF, 0xD8, 0xFF])) return 'jpg';
+    if (_startsWith(b, [0x25, 0x50, 0x44, 0x46, 0x2D])) return 'pdf';
+    if (_startsWith(b, [0x50, 0x4B, 0x03, 0x04])) return _zipMimetype(b) === 'application/hwp+zip' ? 'hwpx' : 'zip';
+    if (_startsWith(b, [0xD0, 0xCF, 0x11, 0xE0])) return 'hwp';    // 옛 한글(.hwp)·옛 오피스 형식
+    if (_startsWith(b, [0x42, 0x4D])) return 'bmp';
+    if (_ascii(b, 0, 4) === 'GIF8') return 'gif';
+    if (_ascii(b, 0, 4) === 'RIFF' && _ascii(b, 8, 4) === 'WEBP') return 'webp';
+    if (_ascii(b, 4, 4) === 'ftyp') return 'heic';
+    return '';
+  }
+  var UPLOAD_NAMES = { bmp: 'BMP', gif: 'GIF', webp: 'WEBP', heic: 'HEIC(아이폰 사진)', hwp: '.hwp', zip: '일반 ZIP', png: 'PNG', jpg: 'JPG', pdf: 'PDF', hwpx: '.hwpx' };
+  function _uploadMsg(kinds, got) {
+    var gotName = got ? UPLOAD_NAMES[got] + ' 파일이라 ' : '';
+    if (kinds.indexOf('hwpx') !== -1) {
+      if (got === 'hwp') return '한글 서식 파일(.hwpx)만 올릴 수 있습니다. 한글에서 「다른 이름으로 저장 → HWPX」로 저장해 올려 주세요.';
+      return '한글 서식 파일(.hwpx)만 올릴 수 있습니다.' + (got ? ' (고른 파일: ' + UPLOAD_NAMES[got] + ')' : '');
+    }
+    if (kinds.indexOf('pdf') !== -1) return 'PDF 파일만 올릴 수 있습니다.' + (got ? ' (고른 파일: ' + UPLOAD_NAMES[got] + ')' : '');
+    return 'PNG 또는 JPG 그림만 올릴 수 있습니다.' + (gotName ? ' ' + gotName + '안 돼요 — 그림판 등에서 PNG 로 저장해 올려 주세요.' : '');
+  }
+  function checkUpload(file, kinds, maxMB) {
+    kinds = kinds || [];
+    if (!file) return Promise.resolve({ ok: false, message: '파일을 고르세요.' });
+    if (maxMB && file.size > maxMB * 1024 * 1024) return Promise.resolve({ ok: false, message: maxMB + 'MB 이하 파일만 올릴 수 있습니다.' });
+    if (!file.size) return Promise.resolve({ ok: false, message: '빈 파일입니다.' });
+    var read = file.arrayBuffer ? file.arrayBuffer() : new Promise(function(res, rej) {
+      var fr = new FileReader(); fr.onload = function() { res(fr.result); }; fr.onerror = function() { rej(fr.error); }; fr.readAsArrayBuffer(file);
+    });
+    return read.then(function(buf) {
+      var got = _sniff(new Uint8Array(buf, 0, Math.min(buf.byteLength, 4096)));
+      if (got === 'zip' && kinds.indexOf('hwpx') !== -1) got = _zipMimetype(new Uint8Array(buf)) === 'application/hwp+zip' ? 'hwpx' : 'zip';
+      if (kinds.indexOf(got) === -1) return { ok: false, message: _uploadMsg(kinds, got) };
+      var k = UPLOAD_KINDS[got];
+      return { ok: true, kind: got, mime: k.mime, ext: k.ext, body: buf };
+    }, function(e) { return { ok: false, message: '파일을 읽지 못했습니다: ' + ((e && e.message) || e) }; });
+  }
+
   // ── 로그인 아이디 규칙 (config.js AUTH_POLICY) ───────────────────
   // 서버(change-own-password)도 같은 규칙·같은 문구로 다시 검사한다. 여기는 입력 중 안내용.
   function authPolicy() {
@@ -1910,6 +1981,7 @@
     showError:    showError,
     invokeAuthed: invokeAuthed,
     logPayrollAccess: logPayrollAccess,
+    checkUpload:  checkUpload,
     logError:     logError,
     writeFailed:  writeFailed,
     describeError: describeError,

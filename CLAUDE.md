@@ -93,6 +93,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.4.1 · 2026-10-29 · 파일 올리기 형식 확인(Sysbar.checkUpload) — 한컴 MIME 으로 서식 올리기가 거부되던 오류
   - 2.4.0 · 2026-10-29 · 착수계 개편 — 면허별 기술자(사업책임 + 면허마다 책임·참여) · 측량 단독 서식 · 붙임 자동 번호 · 회사 값은 서식에 고정
   - 2.3.0 · 2026-10-29 · 관리포털 「서류작성」 — HWPX 공문서 엔진 + 착수계, 기술자 명부·회사 도장·장비(권한 키 docs)
   - 2.2.0 · 2026-10-27 · 급여 열람 기록(감사 로그) — payroll_access_logs + 급여관리 「열람 기록」 탭(admin)
@@ -764,6 +765,11 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - 사무실 PC 작업 스케줄러가 평일 12:30 `pg_dump`(public·auth·backup 스키마 + 역할 + Storage `contract-pdfs`)로 `C:\Users\kwanb\kbsys-db-backup\` 에 보관(일일 14 + 월간 12), 스크립트·복구 안내는 저장소 밖 `security-fix\db-backup\README.md`.
 
 ## ❕ 패턴·원칙
+
+- **Storage 에 파일을 올릴 때는 `Sysbar.checkUpload(file, kinds, maxMB)` 를 거친다**(2026-10-29, v2.4.1). 앞부분 바이트로 형식(png·jpg·pdf·hwpx — hwpx 는 ZIP 안 mimetype 까지)을 확인하고
+  `{mime, ext, body: ArrayBuffer}` 를 돌려준다 → `upload(path, c.body, {contentType: c.mime})`. **File 을 그대로 upload 에 넘기지 말 것** — supabase-js 는 Blob 이면
+  FormData 로 보내며 `contentType` 옵션을 무시하고 브라우저 `file.type` 을 쓴다(한글이 깔린 PC 는 .hwpx 를 `application/haansofthwpx` 로 보내 버킷이 415 로 거부했다).
+  버킷 `allowed_mime_types` 는 표준 MIME 하나씩만(doc-templates = `application/hwp+zip`). 쓰는 곳: admin-docs(서식·도장·자격증), project.html(계약서 PDF 보관).
 
 - **요청 중단·네트워크 오류로 세션을 지우지 않는다**(2026-10-22). 세션 삭제·로그아웃은 서버가 명확히 답한 실패(오류 코드 또는 401·403·404, 세션 없음)일 때만.
   supabase-js 는 중단·fetch 실패를 `code:''` · `status:0` 오류로 돌려준다. 새 코드도 `verifySession` 의 `hold` 를 따를 것.
