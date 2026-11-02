@@ -1,6 +1,8 @@
 /**
- * SYSBAR MODULE v3.12
+ * SYSBAR MODULE v3.13
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.13 (2026-11-02): 메인 메뉴 「업무일지」 → 「업무관리」(SYS_MENUS label · 권한 탭 그룹 이름). APP_VERSION 2.4.6
  *
  * v3.12 (2026-10-29): checkUpload(file, kinds, maxMB) — 올릴 파일을 실제 바이트로 확인(png·jpg·pdf·hwpx) → 표준 MIME + ArrayBuffer.
  *   File 을 그대로 올리면 supabase-js 가 contentType 대신 브라우저 file.type 을 써서 한컴 MIME 등이 버킷에서 거부된다
@@ -73,14 +75,14 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.4.5';
+  var APP_VERSION = '2.4.6';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
     { key:'home',    icon:'🏠', svg:'home',    label:'메인메뉴', url:'home.html' },
     { key:'project', icon:'📊', svg:'project', label:'공정관리', url:'project.html' },
     { key:'leave',   icon:'📅', svg:'cal',     label:'연차관리', url:'leave.html'   },
-    { key:'worklog', icon:'📝', svg:'note',    label:'업무일지', url:'worklog.html' },
+    { key:'worklog', icon:'📝', svg:'note',    label:'업무관리', url:'worklog.html' },
     // 내 정보관리: 하위가 화면이 아니라 고정 링크다(subs). 급여명세서 화면에서도 이 메뉴가 펼쳐진다(activeKey 'me', activeSub 'payslip')
     { key:'me',      icon:'👤', svg:'user',    label:'내 정보관리', url:'me.html', subs:[
       { key:'info',    svg:'user', label:'내 정보',   href:'me.html' },
@@ -173,7 +175,7 @@
   //   기본값(= 이전 규칙)·예외(부서/사람) 판정은 DB has_perm() 이 하고, 화면은 my_perms() 결과만 쓴다.
   //   pages = 이 권한으로 열리는 화면(권한 탭 안내용), group = 권한 탭에서 묶어 보이는 단위(PERM_GROUPS 순서)
   //   2차(2026-10-22): 공정관리·연차·업무일지·메인메뉴. 기본값은 DB perm_default_for (= 그 전 규칙)
-  var PERM_GROUPS = ['관리포털', '공정관리', '연차', '업무일지', '메인메뉴'];
+  var PERM_GROUPS = ['관리포털', '공정관리', '연차', '업무관리', '메인메뉴'];
   var PERM_DEFS = [
     { key:'worklog_admin', group:'관리포털', label:((global.APP_CONFIG && global.APP_CONFIG.ADMIN_TEAM_NAME) || '관리포털') + ' 업무일지', desc:'관리포털 업무일지 화면',                        pages:['admin-worklog.html'] },
     { key:'perf',          group:'관리포털', label:'수금관리',        desc:'수금·계약/잔금·예상수금',                        pages:['admin-perf.html'] },
@@ -188,9 +190,9 @@
     { key:'project_manage',  group:'공정관리', label:'삭제·수정 로그·계약', desc:'프로젝트·주간보고·주요공정 삭제, 수정 로그 보기, 계약금액·계약서 PDF 저장 (관리 탭 안 기능은 관리 탭 권한도 있어야 함)', pages:['project.html#admin'] },
     { key:'leave_approve',   group:'연차',     label:'최종 승인',          desc:'연차 「승인 관리」 탭(최종 승인·반려·취소 승인). 팀장 「팀원 결재」는 직급 규칙 그대로',  pages:['leave.html#admin_approve'] },
     { key:'leave_admin',     group:'연차',     label:'통계·감사 로그',      desc:'연차 통계·감사 로그 탭 (팀 관리·직원 관리 탭은 관리자만 — 부서·계정 변경은 고정 규칙)',  pages:['leave.html#admin_stats', 'leave.html#admin_audit'] },
-    { key:'worklog_all',     group:'업무일지', label:'다른 사람 일지 보기',  desc:'전체 업무일지에서 다른 사람이 쓴 내용 보기',                                          pages:['worklog.html#all_logs'] },
-    { key:'worklog_history', group:'업무일지', label:'작성이력',           desc:'업무일지 「작성이력」 탭(전 직원 수정 기록)',                                         pages:['worklog.html#logs'] },
-    { key:'supply_admin',    group:'업무일지', label:'비품 전체 수정',      desc:'비품관리에서 다른 사람 기록 수정·삭제 (본인 기록은 누구나)',                            pages:['worklog.html#supply'] },
+    { key:'worklog_all',     group:'업무관리', label:'다른 사람 일지 보기',  desc:'전체 업무일지에서 다른 사람이 쓴 내용 보기',                                          pages:['worklog.html#all_logs'] },
+    { key:'worklog_history', group:'업무관리', label:'작성이력',           desc:'업무일지 「작성이력」 탭(전 직원 수정 기록)',                                         pages:['worklog.html#logs'] },
+    { key:'supply_admin',    group:'업무관리', label:'비품 전체 수정',      desc:'비품관리에서 다른 사람 기록 수정·삭제 (본인 기록은 누구나)',                            pages:['worklog.html#supply'] },
     { key:'notice',          group:'메인메뉴', label:'공지 작성',          desc:'메인메뉴 공지 작성, 다른 사람 공지 수정·삭제 (본인 공지는 작성자도 가능)',               pages:['home.html'] },
     { key:'company_events',  group:'메인메뉴', label:'회사 일정',          desc:'메인메뉴 회사 일정 등록·수정·삭제',                                                    pages:['home.html'] },
   ];

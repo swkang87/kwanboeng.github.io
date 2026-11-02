@@ -149,7 +149,7 @@ var APP_CONFIG = {
     CARD_MENUS: [
       { key: 'project', icon: '📊', label: '공정관리' },
       { key: 'leave',   icon: '📅', label: '연차관리' },
-      { key: 'worklog', icon: '📝', label: '업무일지' },
+      { key: 'worklog', icon: '📝', label: '업무관리' },
       { key: 'me',      icon: '👤', label: '내 정보', desc: '급여명세서' },
     ],
   },
