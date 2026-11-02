@@ -93,6 +93,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.5.0 · 2026-11-02 · Windows 데스크탑 앱 1단계(저장소 밖 desktop-app) — 앱 안에서만 연차 결재 대기 알림 감시 · 로그인 유지
   - 2.4.6 · 2026-11-02 · 메인 메뉴 「업무일지」 → 「업무관리」(왼쪽 메뉴·휴대폰 상단 막대·둘러보기 카드·권한 탭 그룹·업무 화면 제목). 화면 안 탭 「내 업무일지」 등과 관리포털 「업무일지」는 그대로
   - 2.4.5 · 2026-10-29 · 실사용 착수계 점검 — 엑셀 일괄 올리기 빈 칸이 자격번호를 지우던 오류 · 서식 버전 표시(예전 서식이면 만들기 막음) · 내려받기 전 확인 창
   - 2.4.4 · 2026-10-29 · 회사 도장 같은 용도 여러 개(용도(이름) · 용도별 기본값) · [+ 면허 추가] 위치 고정 · 재직증명서 주민등록번호 칸 삭제(생년월일만)
@@ -152,6 +153,22 @@
 ---
 
 ## ✅ 완료된 작업
+
+### Windows 데스크탑 앱 1단계 — 트레이 상주 + 연차 결재 알림 (2026-11-02, v2.5.0, sysbar.js v3.14 `?v=2026110202`)
+- **앱은 이 저장소 밖** `C:\Users\kwanb\Desktop\kbsys\desktop-app`(Tauri v2, Pages 로 공개되지 않게). 빌드 = `npm install` → `npm run build`
+  → `dist-release\<fileSlug>-desktop_<버전>_x64-setup.exe`(NSIS, 사용자 단위 설치, 서명 없음). 사용법·다른 회사용 바꾸기는 그 폴더 README.md.
+- **회사 값은 `desktop-app\app.config.json` 한 곳**(appName · fileSlug · appId · startUrl · allowedOrigins · iconPath · pollSeconds) — `scripts/apply-config.mjs` 가
+  tauri.conf.json · capabilities/remote.json · app-config.json · 아이콘을 만든다. Rust 코드에 회사명·도메인 없음.
+- 앱 창 = 웹 화면 그대로(startUrl). X = 트레이로 숨김, 트레이 메뉴 4개(열기 / 연차관리 열기 / Windows 시작 시 자동 실행(처음 켬) / 종료), 중복 실행 → 기존 창,
+  허용 도메인 밖 이동·새 창 → 기본 브라우저, 창 크기·위치 기억. 원격 페이지가 쓸 수 있는 앱 명령은 **`desk_config`·`desk_notify` 둘뿐**(core 권한 없음).
+- **웹 쪽(sysbar.js)은 `window.__TAURI__.core.invoke` 가 있을 때만** 동작 — 일반 브라우저에서는 서버 호출·타이머 없음.
+  `startDesktopWatch(sb)`(SysBar 가 부름, 한 창에 하나): pollSeconds 마다 `loadApprovals(sb, true)`(캐시도 갱신) → 직전 값(localStorage `SESSION_PREFIX + '_desk_appr_last'`)보다
+  team · final · cancel 중 늘어난 것이 있으면 `desk_notify`(제목 「연차 결재 요청」, 내용 「팀원 결재 N건」 등 — 이름·사유 없음, 첫 실행은 대기 건이 있으면 한 번).
+  「다른 부서로 보기」 중·협력업체는 감시 안 함. 앱이 같은 주기로 `__kbDeskTick()` 을 불러 숨은 창에서도 돈다(겹치면 웹이 한 번만).
+- **앱 안 로그인 유지(2026-11-02 승우 결정)**: 앱 안에서는 1시간 비활동 자동 로그아웃·만료를 하지 않는다(`SessionManager`). 로그인 사본을
+  localStorage `SESSION_PREFIX + '_desk_session'` 에 두고 앱을 다시 켜면 그것으로 들어간 뒤 `verifySession` 으로 확인(명확한 실패면 사본 삭제 + 새로고침).
+  로그아웃(`clearSession`, index.html 로그아웃)은 사본도 지운다. 일반 브라우저 규칙은 그대로.
+- 다음 단계(NAS 탐색기)는 desktop-app README 「다음 단계를 붙일 곳」. 백업 `backup/sysbar_20261102_2.js` · `backup/index_20261102.html`.
 
 ### 착수계 개편 — 면허별 기술자 + 측량 단독 서식 (2026-10-29, v2.4.0, sysbar.js v3.11 `?v=2026102902`)
 - **착수계는 우리 회사 전용 서류(화이트라벨 아님)**: 회사명·주소·연락처·공문 결재란·대표이사는 **서식 HWPX 안 고정 글자**. config.js `DOCS` 에는

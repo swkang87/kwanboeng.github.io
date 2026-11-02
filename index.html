@@ -2032,6 +2032,7 @@ function renderLoginSection(user) {
       '</div>';
     document.getElementById('modalLogoutBtn').addEventListener('click', function() {
       sessionStorage.removeItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_session');
+      localStorage.removeItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_desk_session');   // 데스크탑 앱 로그인 사본(sysbar.js)
       localStorage.removeItem('kwanbo_pm_user');
       sessionStorage.removeItem('kwanbo_uid');
       try { getSb().auth.signOut(); } catch(e) {}

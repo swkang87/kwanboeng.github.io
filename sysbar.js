@@ -1,6 +1,9 @@
 /**
- * SYSBAR MODULE v3.13
+ * SYSBAR MODULE v3.14
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
+ *
+ * v3.14 (2026-11-02): 데스크탑 앱(Tauri) 안에서만 — 연차 결재 대기 알림 감시(startDesktopWatch) · 로그인 유지(1시간 비활동 로그아웃 없음,
+ *   앱 재실행 때 localStorage 사본으로 복원 후 서버 확인). 일반 브라우저에서는 동작 없음. APP_VERSION 2.5.0
  *
  * v3.13 (2026-11-02): 메인 메뉴 「업무일지」 → 「업무관리」(SYS_MENUS label · 권한 탭 그룹 이름). APP_VERSION 2.4.6
  *
@@ -75,7 +78,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.4.6';
+  var APP_VERSION = '2.5.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -313,6 +316,110 @@
     return p;
   }
   function refreshApprovals(sbClient) { return loadApprovals(sbClient, true); }
+
+  // ── 데스크탑 앱(Tauri) 안에서만 — 연차 결재 대기 알림 · 로그인 유지 (2026-11-02) ──
+  //   앱이 아니면(일반 브라우저) 아래 함수는 모두 아무것도 하지 않는다(서버 호출 없음).
+  //   앱 판정 = 앱이 넣는 window.__TAURI__.core.invoke. 앱 쪽 명령은 desk_config · desk_notify 두 개뿐.
+  //   ① 감시: pollSeconds(앱 설정)마다 my_pending_approvals() 를 다시 읽고(캐시도 갱신), 직전 값(localStorage)보다
+  //      팀원 결재 · 최종 승인 · 취소 요청 중 늘어난 것이 있으면 알림 1건(이름·사유 없음). 직전 값이 없으면(첫 실행) 대기 건이 있을 때 한 번.
+  //      한 창에 하나. 「다른 부서로 보기」 중에는 건너뜀. 창이 트레이에 숨어 타이머가 늦어져도 앱이 같은 주기로 __kbDeskTick() 을 부른다.
+  //   ② 로그인 유지(2026-11-02 승우 결정): 앱 안에서는 1시간 비활동 자동 로그아웃을 하지 않고, 앱을 다시 켜면
+  //      저장해 둔 로그인(localStorage 사본)으로 들어간 뒤 서버로 다시 확인한다. 로그아웃하면 사본도 지운다.
+  var DESK_LAST_KEY = _prefix + '_desk_appr_last';   // 직전 결재 대기 건수 {uid, team, final, cancel}
+  var DESK_SESS_KEY = _prefix + '_desk_session';     // 로그인 사본(앱 안에서만)
+  var DESK_KINDS = [
+    { key:'team',   label:'팀원 결재', tab:'team_approve'  },
+    { key:'final',  label:'최종 승인', tab:'admin_approve' },
+    { key:'cancel', label:'취소 요청', tab:'admin_approve' },
+  ];
+  var _deskWatch = null;      // { uid, sb, timer, ms, busy, at }
+  var _deskRestored = false;  // 이번 화면을 로그인 사본으로 열었는가 → 서버로 다시 확인
+  function isDesktopApp() {
+    var t = global.__TAURI__;
+    return !!(t && t.core && typeof t.core.invoke === 'function');
+  }
+  function _deskInvoke(cmd, args) {
+    try {
+      return Promise.resolve(global.__TAURI__.core.invoke(cmd, args || {}))
+        .then(null, function(err) { logError(err, '데스크탑 앱 ' + cmd); return null; });
+    } catch(e) { return Promise.resolve(null); }
+  }
+  function _lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch(e) { return null; } }
+  function _lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} }
+  function _deskMirror() {
+    if (!isDesktopApp()) return;
+    try { var s = sessionStorage.getItem(SESSION_KEY); if (s) localStorage.setItem(DESK_SESS_KEY, s); } catch(e) {}
+  }
+  // 앱을 다시 켜면 sessionStorage 가 비어 있다 → 화면이 세션을 읽기 전에(이 파일이 불릴 때) 사본으로 채운다
+  (function() {
+    if (!isDesktopApp()) return;
+    try {
+      if (!sessionStorage.getItem(SESSION_KEY)) {
+        var m = localStorage.getItem(DESK_SESS_KEY);
+        if (m) { sessionStorage.setItem(SESSION_KEY, m); _deskRestored = true; }
+      }
+    } catch(e) {}
+    try { global.addEventListener('pagehide', _deskMirror); } catch(e) {}
+  })();
+  function stopDesktopWatch() {
+    if (_deskWatch && _deskWatch.timer) clearInterval(_deskWatch.timer);
+    _deskWatch = null;
+  }
+  function _deskCompare(uid, a) {
+    var prev = _lsGet(DESK_LAST_KEY);
+    var first = !prev || prev.uid !== uid;
+    var cur = { uid: uid };
+    var parts = [], tab = null;
+    DESK_KINDS.forEach(function(k) {
+      var n = a[k.key] || 0;
+      cur[k.key] = n;
+      if (n > 0 && (first || n > (prev[k.key] || 0))) {
+        parts.push(k.label + ' ' + n + '건');
+        if (!tab) tab = k.tab;
+      }
+    });
+    _lsSet(DESK_LAST_KEY, cur);
+    if (!parts.length) return;
+    _deskInvoke('desk_notify', { title: '연차 결재 요청', body: parts.join(' · '), path: 'leave.html#' + tab });
+  }
+  function _deskTick() {
+    var w = _deskWatch;
+    if (!w) return;
+    var u = _me();
+    if (!u || u.id !== w.uid) { stopDesktopWatch(); return; }
+    _deskMirror();
+    if (getViewAs()) return;                                   // 다른 부서로 보기 중에는 감시 안 함
+    if (w.busy || (Date.now() - w.at) < w.ms / 2) return;      // 앱 신호 · 타이머가 겹치면 한 번만
+    w.busy = true; w.at = Date.now();
+    loadApprovals(w.sb, true).then(function(a) {
+      w.busy = false;
+      if (_deskWatch === w && a && _me() && _me().id === w.uid) _deskCompare(w.uid, a);
+    }, function() { w.busy = false; });
+  }
+  function startDesktopWatch(sbClient) {
+    if (!isDesktopApp() || !sbClient || !sbClient.rpc) return;
+    var u = _me();
+    if (!u || u.role === 'contractor') return;
+    if (_deskWatch && _deskWatch.uid === u.id) return;          // 한 창에 하나
+    stopDesktopWatch();
+    var w = { uid: u.id, sb: sbClient, timer: null, ms: 60000, busy: false, at: 0 };
+    _deskWatch = w;
+    _deskMirror();
+    global.__kbDeskTick = _deskTick;                           // 앱(Rust)이 같은 주기로 부른다
+    if (_deskRestored) {
+      _deskRestored = false;
+      Auth.verifySession(sbClient).then(function(r) {
+        if (r && !r.ok && !r.hold) { stopDesktopWatch(); try { localStorage.removeItem(DESK_SESS_KEY); } catch(e) {} global.location.reload(); }
+      });
+    }
+    _deskInvoke('desk_config').then(function(cfg) {
+      if (_deskWatch !== w) return;
+      var s = cfg ? Number(cfg.pollSeconds) : 0;
+      if (s >= 15) w.ms = s * 1000;
+      w.timer = setInterval(_deskTick, w.ms);
+      _deskTick();
+    });
+  }
 
   // 「다른 부서로 보기」 띠 — React 밖(DOM)에 둔다. 권한 없는 화면의 안내 화면에서도 보여야 해서.
   function renderViewBand() {
@@ -600,6 +707,7 @@
 
     function _startWatching(cb) {
       _logoutCb = cb;
+      if (isDesktopApp()) return;   // 데스크탑 앱 안에서는 1시간 비활동 로그아웃 없음(2026-11-02 승우 결정)
       ['click', 'keydown', 'scroll', 'touchstart'].forEach(function(ev) {
         document.addEventListener(ev, _touch, { passive: true, capture: true });
       });
@@ -625,6 +733,7 @@
     }
 
     function _isExpired() {
+      if (isDesktopApp()) return false;   // 데스크탑 앱 — 위 _startWatching 과 같은 결정
       var lastActive = parseInt(sessionStorage.getItem(ACTIVE_KEY) || '0');
       var loginTs    = parseInt(sessionStorage.getItem(LOGIN_KEY)  || '0');
       var base = lastActive > 0 ? lastActive : loginTs;
@@ -732,6 +841,8 @@
      */
     function clearSession() {
       clearPerms();   // 기능 권한 캐시 + 다른 부서로 보기
+      stopDesktopWatch();
+      try { localStorage.removeItem(DESK_SESS_KEY); } catch(e) {}   // 데스크탑 앱 로그인 사본
       sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem('kwanbo_uid');
       // 레거시 잔재 정리 (구버전 키 / localStorage 흔적)
@@ -1329,6 +1440,7 @@
         function onAppr() { apprTick[1](function(x) { return x + 1; }); }
         global.addEventListener('sys-approvals', onAppr);
         loadApprovals(sbClient);
+        startDesktopWatch(sbClient);   // 데스크탑 앱 안에서만(일반 브라우저는 아무것도 안 함)
         return function() { global.removeEventListener('sys-approvals', onAppr); };
       }, [user ? user.id : null]);
       var appr = user ? approvalCounts() : null;
@@ -2039,6 +2151,8 @@
     getApprovals:     getApprovals,
     approvalCounts:   approvalCounts,
     approvalBadges:   approvalBadges,
+    isDesktopApp:     isDesktopApp,
+    startDesktopWatch: startDesktopWatch,
     PORTAL_PAGES:  PORTAL_PAGES,
     portalCanShow: portalCanShow,
     PERM_DEFS:        PERM_DEFS,
