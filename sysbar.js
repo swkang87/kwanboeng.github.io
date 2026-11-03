@@ -1,7 +1,9 @@
 /**
- * SYSBAR MODULE v3.14
+ * SYSBAR MODULE v3.15
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
  *
+ * v3.15 (2026-11-03): 데스크탑 앱 안에서만 — 시작·「지금 잠그기」 화면 잠금(__kbDeskLock, 비밀번호 다시 확인 · 5번 틀리면 로그아웃) ·
+ *   트레이 숫자(desk_badge = 결재 대기 total). 공용 Auth.recheckPassword(급여명세서 본인 확인도 이것 — 생년월일 대체). APP_VERSION 2.6.0
  * v3.14 (2026-11-02): 데스크탑 앱(Tauri) 안에서만 — 연차 결재 대기 알림 감시(startDesktopWatch) · 로그인 유지(1시간 비활동 로그아웃 없음,
  *   앱 재실행 때 localStorage 사본으로 복원 후 서버 확인). 일반 브라우저에서는 동작 없음. APP_VERSION 2.5.0
  *
@@ -78,7 +80,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.5.0';
+  var APP_VERSION = '2.6.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -308,6 +310,7 @@
       var now = _me();
       if (!now || now.id !== u.id) return getApprovals();   // 응답 사이 로그아웃·만료 — 쓰지 않는다
       _ssSet(APPR_KEY, { uid: u.id, at: Date.now(), data: r.data });
+      _deskBadge(r.data.total || 0);   // 데스크탑 앱 트레이 숫자(앱 안에서만, 값이 바뀔 때만)
       try { global.dispatchEvent(new Event('sys-approvals')); } catch(e) {}
       return r.data;
     }, function(err) { logError(err, '결재 대기 건수 조회'); return getApprovals(); });
@@ -398,6 +401,7 @@
   }
   function startDesktopWatch(sbClient) {
     if (!isDesktopApp() || !sbClient || !sbClient.rpc) return;
+    _lockSb = sbClient;                                        // 화면 잠금 해제(비밀번호 확인)에 같은 클라이언트를 쓴다
     var u = _me();
     if (!u || u.role === 'contractor') return;
     if (_deskWatch && _deskWatch.uid === u.id) return;          // 한 창에 하나
@@ -420,6 +424,246 @@
       _deskTick();
     });
   }
+
+  // ── 트레이 숫자 (2026-11-03) — 결재 대기 total 을 앱에 보낸다(desk_badge). 값이 바뀔 때만. 로그아웃 = 0 ──
+  var DESK_BADGE_KEY = _prefix + '_desk_badge';     // sessionStorage {n} — 마지막으로 보낸 값
+  function _deskBadge(n, force) {
+    if (!isDesktopApp()) return;
+    n = Math.max(0, Math.min(999, parseInt(n, 10) || 0));
+    var last = _ssGet(DESK_BADGE_KEY);
+    if (!force && last && last.n === n) return;
+    _ssSet(DESK_BADGE_KEY, { n: n });
+    _deskInvoke('desk_badge', { n: n });
+  }
+
+  // ── 비밀번호 다시 확인 (2026-11-03) — 앱 화면 잠금 해제 · 급여명세서 본인 확인 공용 ──
+  //   지금 로그인한 계정의 이메일 + 입력한 비밀번호로 signInWithPassword. 성공하면 새 세션이 생기고(서버는 JWT amr 로
+  //   「방금 비밀번호를 넣었다」를 확인할 수 있다 — payslip_verify_pw), 이전 세션은 지운다(남은 세션이 쌓이지 않게, 실패 무시).
+  //   반환 { ok } | { ok:false, wrong:true } | { ok:false, noSession:true, reason } | { ok:false, reason }
+  //   틀린 횟수는 scope 별로 이 창 sessionStorage 에 센다(새로고침해도 이어짐). RECHECK_MAX_FAILS 번이면 화면이 로그아웃한다.
+  var RECHECK_MAX_FAILS = 5;
+  function _recheckKey(scope) { return _prefix + '_recheck_fail_' + scope; }
+  function recheckFails(scope) { var v = _ssGet(_recheckKey(scope)); return (v && v.n) || 0; }
+  function recheckFailAdd(scope) { var n = recheckFails(scope) + 1; _ssSet(_recheckKey(scope), { n: n }); return n; }
+  function recheckFailClear(scope) { _ssSet(_recheckKey(scope), null); }
+  function _revokeSessionToken(token) {
+    var c = global.APP_CONFIG || {};
+    if (!token || !c.SUPABASE_URL || !global.fetch) return;
+    try {
+      global.fetch(c.SUPABASE_URL + '/auth/v1/logout?scope=local', {
+        method: 'POST', keepalive: true,
+        headers: { apikey: c.SUPABASE_KEY, Authorization: 'Bearer ' + token },
+      }).then(null, function() {});
+    } catch(e) {}
+  }
+  function recheckPassword(sbClient, pw) {
+    var NET = '확인하지 못했어요. 네트워크를 확인하고 다시 시도하세요.';
+    if (!sbClient || !sbClient.auth || !sbClient.auth.getSession) return Promise.resolve({ ok: false, reason: NET });
+    return sbClient.auth.getSession().then(function(res) {
+      var s = res && res.data && res.data.session;
+      var email = s && s.user && s.user.email;
+      if (!email) return { ok: false, noSession: true, reason: '로그인이 끝났어요. 다시 로그인해 주세요.' };
+      var oldToken = s.access_token, oldUid = s.user.id;
+      return sbClient.auth.signInWithPassword({ email: email, password: String(pw || '') }).then(function(r) {
+        if (r && r.error) {
+          var st = r.error.status || 0, code = r.error.code || '';
+          if (code === 'invalid_credentials' || st === 400) return { ok: false, wrong: true };
+          if (st === 429) return { ok: false, reason: '시도가 너무 많아요. 잠시 뒤 다시 시도하세요.' };
+          return { ok: false, reason: NET };
+        }
+        var ns = r && r.data && r.data.session;
+        if (!ns || !ns.user || ns.user.id !== oldUid) return { ok: false, reason: NET };
+        if (ns.access_token !== oldToken) _revokeSessionToken(oldToken);
+        return { ok: true };
+      }, function() { return { ok: false, reason: NET }; });
+    }, function() { return { ok: false, reason: NET }; });
+  }
+
+  // ── 데스크탑 앱 화면 잠금 (2026-11-03, PC 카카오톡 방식) — 앱 안에서만 ──
+  //   앱을 켤 때(재실행 포함) 한 번 + 트레이 「지금 잠그기」(앱이 __kbDeskLock() 을 부름). 비활동 자동 잠금 없음.
+  //   해제 = 비밀번호 다시 확인(recheckPassword). 해제 상태는 이 실행 동안만(sessionStorage — 앱을 다시 켜면 비어 있음).
+  //   잠겨 있어도 화면 뒤에서는 그대로 돈다(감시·알림·트레이 숫자). 화면 내용은 이 파일이 불릴 때(<head>) 먼저 가린다.
+  //   5번 틀리면 로그아웃(로그인 사본도 삭제). 로그인 화면에서 막 로그인한 경우는 잠그지 않는다(doLogin 이 해제 표시).
+  var DESK_UNLOCK_KEY = _prefix + '_desk_unlocked';   // sessionStorage {uid}
+  var _lockSb = null;
+  var _lockEl = null;
+  var _lockBusy = false;
+  function _sessUser() {
+    try { var v = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); return (v && v.id && v.role) ? v : null; } catch(e) { return null; }
+  }
+  function _deskNeedsLock() {
+    if (!isDesktopApp()) return false;
+    var u = _sessUser();
+    if (!u) return false;
+    var f = _ssGet(DESK_UNLOCK_KEY);
+    return !(f && f.uid === u.id);
+  }
+  function _deskMarkUnlocked(uid) {
+    if (!isDesktopApp() || !uid) return;
+    _ssSet(DESK_UNLOCK_KEY, { uid: uid });
+    recheckFailClear('lock');
+  }
+  function _lockClient() {
+    if (_lockSb) return _lockSb;
+    var c = global.APP_CONFIG || {};
+    try { if (global.supabase && global.supabase.createClient) _lockSb = global.supabase.createClient(c.SUPABASE_URL, c.SUPABASE_KEY); } catch(e) {}
+    return _lockSb;
+  }
+  function _lockCss() {
+    if (document.getElementById('kb-desk-lock-css')) return;
+    var c = global.APP_CONFIG || {};
+    var p1 = c.COLOR_PRIMARY || '#0f172a', p2 = c.COLOR_PRIMARY2 || '#1b3a6b';
+    var s = document.createElement('style');
+    s.id = 'kb-desk-lock-css';
+    s.textContent =
+      'html.kb-desk-locked body>*:not(#kb-desk-lock){visibility:hidden!important}' +
+      'html.kb-desk-locked,html.kb-desk-locked body{overflow:hidden!important}' +
+      '#kb-desk-lock{position:fixed;inset:0;z-index:2147483647;visibility:visible;display:flex;align-items:center;justify-content:center;' +
+        'background:linear-gradient(160deg,' + p1 + ',' + p2 + ');font-family:\'Pretendard\',\'Noto Sans KR\',-apple-system,sans-serif;padding:20px;box-sizing:border-box}' +
+      '#kb-desk-lock *{box-sizing:border-box}' +
+      '#kb-desk-lock .kdl-card{width:100%;max-width:340px;background:#fff;border-radius:16px;padding:30px 26px 22px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}' +
+      '#kb-desk-lock .kdl-logo{height:44px;max-width:180px;object-fit:contain;margin:0 auto 10px;display:block}' +
+      '#kb-desk-lock .kdl-co{font-size:14px;font-weight:700;color:#475569}' +
+      '#kb-desk-lock .kdl-who{font-size:20px;font-weight:800;color:#0f172a;margin:14px 0 4px}' +
+      '#kb-desk-lock .kdl-sub{font-size:12px;color:#64748b;margin-bottom:16px}' +
+      '#kb-desk-lock input{width:100%;padding:12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:15px;margin-bottom:10px;font-family:inherit}' +
+      '#kb-desk-lock input:focus{outline:none;border-color:' + p2 + ';box-shadow:0 0 0 3px rgba(27,58,107,.15)}' +
+      '#kb-desk-lock .kdl-err{font-size:12px;color:#b91c1c;min-height:18px;margin-bottom:6px;line-height:1.5}' +
+      '#kb-desk-lock .kdl-ok{width:100%;padding:12px;border:none;border-radius:10px;background:' + p1 + ';color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}' +
+      '#kb-desk-lock .kdl-ok:disabled{opacity:.6;cursor:default}' +
+      '#kb-desk-lock .kdl-out{margin-top:14px;background:none;border:none;color:#64748b;font-size:12px;text-decoration:underline;cursor:pointer;font-family:inherit}';
+    (document.head || document.documentElement).appendChild(s);
+  }
+  function _lockFocus() {
+    if (!_lockEl) return;
+    var i = _lockEl.querySelector('input');
+    if (i && document.activeElement !== i) { try { i.focus(); } catch(e) {} }
+  }
+  // 잠긴 동안 뒤 화면으로 가는 키·포커스를 막는다(뒤 화면은 visibility:hidden 이라 클릭·포커스 대상도 아님)
+  function _lockKey(ev) {
+    if (!_lockEl) return;
+    ev.stopPropagation();                       // 화면의 단축키([ 키 등)가 동작하지 않게
+    if (_lockEl.contains(ev.target)) return;    // 잠금 창 안 입력은 그대로
+    if (ev.key === 'Tab' || ev.key === 'Enter' || ev.key === ' ' || /^Arrow|^Page|^Home$|^End$/.test(ev.key || '')) ev.preventDefault();
+    _lockFocus();
+  }
+  function _lockFocusIn(ev) { if (_lockEl && !_lockEl.contains(ev.target)) _lockFocus(); }
+  function _lockMount() {
+    if (_lockEl || !document.body) return;
+    var c = global.APP_CONFIG || {};
+    var u = _sessUser() || {};
+    var el = document.createElement('div');
+    el.id = 'kb-desk-lock';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-labelledby', 'kb-desk-lock-who');
+    var form = document.createElement('form');
+    form.className = 'kdl-card';
+    form.setAttribute('autocomplete', 'off');
+    if (c.LOGO_URL) {
+      var img = document.createElement('img');
+      img.className = 'kdl-logo'; img.src = c.LOGO_URL; img.alt = '';
+      img.onerror = function() { img.style.display = 'none'; };
+      form.appendChild(img);
+    }
+    function div(cls, text, id) { var d = document.createElement('div'); d.className = cls; if (id) d.id = id; d.textContent = text; form.appendChild(d); return d; }
+    div('kdl-co', c.COMPANY_SHORT || c.COMPANY_KO || '');
+    div('kdl-who', (u.name || '') + ' 님', 'kb-desk-lock-who');
+    div('kdl-sub', '화면이 잠겨 있어요. 비밀번호를 입력하세요.');
+    var inp = document.createElement('input');
+    inp.type = 'password'; inp.autocomplete = 'current-password'; inp.placeholder = '비밀번호'; inp.setAttribute('aria-label', '비밀번호');
+    form.appendChild(inp);
+    var err = div('kdl-err', '');
+    err.setAttribute('role', 'alert');
+    var ok = document.createElement('button');
+    ok.type = 'submit'; ok.className = 'kdl-ok'; ok.textContent = '잠금 해제';
+    form.appendChild(ok);
+    var out = document.createElement('button');
+    out.type = 'button'; out.className = 'kdl-out'; out.textContent = '다른 계정으로 로그인';
+    form.appendChild(out);
+    el.appendChild(form);
+
+    function setErr(t) { err.textContent = t || ''; }
+    form.addEventListener('submit', function(ev) {
+      ev.preventDefault();
+      if (_lockBusy) return;
+      var pw = inp.value;
+      if (!pw) { setErr('비밀번호를 입력하세요.'); _lockFocus(); return; }
+      _lockBusy = true; ok.disabled = true; ok.textContent = '확인 중...'; setErr('');
+      recheckPassword(_lockClient(), pw).then(function(r) {
+        _lockBusy = false; ok.disabled = false; ok.textContent = '잠금 해제'; inp.value = '';
+        if (r.ok) { _deskMarkUnlocked((_sessUser() || {}).id); _lockUnmount(); return; }
+        if (r.wrong) {
+          var n = recheckFailAdd('lock');
+          if (n >= RECHECK_MAX_FAILS) { setErr('비밀번호를 ' + RECHECK_MAX_FAILS + '번 틀려 로그아웃합니다.'); _lockLogout(1200); return; }
+          setErr('비밀번호가 맞지 않아요. (' + n + '/' + RECHECK_MAX_FAILS + ')');
+        } else if (r.noSession) {
+          setErr(r.reason); _lockLogout(1200); return;
+        } else setErr(r.reason);
+        _lockFocus();
+      });
+    });
+    out.addEventListener('click', function() { if (!_lockBusy) _lockLogout(0); });
+
+    document.body.appendChild(el);
+    _lockEl = el;
+    global.addEventListener('keydown', _lockKey, true);
+    global.addEventListener('keyup', _lockKey, true);
+    global.addEventListener('keypress', _lockKey, true);
+    document.addEventListener('focusin', _lockFocusIn, true);
+    try { if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); } catch(e) {}
+    setTimeout(_lockFocus, 0);
+  }
+  function _lockUnmount() {
+    try { document.documentElement.classList.remove('kb-desk-locked'); } catch(e) {}
+    global.removeEventListener('keydown', _lockKey, true);
+    global.removeEventListener('keyup', _lockKey, true);
+    global.removeEventListener('keypress', _lockKey, true);
+    document.removeEventListener('focusin', _lockFocusIn, true);
+    if (_lockEl && _lockEl.parentNode) _lockEl.parentNode.removeChild(_lockEl);
+    _lockEl = null;
+  }
+  function _lockShow() {
+    _lockCss();
+    try { document.documentElement.classList.add('kb-desk-locked'); } catch(e) {}
+    if (document.body) { _lockMount(); return; }
+    // <head> 에서 불렸다 — <body> 가 생기는 즉시 잠금 창을 붙인다(그 전까지는 위 CSS 로 이미 가려져 있음)
+    function later() { if (_deskNeedsLock()) _lockMount(); }
+    try {
+      var mo = new MutationObserver(function() { if (document.body) { mo.disconnect(); later(); } });
+      mo.observe(document.documentElement, { childList: true });
+    } catch(e) {}
+    document.addEventListener('DOMContentLoaded', later);
+  }
+  // 5번 틀림 · 「다른 계정으로 로그인」 · 세션 없음 → 로그아웃(로그인 사본 삭제) 후 새로고침 = 그 화면의 로그인 화면
+  function _lockLogout(delay) {
+    _lockBusy = true;
+    var sb = _lockClient();
+    try { SessionManager.onLogout(); } catch(e) {}
+    try { Auth.clearSession(); } catch(e) {}
+    _ssSet(DESK_UNLOCK_KEY, null);
+    recheckFailClear('lock');
+    var done = false;
+    function go() { if (done) return; done = true; global.location.reload(); }
+    var p = null;
+    try { p = sb && sb.auth && sb.auth.signOut ? sb.auth.signOut({ scope: 'local' }) : null; } catch(e) {}
+    var wait = Math.max(delay || 0, 300);
+    if (p && p.then) p.then(function() { setTimeout(go, delay || 0); }, function() { setTimeout(go, delay || 0); });
+    setTimeout(go, wait + 2000);   // signOut 이 늦어도 새로고침
+  }
+  // 앱(Rust) 트레이 「지금 잠그기」
+  function lockDesktopNow() {
+    if (!isDesktopApp() || !_sessUser()) return false;
+    _ssSet(DESK_UNLOCK_KEY, null);
+    _lockShow();
+    return true;
+  }
+  // 이 파일이 불릴 때(<head>, 화면 내용보다 먼저) 판정해서 가린다
+  (function() {
+    if (!isDesktopApp()) return;
+    global.__kbDeskLock = lockDesktopNow;
+    if (_deskNeedsLock()) _lockShow();
+  })();
 
   // 「다른 부서로 보기」 띠 — React 밖(DOM)에 둔다. 권한 없는 화면의 안내 화면에서도 보여야 해서.
   function renderViewBand() {
@@ -843,6 +1087,9 @@
       clearPerms();   // 기능 권한 캐시 + 다른 부서로 보기
       stopDesktopWatch();
       try { localStorage.removeItem(DESK_SESS_KEY); } catch(e) {}   // 데스크탑 앱 로그인 사본
+      _deskBadge(0);   // 데스크탑 앱 트레이 숫자 지움(앱 안에서만, 이미 0이면 안 보냄)
+      _ssSet(DESK_UNLOCK_KEY, null);
+      recheckFailClear('lock'); recheckFailClear('payslip');
       sessionStorage.removeItem(SESSION_KEY);
       sessionStorage.removeItem('kwanbo_uid');
       // 레거시 잔재 정리 (구버전 키 / localStorage 흔적)
@@ -938,6 +1185,7 @@
         clearPerms();   // 이전 계정의 기능 권한 캐시가 남지 않게
         sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
         sessionStorage.removeItem('kwanbo_uid');
+        _deskMarkUnlocked(user.id);   // 데스크탑 앱: 방금 비밀번호로 로그인했으니 잠그지 않음
 
         return { ok: true, user: user };
 
@@ -1062,6 +1310,7 @@
           if (newLoginId) { fresh.must_change_id = false; fresh.username = data.login_id || newLoginId; }
           sessionStorage.setItem(SESSION_KEY, JSON.stringify(fresh));
           sessionStorage.removeItem('kwanbo_uid');
+          _deskMarkUnlocked(fresh.id);   // 데스크탑 앱: 첫 로그인 강제 변경 직후 잠그지 않음
           return { ok: true, user: fresh, loginId: data.login_id || null, flagCleared: !!data.flag_cleared };
         }
         return { ok: true, loginId: data.login_id || null, flagCleared: !!data.flag_cleared };
@@ -1080,6 +1329,11 @@
       checkBruteForce:   checkBruteForce,
       recordFailure:     recordFailure,
       clearFailures:     clearFailures,
+      recheckPassword:   recheckPassword,
+      recheckFails:      recheckFails,
+      recheckFailAdd:    recheckFailAdd,
+      recheckFailClear:  recheckFailClear,
+      RECHECK_MAX_FAILS: RECHECK_MAX_FAILS,
     };
   })();
 
@@ -2153,6 +2407,7 @@
     approvalBadges:   approvalBadges,
     isDesktopApp:     isDesktopApp,
     startDesktopWatch: startDesktopWatch,
+    lockDesktopNow:    lockDesktopNow,
     PORTAL_PAGES:  PORTAL_PAGES,
     portalCanShow: portalCanShow,
     PERM_DEFS:        PERM_DEFS,

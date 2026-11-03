@@ -93,6 +93,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.6.0 · 2026-11-03 · 데스크탑 앱 2단계(앱 1.1.0) — 앱 안 화면 잠금(시작·지금 잠그기) · 트레이·작업표시줄 결재 숫자 / 급여명세서 본인 확인 생년월일 → 계정 비밀번호
   - 2.5.0 · 2026-11-02 · Windows 데스크탑 앱 1단계(저장소 밖 desktop-app) — 앱 안에서만 연차 결재 대기 알림 감시 · 로그인 유지
   - 2.4.6 · 2026-11-02 · 메인 메뉴 「업무일지」 → 「업무관리」(왼쪽 메뉴·휴대폰 상단 막대·둘러보기 카드·권한 탭 그룹·업무 화면 제목). 화면 안 탭 「내 업무일지」 등과 관리포털 「업무일지」는 그대로
   - 2.4.5 · 2026-10-29 · 실사용 착수계 점검 — 엑셀 일괄 올리기 빈 칸이 자격번호를 지우던 오류 · 서식 버전 표시(예전 서식이면 만들기 막음) · 내려받기 전 확인 창
@@ -153,6 +154,22 @@
 ---
 
 ## ✅ 완료된 작업
+
+### 데스크탑 앱 2단계 — 화면 잠금 + 트레이 숫자 / 급여명세서 비밀번호 재확인 (2026-11-03, v2.6.0, 앱 1.1.0, sysbar.js v3.15 `?v=2026110301`)
+- **화면 잠금(앱 안에서만, PC 카카오톡 방식)**: 앱을 켤 때(재실행 포함) 한 번 + 트레이 「지금 잠그기」. 비활동 자동 잠금 없음. 로그인·감시·알림·트레이 숫자는 잠겨 있어도 그대로 돈다.
+  - sysbar.js 가 `<head>` 에서 불릴 때 판정 → `html.kb-desk-locked` 로 body 내용을 먼저 가리고(visibility) body 가 생기는 즉시 잠금 창 `#kb-desk-lock`(로고·회사명·이름·비밀번호·「다른 계정으로 로그인」).
+    키는 window capture 에서 막고(화면 단축키 안 받음) 포커스는 잠금 창 입력칸으로. 새로고침·화면 이동해도 잠금 유지.
+  - 해제 상태 = sessionStorage `SESSION_PREFIX + '_desk_unlocked'` {uid}(이번 실행 동안만). 로그인 화면(doLogin·강제 변경·index.html 로그인)에서 방금 로그인했으면 잠그지 않는다.
+  - 앱 → 웹 `window.__kbDeskLock()`(Rust 트레이 메뉴가 eval). 웹이 앱 명령을 부르는 방향이 아니다.
+- **비밀번호 다시 확인 = `Sysbar.Auth.recheckPassword(sb, pw)` 하나**(잠금 해제·급여명세서 공용): 지금 세션의 이메일 + 비밀번호로 `signInWithPassword` → 새 세션, 이전 세션은 `/auth/v1/logout?scope=local`(이전 토큰)로 끝냄.
+  틀린 횟수 `recheckFailAdd/recheckFails/recheckFailClear(scope)`(이 창 sessionStorage, 새로고침해도 이어짐), `RECHECK_MAX_FAILS`(5)번이면 화면이 로그아웃(앱은 로그인 사본도 삭제).
+- **트레이 숫자**: 웹이 `loadApprovals` 성공 때 total 을 `desk_badge(n)` 로(값이 바뀔 때만, sessionStorage `'_desk_badge'`), 로그아웃(`clearSession`) = 0. 앱 명령은 이제 `desk_config`·`desk_notify`·`desk_badge` 셋.
+  Rust(`src-tauri/src/badge.rs`)가 아이콘 오른쪽 위 원 + 숫자(10 이상 9+)를 그려 트레이 아이콘·툴팁(「앱이름 — 결재 대기 N건」)·작업표시줄 겹침 그림을 바꾼다. 색·글꼴 = `desktop-apppp.config.json` `badge`.
+- **급여명세서 본인 확인 = 계정 비밀번호 재입력**(생년월일 6자리 대체, 브라우저·앱 공통, 2026-11-03 승우 결정). 유지 범위는 예전과 같다(화면을 열 때마다, 화면 안에서는 `SLIP_VERIFY_UNLOCK_MINUTES`).
+  DB(저장소 밖 `security-fixl~157_payslip_pw_*`, 저장소 사본 `supabase/sql/payslip_pw_recheck.sql`): `payslip_verify_pw(p_token)` = JWT `amr` 의 password 시각이 120초 안인 세션만 이 창 토큰을 통과(클라이언트 값 아님),
+  `payslip_pw_fail(p_count)` = 틀림 기록(`payslip_verify_logs` 'fail', 'n/5 비밀번호'). **`payslip_verify`(생년월일) 실행 권한은 authenticated 에서 회수**(함수는 남김 — 정리 후보).
+  급여 열람 기록(`self_slip_view`)은 그대로. config `SLIP_VERIFY_MAX_FAILS`·`LOCK_MINUTES` 와 관리 화면 잠금 해제 표는 예전 생년월일용(정리 후보, 삭제 안 함).
+- 앱 저장소 밖 `desktop-app` 버전 1.1.0. 백업 `backup/*_20261103.*`.
 
 ### Windows 데스크탑 앱 1단계 — 트레이 상주 + 연차 결재 알림 (2026-11-02, v2.5.0, sysbar.js v3.14 `?v=2026110202`)
 - **앱은 이 저장소 밖** `C:\Users\kwanb\Desktop\kbsys\desktop-app`(Tauri v2, Pages 로 공개되지 않게). 빌드 = `npm install` → `npm run build`

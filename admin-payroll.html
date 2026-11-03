@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026110202"></script>
+<script src="sysbar.js?v=2026110301"></script>
 <script src="payslip-render.js?v=20260929"></script>
 <script src="payroll-excel.js?v=20261002"></script>
 <script src="payroll-transfer.js?v=20261009"></script>
@@ -368,7 +368,8 @@ function mailConfig() {
     auto_send: MAIL_AUTO_SEND,
     // 퇴사일 이후 본인 명세서 열람 허용 개월 수 — DB 함수 payroll_my_employee_ids 가 이 값을 쓴다
     leaver_view_months: (PCFG.LEAVER_VIEW_MONTHS == null) ? 3 : PCFG.LEAVER_VIEW_MONTHS,
-    // 급여명세서 생년월일 확인 — DB 함수 payslip_verify / payslip_is_unlocked 가 이 값을 쓴다
+    // 급여명세서 본인 확인 — unlock_minutes 는 payslip_verify_pw / payslip_is_unlocked 가 쓴다.
+    // max_fails·lock_minutes 는 예전 생년월일 확인(payslip_verify, 2026-11-03 사용 중지)용 — 정리 후보
     slip_verify_max_fails: (PCFG.SLIP_VERIFY_MAX_FAILS == null) ? 5 : PCFG.SLIP_VERIFY_MAX_FAILS,
     slip_verify_lock_minutes: (PCFG.SLIP_VERIFY_LOCK_MINUTES == null) ? 10 : PCFG.SLIP_VERIFY_LOCK_MINUTES,
     slip_verify_unlock_minutes: (PCFG.SLIP_VERIFY_UNLOCK_MINUTES == null) ? 10 : PCFG.SLIP_VERIFY_UNLOCK_MINUTES,
@@ -2684,7 +2685,7 @@ function PayslipVerifyLog() {
   return (
     <div style={{ marginTop: 20 }}>
       <div className="sh">
-        <div className="st">급여명세서 본인 확인 (생년월일)</div>
+        <div className="st">급여명세서 본인 확인 (2026-11-03부터 계정 비밀번호 · 이전 생년월일)</div>
         <button className="btn btn-s btn-sm" onClick={load}>새로고침</button>
       </div>
       {locks.length > 0 ? (

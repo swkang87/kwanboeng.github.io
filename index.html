@@ -2154,6 +2154,7 @@ function renderLoginSection(user) {
           sessionStorage.setItem((APP_CONFIG.SESSION_PREFIX||'kwanbo')+'_session', JSON.stringify(u));
           localStorage.removeItem('kwanbo_pm_user');
           sessionStorage.removeItem('kwanbo_uid');
+          _deskUnlocked(u);
           window.location.href = _afterLoginUrl(u);
         } catch(e) {
           cErr.textContent = '오류: ' + e.message;
@@ -2169,6 +2170,10 @@ function renderLoginSection(user) {
       }
     }
 
+    // 데스크탑 앱 안에서 방금 비밀번호로 로그인했으면 화면 잠금을 하지 않는다(sysbar.js 화면 잠금과 같은 키 — 이 페이지는 sysbar.js 를 불러오지 않음)
+    function _deskUnlocked(u) {
+      try { if (window.__TAURI__ && u && u.id) sessionStorage.setItem(((window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo') + '_desk_unlocked', JSON.stringify({ uid: u.id })); } catch(e) {}
+    }
     // 로그인 후 이동할 화면: 퇴사일이 지난 계정은 급여명세서만 열람 가능(DB 도 명세서 외에는 막음) → 명세서 화면,
     // 기술지원(contractor)은 공정관리, 그 외는 홈. 날짜는 브라우저 로컬(KST) 기준 — toISOString 사용 금지.
     function _afterLoginUrl(u) {
@@ -2232,6 +2237,7 @@ function renderLoginSection(user) {
         sessionStorage.setItem((APP_CONFIG.SESSION_PREFIX||'kwanbo')+'_session', JSON.stringify(u));
         localStorage.removeItem('kwanbo_pm_user');
         sessionStorage.removeItem('kwanbo_uid');
+        _deskUnlocked(u);
         window.location.href = _afterLoginUrl(u);
 
       } catch(e) {
