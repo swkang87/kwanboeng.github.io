@@ -1,11 +1,11 @@
 {
-  "version": "1.2.1",
-  "notes": "업데이트 동작 확인용(1.2.0 과 같은 내용)",
-  "pub_date": "2026-11-03T06:15:37Z",
+  "version": "1.2.2",
+  "notes": "앱 아이콘 교체",
+  "pub_date": "2026-11-03T07:34:44Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDZrcENrV1diME92MXRZK1JBNjNRcW52WlI3a0pkdzh6VGh6R1ZrSFRYM1RKaXVPK1VENVFIUmpOMS93SHFtcVF1S3htcnZoQzFxY3JvMENCcFIvemcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzNjg2NTM3CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjIuMV94NjQtc2V0dXAuZXhlCXZlcnNpb246MS4yLjEKaTRZUTVXYzNLMVBvcGtjSHFvaVZDb0tvUVp3emt3NGhhS3RvL3NESE5OaHd2MEpyUDdDdXpadU43Vyt1bmU5Y0haQzM2VlZsdXlDYTV6SHZqZUQ3Q3c9PQo=",
-      "url": "https://kwanboeng.com/desktop/1.2.1/kbsys-desktop_1.2.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDBtY3NJZTNSOUpsL2xMSFg1V2Urekk1YnF3dzcySUJhYzRIT0xHQ2w3MHBkYzNEWG0vdXhjcjh0ZGJySVByWVVuUCtsS1ZWc01wVFpxdTB5cTNQa2dRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzNjkxMjgzCWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjIuMl94NjQtc2V0dXAuZXhlCXZlcnNpb246MS4yLjIKUDBrQmhRcGZxdDB2RWRFeEFqMkhGRFRpNlFFamhzMmorYkpFL21OYzRRQ2R5Z1d1T2Y0RzNDZFpxOFlOdlZ4dkkvTG01ekRZM3VMaDh5Mk5GK1ZFRGc9PQo=",
+      "url": "https://kwanboeng.com/desktop/1.2.2/kbsys-desktop_1.2.2_x64-setup.exe"
     }
   }
 }
