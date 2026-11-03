@@ -7,5 +7,6 @@ Disallow: /worklog.html
 Disallow: /admin-
 Disallow: /payslip.html
 Disallow: /import_weekly.html
+Disallow: /desktop/
 
 Sitemap: https://kwanboeng.com/sitemap.xml

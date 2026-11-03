@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>데스크탑 앱 내려받기</title>
+<!-- 직원용 데스크탑 앱 설치 파일 안내(2026-11-03, 앱 1.2.0~). 설치 파일·업데이트 정보(latest.json)는 이 폴더에 있다.
+     latest.json · <버전>/ 은 desktop-app 의 `npm run release` 가 만든다(손으로 고치지 말 것 — 서명이 깨지면 업데이트가 거부된다). -->
+<script src="../config.js"></script>
+<style>
+  body { margin: 0; font: 15px/1.7 'Segoe UI', 'Malgun Gothic', sans-serif; color: #1e293b; background: #f1f5f9; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 60px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; }
+  .card { background: #fff; border: 1px solid #dbe2ea; border-radius: 12px; padding: 22px 26px; margin-top: 18px; }
+  .dl { display: inline-block; margin: 10px 0 4px; padding: 12px 22px; border-radius: 9px; background: #1b3a6b; color: #fff; text-decoration: none; font-weight: 700; }
+  .dl[aria-disabled="true"] { background: #94a3b8; pointer-events: none; }
+  .mu { color: #64748b; font-size: 13px; }
+  ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+  code { background: #eef2f7; padding: 1px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">데스크탑 앱</h1>
+  <div class="mu" id="sub">Windows 10 · 11 전용</div>
+
+  <div class="card">
+    <b>설치 파일</b>
+    <div><a class="dl" id="dl" href="#" aria-disabled="true">불러오는 중…</a></div>
+    <div class="mu" id="ver"></div>
+    <ol>
+      <li>위 단추로 설치 파일을 받아 실행합니다(관리자 권한 필요 없음).</li>
+      <li>「Windows의 PC 보호」 창이 뜨면 <b>추가 정보 → 실행</b>을 누릅니다(회사 내부 앱이라 서명 인증서가 없어 뜨는 안내입니다).</li>
+      <li>설치가 끝나면 앱이 열립니다. 종합정보시스템 아이디·비밀번호로 로그인합니다.</li>
+      <li>이후 새 버전은 앱이 알아서 받아 두고 알려 줍니다. 트레이(시계 옆) 아이콘 메뉴 <b>업데이트 후 다시 시작</b>을 누르면 적용됩니다.</li>
+    </ol>
+  </div>
+
+  <h2>파일 창을 쓰려면 — Synology Drive Client</h2>
+  <div class="card">
+    <div>앱의 <b>파일</b> 창은 PC 의 Synology Drive 폴더를 보여 줍니다. NAS 와 주고받기는 Synology Drive Client 가 합니다.</div>
+    <ol>
+      <li><a href="https://www.synology.com/ko-kr/support/download" target="_blank" rel="noopener">Synology 다운로드 센터</a>에서
+        사용 중인 NAS 모델을 고르고 「데스크톱 유틸리티」의 <b>Synology Drive Client</b> 를 받아 설치합니다.</li>
+      <li>Drive Client 를 열고 <b>동기화 작업</b>을 만듭니다. NAS 주소(QuickConnect ID)는 관리자에게 받은 것을, 계정은 <b>본인 NAS 계정</b>을 씁니다.</li>
+      <li>NAS 쪽 폴더는 내 부서 <b>팀 폴더</b>를 고르고, PC 쪽 폴더는 기본값(<code>C:\Users\내이름\SynologyDrive</code>)을 그대로 둡니다.</li>
+      <li>동기화 규칙에서 <b>필요 시 다운로드(On-demand Sync)</b>를 켭니다 — 파일 목록만 내려오고, 연 파일만 PC 에 받아져 용량을 거의 쓰지 않습니다.</li>
+      <li>앱 왼쪽 메뉴 또는 트레이 메뉴의 <b>파일</b>을 누르면 그 폴더가 열립니다(처음 한 번 폴더를 확인합니다).</li>
+    </ol>
+    <div class="mu">파일을 지우면 NAS 에서도 지워집니다(PC 휴지통 · NAS 휴지통에서 복구 가능). 회사 밖에서도 Drive Client 가 QuickConnect 로 연결됩니다.</div>
+  </div>
+</main>
+<script>
+(function () {
+  var c = window.APP_CONFIG || {};
+  var name = (c.COMPANY_SHORT || c.COMPANY_KO || '') + ' 종합정보시스템';
+  document.getElementById('title').textContent = name + ' 데스크탑 앱';
+  document.title = name + ' 데스크탑 앱 내려받기';
+  fetch('latest.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+    var p = j.platforms && j.platforms['windows-x86_64'];
+    if (!p || !p.url) throw new Error('no url');
+    var a = document.getElementById('dl');
+    a.href = p.url; a.removeAttribute('aria-disabled');
+    a.textContent = '설치 파일 내려받기 (' + j.version + ')';
+    document.getElementById('ver').textContent = '버전 ' + j.version + (j.pub_date ? ' · ' + j.pub_date.slice(0, 10) : '');
+  }).catch(function () {
+    document.getElementById('dl').textContent = '설치 파일 정보를 불러오지 못했어요';
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,7 +1,9 @@
 /**
- * SYSBAR MODULE v3.15
+ * SYSBAR MODULE v3.16
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
  *
+ * v3.16 (2026-11-03): 데스크탑 앱(1.2.0) 안에서만 — 왼쪽 메뉴 「파일」(앱 내장 파일 탐색기 창, 앱 명령 desk_open_files) ·
+ *   트레이 「파일」이 부르는 __kbDeskOpenFiles(잠겨 있으면 해제 뒤에 연다). APP_VERSION 2.7.0
  * v3.15 (2026-11-03): 데스크탑 앱 안에서만 — 시작·「지금 잠그기」 화면 잠금(__kbDeskLock, 비밀번호 다시 확인 · 5번 틀리면 로그아웃) ·
  *   트레이 숫자(desk_badge = 결재 대기 total). 공용 Auth.recheckPassword(급여명세서 본인 확인도 이것 — 생년월일 대체). APP_VERSION 2.6.0
  * v3.14 (2026-11-02): 데스크탑 앱(Tauri) 안에서만 — 연차 결재 대기 알림 감시(startDesktopWatch) · 로그인 유지(1시간 비활동 로그아웃 없음,
@@ -80,7 +82,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.6.0';
+  var APP_VERSION = '2.7.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -322,7 +324,7 @@
 
   // ── 데스크탑 앱(Tauri) 안에서만 — 연차 결재 대기 알림 · 로그인 유지 (2026-11-02) ──
   //   앱이 아니면(일반 브라우저) 아래 함수는 모두 아무것도 하지 않는다(서버 호출 없음).
-  //   앱 판정 = 앱이 넣는 window.__TAURI__.core.invoke. 앱 쪽 명령은 desk_config · desk_notify 두 개뿐.
+  //   앱 판정 = 앱이 넣는 window.__TAURI__.core.invoke. 앱 쪽 명령은 desk_config · desk_notify · desk_badge · desk_open_files 넷뿐.
   //   ① 감시: pollSeconds(앱 설정)마다 my_pending_approvals() 를 다시 읽고(캐시도 갱신), 직전 값(localStorage)보다
   //      팀원 결재 · 최종 승인 · 취소 요청 중 늘어난 것이 있으면 알림 1건(이름·사유 없음). 직전 값이 없으면(첫 실행) 대기 건이 있을 때 한 번.
   //      한 창에 하나. 「다른 부서로 보기」 중에는 건너뜀. 창이 트레이에 숨어 타이머가 늦어져도 앱이 같은 주기로 __kbDeskTick() 을 부른다.
@@ -592,7 +594,7 @@
       _lockBusy = true; ok.disabled = true; ok.textContent = '확인 중...'; setErr('');
       recheckPassword(_lockClient(), pw).then(function(r) {
         _lockBusy = false; ok.disabled = false; ok.textContent = '잠금 해제'; inp.value = '';
-        if (r.ok) { _deskMarkUnlocked((_sessUser() || {}).id); _lockUnmount(); return; }
+        if (r.ok) { _deskMarkUnlocked((_sessUser() || {}).id); _lockUnmount(); _filesAfterUnlock(); return; }
         if (r.wrong) {
           var n = recheckFailAdd('lock');
           if (n >= RECHECK_MAX_FAILS) { setErr('비밀번호를 ' + RECHECK_MAX_FAILS + '번 틀려 로그아웃합니다.'); _lockLogout(1200); return; }
@@ -658,10 +660,27 @@
     _lockShow();
     return true;
   }
+  // ── 파일 탐색기 창(앱 1.2.0) — 앱 안에서만. 창은 앱에 내장된 화면이고 파일 일은 앱(Rust)이 한다. 여기서는 「열어 달라」만 ──
+  //   왼쪽 메뉴 「파일」 · 트레이 「파일」(앱이 __kbDeskOpenFiles() 를 부름). 로그인 전이면 열지 않고(false → 앱이 이 창을 보여 줌),
+  //   잠겨 있으면 해제한 뒤에 연다(잠금 중에는 파일 창을 열지 않는다 — 2026-11-03 작업지시서).
+  var _filesPending = false;
+  function openDesktopFiles() {
+    if (!isDesktopApp() || !_sessUser()) return false;
+    if (_lockEl || _deskNeedsLock()) { _filesPending = true; return false; }
+    _deskInvoke('desk_open_files');
+    return true;
+  }
+  function _filesAfterUnlock() {
+    if (!_filesPending) return;
+    _filesPending = false;
+    _deskInvoke('desk_open_files');
+  }
+
   // 이 파일이 불릴 때(<head>, 화면 내용보다 먼저) 판정해서 가린다
   (function() {
     if (!isDesktopApp()) return;
     global.__kbDeskLock = lockDesktopNow;
+    global.__kbDeskOpenFiles = openDesktopFiles;
     if (_deskNeedsLock()) _lockShow();
   })();
 
@@ -1877,6 +1896,12 @@
         ));
       });
 
+      // 데스크탑 앱 안에서만: 「파일」(앱 내장 파일 탐색기 창을 연다 — 이동 없음). 협력업체 제외
+      if (isDesktopApp() && user && !contractor) {
+        sideItems.push(e('button', {key:'desk-files', type:'button', className:'sys-side-b', title:'파일 탐색기 창 열기(앱)',
+          onClick:function() { openDesktopFiles(); }}, [sideIcon(React, 'folder'), e('span', {key:'l'}, '파일')]));
+      }
+
       var side = e('aside', {key:'side', className:'sys-side no-print', 'aria-label':'메뉴'},
         e('a', {key:'brand', className:'sys-side-brand', href:cfg.HOME_URL||'home.html'},
           cfg.LOGO_URL ? e('img', {key:'i', src:cfg.LOGO_URL, alt:''}) : null,
@@ -2406,6 +2431,7 @@
     approvalCounts:   approvalCounts,
     approvalBadges:   approvalBadges,
     isDesktopApp:     isDesktopApp,
+    openDesktopFiles: openDesktopFiles,
     startDesktopWatch: startDesktopWatch,
     lockDesktopNow:    lockDesktopNow,
     PORTAL_PAGES:  PORTAL_PAGES,
