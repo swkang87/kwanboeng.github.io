@@ -82,7 +82,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.7.0';
+  var APP_VERSION = '2.7.1';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -2211,7 +2211,13 @@
   // canDrop() → 끌어다 놓기가 되는 환경(마우스가 있는 PC)이면 true. 휴대폰은 클릭으로 고르기만 안내한다.
   var _dropZones = 0;
   function _hasFiles(e) { return !!(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0); }
-  function _pageGuard(e) { if (_hasFiles(e)) { e.preventDefault(); if (e.type === 'dragover') e.dataTransfer.dropEffect = 'none'; } }
+  // 상자 밖에 놓으면 브라우저가 파일을 여는 것만 막고 아무 일도 없어서 「올렸는데 안 바뀜」이 됐다 → 안내를 띄운다(2026-11-06)
+  function _pageGuard(e) {
+    if (!_hasFiles(e)) return;
+    e.preventDefault();
+    if (e.type === 'dragover') e.dataTransfer.dropEffect = 'none';
+    else renderErrBox('올리지 않았어요 — 파일은 「올리기」 상자 위에 놓아 주세요.');
+  }
   function _dropCss() {
     if (document.getElementById('sys-drop-css')) return;
     var s = document.createElement('style');
@@ -2221,7 +2227,10 @@
       '.sys-drop.sys-drop-on{border-color:#7c3aed;background:#f5f3ff;}';
     document.head.appendChild(s);
   }
+  // 데스크탑 앱(Tauri) 기본 창은 끌어다 놓은 파일을 앱이 받아 웹 화면에 넘기지 않는다(Windows WebView2 + Tauri 기본값).
+  // 그 안에서는 「끌어다 놓기 가능」이라고 안내하지 않고 클릭해서 고르기만 안내한다(2026-11-06)
   function canDrop() {
+    if (global.__TAURI__) return false;
     try { return 'ondrop' in document.createElement('div') && !!(global.matchMedia && global.matchMedia('(pointer:fine)').matches); }
     catch (e) { return false; }
   }
