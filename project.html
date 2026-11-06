@@ -12,7 +12,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 — 그리면서 보낸 세션 확인 요청이 이동으로 중단되지 않게 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026110601"></script>
+<script src="sysbar.js?v=2026110602"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -2788,9 +2788,12 @@ function ContractImportBar({ onParsed }) {
     return () => z.destroy();
   }, []);
 
+  useEffect(() => Sysbar.onPickCancel(inputRef.current, () => setErr('파일을 고르지 않았어요.')), []);
+  // 고른 파일을 먼저 복사하고 칸을 비운다(Sysbar.pickedFiles — 순서가 바뀌면 Chromium 에서 0개가 된다)
   const pick = (e) => {
-    const files = e.target.files; e.target.value = '';
-    Sysbar.checkFiles(files, { kinds: ['pdf'] }).then(r => { if (r.errors.length) setErr(r.errors[0].message); else handle(r.ok); });
+    const files = Sysbar.pickedFiles(e);
+    Sysbar.checkFiles(files, { kinds: ['pdf'] }).then(r => { if (r.errors.length) setErr(r.errors[0].message); else handle(r.ok); },
+      ex => setErr('파일을 읽지 못했어요: ' + ((ex && ex.message) || ex)));
   };
 
   return (

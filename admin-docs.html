@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026110601"></script>
+<script src="sysbar.js?v=2026110602"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
@@ -187,10 +187,15 @@ function DropBox({ kinds, multiple, maxMB, accept, text, clickText, small, inlin
       onFiles: function(l) { give({ ok: l, errors: [] }); },
       onError: function(m, errs) { give({ ok: [], errors: errs || [{ name: '', message: m }] }); }
     }));
-    return function() { z.destroy(); };
+    var unCancel = Sysbar.onPickCancel(inp.current, function() { if (cb.current.onError) cb.current.onError('파일을 고르지 않았어요.', [{ name: '', message: '파일을 고르지 않았어요.' }]); });
+    return function() { z.destroy(); unCancel(); };
   }, []);
   function open() { if (!cb.current.disabled && inp.current) inp.current.click(); }
-  function pick(e) { var fs = e.target.files; e.target.value = ''; Sysbar.checkFiles(fs, opts()).then(give); }
+  // 고른 파일을 먼저 복사하고 칸을 비운다(Sysbar.pickedFiles — 순서가 바뀌면 Chromium 에서 0개가 된다)
+  function pick(e) {
+    var fs = Sysbar.pickedFiles(e);
+    Sysbar.checkFiles(fs, opts()).then(give, function(ex) { give({ ok: [], errors: [{ name: '', message: '파일을 읽지 못했어요: ' + ((ex && ex.message) || ex) }] }); });
+  }
   return (
     <div ref={box} role="button" tabIndex={0} onClick={open} onKeyDown={function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
       style={{ display: inline ? 'inline-flex' : 'block', alignItems: 'center', gap: 6, padding: small ? '4px 10px' : '22px 16px', textAlign: 'center',
@@ -879,6 +884,7 @@ function TemplateBar({ def, onState }) {
       {info && <button className="btn btn-s sm" onClick={down}>서식 내려받기</button>}
       {msg && <span className="tag tag-no" style={{ whiteSpace: 'normal' }}>{msg}</span>}
       {okMsg && !msg && <span className="tag tag-ok" style={{ whiteSpace: 'normal' }}>{okMsg}</span>}
+      {window.__TAURI__ && !okMsg && <span style={{ fontSize: 11, color: '#94a3b8' }}>앱에서 안 되면 Edge 에서 올려 주세요</span>}
     </div>
   );
 }

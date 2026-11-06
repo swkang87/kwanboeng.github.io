@@ -82,7 +82,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.7.1';
+  var APP_VERSION = '2.7.2';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -2234,10 +2234,26 @@
     try { return 'ondrop' in document.createElement('div') && !!(global.matchMedia && global.matchMedia('(pointer:fine)').matches); }
     catch (e) { return false; }
   }
+  // pickedFiles(e) → 파일 고르기 칸(change)에서 고른 파일을 배열로 복사한 뒤 칸을 비운다(같은 파일을 다시 고를 수 있게).
+  //   ⚠ 순서가 중요하다: Chromium(Edge·데스크탑 앱 WebView2)은 input.value = '' 를 하면 방금 받은 FileList 를
+  //   그 자리에서 0개로 비운다 — `var fs = e.target.files; e.target.value = ''` 는 항상 빈 목록이 된다(2026-11-06 실측).
+  function pickedFiles(e) {
+    var t = e && e.target;
+    var list = Array.prototype.slice.call((t && t.files) || []);
+    try { if (t) t.value = ''; } catch (x) {}
+    return list;
+  }
+  // onPickCancel(input, fn) → 파일 선택 창에서 취소하면 fn() (브라우저 cancel 이벤트). 돌려준 함수로 해제
+  function onPickCancel(input, fn) {
+    if (!input || !input.addEventListener) return function() {};
+    input.addEventListener('cancel', fn);
+    return function() { input.removeEventListener('cancel', fn); };
+  }
   function checkFiles(files, opts) {
     opts = opts || {};
     var list = Array.prototype.slice.call(files || []);
-    if (!list.length) return Promise.resolve({ ok: [], errors: [] });
+    // 0개를 조용히 넘기지 않는다 — 「아무 반응 없음」이 되지 않게(2026-11-06)
+    if (!list.length) return Promise.resolve({ ok: [], errors: [{ name: '', message: '고른 파일을 받지 못했어요. 다시 골라 주세요.' }] });
     if (!opts.multiple && list.length > 1) return Promise.resolve({ ok: [], errors: [{ name: '', message: '한 개만 올려 주세요.' }] });
     return Promise.all(list.map(function(f) {
       return checkUpload(f, opts.kinds, opts.maxMB).then(function(c) { return { file: f, c: c }; });
@@ -2466,6 +2482,8 @@
     checkUpload:  checkUpload,
     dropZone:     dropZone,
     checkFiles:   checkFiles,
+    pickedFiles:  pickedFiles,
+    onPickCancel: onPickCancel,
     canDrop:      canDrop,
     logError:     logError,
     writeFailed:  writeFailed,

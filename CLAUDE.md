@@ -93,6 +93,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.7.2 · 2026-11-06 · 클릭해서 고른 파일이 0개가 되던 오류(서류작성 올리기 전부 · 계약서 PDF) — Sysbar.pickedFiles · 0개·취소도 문구 · 앱 안 「Edge 에서 올려 주세요」 안내
   - 2.7.1 · 2026-11-06 · 서식 다시 올리기가 반영 안 되던 오류 — 내려받기 캐시 무시(signed URL + no-store) · 올린 뒤 서버 값으로 확인·성공/실패 문구 · 앱 안·상자 밖 놓기 안내
   - 2.7.0 · 2026-11-03 · 데스크탑 앱 1.2.0 — 왼쪽 메뉴 「파일」(앱 안에서만, 앱 내장 파일 탐색기 창 · 잠금 중엔 해제 뒤 열림) / 앱 자동 업데이트 · 배포 페이지 desktop/
   - 2.6.0 · 2026-11-03 · 데스크탑 앱 2단계(앱 1.1.0) — 앱 안 화면 잠금(시작·지금 잠그기) · 트레이·작업표시줄 결재 숫자 / 급여명세서 본인 확인 생년월일 → 계정 비밀번호
@@ -840,6 +841,9 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 - **파일 끌어다 놓기는 `Sysbar.dropZone(el, {kinds, multiple, maxMB, onFiles, onError, busy})` 하나로**(2026-10-29, v2.4.3). 안에서 `checkFiles`(= checkUpload) 로 형식을 확인하고,
   영역이 있는 동안 페이지 전체의 파일 놓기 기본 동작(브라우저가 파일을 열어 버림)을 막는다. 클릭으로 고른 파일도 `Sysbar.checkFiles` 로 같은 검사. 한 개만 받는 곳에 여러 개 = 「한 개만 올려 주세요.」
   `Sysbar.canDrop()` 이 false(휴대폰 등)면 클릭 안내 문구만. 서류작성은 `DropBox` 컴포넌트, project.html 은 `ContractImportBar` 가 이 함수를 쓴다.
+- **파일 고르기 칸(change)은 `Sysbar.pickedFiles(e)` 로 받는다**(2026-11-06, v2.7.2). Chromium(Edge·앱 WebView2)은 `input.value = ''` 를 하면 방금 받은 FileList 를
+  그 자리에서 0개로 비운다 — `var fs = e.target.files; e.target.value = ''` 는 항상 빈 목록(실측). 복사 → 비우기 순서. `files[0]` 을 먼저 꺼내 두는 것은 괜찮다.
+  `Sysbar.checkFiles` 는 0개면 「고른 파일을 받지 못했어요」 오류를 돌려준다(조용히 끝내지 않음). 선택 취소 = `Sysbar.onPickCancel(input, fn)`.
 - **같은 경로에 덮어쓰는 Storage 파일은 `download()` 로 읽지 않는다**(2026-11-06, v2.7.1). Storage 기본 `Cache-Control: max-age=3600` 이라 브라우저가 1시간 동안 옛 내용(304·캐시)을 준다 —
   admin-docs `downloadBytes` = 매번 새 signed URL + `fetch(…, {cache:'no-store'})`. 서식 올리기는 `cacheControl:'0'` + 올린 뒤 목록·내용을 다시 읽어 크기·시각·버전이 바뀐 것만 「올렸어요」.
   **데스크탑 앱 기본 창은 끌어다 놓기가 웹에 오지 않는다**(Tauri 기본 drag-drop 처리) → `Sysbar.canDrop()` 은 앱 안에서 false(클릭 안내). 상자 밖에 놓으면 「상자 위에 놓아 주세요」 안내.
