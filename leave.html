@@ -19,7 +19,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026110602"></script>
+<script src="sysbar.js?v=2026110901"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js" integrity="sha384-1qlE7MZPM2pHD/pBZCU/yB8UCP52RYL8bge/qNdfNBCWToySp8/M+JL2waXU4hjJ" crossorigin="anonymous"></script>
@@ -478,9 +478,11 @@ function ApplyView({user,users,leaves,onRefresh,onNav,prefill,onApplied}){
   const pf=prefill||null;
   const pfMonth=pf?new Date(pf.start_date+'T12:00:00'):now;
   const [type,setType]=useState(pf?pf.leave_type:'연차');
-  const [mode,setMode]=useState(pf&&pf.start_time?'time':'date');
-  const [start,setStart]=useState(pf?pf.start_date:'');
-  const [end,setEnd]=useState(pf?pf.end_date:'');
+  // 처음 열 때(2026-11-09): 시간 단위(당일) + 오늘(주말·공휴일이면 미선택). 「이대로 신청」은 계획 값이 우선
+  const initDay=isWork(today())?today():'';
+  const [mode,setMode]=useState(pf?(pf.start_time?'time':'date'):'time');
+  const [start,setStart]=useState(pf?pf.start_date:initDay);
+  const [end,setEnd]=useState(pf?pf.end_date:initDay);
   const [hoverDate,setHoverDate]=useState(null);
   const [calYr,setCalYr]=useState(pfMonth.getFullYear());
   const [calMo,setCalMo]=useState(pfMonth.getMonth());
@@ -494,6 +496,13 @@ function ApplyView({user,users,leaves,onRefresh,onNav,prefill,onApplied}){
   const usedDays=leaves.filter(l=>l.user_id===user.id&&l.status==='approved'&&l.type==='연차'&&l.start_date?.startsWith(String(thisYear()))).reduce((s,l)=>s+Number(l.days),0);
   const rem=Number(user.total_days||0)-usedDays;
   const singleMode=mode==='time';
+
+  // 방식을 바꿔도 날짜 유지 — 시작일을 그날 하루로(날짜 단위 기간이었다면 종료일은 버림)
+  const changeMode=(k)=>{
+    if(k===mode)return;
+    setMode(k);setHoverDate(null);
+    if(start)setEnd(start);
+  };
 
   const handleDayClick=(d)=>{
     if(singleMode){setStart(d);setEnd(d);return;}
@@ -564,14 +573,14 @@ function ApplyView({user,users,leaves,onRefresh,onNav,prefill,onApplied}){
       <div style={{marginBottom:11}}>
         <label style={lbl}>신청 종류</label>
         <div style={{display:'flex',gap:7}}>
-          {['연차','공가'].map(t=><button key={t} onClick={()=>{setType(t);setStart('');setEnd('');}} style={{flex:1,padding:'8px',border:`2px solid ${type===t?'#1e40af':'#e2e8f0'}`,borderRadius:7,background:type===t?'#eff6ff':'white',color:type===t?'#1e40af':'#374151',fontWeight:type===t?700:400,cursor:'pointer',fontSize:13,fontFamily:"'Noto Sans KR',sans-serif"}}>{t}</button>)}
+          {['연차','공가'].map(t=><button key={t} onClick={()=>setType(t)} style={{flex:1,padding:'8px',border:`2px solid ${type===t?'#1e40af':'#e2e8f0'}`,borderRadius:7,background:type===t?'#eff6ff':'white',color:type===t?'#1e40af':'#374151',fontWeight:type===t?700:400,cursor:'pointer',fontSize:13,fontFamily:"'Noto Sans KR',sans-serif"}}>{t}</button>)}
         </div>
       </div>
 
       <div style={{marginBottom:11}}>
         <label style={lbl}>신청 방식</label>
         <div style={{display:'flex',gap:7}}>
-          {[{k:'date',l:'날짜 단위'},{k:'time',l:'시간 단위 (당일)'}].map(o=><button key={o.k} onClick={()=>{setMode(o.k);setStart('');setEnd('');}} style={{flex:1,padding:'7px',border:`2px solid ${mode===o.k?'#1e40af':'#e2e8f0'}`,borderRadius:7,background:mode===o.k?'#eff6ff':'white',color:mode===o.k?'#1e40af':'#374151',fontWeight:mode===o.k?700:400,cursor:'pointer',fontSize:12,fontFamily:"'Noto Sans KR',sans-serif"}}>{o.l}</button>)}
+          {[{k:'time',l:'시간 단위 (당일)'},{k:'date',l:'날짜 단위'}].map(o=><button key={o.k} onClick={()=>changeMode(o.k)} style={{flex:1,padding:'7px',border:`2px solid ${mode===o.k?'#1e40af':'#e2e8f0'}`,borderRadius:7,background:mode===o.k?'#eff6ff':'white',color:mode===o.k?'#1e40af':'#374151',fontWeight:mode===o.k?700:400,cursor:'pointer',fontSize:12,fontFamily:"'Noto Sans KR',sans-serif"}}>{o.l}</button>)}
         </div>
       </div>
 
