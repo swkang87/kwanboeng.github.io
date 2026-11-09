@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>데스크탑 앱 내려받기</title>
-<!-- 직원용 데스크탑 앱 설치 파일 안내(2026-11-03, 앱 1.2.0~). 설치 파일·업데이트 정보(latest.json)는 이 폴더에 있다.
+<!-- 직원용 데스크탑 앱 설치 파일 안내(2026-11-03, 앱 1.2.0~ · 2026-11-09 1.3.0: 「파일」 = Q-Dir, Synology Drive Client 안내 삭제). 설치 파일·업데이트 정보(latest.json)는 이 폴더에 있다.
      latest.json · <버전>/ 은 desktop-app 의 `npm run release` 가 만든다(손으로 고치지 말 것 — 서명이 깨지면 업데이트가 거부된다). -->
 <script src="../config.js"></script>
 <style>
@@ -39,18 +39,18 @@
     </ol>
   </div>
 
-  <h2>파일 창을 쓰려면 — Synology Drive Client</h2>
+  <h2 id="qdir">「파일」을 쓰려면 — Q-Dir 설치(이미 쓰는 사람은 그대로)</h2>
   <div class="card">
-    <div>앱의 <b>파일</b> 창은 PC 의 Synology Drive 폴더를 보여 줍니다. NAS 와 주고받기는 Synology Drive Client 가 합니다.</div>
+    <div>앱 왼쪽 메뉴·트레이 메뉴의 <b>파일</b>을 누르면 PC 의 <b>Q-Dir</b>(창 4개 탐색기)이 회사 기본 배치로 열립니다.
+      NAS 파일은 지금처럼 <b>Z 드라이브</b>(네트워크 드라이브)에서 열고·고치고·저장합니다.</div>
     <ol>
-      <li><a href="https://www.synology.com/ko-kr/support/download" target="_blank" rel="noopener">Synology 다운로드 센터</a>에서
-        사용 중인 NAS 모델을 고르고 「데스크톱 유틸리티」의 <b>Synology Drive Client</b> 를 받아 설치합니다.</li>
-      <li>Drive Client 를 열고 <b>동기화 작업</b>을 만듭니다. NAS 주소(QuickConnect ID)는 관리자에게 받은 것을, 계정은 <b>본인 NAS 계정</b>을 씁니다.</li>
-      <li>NAS 쪽 폴더는 내 부서 <b>팀 폴더</b>를 고르고, PC 쪽 폴더는 기본값(<code>C:\Users\내이름\SynologyDrive</code>)을 그대로 둡니다.</li>
-      <li>동기화 규칙에서 <b>필요 시 다운로드(On-demand Sync)</b>를 켭니다 — 파일 목록만 내려오고, 연 파일만 PC 에 받아져 용량을 거의 쓰지 않습니다.</li>
-      <li>앱 왼쪽 메뉴 또는 트레이 메뉴의 <b>파일</b>을 누르면 그 폴더가 열립니다(처음 한 번 폴더를 확인합니다).</li>
+      <li><b>이미 Q-Dir 을 쓰고 있으면 할 일이 없습니다.</b> 앱이 설치 위치를 알아서 찾습니다.</li>
+      <li>Q-Dir 이 없으면 <a href="https://www.softwareok.com/?seite=Freeware/Q-Dir" target="_blank" rel="noopener">Q-Dir 공식 페이지(SoftwareOK)</a>에서
+        <b>Q-Dir_Installer</b> 를 받아 설치합니다(무료, 관리자 권한 없이 사용자 폴더에 설치됨).</li>
+      <li>앱의 <b>파일</b>을 누릅니다. 이미 Q-Dir 창이 열려 있으면 새로 열지 않고 그 창을 앞으로 가져옵니다.</li>
+      <li>「Q-Dir 이 설치되어 있지 않습니다」 창이 뜨면 설치한 뒤 <b>다시 확인</b>을 누르거나, 다른 곳에 있다면 <b>직접 찾기</b>로 <code>Q-Dir.exe</code> 를 고릅니다.</li>
     </ol>
-    <div class="mu">파일을 지우면 NAS 에서도 지워집니다(PC 휴지통 · NAS 휴지통에서 복구 가능). 회사 밖에서도 Drive Client 가 QuickConnect 로 연결됩니다.</div>
+    <div class="mu">Z 드라이브가 안 보이면 관리자에게 문의하세요. 앱 설정(트레이 아이콘 오른쪽 클릭 → <b>설정</b>)에서 Q-Dir 위치·배치 파일을 바꿀 수 있습니다.</div>
   </div>
 </main>
 <script>

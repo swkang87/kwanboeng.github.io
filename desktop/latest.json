@@ -1,11 +1,11 @@
 {
-  "version": "1.2.2",
-  "notes": "앱 아이콘 교체",
-  "pub_date": "2026-11-03T07:34:44Z",
+  "version": "1.3.0",
+  "notes": "「파일」을 누르면 Q-Dir 이 회사 기본 배치로 열립니다. 트레이 「설정」에서 Q-Dir 위치·배치 파일을 바꿀 수 있어요.",
+  "pub_date": "2026-11-09T04:10:08Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDBtY3NJZTNSOUpsL2xMSFg1V2Urekk1YnF3dzcySUJhYzRIT0xHQ2w3MHBkYzNEWG0vdXhjcjh0ZGJySVByWVVuUCtsS1ZWc01wVFpxdTB5cTNQa2dRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzNjkxMjgzCWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjIuMl94NjQtc2V0dXAuZXhlCXZlcnNpb246MS4yLjIKUDBrQmhRcGZxdDB2RWRFeEFqMkhGRFRpNlFFamhzMmorYkpFL21OYzRRQ2R5Z1d1T2Y0RzNDZFpxOFlOdlZ4dkkvTG01ekRZM3VMaDh5Mk5GK1ZFRGc9PQo=",
-      "url": "https://kwanboeng.com/desktop/1.2.2/kbsys-desktop_1.2.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDRIdmttekxYaTN1eGg1SzREcTNFeldiK3A0NnZZTXk1bUlHbi9ZKzZtRi9sZFRZbGtFT3k1VzF2OGdPZXFIRGdMdkpia3lpei9pZStqS29TL1JYZndrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTk3NDA4CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjMuMF94NjQtc2V0dXAuZXhlCXZlcnNpb246MS4zLjAKYWdMUzN4Q2tpTlRRSmxaazczendrbGs4VFVBZHQxcTc3VTNNMW1xOU9RMWJjVTFadXRMdDFBYjg4VlM5Y3RoWmJGanQ0VXQ5R2VqcDArdCtjcWhrQUE9PQo=",
+      "url": "https://kwanboeng.com/desktop/1.3.0/kbsys-desktop_1.3.0_x64-setup.exe"
     }
   }
 }
