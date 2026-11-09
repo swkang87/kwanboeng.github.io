@@ -1,11 +1,11 @@
 {
-  "version": "1.3.0",
-  "notes": "「파일」을 누르면 Q-Dir 이 회사 기본 배치로 열립니다. 트레이 「설정」에서 Q-Dir 위치·배치 파일을 바꿀 수 있어요.",
-  "pub_date": "2026-11-09T04:10:08Z",
+  "version": "1.3.1",
+  "notes": "탐색기(시험판)를 Q-Dir 수준으로: 이 PC 전체 · 창마다 탭 · 창 배치 6가지 · 날짜별 묶기 · Windows 오른쪽 클릭 메뉴·아이콘 · 밖으로 끌어내기. 「파일」(Q-Dir)은 그대로.",
+  "pub_date": "2026-11-09T05:05:35Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDRIdmttekxYaTN1eGg1SzREcTNFeldiK3A0NnZZTXk1bUlHbi9ZKzZtRi9sZFRZbGtFT3k1VzF2OGdPZXFIRGdMdkpia3lpei9pZStqS29TL1JYZndrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MTk3NDA4CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjMuMF94NjQtc2V0dXAuZXhlCXZlcnNpb246MS4zLjAKYWdMUzN4Q2tpTlRRSmxaazczendrbGs4VFVBZHQxcTc3VTNNMW1xOU9RMWJjVTFadXRMdDFBYjg4VlM5Y3RoWmJGanQ0VXQ5R2VqcDArdCtjcWhrQUE9PQo=",
-      "url": "https://kwanboeng.com/desktop/1.3.0/kbsys-desktop_1.3.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDlHbG9WTXhsRXgwQXVScEdxdFhSV3ZnZDdmcElXNnZEYVprOWp1d0NCMXUySGxsRSszVVJZcmVMTThQSDhsOTYwcHdzZEc1UVZBR0RCTDhRY2UxWVFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MjAwNzM1CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjMuMV94NjQtc2V0dXAuZXhlCXZlcnNpb246MS4zLjEKYkdzaStJakRIcXBqWWsyKzB2emdLakVvYnIvUEVrTW84YitXNDBONU1EbSs1OXZ1dm9hN0FyUW50MUxjc2FMdkxkUElUU0Jlc0ozYWtxLzFrREJDQlE9PQo=",
+      "url": "https://kwanboeng.com/desktop/1.3.1/kbsys-desktop_1.3.1_x64-setup.exe"
     }
   }
 }
