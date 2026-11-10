@@ -1,11 +1,11 @@
 {
-  "version": "1.3.2",
-  "notes": "탐색기(시험판): 마우스 옆 단추로 뒤로·앞으로, 빈 곳에서 끌어 여러 개 고르기, 목록 끝 빈칸, 가로 스크롤 정리. 「파일」(Q-Dir)은 그대로.",
-  "pub_date": "2026-11-09T06:32:18Z",
+  "version": "1.3.3",
+  "notes": "탐색기(시험판) 끌어 놓기 대상 오류 수정 · 진행 창 정리 · 긴 이름 정렬 · 열 너비 조절 · 회사 NAS 공유 폴더(시험판은 기본 꺼짐 그대로)",
+  "pub_date": "2026-11-10T00:55:36Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDdEM1pKY3pZVDJDcWlKNG5UbzdXZ0h4OElQK3RYV0ZsUWEzaWJzMjMyTDZWT1Nad1p0K1VDczNOK3Zmb3JkUVhoOVpyTG45eFQxZ1RXRmpJeDdrTmdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MjA1OTM4CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjMuMl94NjQtc2V0dXAuZXhlCXZlcnNpb246MS4zLjIKeHV0MklmMEhkY2tWUCtkMnI5ZWlSOHFkTzMyQlBnZDllUmdsVm5HcFo1bnhsYUtTWWp6YVpySzFvZnNsampiWnJ2aXpiaDkzUkc5L2FrK3hnVGh3RHc9PQo=",
-      "url": "https://kwanboeng.com/desktop/1.3.2/kbsys-desktop_1.3.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDhCKy9acXJOR1pGMUtwK3NxNmd3VkxPNllEVjFidU5JU2cxd1IzVy9nektsOE50VXZnVUpPRGl5Yy91ZnJwODIwTGl5L0k5OHJVM2J0ZWZPa1Bva2dNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MjcyMTM2CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjMuM194NjQtc2V0dXAuZXhlCXZlcnNpb246MS4zLjMKeXJNR2JjM3pGbk91UmZzVG95Wms0RnVlbGE1bnRubEFZT1h6TzJMZDcwVGFVeHRvUitrMVVhR2dyQmRqQ0VSN2ZrQjZtOUpjbUZIK1U4ZVFxS2t6QlE9PQo=",
+      "url": "https://kwanboeng.com/desktop/1.3.3/kbsys-desktop_1.3.3_x64-setup.exe"
     }
   }
 }
