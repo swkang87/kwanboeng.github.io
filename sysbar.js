@@ -1,7 +1,9 @@
 /**
- * SYSBAR MODULE v3.16
+ * SYSBAR MODULE v3.17
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
  *
+ * v3.17 (2026-11-09): 업무관리 하위 「서류작성」(docs.html — 다른 화면). SECTION_TABS 항목에 url(다른 화면으로 가는 하위 항목) ·
+ *   guest:false(비회원 둘러보기에서 뺌). sectionTabs 가 url 도 돌려준다. APP_VERSION 2.8.0
  * v3.16 (2026-11-03): 데스크탑 앱(1.2.0) 안에서만 — 왼쪽 메뉴 「파일」(앱 내장 파일 탐색기 창, 앱 명령 desk_open_files) ·
  *   트레이 「파일」이 부르는 __kbDeskOpenFiles(잠겨 있으면 해제 뒤에 연다). APP_VERSION 2.7.0
  * v3.15 (2026-11-03): 데스크탑 앱 안에서만 — 시작·「지금 잠그기」 화면 잠금(__kbDeskLock, 비밀번호 다시 확인 · 5번 틀리면 로그아웃) ·
@@ -82,7 +84,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.7.3';
+  var APP_VERSION = '2.8.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -110,6 +112,8 @@
   //   직급·권한 규칙은 여기에만 둔다(화면에 다시 쓰지 말 것). show(c) 가 없으면 모두에게 보임.
   //   c = { role, admin, manager, contractor, can }. can 은 「다른 부서로 보기」 중이면 그 부서 기준(team_perms).
   //   icon = 화면 탭 줄·휴대폰 하단 바(이모지, 함수면 c 로 계산), short = 휴대폰 하단 바 짧은 이름(없으면 label)
+  //   url = 같은 화면 안 탭이 아니라 다른 화면으로 가는 하위 항목(예: 업무관리 → 서류작성 = docs.html). 그 화면은 activeSub 로 탭 키를 넘긴다
+  //   guest:false = 비회원 둘러보기(guest.html) 메뉴에서 뺀다
   var SECTION_TABS = {
     project: [
       { key:'mine',     label:'내 프로젝트',   icon:'📁', svg:'folder' },
@@ -139,10 +143,12 @@
       { key:'history',  label:'내 기록',       short:'기록',    icon:'📅', svg:'cal' },
       { key:'supply',   label:'비품관리',      short:'비품',    icon:'🧾', svg:'box' },
       { key:'logs',     label:'작성이력',      short:'이력',    icon:'🗒️', svg:'list', show:function(c) { return c.can('worklog_history'); } },
+      // 서류작성(2026-11-09): 직원 전체(협력업체 제외), 권한 키 없음. 서류 종류 목록은 docs.html DOC_TYPES
+      { key:'docs',     label:'서류작성',      short:'서류',    icon:'📄', svg:'doc', url:'docs.html', guest:false, show:function(c) { return !c.contractor; } },
     ],
   };
   // section = 'project' | 'leave' | 'worklog', user = 로그인 사용자(없으면 이 창 세션)
-  //   → [{key, label, short, icon, svg}] (이 사람에게 보이는 것만, 정의 순서)
+  //   → [{key, label, short, icon, svg, url}] (이 사람에게 보이는 것만, 정의 순서. url 은 다른 화면 하위 항목만)
   function sectionTabs(section, user) {
     var defs = SECTION_TABS[section];
     var u = user || _me();
@@ -150,7 +156,7 @@
     var role = u.role;
     var c = { role: role, admin: role === 'admin', manager: role === 'manager', contractor: role === 'contractor', can: can };
     return defs.filter(function(t) { return !t.show || t.show(c); }).map(function(t) {
-      return { key: t.key, label: t.label, short: t.short || t.label, icon: typeof t.icon === 'function' ? t.icon(c) : t.icon, svg: t.svg };
+      return { key: t.key, label: t.label, short: t.short || t.label, icon: typeof t.icon === 'function' ? t.icon(c) : t.icon, svg: t.svg, url: t.url || null };
     });
   }
 
@@ -162,6 +168,7 @@
   function guestSectionTabs(section) {
     var defs = SECTION_TABS[section] || [];
     return defs.filter(function(t) {
+      if (t.guest === false) return false;
       if (!t.show) return true;
       return GUEST_ROLES.some(function(r) {
         return t.show({ role: r, admin: r === 'admin', manager: r === 'manager', contractor: false, can: _canAll });
@@ -1884,9 +1891,13 @@
         } else if (kind === 'fixed') {
           subs = m.subs; subOn = isCur ? activeSub : null;
         } else {
-          subs = sectionTabs(m.key, user).map(function(t) {
+          var secTabs = sectionTabs(m.key, user);
+          // 지금 화면이 다른 화면 하위 항목(url)이면(예: docs.html) 같은 메뉴의 화면 탭들도 링크로 간다
+          var onUrlPage = isCur && secTabs.some(function(t) { return t.url && t.key === activeSub; });
+          subs = secTabs.map(function(t) {
             var b = (m.key === 'leave' && apprBadges[t.key] !== undefined) ? apprBadges[t.key] : (isCur ? subBadges[t.key] : 0);
-            return { key:t.key, label:t.label, svg:t.svg, badge: b, href: isCur ? null : m.url + '#' + t.key };
+            var href = t.url ? t.url : ((isCur && !onUrlPage) ? null : m.url + '#' + t.key);
+            return { key:t.key, label:t.label, svg:t.svg, badge: b, href: href };
           });
           subOn = isCur ? activeSub : null;
         }

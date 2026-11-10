@@ -1,0 +1,230 @@
+{
+ "version": "17813b4ff9fb",
+ "files": [
+  {
+   "path": "engine.py",
+   "sha256": "7fa14c4be3ff4fe731a161b967078eddab735508f5f056dd0705fb22168fbb46",
+   "size": 49211
+  },
+  {
+   "path": "web_bridge.py",
+   "sha256": "9ab70e924ebf8dd4c6d28fb89fb4936ab317069bb8285b4755f5e5ad2e8fdc62",
+   "size": 10314
+  },
+  {
+   "path": "assets/background_1.jpg",
+   "sha256": "cc237fca52c5de5ec91c26ea6fe258b76112e487ebf03d69e84d01be03300eaf",
+   "size": 385992
+  },
+  {
+   "path": "assets/background_2.jpg",
+   "sha256": "5d60c9628b80e9f9c3d580a780e72aa27a1c2a9181761a27df62f9b127295afc",
+   "size": 410510
+  },
+  {
+   "path": "assets/background_3.jpg",
+   "sha256": "84c28431a86c7b7273da44576b4b8d424cdb50e7daf949fd68cd5c0adcaa0c6c",
+   "size": 474096
+  },
+  {
+   "path": "assets/backgrounds.json",
+   "sha256": "ff26971256cdacca67ce6a6608a07dae32f28a73f454b20ebf0791e37531cbf0",
+   "size": 990
+  },
+  {
+   "path": "assets/binder.png",
+   "sha256": "8a37fc7f46309abc62dc79c9f90bdb1cdcaf153fc16a11ef49d7caa7477bcdb3",
+   "size": 384348
+  },
+  {
+   "path": "assets/binders/binder_1.png",
+   "sha256": "f5648ee869a42bca0f22f50fec05ed1cebb2a1da01630af96f98320beaec97e5",
+   "size": 492508
+  },
+  {
+   "path": "assets/binders/binder_2.png",
+   "sha256": "76e01364218a0310683cb64171cb57d71d8599c8f585888c1e5133414998e541",
+   "size": 507750
+  },
+  {
+   "path": "assets/binders/binder_3.png",
+   "sha256": "745bda5f3953de4e0dbcc2c1f15183f482e584003b49a501a14dc938e1ebb644",
+   "size": 439741
+  },
+  {
+   "path": "assets/binders/binder_4.png",
+   "sha256": "1761e3fcd904181d44fb398a9f98038689c06b0bada70a88ace949fa6356b683",
+   "size": 418683
+  },
+  {
+   "path": "assets/binders/metadata.json",
+   "sha256": "c7a8cc6866e5dc25aedcaf1e41aee5dc9a912f5727b4db4c36c0a3c29f1faa48",
+   "size": 2603
+  },
+  {
+   "path": "assets/cd.png",
+   "sha256": "a3ffe4a8470808b184624bc85433eb750a90e70abb7ef7875b91889283f9aab4",
+   "size": 158454
+  },
+  {
+   "path": "assets/logos/logo_00.png",
+   "sha256": "4781c1f6f7d1369e40536ae606776aeea62385139012e2ac1b2ea056d4c8068e",
+   "size": 13708
+  },
+  {
+   "path": "assets/logos/logo_01.png",
+   "sha256": "295701013ad741ee79a551cb6345e55cf2e8200fc8149ce5da88e2c9197659a1",
+   "size": 27527
+  },
+  {
+   "path": "assets/logos/logo_02.png",
+   "sha256": "daae4bafdc3a769a87b2e1c413ac29e3e3cc334e44c62d559e14d26fea704b0b",
+   "size": 9000
+  },
+  {
+   "path": "assets/logos/logo_03.png",
+   "sha256": "bc039250bf28067fb554c0d8957256a4850086d930d65dae8ff8a888b242639c",
+   "size": 17418
+  },
+  {
+   "path": "assets/logos/logo_04.png",
+   "sha256": "6158cda34ae9fc475eac83679b087a117f7ac282d34f86fe28943ab99bd24ef3",
+   "size": 10914
+  },
+  {
+   "path": "assets/logos/logo_05.png",
+   "sha256": "69db0e3fa1ef5ffb464cb8322637b18e1e336d2f7131f91cc42cf9a40ce4e180",
+   "size": 9644
+  },
+  {
+   "path": "assets/logos/logo_06.png",
+   "sha256": "875aee92d835df3200e39c7db48c71b63b34439b0af2eb2b57613aaf35c4602b",
+   "size": 25448
+  },
+  {
+   "path": "assets/logos/logo_07.png",
+   "sha256": "c016f7de226bc00b6689fb844723b27de52b0ea5cd51c7071a00de4606a6e8e8",
+   "size": 7840
+  },
+  {
+   "path": "assets/logos/logo_08.png",
+   "sha256": "6cfa643f67008d110157e8410320dbc5c7a3260b67ff138ae5728af90eb61584",
+   "size": 15989
+  },
+  {
+   "path": "assets/logos/logo_09.png",
+   "sha256": "35eba31a6f5e12140815663cd0c8507ee6e451c04767712da84db1ccc47bec4d",
+   "size": 29400
+  },
+  {
+   "path": "assets/logos/logo_10.png",
+   "sha256": "ace6bda8be0257c31b43022a537bdb39723f22f88b386cd659c0b64c729a87c1",
+   "size": 18823
+  },
+  {
+   "path": "assets/logos/logo_11.png",
+   "sha256": "8acc9c51466d77356bd2c78e7a47cea59453c85aad00b3a8598fc2612f22c470",
+   "size": 22527
+  },
+  {
+   "path": "assets/logos/logo_12.png",
+   "sha256": "938dd0f4cd5d6cd22bc60adb9b6ce362ca0cef2041a0c82bacdde72e20237601",
+   "size": 8910
+  },
+  {
+   "path": "assets/logos/logo_13.png",
+   "sha256": "0420a4177ee5c011be1d6a42829a59a38bae5bd19985632abb71b9c49ac9f759",
+   "size": 20697
+  },
+  {
+   "path": "assets/logos/logo_14.png",
+   "sha256": "fa0b37b6cba6b5b05aaf8a2baf329151aa06b93a25ce167c0101128dad9aef46",
+   "size": 16438
+  },
+  {
+   "path": "assets/logos/logo_15.png",
+   "sha256": "8aa48b8fc6eb07a0e8dd1b032dca4bd56a89c9053d66a492d2eeb5400a815e9f",
+   "size": 12212
+  },
+  {
+   "path": "assets/logos/logo_16.png",
+   "sha256": "884d6f24926346cb444751df94f2f1f9f6288ae9c465dd82a47bc85414ff2432",
+   "size": 12944
+  },
+  {
+   "path": "assets/logos/logo_17.png",
+   "sha256": "aa1ad743b86fd7601bedb2d2cd9039cd6bd31960fe3d2c922f5a3db89b0644e2",
+   "size": 26249
+  },
+  {
+   "path": "assets/logos.json",
+   "sha256": "48918493300fbd5ca82d122121c0a91d610dc7ab87073ceeecfa6aeffed7803d",
+   "size": 2467
+  },
+  {
+   "path": "assets/page_base.png",
+   "sha256": "76061c38fccf5e7704fff883a1ead3419621f188192a0761ed52ff2ba9fcc429",
+   "size": 14814
+  },
+  {
+   "path": "assets/paper_texture.jpg",
+   "sha256": "a8185b5e8d7dae45413c7483409620b86b4a8e1963873318a4d3ec5457711187",
+   "size": 15602
+  },
+  {
+   "path": "assets/photo_template.pptx",
+   "sha256": "d130dab04fddbb1eaa8cdd7ae32517e0a2819853a99ec9e30d5a8b47caee1075",
+   "size": 8072
+  },
+  {
+   "path": "assets/report.png",
+   "sha256": "a690c25738c8221da6025e2b2364fedb71f1a9c04a9e31935fbf9b05117e3092",
+   "size": 377556
+  },
+  {
+   "path": "assets/spec.png",
+   "sha256": "74feec29d6db9baef4492600c218641c8f1146ef8eb59b1402371080c9cd6d9f",
+   "size": 223248
+  },
+  {
+   "path": "assets/usb_1.png",
+   "sha256": "5c59bc189c33115b038761080f6d9df12a3cfd9f5abf7f6a97c2b5706a1d88fc",
+   "size": 11088
+  },
+  {
+   "path": "assets/usb_2.png",
+   "sha256": "6475e00a26a5f750337a59506a1f2d230ce646af8acacd17e9006685f8dbc99a",
+   "size": 10390
+  },
+  {
+   "path": "assets/usb_3.png",
+   "sha256": "8680574a7632dd119693d70b054ebe279898203f0a028df5256c56e97a6dcb02",
+   "size": 9677
+  },
+  {
+   "path": "fonts/NanumGothic.ttf",
+   "sha256": "76f45ef4a6bcff344c837c95a7dcc26e017e38b5846d5ae0cdcb5b86be2e2d31",
+   "size": 2054744
+  },
+  {
+   "path": "fonts/NanumGothicBold.ttf",
+   "sha256": "f96298f9fb18e364d2370f4c3ce948ac67a2b61af992d7234bc15c42b033c674",
+   "size": 2073868
+  },
+  {
+   "path": "wheels/python_pptx-1.0.2-py3-none-any.whl",
+   "sha256": "160838e0b8565a8b1f67947675886e9fea18aa5e795db7ae531606d68e785cba",
+   "size": 472788
+  },
+  {
+   "path": "wheels/reportlab-4.5.1-py3-none-any.whl",
+   "sha256": "06fce8cb56c83307cfa4909cdf4e6a2ddbb44e5d6ef4d2edca896d7e9769f091",
+   "size": 1957812
+  },
+  {
+   "path": "wheels/xlsxwriter-3.2.9-py3-none-any.whl",
+   "sha256": "9a5db42bc5dff014806c58a20b9eae7322a134abb6fce3c92c181bfb275ec5b3",
+   "size": 175315
+  }
+ ]
+}

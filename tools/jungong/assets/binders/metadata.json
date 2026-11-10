@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "nominal_face_mm": [
+    297,
+    210
+  ],
+  "variants": [
+    {
+      "file": "binder_1.png",
+      "name": "넓은 고리 · 긴 아래 끈",
+      "source": "assets/source/binders_4.jpg",
+      "source_rotation": 180,
+      "face_quad_source": [
+        [
+          123,
+          100
+        ],
+        [
+          764,
+          110
+        ],
+        [
+          766,
+          553
+        ],
+        [
+          118,
+          556
+        ]
+      ],
+      "face_box": [
+        52,
+        30,
+        952,
+        666
+      ],
+      "canvas": [
+        1008,
+        716
+      ]
+    },
+    {
+      "file": "binder_2.png",
+      "name": "세로 고리 · 짧은 끈",
+      "source": "assets/source/binders_4.jpg",
+      "source_rotation": 180,
+      "face_quad_source": [
+        [
+          834,
+          98
+        ],
+        [
+          1446,
+          117
+        ],
+        [
+          1440,
+          560
+        ],
+        [
+          826,
+          547
+        ]
+      ],
+      "face_box": [
+        52,
+        30,
+        952,
+        666
+      ],
+      "canvas": [
+        1008,
+        716
+      ]
+    },
+    {
+      "file": "binder_3.png",
+      "name": "좌측 고리 · 긴 위 끈",
+      "source": "assets/source/binders_4.jpg",
+      "source_rotation": 180,
+      "face_quad_source": [
+        [
+          131,
+          630
+        ],
+        [
+          780,
+          613
+        ],
+        [
+          790,
+          1067
+        ],
+        [
+          138,
+          1092
+        ]
+      ],
+      "face_box": [
+        52,
+        30,
+        952,
+        666
+      ],
+      "canvas": [
+        1008,
+        716
+      ]
+    },
+    {
+      "file": "binder_4.png",
+      "name": "작은 매듭 · 사선 끈",
+      "source": "assets/source/binders_4.jpg",
+      "source_rotation": 180,
+      "face_quad_source": [
+        [
+          839,
+          600
+        ],
+        [
+          1456,
+          599
+        ],
+        [
+          1462,
+          1038
+        ],
+        [
+          842,
+          1055
+        ]
+      ],
+      "face_box": [
+        52,
+        30,
+        952,
+        666
+      ],
+      "canvas": [
+        1008,
+        716
+      ]
+    }
+  ],
+  "stack_reference": {
+    "source": "assets/source/binders_3_stack.jpg",
+    "rotation": 180,
+    "note": "3부의 좌우 어긋남과 겹침 방향을 참고. 각 부 제목이 보이도록 앞뒤 순서는 조정.",
+    "typical_step_mm": [
+      18,
+      64
+    ]
+  },
+  "retouch": "이전 문구·라벨·접착제 자국만 보정. 사진 속 매듭은 실제 모양 유지."
+}

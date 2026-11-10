@@ -93,6 +93,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.8.0 · 2026-11-09 · 업무관리 「서류작성」(docs.html) 신설 — 첫 서류 준공사진 생성기 v2.2(engine.py 원본 그대로, 브라우저 안 파이썬 Pyodide 0.27.7 · 나눔고딕 고정)
   - 2.7.3 · 2026-11-09 · 연차/공가 신청 — 방식 버튼 [시간 단위(당일)][날짜 단위] 순서 · 처음 열면 시간 단위 + 오늘(주말·공휴일이면 미선택) · 방식·종류를 바꿔도 날짜 유지
   - 2.7.2 · 2026-11-06 · 클릭해서 고른 파일이 0개가 되던 오류(서류작성 올리기 전부 · 계약서 PDF) — Sysbar.pickedFiles · 0개·취소도 문구 · 앱 안 「Edge 에서 올려 주세요」 안내
   - 2.7.1 · 2026-11-06 · 서식 다시 올리기가 반영 안 되던 오류 — 내려받기 캐시 무시(signed URL + no-store) · 올린 뒤 서버 값으로 확인·성공/실패 문구 · 앱 안·상자 밖 놓기 안내
@@ -158,6 +159,22 @@
 ---
 
 ## ✅ 완료된 작업
+
+### 업무관리 「서류작성」 + 준공사진 생성기 v2.2 웹 실행 (2026-11-09, v2.8.0, sysbar.js v3.17 `?v=2026110902`)
+- **화면 `docs.html`**(업무관리 하위 「서류작성」, 권한 키 없음 = 협력업체 외 전 직원, 협력업체는 메뉴·화면 모두 막힘). 휴대폰은 「PC에서 사용해 주세요」만.
+  `SECTION_TABS` 탭에 **`url`**(다른 화면으로 가는 하위 항목) · **`guest:false`**(비회원 둘러보기에서 숨김) 필드 추가 — worklog 의 `docs` 탭이 첫 사용. worklog.html `#docs` 는 docs.html 로 보낸다.
+  아이콘은 기존 `SIDE_ICONS.doc` 재사용. robots.txt 에 `/docs.html` · `/tools/` Disallow.
+- **서류 종류 = docs.html 의 `DOC_TYPES` 배열 한 곳**(`{key, label, icon, pcOnly, View}`), 주소 `docs.html#키`. 새 서류 = 배열에 하나 추가. 빈 「준비 중」 카드는 만들지 않는다.
+- **준공사진(`#jungong`)**: 저장소 `tools/jungong/` — `engine.py` · `assets/`(엔진이 읽는 것만, source 제외) · `fonts/`(나눔고딕 OFL, Pyodide 안 `/usr/share/fonts/truetype/nanum/`) ·
+  `wheels/`(python-pptx 1.0.2 · reportlab 4.5.1 · XlsxWriter 3.2.9, PyPI sha256 대조) · `web_bridge.py`(화면 ↔ 엔진, app.py 순서 그대로) · `jungong-worker.js`(Web Worker) · `files.json`(받을 파일 + SHA256).
+  Pyodide 0.27.7 은 jsdelivr 정확한 버전 + 코어 5개 sha384 SRI, 패키지는 lock 의 sha256, 우리 파일은 files.json SHA256 이 다르면 멈춘다. 실행 중 PyPI 접속 없음.
+  DB·프로젝트 연동 없음 — 프로젝트는 JSON 파일로 열기·저장, 최근 입력값은 이 PC localStorage `SESSION_PREFIX + '_jungong_recent_' + 사용자 id`. 결과는 ZIP 내려받기(PNG·PPTX / 인쇄용 PDF / 배치 3종).
+  config.js `JUNGONG { DEFAULT_AUTHORITY, DEFAULT_DATE }`(DEFAULT_DATE 비우면 이번 달).
+- **engine.py 는 고치지 않는다** — 원본 `파일목록_SHA256.json` 과 같아야 한다. 웹에 맞출 일은 `web_bridge.py` · 화면에서.
+  **엔진 바꾸는 순서**: 새 원본 폴더에서 engine.py · assets(source 제외)를 `tools/jungong/` 에 복사 → `python tools/jungong/make_manifest.py --check <원본 폴더>` → 「다름 0건」 확인
+  → 출력된 version 을 docs.html `JUNGONG_V` 에 넣기(브리지·작업자·자산·휠을 바꿀 때도 같은 명령으로 files.json 과 JUNGONG_V 를 다시 맞춘다).
+- 글꼴은 나눔고딕 고정(표지 글꼴 선택 숨김). PC(맑은 고딕·FreeType 2.13)와 글자 테두리 픽셀만 조금 다르다(사진·배치·쪽수·슬라이드 수는 같음).
+- 화이트라벨 한계: 엔진 안 PPTX 작성자·State 기본 발주처는 엔진 값 그대로(엔진 무수정 원칙) — 화면 기본값은 config 로 덮는다. 백업 `backup/*_20261109*`.
 
 ### 데스크탑 앱 1.3.2 — 탐색기(시험판) 마우스·선택 다듬기 (2026-11-09, 웹 코드 변경 없음)
 - 승우 직접 써 본 지적 반영: 마우스 옆 단추 = 마우스가 올라간 창의 뒤로·앞으로(웹뷰 기본 동작 막음, 창은 `files/` 밖으로 이동 불가) ·

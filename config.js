@@ -84,6 +84,14 @@ var APP_CONFIG = {
     EQUIPMENT_UNIT:  '대',               // 장비 수량 단위 기본값
   },
 
+  // ── 업무관리 → 서류작성(docs.html) · 준공사진 생성기 (2026-11-09) ──────
+  // 처음 열 때(최근 입력값이 없을 때)의 기본값만. 엔진(tools/jungong/engine.py)은 고치지 않는다.
+  // DEFAULT_DATE 를 비우면 이번 달(예: 2026. 11.)
+  JUNGONG: {
+    DEFAULT_AUTHORITY: '부산광역시 연제구',   // 발주처 기본값(로고 목록에 있는 이름이면 로고 자동 연결)
+    DEFAULT_DATE:      '',                  // 표지 표기 년월
+  },
+
   // ── 로그인 정책 (화면 안내·검사 기준. 서버 함수와 Supabase Auth 최소 길이도 같은 값으로 맞춘다) ──
   // 직원관리 화면(admin)을 열 때 DB(auth_policy)로 복사되어 서버 함수도 같은 규칙을 쓴다.
   AUTH_POLICY: {

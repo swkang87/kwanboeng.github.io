@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="robots" content="noindex,nofollow"/>
+<title>서류작성</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+html, body, #root, button, input, select, textarea { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
+</style>
+<script src="config.js"></script>
+<script src="sysbar.js?v=2026110902"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f1f5f9;color:#0f172a;font-size:14px;overflow-x:hidden;}
+.dc-title{position:sticky;top:var(--sysbar-h,38px);z-index:101;background:var(--theme,#0f172a);padding:6px 18px 8px;border-bottom:2px solid #1d4ed8;}
+.dc-title .en{font-size:9px;line-height:1.2;color:#475569;letter-spacing:1px;text-transform:uppercase;font-weight:600;}
+.dc-title .ko{font-size:14px;line-height:1.3;font-weight:800;color:#fff;letter-spacing:-.3px;}
+/* 휴대폰: 업무관리 화면 탭 줄(같은 메뉴의 다른 하위 항목으로 가는 길). PC 는 왼쪽 메뉴가 대신한다 */
+.dc-tabs{display:flex;gap:2px;background:#1e293b;padding:0 8px;overflow-x:auto;scrollbar-width:none;}
+.dc-tabs::-webkit-scrollbar{display:none;}
+.dc-tabs a,.dc-tabs span{flex-shrink:0;padding:9px 12px;font-size:12px;font-weight:600;color:#94a3b8;text-decoration:none;white-space:nowrap;}
+.dc-tabs span{color:#fff;background:#1d4ed8;}
+.dc-page{padding:14px 18px 40px;}
+.dc-kinds{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;}
+.dc-kinds .lb{font-size:12px;color:#64748b;font-weight:600;margin-right:2px;}
+.dc-kind{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;border:1px solid #cbd5e1;background:#fff;color:#334155;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+.dc-kind.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff;cursor:default;}
+.dc-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;}
+.dc-note{font-size:12px;color:#64748b;line-height:1.6;}
+.dc-al{font-size:12.5px;border-radius:8px;padding:9px 12px;line-height:1.6;}
+.dc-al.e{background:#fee2e2;color:#991b1b;}
+.dc-al.w{background:#fef3c7;color:#92400e;}
+.dc-al.i{background:#eff6ff;color:#1e40af;}
+/* 준공사진 생성기 */
+.jg-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px;}
+.jg-head h2{font-size:18px;font-weight:800;color:#173d53;letter-spacing:-.3px;}
+.jg-head .sub{font-size:12px;color:#64748b;}
+.jg-head .r{margin-left:auto;display:flex;gap:6px;}
+.jg-wrap{display:grid;grid-template-columns:400px minmax(0,1fr);gap:14px;align-items:start;}
+.jg-left{display:flex;flex-direction:column;gap:10px;min-width:0;}
+.jg-sec{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 12px 10px;}
+.jg-sec h3{font-size:13px;font-weight:800;color:#16455c;margin-bottom:8px;}
+.jg-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.jg-row > label{width:86px;flex-shrink:0;font-size:12px;color:#334155;font-weight:600;}
+.jg-row > .f{flex:1;min-width:0;}
+.jg-in,.jg-sel,.jg-ta{width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;background:#fff;color:#0f172a;}
+.jg-in:read-only{background:#f1f5f9;color:#475569;}
+.jg-in:focus,.jg-sel:focus,.jg-ta:focus{outline:none;border-color:#1d4ed8;}
+.jg-ta{resize:vertical;min-height:58px;line-height:1.5;}
+.jg-ck{display:flex;align-items:flex-start;gap:6px;font-size:12.5px;color:#334155;margin:6px 0;cursor:pointer;line-height:1.4;}
+.jg-ck input{margin-top:2px;}
+.jg-small{font-size:11.5px;color:#64748b;line-height:1.5;margin:3px 0;}
+.jg-b{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:6px 10px;border-radius:6px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.jg-b:hover:not(:disabled){background:#e2e8f0;}
+.jg-b:disabled{opacity:.5;cursor:default;}
+.jg-b.p{background:#18637d;border-color:#18637d;color:#fff;}
+.jg-b.p:hover:not(:disabled){background:#237e9b;}
+.jg-b.on{border-color:#18637d;color:#18637d;background:#e6f2f6;}
+.jg-items{display:flex;flex-direction:column;gap:5px;}
+.jg-item{display:flex;align-items:center;gap:4px;}
+.jg-item .nm{flex:1;min-width:0;}
+.jg-item .ct{width:52px;flex-shrink:0;}
+.jg-item .jg-b{padding:5px 7px;}
+.jg-logo{display:flex;align-items:center;gap:8px;margin:6px 0 2px;}
+.jg-logo .box{width:116px;height:44px;border:1px dashed #cbd5e1;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#94a3b8;background:#fff;flex-shrink:0;}
+.jg-logo .box img{max-width:110px;max-height:38px;}
+.jg-logo .bt{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;}
+.jg-right{position:sticky;top:calc(var(--sysbar-h,38px) + 52px);min-width:0;display:flex;flex-direction:column;gap:8px;}
+.jg-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.jg-bar .pg{font-size:12.5px;color:#334155;font-weight:600;min-width:46px;text-align:center;}
+.jg-bar .r{margin-left:auto;display:flex;gap:6px;}
+.jg-vtabs{display:flex;gap:2px;border-bottom:1px solid #cbd5e1;}
+.jg-vtabs button{padding:7px 12px;border:1px solid transparent;border-bottom:none;border-radius:7px 7px 0 0;background:transparent;font-size:12.5px;color:#475569;cursor:pointer;font-family:inherit;font-weight:600;}
+.jg-vtabs button.on{background:#fff;border-color:#cbd5e1;color:#0f172a;margin-bottom:-1px;}
+.jg-view{background:#e4e9ed;border:1px solid #cbd5e1;border-top:none;border-radius:0 0 10px 10px;min-height:360px;display:flex;align-items:center;justify-content:center;padding:12px;position:relative;}
+.jg-pic{position:relative;display:inline-block;line-height:0;}
+.jg-pic img{display:block;max-width:100%;max-height:calc(100vh - 290px);width:auto;height:auto;user-select:none;-webkit-user-drag:none;box-shadow:0 2px 10px rgba(0,0,0,.12);}
+.jg-pic svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+.jg-pic.drag img{cursor:grab;}
+.jg-pic.dragging img{cursor:grabbing;}
+.jg-busy{position:absolute;top:10px;right:12px;background:rgba(15,23,42,.78);color:#fff;font-size:11.5px;border-radius:12px;padding:4px 10px;line-height:1.4;}
+.jg-empty{font-size:13px;color:#64748b;text-align:center;line-height:1.7;padding:30px;}
+.jg-drag{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.jg-exp{display:flex;gap:6px;}
+.jg-exp .jg-b{padding:9px 12px;font-size:13px;}
+.jg-exp .jg-b.p{flex:1;}
+.jg-status{font-size:12px;color:#334155;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;line-height:1.5;min-height:34px;word-break:keep-all;}
+.jg-help summary{cursor:pointer;font-size:12.5px;font-weight:700;color:#16455c;}
+.jg-help ul{margin:8px 0 0 16px;}
+.jg-help li{font-size:11.5px;color:#475569;line-height:1.6;margin-bottom:2px;}
+.jg-load{max-width:520px;margin:30px auto;text-align:center;}
+.jg-load h3{font-size:16px;font-weight:800;margin-bottom:6px;}
+.jg-prog{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;margin:14px 0 8px;}
+.jg-prog div{height:100%;background:#18637d;transition:width .3s;}
+.modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:60px 16px;overflow-y:auto;}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:560px;padding:22px;}
+.modal h3{font-size:16px;font-weight:800;margin-bottom:12px;}
+.modal p{font-size:13px;color:#334155;line-height:1.65;white-space:pre-wrap;}
+.modal .acts{display:flex;justify-content:flex-end;gap:6px;margin-top:16px;}
+.modal .stack{display:flex;flex-direction:column;gap:6px;margin-top:14px;}
+.modal .stack .jg-b{padding:10px;font-size:13px;}
+@media (max-width:1180px){ .jg-wrap{grid-template-columns:360px minmax(0,1fr);} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+// ── 업무관리 → 서류작성 (2026-11-09) ─────────────────────────────────────
+// 여러 서류를 담는 틀. 서류 종류는 아래 DOC_TYPES 한 곳에 등록한다(다음 = 착수계). 주소 = docs.html#서류키.
+// 권한: 직원 전체(협력업체 제외) — 권한 키 없음(SECTION_TABS.worklog 「서류작성」 show 와 같은 규칙).
+// 관리포털 「서류작성」(admin-docs.html, 권한 키 docs)과는 다른 화면이다.
+const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
+const SysBar = Sysbar.createComponent(React);
+const LoginScreen = Sysbar.createLoginComponent(React, { subtitle: '서류작성', blockedRoles: ['contractor'] });
+const PREFIX = (window.APP_CONFIG && APP_CONFIG.SESSION_PREFIX) || 'kwanbo';
+const MOBILE_MAX = (window.APP_CONFIG && APP_CONFIG.MOBILE_MAX_WIDTH) || 768;
+const JG_CFG = (window.APP_CONFIG && APP_CONFIG.JUNGONG) || {};
+// 준공사진 생성기 파일 묶음 버전 — tools/jungong/make_manifest.py 가 출력한 값(엔진·자산·작업자를 바꾸면 같이 바꾼다)
+const JUNGONG_V = '17813b4ff9fb';
+
+function useIsMobile() {
+  const q = '(max-width:' + MOBILE_MAX + 'px)';
+  const [m, setM] = useState(function() { try { return window.matchMedia(q).matches; } catch (e) { return false; } });
+  useEffect(function() {
+    var mq; try { mq = window.matchMedia(q); } catch (e) { return; }
+    function on() { setM(mq.matches); }
+    if (mq.addEventListener) mq.addEventListener('change', on); else mq.addListener(on);
+    return function() { if (mq.removeEventListener) mq.removeEventListener('change', on); else mq.removeListener(on); };
+  }, []);
+  return m;
+}
+function lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+function thisMonth() { var d = new Date(); return d.getFullYear() + '. ' + String(d.getMonth() + 1).padStart(2, '0') + '.'; }
+function downloadBytes(bytes, name, type) {
+  var url = URL.createObjectURL(new Blob([bytes], { type: type || 'application/octet-stream' }));
+  var a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function() { URL.revokeObjectURL(url); }, 4000);
+}
+function pngUrl(bytes) { return bytes ? URL.createObjectURL(new Blob([bytes], { type: 'image/png' })) : null; }
+
+// ── 확인 창(시스템 공통 모양: modal-bg / modal) ───────────────────────
+//   ask({title, text, buttons:[{label, value, primary}]}) → Promise(value). Escape = 마지막 버튼(취소)
+function useDialog() {
+  const [dlg, setDlg] = useState(null);
+  function ask(o) { return new Promise(function(res) { setDlg(Object.assign({}, o, { res: res })); }); }
+  function close(v) { var d = dlg; setDlg(null); if (d) d.res(v); }
+  var node = dlg ? <Dialog dlg={dlg} onClose={close} /> : null;
+  return { ask: ask, node: node, info: function(t, x) { return ask({ title: t, text: x, buttons: [{ label: '확인', value: true, primary: true }] }); } };
+}
+function Dialog({ dlg, onClose }) {
+  const first = useRef(null);
+  useEffect(function() {
+    if (first.current) first.current.focus();
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); onClose(dlg.buttons.length > 1 ? dlg.buttons[dlg.buttons.length - 1].value : true); } }
+    document.addEventListener('keydown', onKey);
+    return function() { document.removeEventListener('keydown', onKey); };
+  }, []);
+  return (
+    <div className="modal-bg" role="dialog" aria-modal="true">
+      <div className="modal" style={{ maxWidth: 480 }}>
+        <h3>{dlg.title}</h3>
+        <p>{dlg.text}</p>
+        <div className="acts">
+          {dlg.buttons.map(function(b, i) {
+            return <button key={i} ref={b.primary ? first : null} className={'jg-b' + (b.primary ? ' p' : '')} onClick={function() { onClose(b.value); }}>{b.label}</button>;
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  준공사진 생성기 (원본: 준공사진 생성기 v2.2 — engine.py 무수정, 화면 동작은 app.py 기준)
+// ═════════════════════════════════════════════════════════════════════
+// 작업자(Web Worker) 하나를 이 화면 동안 쓴다. 파이썬(Pyodide)은 작업자 안에서만 돈다(화면 멈춤 없음).
+const JG = (function() {
+  var w = null, meta = null, seq = 0, pend = {}, subs = [];
+  var st = { phase: 'idle', text: '', pct: 0, error: '' };
+  var t0 = 0;
+  window.__jgTimes = { boot: null, calls: [] };   // 시험·안내용 측정값(화면 동작과 무관)
+  function emit(n) { st = n; subs.forEach(function(f) { f(st); }); }
+  function boot() {
+    if (w) return;
+    t0 = performance.now();
+    emit({ phase: 'loading', text: '생성기 준비 중… 처음 한 번은 시간이 걸립니다', pct: 1, error: '' });
+    try { w = new Worker('tools/jungong/jungong-worker.js?v=' + JUNGONG_V); }
+    catch (e) { emit({ phase: 'failed', error: '이 브라우저에서는 생성기를 실행할 수 없습니다. (' + ((e && e.message) || e) + ')' }); return; }
+    w.onmessage = function(ev) {
+      var m = ev.data || {};
+      if (m.type === 'progress') {
+        if (m.id != null) { var p = pend[m.id]; if (p && p.onProgress) p.onProgress(m.text); }
+        else emit({ phase: 'loading', text: m.text, pct: m.pct || st.pct, error: '' });
+      } else if (m.type === 'ready') {
+        meta = m.meta; window.__jgTimes.boot = Math.round(performance.now() - t0);
+        emit({ phase: 'ready', text: '', pct: 100, error: '' });
+      } else if (m.type === 'failed') {
+        emit({ phase: 'failed', text: '', pct: 0, error: m.message || '알 수 없는 오류' });
+      } else if (m.type === 'result') {
+        var q = pend[m.id]; delete pend[m.id];
+        if (!q) return;
+        window.__jgTimes.calls.push({ cmd: q.cmd, ms: Math.round(performance.now() - q.t), py_ms: m.ms });
+        if (m.ok) q.resolve(m.result);
+        else { var err = new Error(m.error || '오류'); err.detail = m.detail; q.reject(err); }
+      }
+    };
+    w.onerror = function(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      emit({ phase: 'failed', error: (e && e.message) || '생성기 작업자 오류' });
+    };
+    w.postMessage({ cmd: 'boot' });
+  }
+  function call(cmd, args, onProgress) {
+    return new Promise(function(resolve, reject) {
+      if (!w || !meta) { reject(new Error('생성기가 아직 준비되지 않았습니다.')); return; }
+      var id = ++seq;
+      pend[id] = { resolve: resolve, reject: reject, onProgress: onProgress, cmd: cmd, t: performance.now() };
+      var tr = (args && args.bytes && args.bytes.buffer) ? [args.bytes.buffer] : [];
+      w.postMessage({ id: id, cmd: cmd, args: args || {} }, tr);
+    });
+  }
+  return {
+    boot: boot, call: call,
+    meta: function() { return meta; }, state: function() { return st; },
+    subscribe: function(f) { subs.push(f); f(st); return function() { subs = subs.filter(function(x) { return x !== f; }); }; }
+  };
+})();
+
+function JungongDoc({ user }) {
+  const [jg, setJg] = useState(JG.state());
+  useEffect(function() { JG.boot(); return JG.subscribe(setJg); }, []);
+  if (jg.phase === 'failed') return (
+    <div className="dc-card jg-load">
+      <h3>생성기를 시작하지 못했습니다</h3>
+      <div className="dc-al e" style={{ margin: '12px 0', textAlign: 'left' }}>{jg.error}</div>
+      <p className="dc-note">인터넷 연결을 확인한 뒤 새로고침해 주세요. 계속되면 관리자에게 알려 주세요.</p>
+      <button className="jg-b p" style={{ marginTop: 12 }} onClick={function() { location.reload(); }}>새로고침</button>
+    </div>
+  );
+  if (jg.phase !== 'ready') return (
+    <div className="dc-card jg-load">
+      <h3>생성기 준비 중…</h3>
+      <p className="dc-note">처음 한 번은 시간이 걸립니다(파이썬 실행기와 사진 자산 약 45MB). 다음부터는 브라우저에 저장된 파일을 써서 빨라집니다.</p>
+      <div className="jg-prog"><div style={{ width: Math.max(2, jg.pct || 0) + '%' }} /></div>
+      <p className="dc-note">{jg.text}</p>
+      <p className="dc-note" style={{ marginTop: 10 }}>사진 합성은 이 PC 브라우저 안에서 합니다. 입력값·로고·결과물은 서버로 보내지 않습니다.</p>
+    </div>
+  );
+  return <JungongEditor user={user} meta={JG.meta()} />;
+}
+
+const VIEW_TABS = [['photo', '합성사진'], ['page', '준공사진 페이지'], ['cover', 'A3 표지'], ['binder', '바인더 라벨'], ['cd', 'CD 표지']];
+
+function JungongEditor({ user, meta }) {
+  const recentKey = PREFIX + '_jungong_recent_' + user.id;
+  const dialog = useDialog();
+  const [, setRev] = useState(0);
+  const stRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  // 미리보기 결과
+  const [pv, setPv] = useState(null);        // {photoUrl, imageUrl, size, hits, H, Hinv, pages, page, tab}
+  const [rendering, setRendering] = useState(false);
+  const [status, setStatus] = useState('준비 중');
+  const [summary, setSummary] = useState('');
+  const [autoTitle, setAutoTitle] = useState('');
+  const [logo, setLogo] = useState({ url: null, text: '' });
+  const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState('photo');
+  const [pageDlg, setPageDlg] = useState(null);   // 장수 확인창
+  const [addDlg, setAddDlg] = useState(false);
+  const [siteDlg, setSiteDlg] = useState(null);   // {index, value}
+  // app.py 와 같은 판단 상태
+  const timerRef = useRef(null), reqRef = useRef(0), inflightRef = useRef(false), pendingRef = useRef(false), busyRef = useRef(false);
+  const pageRef = useRef(0), tabRef = useRef('photo');
+  const ackRef = useRef(null), cancelRef = useRef(null), promptRef = useRef(false);
+  const openRef = useRef(null), logoRef = useRef(null);
+  const urlsRef = useRef([]);
+
+  const st = stRef.current;
+  function setSt(next, silent) { stRef.current = next; setRev(function(x) { return x + 1; }); if (!silent) changed(); }
+  function patch(p, silent) { setSt(Object.assign({}, stRef.current, p), silent); }
+  function sj() { return JSON.stringify(stRef.current); }
+
+  // ── 처음: 최근 입력값(이 PC · 이 계정) 또는 새 입력 ──
+  useEffect(function() {
+    var recent = lsGet(recentKey);
+    var start = recent
+      ? JG.call('load_project', { text: JSON.stringify(recent) }).catch(function() { return null; })
+      : Promise.resolve(null);
+    start.then(function(loaded) {
+      var s = loaded || newState();
+      setSt(s, true); setReady(true);
+      setStatus(loaded ? '최근 입력값을 불러왔습니다.' : '용역명과 성과품을 입력하세요.');
+      changed(10);
+    });
+    return function() { clearTimeout(timerRef.current); urlsRef.current.forEach(function(u) { URL.revokeObjectURL(u); }); };
+  }, []);
+
+  function newState() {
+    var d = JSON.parse(JSON.stringify(meta.default_state));
+    delete d.version;
+    d.service_title = ''; d.cover_title = ''; d.auto_cover_title = true;
+    d.authority = JG_CFG.DEFAULT_AUTHORITY || ''; d.binder_authority = '';
+    d.date = JG_CFG.DEFAULT_DATE || thisMonth();
+    d.font = '나눔고딕';      // 웹은 나눔고딕 고정(동봉 글꼴). 화면에서 고르지 않는다
+    d.custom_logo = ''; d.offsets = {};
+    return d;
+  }
+
+  // ── 입력이 바뀌면 잠깐 쉬었다가 미리보기(app.py changed: 650ms) ──
+  function changed(delay) {
+    reqRef.current++;
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(requestPreview, delay == null ? 650 : delay);
+  }
+  function finish() {
+    inflightRef.current = false; setRendering(false);
+    if (pendingRef.current && !busyRef.current) { pendingRef.current = false; requestPreview(); }
+  }
+  function requestPreview() {
+    timerRef.current = null;
+    if (!stRef.current) return;
+    if (busyRef.current || inflightRef.current) { pendingRef.current = true; return; }
+    inflightRef.current = true;
+    JG.call('check', { state: sj() }).then(function(chk) {
+      setAutoTitle(chk.auto_title || '');
+      if (!chk.ok) { setStatus(chk.error); return null; }
+      setSummary(chk.summary);
+      setLogo(function(old) { if (old.url) URL.revokeObjectURL(old.url); return { url: pngUrl(chk.logo), text: chk.logo_status }; });
+      return preparePagination(chk, false, false).then(function(go) {
+        if (!go) return null;
+        reqRef.current++;
+        var rid = reqRef.current;
+        pendingRef.current = false;
+        setStatus('사진 합성 중…'); setRendering(true);
+        var want = tabRef.current;
+        return JG.call('preview', { state: sj(), page: pageRef.current, width: 1200, tab: want }).then(function(res) {
+          if (rid !== reqRef.current) return;   // 그 사이 입력이 바뀜 → 버림(다시 그림)
+          var photoUrl = pngUrl(res.photo), imageUrl = pngUrl(res.image);
+          urlsRef.current.forEach(function(u) { URL.revokeObjectURL(u); });
+          urlsRef.current = [photoUrl, imageUrl].filter(Boolean);
+          pageRef.current = res.page;
+          setPv({ photoUrl: photoUrl, imageUrl: imageUrl, size: res.photo_size, hits: res.hits, H: res.H, Hinv: res.Hinv, pages: res.pages, page: res.page, tab: want });
+          window.__jgPreview = { hits: res.hits, size: res.photo_size, pages: res.pages, page: res.page, tab: want, n: (window.__jgPreview ? window.__jgPreview.n : 0) + 1 };   // 시험용(읽기만)
+          setStatus('완료 · ' + (res.warnings.length ? res.warnings.join(' / ') : '입력값 변경 시 자동 갱신됩니다.'));
+          lsSet(recentKey, res.state);   // app.py save_recent(st) — 최근 입력값
+        });
+      });
+    }).catch(function(e) { setStatus('오류: ' + e.message); }).then(finish);
+  }
+
+  // ── 장수 확인창 판단(app.py _prepare_pagination 과 같은 조건) ──
+  function preparePagination(chk, force, explicit) {
+    var sig = chk.sig, s = stRef.current;
+    if (!force && sig === ackRef.current) return Promise.resolve(true);
+    if (!force && chk.rec <= 1 && s.page_policy === 'single') { ackRef.current = sig; return Promise.resolve(true); }
+    if (!force && !explicit && sig === cancelRef.current) return Promise.resolve(false);
+    if (promptRef.current) return Promise.resolve(false);
+    promptRef.current = true;
+    return new Promise(function(res) {
+      setPageDlg({ total: chk.total, recommended: chk.rec, current: s.page_policy === 'split' ? s.split_pages : 1, res: res });
+    }).then(function(result) {
+      promptRef.current = false;
+      if (!result) {
+        cancelRef.current = sig; pendingRef.current = false;
+        setStatus('배치 선택을 취소했습니다. 수량을 조정하거나 [장수 / 분할 선택]을 누르세요. 기존 미리보기를 유지합니다.');
+        return false;
+      }
+      var cur = stRef.current, p = { page_policy: result[0], split_pages: result[1] };
+      if (cur.page_policy !== result[0] || cur.split_pages !== result[1]) { p.offsets = {}; pageRef.current = 0; }
+      patch(p, true);
+      ackRef.current = sig; cancelRef.current = null;
+      return true;
+    });
+  }
+  function checkNow() {
+    return JG.call('check', { state: sj() }).then(function(chk) {
+      if (!chk.ok) { dialog.info('입력 확인', chk.error); return null; }
+      return chk;
+    });
+  }
+  function keepSingle() {
+    if (busyRef.current) return;
+    checkNow().then(function(chk) {
+      if (!chk) return;
+      var p = { page_policy: 'single', split_pages: 1 };
+      if (stRef.current.page_policy !== 'single') { p.offsets = {}; pageRef.current = 0; }
+      ackRef.current = chk.sig; cancelRef.current = null;
+      patch(p);
+    });
+  }
+  function configurePagination() {
+    if (busyRef.current) return;
+    checkNow().then(function(chk) {
+      if (!chk) return;
+      preparePagination(chk, true, true).then(function(go) { if (go) changed(); });
+    });
+  }
+
+  // ── 저장(app.py _export_job) ──
+  function runExport(mode) {
+    if (busyRef.current) { dialog.info('작업 중', '현재 저장 작업이 끝난 후 실행하세요.'); return; }
+    checkNow().then(function(chk) {
+      if (!chk) return;
+      return (mode !== 'pdf' ? preparePagination(chk, false, true) : Promise.resolve(true)).then(function(go) {
+        if (!go) return;
+        return JG.call('export_check', { state: sj(), mode: mode }).then(function(r) {
+          var ask = r.warnings.length
+            ? dialog.ask({ title: '저장 전 확인', text: r.warnings.join('\n') + '\n\n계속 저장할까요?', buttons: [{ label: '계속 저장', value: true, primary: true }, { label: '취소', value: false }] })
+            : Promise.resolve(true);
+          return ask.then(function(ok) {
+            if (!ok) return;
+            busyRef.current = true; setBusy(true); setStatus('저장 중…');
+            var cmd = mode === 'pdf' ? 'export_print_pdfs' : mode === 'layouts' ? 'export_layouts' : 'export_bundle';
+            return JG.call(cmd, { state: sj() }, function(t) { setStatus(t); }).then(function(res) {
+              downloadBytes(res.zip, res.name, 'application/zip');
+              lsSet(recentKey, res.state);
+              setStatus('저장 완료: ' + res.name);
+              dialog.info('저장 완료', res.name + '\n\n' + res.note + '\n\n내려받기 폴더에 ZIP 파일로 저장했습니다(파일 ' + res.files.length + '개).');
+            }, function(e) {
+              setStatus('저장 오류: ' + e.message); dialog.info('저장 오류', e.message);
+            }).then(function() { busyRef.current = false; setBusy(false); changed(50); });
+          });
+        });
+      });
+    }).catch(function(e) { dialog.info('입력 확인', e.message); });
+  }
+
+  // ── 프로젝트 열기 / 저장 (JSON 파일) ──
+  function onOpenFile(e) {
+    var files = Sysbar.pickedFiles(e);
+    if (!files.length) { setStatus('고른 파일을 받지 못했어요. 다시 골라 주세요.'); return; }
+    var f = files[0];
+    f.text().then(function(text) { return JG.call('load_project', { text: text }); }).then(function(s) {
+      // app.py set_state: 쪽 0, 장수 확인 기록 초기화, 이동 좌표는 파일 값
+      pageRef.current = 0; ackRef.current = null; cancelRef.current = null;
+      setSt(s);
+      setStatus('프로젝트를 열었습니다: ' + f.name);
+    }).catch(function(err) { dialog.info('불러오기 오류', err.message); });
+  }
+  function saveProject() {
+    JG.call('save_project', { state: sj() }).then(function(r) {
+      downloadBytes(new TextEncoder().encode(r.text), r.name, 'application/json');
+      setStatus('프로젝트 저장 완료: ' + r.name);
+    }).catch(function(err) { dialog.info('입력 확인', err.message); });
+  }
+  function onLogoFile(e) {
+    var files = Sysbar.pickedFiles(e);
+    Sysbar.checkFiles(files, { kinds: ['png', 'jpg'], maxMB: 10 }).then(function(r) {
+      if (r.errors.length) { dialog.info('로고 오류', r.errors[0].message); return; }
+      var it = r.ok[0];
+      return JG.call('import_logo', { bytes: new Uint8Array(it.body), name: it.file.name || ('logo.' + it.ext) }).then(function(b64) {
+        patch({ custom_logo: b64 });
+      });
+    }).catch(function(err) { dialog.info('로고 오류', err.message); });
+  }
+
+  if (!ready || !st) return <div className="dc-card dc-note">불러오는 중…</div>;
+
+  var items = st.items || [];
+  function setItem(i, p) { var arr = items.slice(); arr[i] = Object.assign({}, arr[i], p); patch({ items: arr }); }
+  function removeItem(i) { var arr = items.slice(); arr.splice(i, 1); patch({ items: arr, offsets: {} }); }
+  var bgIndex = st.background, layIndex = st.layout;
+  var canDrag = pv && pv.tab === 'photo' && tab === 'photo' && !busy;
+  var help = [
+    '사진 속 글자는 합성 이미지의 일부라 PPT에서 글자만 따로 고칠 수 없습니다. 입력값을 바꾸고 다시 저장하세요. (PPT 상단 제목·용역명은 고칠 수 있음)',
+    '출력물은 준비된 사진과 입력 정보로 만든 성과품 구성 합성물입니다. 사진 촬영 각도·두께·그림자 때문에 실제 사물과 오차가 있을 수 있습니다.',
+    '사진 장수: 수량을 보고 임의로 나누지 않습니다. 기본은 한 장이고, 수량이 많으면 확인창에서 한 장 유지 / 지정 장수 분할 / 취소를 고릅니다.',
+    '[매듭 다시 배정]은 배치·수량·문구는 그대로 두고 바인더 사진(실물 매듭 4종) 배정만 바꿉니다. [새 각도]는 각도만 바꿉니다.',
+    '3부 묶음: 같은 성과품 행을 최대 3부씩 묶습니다(4부 = 3+1, 5부 = 3+2). 수량을 바꾸지 않고, 다른 개소 행은 다른 묶음입니다.',
+    '합성사진에서 바인더를 끌어 옮길 수 있습니다. [같은 3부 묶음을 함께 이동]을 끄면 한 권씩 움직입니다. 묶음 방식을 바꾸면 이동 좌표가 초기화됩니다.',
+    '인쇄용 PDF는 실제 크기(100%)로 인쇄하세요: 설계도 A3 표지 · A4 가로 바인더 라벨(한 장 3세트) · 책자 표지 · CD 케이스 120×120mm.',
+    '표지 글꼴은 나눔고딕(동봉, OFL)으로 고정입니다. PC 프로그램(맑은 고딕)으로 만든 결과와 글자 모양이 조금 다를 수 있습니다.',
+    '프로젝트 저장 = 입력값 JSON 내려받기, 프로젝트 열기 = 그 파일 올리기(PC 프로그램 v2.1·v2.2 프로젝트도 열림). 최근 입력값은 이 PC 브라우저에 자동 저장됩니다.'
+  ];
+
+  return (
+    <div>
+      {dialog.node}
+      {pageDlg && <PaginationDialog d={pageDlg} onDone={function(v) { var d = pageDlg; setPageDlg(null); d.res(v); }} />}
+      {addDlg && (
+        <AddItemDialog meta={meta} onDone={function(kind) {
+          setAddDlg(false);
+          if (!kind) return;
+          patch({ items: items.concat([{ kind: kind, name: meta.default_names[kind], count: 1, selected: true, construction_name: '' }]) });
+        }} />
+      )}
+      {siteDlg && (
+        <SiteDialog value={siteDlg.value} onDone={function(v) {
+          var i = siteDlg.index; setSiteDlg(null);
+          if (v == null) return;
+          setItem(i, { construction_name: v.trim() });
+        }} />
+      )}
+      <input ref={openRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={onOpenFile} />
+      <input ref={logoRef} type="file" accept="image/png,image/jpeg" style={{ display: 'none' }} onChange={onLogoFile} />
+
+      <div className="jg-head">
+        <h2>준공사진 생성기</h2>
+        <span className="sub">실물 매듭 4종 | 3부 묶음 배치 | 사용자 확인 후 분할 · 엔진 v{meta.version}</span>
+        <div className="r">
+          <button className="jg-b" onClick={function() { openRef.current.click(); }}>프로젝트 열기</button>
+          <button className="jg-b" onClick={saveProject}>프로젝트 저장</button>
+        </div>
+      </div>
+
+      <div className="jg-wrap">
+        {/* ── 왼쪽 입력 ── */}
+        <div className="jg-left">
+          <div className="jg-sec">
+            <h3>1. 용역 / 공사 정보</h3>
+            <div className="jg-small" style={{ marginTop: 0 }}>용역명 — 준공사진 페이지 상단</div>
+            <textarea className="jg-ta" rows={3} value={st.service_title} placeholder="예: ○○길 일원 도로정비공사 실시설계용역"
+              onChange={function(e) { patch({ service_title: e.target.value }); }} />
+            <label className="jg-ck">
+              <input type="checkbox" checked={!!st.auto_cover_title} onChange={function(e) {
+                var on = e.target.checked;
+                // app.py auto_change: 끄면 칸에 자동 공사명이 남아 그대로 고칠 수 있다
+                patch(on ? { auto_cover_title: true } : { auto_cover_title: false, cover_title: st.cover_title || autoTitle });
+              }} />
+              끝의 설계용역 명칭을 빼고 표지 공사명 자동 생성
+            </label>
+            <input className="jg-in" value={st.auto_cover_title ? autoTitle : st.cover_title} readOnly={!!st.auto_cover_title}
+              placeholder="표지 공사명" onChange={function(e) { patch({ cover_title: e.target.value }); }} />
+            <div className="jg-small">사진 속 모든 성과품에는 공사명 + 문서명만 들어갑니다.</div>
+          </div>
+
+          <div className="jg-sec">
+            <h3>2. 발주처 / 날짜 / 로고</h3>
+            <div className="jg-row"><label>발주처</label>
+              <div className="f"><input className="jg-in" list="jg-logos" value={st.authority} onChange={function(e) { patch({ authority: e.target.value }); }} />
+                <datalist id="jg-logos">{meta.logos.map(function(n) { return <option key={n} value={n} />; })}</datalist></div></div>
+            <div className="jg-row"><label>바인더 기관명</label>
+              <div className="f"><input className="jg-in" value={st.binder_authority} onChange={function(e) { patch({ binder_authority: e.target.value }); }} /></div></div>
+            <div className="jg-small">바인더 기관명을 비우면 발주처와 같습니다.</div>
+            <div className="jg-row" style={{ marginTop: 6 }}><label>표기 년월</label>
+              <div className="f"><input className="jg-in" value={st.date} onChange={function(e) { patch({ date: e.target.value }); }} /></div></div>
+            <div className="jg-logo">
+              <div className="box">{logo.url ? <img src={logo.url} alt="로고" /> : '로고 없음'}</div>
+              <div className="bt">
+                <button className="jg-b" onClick={function() { patch({ custom_logo: '' }); }} disabled={!st.custom_logo}>기관 자동 로고</button>
+                <button className="jg-b" onClick={function() { logoRef.current.click(); }}>다른 로고 선택</button>
+              </div>
+            </div>
+            <div className="jg-small">{logo.text}{st.custom_logo ? ' · 고른 로고는 프로젝트 파일에 함께 저장됩니다.' : ''}</div>
+          </div>
+
+          <div className="jg-sec">
+            <h3>3. 사진 배경 / 배치</h3>
+            <div className="jg-row"><label>배경 사진</label>
+              <div className="f"><select className="jg-sel" value={bgIndex} onChange={function(e) { patch({ background: Number(e.target.value) }); }}>
+                {meta.backgrounds.map(function(n, i) { return <option key={i} value={i}>{n}</option>; })}</select></div></div>
+            <div className="jg-row"><label>성과품 배치</label>
+              <div className="f"><select className="jg-sel" value={layIndex} onChange={function(e) { patch({ layout: Number(e.target.value) }); }}>
+                {meta.layouts.map(function(n, i) { return <option key={i} value={i}>{n}</option>; })}</select></div></div>
+            <div className="jg-row"><label>도면 표지색</label>
+              <div className="f"><select className="jg-sel" value={st.cover_color} onChange={function(e) { patch({ cover_color: e.target.value }); }}>
+                {['하늘색', '흰색'].concat(['하늘색', '흰색'].indexOf(st.cover_color) < 0 ? [st.cover_color] : []).map(function(n) { return <option key={n} value={n}>{n}</option>; })}</select></div></div>
+            <div className="jg-row"><label>바인더 매듭</label>
+              <div className="f"><select className="jg-sel" value={st.knot_mode} onChange={function(e) { patch({ knot_mode: e.target.value }); }}>
+                {meta.knot_options.map(function(o) { return <option key={o[0]} value={o[0]}>{o[1]}</option>; })}</select></div></div>
+            <div className="jg-row"><label>바인더 겹침</label>
+              <div className="f"><select className="jg-sel" value={st.binder_stack_mode} onChange={function(e) {
+                // app.py change_stack_mode: 이동 좌표 초기화 · 첫 쪽
+                pageRef.current = 0; patch({ binder_stack_mode: e.target.value, offsets: {} });
+              }}>{meta.stack_options.map(function(o) { return <option key={o[0]} value={o[0]}>{o[1]}</option>; })}</select></div></div>
+            <div className="jg-row" style={{ justifyContent: 'space-between' }}>
+              <span className="jg-small" style={{ margin: 0 }}>입력한 수량은 유지 · 각 3부의 매듭을 다르게</span>
+              <button className="jg-b" disabled={busy} onClick={function() {
+                if (busyRef.current) return;
+                JG.call('reassign_knots', { state: sj() }).then(function(r) {
+                  patch(r); setStatus('매듭만 다시 배정합니다. 수량·장수·배치 위치는 유지합니다.');
+                }).catch(function(err) { setStatus('오류: ' + err.message); });
+              }}>매듭 다시 배정</button>
+            </div>
+            <div className="jg-small">실제 사진 4종을 순환 적용합니다. 1·2부는 그대로, 4부 이상은 3부 단위로 묶습니다.</div>
+            <label className="jg-ck"><input type="checkbox" checked={!!st.natural_angles} onChange={function(e) { patch({ natural_angles: e.target.checked }); }} />
+              약간의 회전 적용 (수량에 따라 겹침은 별도 조정)</label>
+            <div className="jg-small">보드 900×600mm · 설계도 A3 · 바인더 A4 가로 좌철 · 표지 글꼴 나눔고딕(고정)</div>
+          </div>
+
+          <div className="jg-sec">
+            <h3>사진 장수 / 겹침</h3>
+            <div style={{ fontSize: 12.5, color: '#334155', marginBottom: 4 }}>
+              {st.page_policy === 'split' ? '사용자 선택: ' + st.split_pages + '장으로 분할 · 장수 변경 가능' : '한 장으로 유지 · 전체 수량 겹침 허용 · 자동 분할 없음'}
+            </div>
+            <div className="jg-small">수량이 많으면 먼저 묻습니다. 분할은 선택한 경우에만 적용됩니다.</div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+              <button className="jg-b" style={{ flex: 1 }} onClick={keepSingle} disabled={busy}>한 장에 겹쳐 놓기</button>
+              <button className="jg-b" style={{ flex: 1 }} onClick={configurePagination} disabled={busy}>장수 / 분할 선택…</button>
+            </div>
+          </div>
+
+          <div className="jg-sec">
+            <h3>4. 성과품 선택 / 수량</h3>
+            <div className="jg-items">
+              {items.map(function(it, i) {
+                return (
+                  <div className="jg-item" key={i}>
+                    <input type="checkbox" title="선택" checked={!!it.selected} onChange={function(e) { setItem(i, { selected: e.target.checked }); }} />
+                    <input className="jg-in nm" value={it.name} title={'종류: ' + meta.default_names[it.kind]} onChange={function(e) { setItem(i, { name: e.target.value }); }} />
+                    <input className="jg-in ct" type="number" min={0} max={60} value={it.count} title={'수량(' + meta.units[it.kind] + ')'}
+                      onChange={function(e) { setItem(i, { count: e.target.value }); }} />
+                    <button className={'jg-b' + (it.construction_name ? ' on' : '')} title={it.construction_name || '이 행만의 개소별 공사명'}
+                      onClick={function() { setSiteDlg({ index: i, value: it.construction_name || '' }); }}>{it.construction_name ? '공사명*' : '공사명'}</button>
+                    <button className="jg-b" title="행 삭제" onClick={function() { removeItem(i); }}>−</button>
+                  </div>
+                );
+              })}
+            </div>
+            <button className="jg-b" style={{ width: '100%', marginTop: 6 }} onClick={function() { setAddDlg(true); }}>+ 성과품 행 추가 (개소별로 추가 가능)</button>
+            <div className="jg-small">행마다 문서명·수량을 바꾸고, [공사명]에서 개소를 지정합니다.<br />CD / USB 동시 선택 가능. 수량이 많아도 자동으로 나누지 않습니다.</div>
+          </div>
+
+          <div className="jg-sec">
+            <h3>성과품 수량 문구</h3>
+            <div style={{ fontSize: 13, color: '#0f172a', minHeight: 18 }}>{summary}</div>
+            <div style={{ textAlign: 'right', marginTop: 6 }}>
+              <button className="jg-b" disabled={!summary} onClick={function() {
+                (navigator.clipboard ? navigator.clipboard.writeText(summary) : Promise.reject(new Error('복사 기능 없음')))
+                  .then(function() { setStatus('성과품 수량 문구를 복사했습니다.'); }, function() { setStatus('복사하지 못했습니다. 문구를 직접 선택해 복사해 주세요.'); });
+              }}>수량 문구 복사</button>
+            </div>
+          </div>
+
+          <details className="jg-sec jg-help">
+            <summary>사용 안내</summary>
+            <ul>{help.map(function(h, i) { return <li key={i}>{h}</li>; })}</ul>
+          </details>
+        </div>
+
+        {/* ── 오른쪽 미리보기 ── */}
+        <div className="jg-right">
+          <div className="jg-bar">
+            <button className="jg-b" onClick={function() { pageRef.current = Math.max(0, pageRef.current - 1); changed(30); }} disabled={!pv || pv.page <= 0}>이전</button>
+            <span className="pg">{pv ? (pv.page + 1) + ' / ' + pv.pages : '1 / 1'}</span>
+            <button className="jg-b" onClick={function() { pageRef.current = Math.min((pv ? pv.pages : 1) - 1, pageRef.current + 1); changed(30); }} disabled={!pv || pv.page >= pv.pages - 1}>다음</button>
+            <div className="r">
+              <button className="jg-b" onClick={function() { changed(30); }}>미리보기 갱신</button>
+              <button className="jg-b" onClick={function() { patch({ seed: (parseInt(st.seed, 10) || 7) + 1 }); }}>새 각도</button>
+              <button className="jg-b" onClick={function() { patch({ offsets: {} }); }}>배치 초기화</button>
+            </div>
+          </div>
+          <div>
+            <div className="jg-vtabs" role="tablist">
+              {VIEW_TABS.map(function(t) {
+                return <button key={t[0]} role="tab" aria-selected={tab === t[0]} className={tab === t[0] ? 'on' : ''}
+                  onClick={function() { if (tab === t[0]) return; tabRef.current = t[0]; setTab(t[0]); changed(30); }}>{t[1]}</button>;
+              })}
+            </div>
+            <div className="jg-view">
+              {rendering && <div className="jg-busy">갱신 중…</div>}
+              {!pv ? <div className="jg-empty">{rendering ? '사진 합성 중…' : '용역명과 성과품을 입력하면 미리보기가 나타납니다.'}</div>
+                : tab === 'photo' && pv.tab === 'photo'
+                  ? <PhotoView pv={pv} canDrag={canDrag} groupDrag={!!st.group_drag}
+                      offsets={st.offsets || {}} onStatus={setStatus}
+                      onMoved={function(off) { patch({ offsets: off }); }} />
+                  : (pv.tab === tab && pv.imageUrl)
+                    ? <div className="jg-pic"><img src={pv.imageUrl} alt={tab} draggable={false} /></div>
+                    : <div className="jg-empty">갱신 중…</div>}
+            </div>
+          </div>
+          <div className="jg-drag">
+            <label className="jg-ck" style={{ margin: 0 }}><input type="checkbox" checked={!!st.group_drag} onChange={function(e) { patch({ group_drag: e.target.checked }); }} />
+              같은 3부 묶음을 함께 이동</label>
+            <span className="jg-small" style={{ margin: 0 }}>해제하면 한 권씩 이동 · 매듭과 위치는 저장 후 유지</span>
+          </div>
+          <div className="jg-exp">
+            <button className="jg-b p" disabled={busy} onClick={function() { runExport('bundle'); }}>PNG · PPTX 저장</button>
+            <button className="jg-b" disabled={busy} onClick={function() { runExport('pdf'); }}>인쇄용 PDF 저장</button>
+            <button className="jg-b" disabled={busy} onClick={function() { runExport('layouts'); }}>배치 3종 비교 저장</button>
+          </div>
+          <div className="jg-status" aria-live="polite">{status}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 합성사진 + 끌어 옮기기(app.py drag_start / drag_end): 사진 좌표 → 보드 mm(역원근) 차이를 이동 좌표(offsets)에 더한다
+function proj(M, x, y) {
+  var w = M[2][0] * x + M[2][1] * y + M[2][2];
+  return [(M[0][0] * x + M[0][1] * y + M[0][2]) / w, (M[1][0] * x + M[1][1] * y + M[1][2]) / w];
+}
+function inPoly(q, x, y) {
+  var c = false;
+  for (var i = 0, j = q.length - 1; i < q.length; j = i++) {
+    var xi = q[i][0], yi = q[i][1], xj = q[j][0], yj = q[j][1];
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) c = !c;
+  }
+  return c;
+}
+function PhotoView({ pv, canDrag, groupDrag, offsets, onMoved, onStatus }) {
+  const imgRef = useRef(null);
+  const [drag, setDrag] = useState(null);   // {same, originals, start(mm), cur(px)}
+  function toPhoto(ev) {
+    var r = imgRef.current.getBoundingClientRect();
+    return [(ev.clientX - r.left) * pv.size[0] / r.width, (ev.clientY - r.top) * pv.size[1] / r.height];
+  }
+  function down(ev) {
+    if (!canDrag || ev.button !== 0) return;
+    var pt = toPhoto(ev);
+    for (var i = pv.hits.length - 1; i >= 0; i--) {
+      var p = pv.hits[i];
+      if (inPoly(p.quad, pt[0], pt[1])) {
+        var same = (groupDrag && p.stack_id) ? pv.hits.filter(function(h) { return h.stack_id === p.stack_id; }) : [p];
+        var originals = {};
+        same.forEach(function(h) { originals[h.id] = (offsets[h.id] || [0, 0]).slice(); });
+        ev.preventDefault();
+        try { ev.currentTarget.setPointerCapture(ev.pointerId); } catch (e) {}
+        setDrag({ same: same, originals: originals, start: proj(pv.Hinv, pt[0], pt[1]), cur: pt });
+        onStatus(p.name + (same.length > 1 ? ' ' + same.length + '부 묶음' : '') + ' 위치 이동 중');
+        return;
+      }
+    }
+  }
+  function move(ev) { if (drag) setDrag(Object.assign({}, drag, { cur: toPhoto(ev) })); }
+  function up(ev) {
+    if (!drag) return;
+    var pt = toPhoto(ev), pos = proj(pv.Hinv, pt[0], pt[1]);
+    var dx = pos[0] - drag.start[0], dy = pos[1] - drag.start[1];
+    var next = Object.assign({}, offsets);
+    Object.keys(drag.originals).forEach(function(id) { var o = drag.originals[id]; next[id] = [o[0] + dx, o[1] + dy]; });
+    setDrag(null);
+    if (Math.abs(dx) + Math.abs(dy) < 0.01) { onStatus('이동하지 않았습니다.'); return; }
+    onMoved(next);
+  }
+  var outline = null;
+  if (drag) {
+    var pos = proj(pv.Hinv, drag.cur[0], drag.cur[1]);
+    var dx = pos[0] - drag.start[0], dy = pos[1] - drag.start[1];
+    outline = drag.same.map(function(h) {
+      return h.quad.map(function(c) { var b = proj(pv.Hinv, c[0], c[1]); var q = proj(pv.H, b[0] + dx, b[1] + dy); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ');
+    });
+  }
+  return (
+    <div className={'jg-pic' + (canDrag ? ' drag' : '') + (drag ? ' dragging' : '')}
+      onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={function() { setDrag(null); }}>
+      <img ref={imgRef} src={pv.photoUrl} alt="합성사진" draggable={false} />
+      <svg viewBox={'0 0 ' + pv.size[0] + ' ' + pv.size[1]} preserveAspectRatio="none">
+        {outline && outline.map(function(pts, i) { return <polygon key={i} points={pts} fill="rgba(22,136,160,.12)" stroke="#1688a0" strokeWidth="3" strokeDasharray="10 6" />; })}
+        {drag && <circle cx={drag.cur[0]} cy={drag.cur[1]} r="9" fill="#1688a0" stroke="#fff" strokeWidth="3" />}
+      </svg>
+    </div>
+  );
+}
+
+// 장수 확인창(pagination_dialog.py choose_pagination 과 같은 조건·선택지) → ['single',1] / ['split',n] / null(취소)
+function PaginationDialog({ d, onDone }) {
+  var maximum = Math.max(2, Math.min(d.total, 999));
+  const [val, setVal] = useState(String(Math.min(maximum, Math.max(2, d.current, d.recommended))));
+  const [err, setErr] = useState('');
+  const primary = useRef(null);
+  useEffect(function() {
+    if (primary.current) primary.current.focus();
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); onDone(null); }
+      else if (e.key === 'Enter' && e.target && e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') { e.preventDefault(); onDone(['single', 1]); }
+    }
+    document.addEventListener('keydown', onKey);
+    return function() { document.removeEventListener('keydown', onKey); };
+  }, []);
+  function split() {
+    var n = Number(val);
+    if (!/^\s*\d+\s*$/.test(val) || n < 2 || n > maximum) { setErr('2~' + maximum + ' 사이의 정수를 입력하세요.'); return; }
+    onDone(['split', n]);
+  }
+  return (
+    <div className="modal-bg" role="dialog" aria-modal="true" aria-label="성과품 배치 방법 확인">
+      <div className="modal" style={{ maxWidth: 520 }}>
+        <h3>성과품 배치 방법 확인 — 자동으로 나누지 않습니다</h3>
+        <p style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>선택한 성과품은 총 {d.total}개입니다.</p>
+        <p style={{ margin: '8px 0 12px' }}>한 장에 겹쳐 놓을 수 있습니다. 프로그램이 임의로 나누지 않습니다.{'\n'}공사명과 문서명이 가려지는 정도를 보고 배치 방법을 선택하세요.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          분할을 선택할 경우 사진 장수:
+          <input className="jg-in" type="number" min={2} max={maximum} value={val} style={{ width: 80 }}
+            onChange={function(e) { setVal(e.target.value); setErr(''); }}
+            onKeyDown={function(e) { if (e.key === 'Enter') { e.preventDefault(); split(); } }} />
+        </div>
+        <p className="dc-note" style={{ marginTop: 8 }}>분할 추천은 {Math.max(2, d.recommended)}장입니다. 추천은 자동 적용되지 않습니다.</p>
+        {err && <div className="dc-al e" style={{ marginTop: 8 }}>{err}</div>}
+        <div className="stack">
+          <button ref={primary} className="jg-b p" onClick={function() { onDone(['single', 1]); }}>한 장에 계속 배치 (겹침 허용)</button>
+          <button className="jg-b" disabled={d.total < 2} onClick={split}>선택한 장수로 나누기</button>
+          <button className="jg-b" onClick={function() { onDone(null); }}>취소 후 수량 / 배치 직접 조정</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function AddItemDialog({ meta, onDone }) {
+  const [kind, setKind] = useState('design');
+  return (
+    <div className="modal-bg" role="dialog" aria-modal="true">
+      <div className="modal" style={{ maxWidth: 420 }}>
+        <h3>성과품 추가</h3>
+        <p>외형 종류를 선택하세요. 문서명은 추가 후 수정할 수 있습니다.</p>
+        <select className="jg-sel" style={{ marginTop: 10 }} value={kind} onChange={function(e) { setKind(e.target.value); }}>
+          {meta.kinds.map(function(k) { return <option key={k} value={k}>{meta.default_names[k]}</option>; })}
+        </select>
+        <div className="acts">
+          <button className="jg-b p" onClick={function() { onDone(kind); }}>추가</button>
+          <button className="jg-b" onClick={function() { onDone(null); }}>취소</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function SiteDialog({ value, onDone }) {
+  const [v, setV] = useState(value);
+  return (
+    <div className="modal-bg" role="dialog" aria-modal="true">
+      <div className="modal" style={{ maxWidth: 600 }}>
+        <h3>개소별 표지 공사명</h3>
+        <p>이 행에만 적용할 공사명입니다. 비우면 공통 공사명을 사용합니다.</p>
+        <input className="jg-in" style={{ marginTop: 10 }} autoFocus value={v} onChange={function(e) { setV(e.target.value); }}
+          onKeyDown={function(e) { if (e.key === 'Enter') onDone(v); if (e.key === 'Escape') onDone(null); }} />
+        <div className="acts">
+          <button className="jg-b p" onClick={function() { onDone(v); }}>적용</button>
+          <button className="jg-b" onClick={function() { onDone(null); }}>취소</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  서류 종류 등록 — 새 서류는 여기에 한 줄 + 그 화면 컴포넌트. 빈 「준비 중」 항목은 두지 않는다
+//  pcOnly = 휴대폰 폭에서는 「PC에서 사용해 주세요」 안내만
+// ═════════════════════════════════════════════════════════════════════
+const DOC_TYPES = [
+  { key: 'jungong', label: '준공사진', icon: '📷', pcOnly: true, View: JungongDoc,
+    mobileWhy: '바인더를 끌어 옮기고 큰 미리보기를 봐야 해서 PC 화면이 필요합니다.' },
+];
+function docFromHash() {
+  var h = Sysbar.hashTab();
+  return DOC_TYPES.some(function(d) { return d.key === h; }) ? h : DOC_TYPES[0].key;
+}
+
+function DocsPage({ user }) {
+  const mobile = useIsMobile();
+  const [docKey, setDocKey] = useState(docFromHash);
+  useEffect(function() {
+    if (location.hash !== '#' + docKey) history.replaceState(Object.assign({}, history.state, { doc: docKey }), '', '#' + docKey);
+    function onPop() { setDocKey(docFromHash()); }
+    window.addEventListener('popstate', onPop);
+    return function() { window.removeEventListener('popstate', onPop); };
+  }, []);
+  function pick(k) { if (k === docKey) return; history.pushState({ doc: k }, '', '#' + k); setDocKey(k); }
+  var doc = DOC_TYPES.filter(function(d) { return d.key === docKey; })[0] || DOC_TYPES[0];
+  var View = doc.View;
+  return (
+    <div className="dc-page">
+      <div className="dc-kinds" role="tablist" aria-label="서류 종류">
+        <span className="lb">서류 종류</span>
+        {DOC_TYPES.map(function(d) {
+          return <button key={d.key} role="tab" aria-selected={d.key === doc.key} className={'dc-kind' + (d.key === doc.key ? ' on' : '')}
+            onClick={function() { pick(d.key); }}>{d.icon} {d.label}</button>;
+        })}
+      </div>
+      {(doc.pcOnly && mobile)
+        ? <div className="dc-card" style={{ textAlign: 'center', padding: '28px 18px' }}>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>🖥️</div>
+            <p style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>PC에서 사용해 주세요</p>
+            <p className="dc-note">{doc.label} 만들기는 PC 브라우저(또는 데스크탑 앱)에서 할 수 있습니다. {doc.mobileWhy}</p>
+          </div>
+        : <View user={user} />}
+    </div>
+  );
+}
+
+function App() {
+  var initialUser = (function() {
+    var v = Sysbar.Auth.getSession();
+    return (v && v.id && v.role) ? v : null;
+  })();
+  const [user, setUser] = useState(initialUser);
+  const [checked, setChecked] = useState(false);
+  const [teamName, setTeamName] = useState('');
+  const [denied, setDenied] = useState(false);
+
+  useEffect(function() {
+    if (!user || !user.team_id) { setTeamName(''); return; }
+    sb.from('teams').select('name').eq('id', user.team_id).single()
+      .then(function(r) { setTeamName((r.data && r.data.name) || ''); });
+  }, [user && user.team_id]);
+
+  // 열 때 만료 확인 + 캐시된 세션의 role 은 서버 값으로 다시 확인(me.html 과 같은 순서)
+  useEffect(function() {
+    var wasInvalidated = Sysbar.SessionManager.checkOnLoad(sb);
+    if (wasInvalidated || !initialUser) { if (wasInvalidated) setUser(null); setChecked(true); return; }
+    Sysbar.Auth.verifySession(sb).then(function(res) {
+      if (res && res.ok && res.user) setUser(res.user);
+      else if (res && !res.hold) { Sysbar.Auth.logout(sb); setUser(null); }
+      setChecked(true);
+    });
+    Sysbar.SessionManager.onLogin(function() { logout(); });
+  }, []);
+
+  function handleLogin(u) { setUser(u); setChecked(true); Sysbar.SessionManager.onLogin(function() { logout(); }); }
+  function logout() { Sysbar.Auth.logout(sb); setUser(null); }
+
+  if (!user) return <LoginScreen supabaseClient={sb} onLogin={handleLogin} />;
+  if (!checked) return <div className="dc-page"><div className="dc-card dc-note">확인 중...</div></div>;
+
+  // 협력업체는 업무관리를 쓸 수 없다(메뉴도 막힘) — 주소로 직접 와도 같은 안내
+  if (user.role === 'contractor') {
+    return (
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,var(--theme,#0f172a) 0%,#1e3a5f 50%,#1d4ed8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ background: '#fff', borderRadius: 18, padding: '40px 32px', width: '100%', maxWidth: 360, boxShadow: '0 25px 70px rgba(0,0,0,.45)', textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🚫</div>
+          <p style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 800, color: '#0f172a' }}>접근 권한 없음</p>
+          <p style={{ margin: '0 0 24px', fontSize: 13, color: '#64748b', lineHeight: 1.6 }}>기술지원 계정은 서류작성을<br />이용할 수 없습니다.</p>
+          <a href="project.html" style={{ display: 'inline-block', padding: '11px 28px', background: 'var(--theme,#0f172a)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>공정관리로 돌아가기</a>
+        </div>
+      </div>
+    );
+  }
+
+  var wtabs = Sysbar.sectionTabs('worklog', user);
+  return (
+    <div>
+      <SysBar sb={sb} activeKey="worklog" activeSub="docs" user={user} teamName={teamName} onLogout={logout}
+        onDisabledClick={function() { setDenied(true); }} />
+      <div className="dc-title">
+        <p className="en">{APP_CONFIG.COMPANY_EN}</p>
+        <p className="ko">서류작성</p>
+      </div>
+      {/* 휴대폰: 업무관리 하위 항목 줄(PC 는 왼쪽 메뉴) */}
+      <nav className="dc-tabs sys-page-tabs" aria-label="업무관리">
+        {wtabs.map(function(t) {
+          return t.key === 'docs'
+            ? <span key={t.key} className="sys-tab-on">{t.icon} {t.label}</span>
+            : <a key={t.key} href={t.url || ('worklog.html#' + t.key)}>{t.icon} {t.label}</a>;
+        })}
+      </nav>
+      {denied && <div className="dc-page" style={{ paddingBottom: 0 }}><div className="dc-al e" onClick={function() { setDenied(false); }}>이 메뉴는 이용할 수 없습니다.</div></div>}
+      <DocsPage user={user} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
