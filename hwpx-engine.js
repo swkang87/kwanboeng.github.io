@@ -197,7 +197,7 @@
   function fill(doc, def, data) {
     def = def || {}; data = data || {};
     var ctx = {
-      def: def, data: data, doc: doc, warnings: [],
+      def: def, data: data, doc: doc, warnings: [], fitLog: [],
       globalScope: data.vars || {},
       imageIds: {},          // 데이터 그림 id → manifest id
       nextObjId: 0, nextZ: 0, nextBin: 1
@@ -210,6 +210,7 @@
       expandRows(ctx, secEl);
       shrinkSpacers(ctx, secEl);
       replaceTokens(ctx, secEl);
+      fitPages(ctx, secEl);
       placeOutOfCell(ctx, secEl);
     });
     if (data.title) setTitle(doc, data.title);
@@ -219,7 +220,7 @@
       var m; TOKEN_RE.lastIndex = 0;
       while ((m = TOKEN_RE.exec(s))) if (leftovers.indexOf(m[0]) < 0) leftovers.push(m[0]);
     });
-    return { warnings: ctx.warnings, leftovers: leftovers };
+    return { warnings: ctx.warnings, leftovers: leftovers, fit: ctx.fitLog };
   }
 
   function textOfAll(tree) {
@@ -452,6 +453,8 @@
       tbl._dirty = true;
       if (rdef.fit && clones.length * newH > rdef.fit * rowH) tbl._extra = (tbl._extra || 0) + clones.length * newH - rdef.fit * rowH;
       if (rdef.spacerAfter) tbl._spacerAfter = rdef.spacerAfter;
+      // 쪽 맞추기가 더 줄일 수 있는 반복 행(squeeze 정의가 있고 도장이 없는 표 — 도장 크기를 다시 맞추지 않게)
+      if (rdef.squeeze && rdef.squeeze.picPad === undefined && clones.length) (tbl._sq = tbl._sq || []).push({ rows: clones, h: newH, minH: rdef.squeeze.fitMinH || rdef.squeeze.minH || 0, label: rdef.label || name });
       // cap(빈 줄을 다 줄이면 담기는 높이, 한글로 잰 값) 안이면 「넘어갈 수 있어요」 경고를 내지 않는다(빈 줄 높이 추정이 실제보다 작음)
       if (cap) tbl._capOk = (tbl._capOk !== false) && clones.length * newH <= cap * rowH + Math.round(rowH / 2);
       trs = kids(tbl, 'hp:tr');
@@ -494,20 +497,317 @@
     for (var i = 0; i < paras.length; i++) {
       var p = paras[i];
       if (p.t !== 'el' || p.n !== 'hp:p') continue;
-      var extra = 0, capOk = false, after = null;
-      findAll(p, 'hp:tbl').forEach(function (t) { extra += t._extra || 0; if (t._capOk) capOk = true; if (t._spacerAfter) after = t._spacerAfter; });
+      var extra = 0, capOk = false, after = null, tbls = findAll(p, 'hp:tbl');
+      tbls.forEach(function (t) { extra += t._extra || 0; if (t._capOk) capOk = true; if (t._spacerAfter) after = t._spacerAfter; });
       if (extra <= 0) continue;
+      var got = 0;
       for (var j = i + 1; j < paras.length && extra > 0; j++) {
         var q = paras[j];
         if (q.t !== 'el' || q.n !== 'hp:p') continue;
         if (attr(q, 'pageBreak') === '1') break;
         // spacerAfter: 이 글자가 든 문단을 지난 뒤의 빈 줄만 줄인다(그 위 간격은 그대로)
         if (after) { if (textOf(q).indexOf(after) >= 0) after = null; continue; }
-        if (drop.indexOf(q) < 0 && isEmptyPara(q)) { drop.push(q); extra -= lineHeight(q); }
+        if (drop.indexOf(q) < 0 && isEmptyPara(q)) { drop.push(q); extra -= lineHeight(q); got += lineHeight(q); }
       }
-      if (extra > 0 && !capOk) ctx.warnings.push('표가 길어 일부 쪽이 다음 쪽으로 넘어갈 수 있어요. 한글에서 확인하세요.');
+      p._dropped = (p._dropped || 0) + got;          // 쪽 맞추기(fitPages)가 이미 줄인 높이를 안다
+      // 쪽 맞추기 정의가 있으면 남은 높이는 그쪽이 다른 빈 줄·장평으로 처리하고 경고도 거기서 낸다
+      if (extra > 0 && !capOk && !ctx.def.pageFit) ctx.warnings.push('표가 길어 일부 쪽이 다음 쪽으로 넘어갈 수 있어요. 한글에서 확인하세요.');
     }
     if (drop.length) secEl.c = paras.filter(function (x) { return drop.indexOf(x) < 0; });
+  }
+
+  /* ---- 쪽 맞추기 (def.pageFit) ----
+   * 값이 길어져(용역명 등) 글 줄이 늘어나면 그 쪽이 넘친다. 한글처럼 줄 나눔을 계산해 늘어난 줄 수를 예측하고,
+   *   ① 그 쪽의 빈 줄(빈 문단)을 늘어난 높이만큼 지우고(빈 줄 묶음이 큰 곳부터 고르게, 묶음마다 1줄은 남긴 뒤 마지막에 그것도)
+   *   ② 그래도 넘치면 늘어난 문단의 장평을 단계적으로 줄이고(pageFit.ratios, 하한까지)
+   *   ③ 그래도 넘치면 경고. 쪽 끝의 빈 줄은 늘 지운다(다음 쪽으로 밀려 빈 쪽이 생기지 않게).
+   * def.pageFit = { ref:{토큰: 기준값}, shrink:[장평을 줄일 토큰], ratios:[95,90,85], margin, pages:[{label, match:[글자…], slack}] }
+   *   본문 문단만 잰다(표 칸 안 글은 칸 높이 여유가 있어 제외). 장평은 shrink 토큰이 든, 줄이 늘어난 문단에만.
+   *   ref   = 쪽 여유(slack)를 잴 때 넣은 값. 문단마다 「지금 값」과 「기준값」의 줄 수 차이 × 줄 높이 = 늘어난 높이.
+   *   slack = 기준값으로 만든 그 쪽을 한글로 열었을 때 맨 아래 줄 아래에 남는 높이(HWPUNIT). 반복 표는 fit 행 수 기준.
+   * 글자 폭: 한글에서 잰 값(FONT_METRICS). 모르는 글꼴은 한글 1글자 = 글자 크기, 영문 = 0.6 로 넉넉히 잡는다.
+   */
+  // 글꼴별 폭(1/1000 글자 크기): a = U+0021~U+007E, nl = 한글·기호, sp = 빈칸. 2026-11-11 이 PC 한글에서 줄 나눔으로 확인
+  var FONT_METRICS = {
+    'HY그래픽': { sp: 500, nl: 1000, a: [500, 458, 583, 666, 958, 875, 333, 375, 375, 583, 583, 250, 583, 250, 458, 583, 583, 583, 583, 583, 583, 583, 583, 583, 583, 375, 375, 583, 583, 583, 541, 1000, 708, 666, 708, 708, 583, 541, 750, 666, 291, 333, 666, 541, 875, 708, 791, 666, 791, 666, 666, 666, 708, 625, 916, 625, 625, 583, 375, 458, 375, 458, 500, 250, 541, 583, 541, 583, 583, 375, 541, 541, 291, 291, 541, 291, 833, 541, 583, 583, 583, 375, 500, 375, 583, 500, 750, 500, 458, 458, 416, 291, 416, 583] },
+    '한컴 고딕': { sp: 500, nl: 932, a: [446, 297, 583, 583, 892, 892, 297, 446, 446, 446, 583, 297, 583, 297, 446, 583, 583, 583, 583, 583, 583, 583, 583, 583, 583, 297, 297, 446, 583, 446, 669, 1052, 644, 627, 639, 721, 596, 554, 710, 718, 247, 410, 626, 529, 884, 710, 752, 586, 752, 610, 592, 621, 696, 635, 961, 617, 611, 594, 446, 961, 446, 434, 446, 297, 560, 588, 490, 588, 559, 340, 588, 592, 244, 301, 530, 244, 892, 592, 577, 588, 588, 383, 475, 357, 592, 530, 788, 528, 530, 473, 446, 446, 446, 669] }
+  };
+  var LINE_TOL = 300;      // 지금 값의 줄 폭을 이만큼 좁게 잡는다(약 1mm — 늘어난 줄 수가 한글보다 적게 나오지 않게). 기준값은 그대로 센다
+  function headerInfo(ctx) {
+    if (ctx.hdr) return ctx.hdr;
+    var h = ctx.doc.files['Contents/header.xml'] || '', faces = {}, cp = {}, pp = {};
+    h.replace(/<hh:fontface lang="(\w+)"[^>]*>([\s\S]*?)<\/hh:fontface>/g, function (a, lang, body) {
+      faces[lang] = {}; body.replace(/<hh:font id="(\d+)" face="([^"]+)"/g, function (b, id, f) { faces[lang][id] = f; return b; }); return a;
+    });
+    h.replace(/<hh:charPr id="(\d+)" height="(\d+)"[\s\S]*?<\/hh:charPr>/g, function (a, id, ht) {
+      function g(tag) { var m = new RegExp('<hh:' + tag + ' ([^>]*)/>').exec(a), o = {}; if (m) m[1].replace(/(\w+)="(-?\d+)"/g, function (x, k, v) { o[k] = +v; return x; }); return o; }
+      cp[id] = { h: +ht, font: g('fontRef'), ratio: g('ratio'), sp: g('spacing'), rel: g('relSz') }; return a;
+    });
+    h.replace(/<hh:paraPr id="(\d+)"[\s\S]*?<\/hh:paraPr>/g, function (a, id) {
+      var c = /<hp:case[\s\S]*?<\/hp:case>/.exec(a), s = c ? c[0] : a;     // HwpUnitChar 값(한글이 쓰는 값)
+      function v(k) { var m = new RegExp('<hc:' + k + ' value="(-?\\d+)"').exec(s); return m ? +m[1] : 0; }
+      var ls = /<hh:lineSpacing type="(\w+)" value="(\d+)"/.exec(s);
+      // 한글 줄 나눔: breakNonLatinWord="KEEP_WORD" 인 문단이 실제로는 한글을 글자 단위로 끊는다(2026-11-11 한글로 확인)
+      pp[id] = { intent: v('intent'), left: v('left'), right: v('right'), lsType: ls ? ls[1] : 'PERCENT', ls: ls ? +ls[2] : 160,
+        charBreak: /breakNonLatinWord="KEEP_WORD"/.test(a) }; return a;
+    });
+    var pg = null;
+    ctx.doc.sections.forEach(function (sec) { if (!pg) pg = findAll(sec.tree, 'hp:pagePr')[0]; });
+    var mg = pg && kid(pg, 'hp:margin');
+    var colW = pg && mg ? (+attr(pg, 'width') - (+attr(mg, 'left') || 0) - (+attr(mg, 'right') || 0) - (+attr(mg, 'gutter') || 0)) : 0;
+    ctx.hdr = { faces: faces, cp: cp, pp: pp, colW: colW, extraCp: {} };
+    return ctx.hdr;
+  }
+  function charLang(ch) {
+    var c = ch.charCodeAt(0);
+    if (c < 0x80) return 'LATIN';
+    if ((c >= 0xAC00 && c <= 0xD7A3) || (c >= 0x3130 && c <= 0x318F) || (c >= 0x1100 && c <= 0x11FF)) return 'HANGUL';
+    if (c >= 0x4E00 && c <= 0x9FFF) return 'HANJA';
+    return 'SYMBOL';
+  }
+  var LANG_KEY = { LATIN: 'latin', HANGUL: 'hangul', HANJA: 'hanja', SYMBOL: 'symbol' };
+  function charWidth(H, ch, cp, ratio) {
+    var L = charLang(ch), k = LANG_KEY[L], face = (H.faces[L] || {})[cp.font[k]], fm = FONT_METRICS[face], a;
+    if (ch === ' ') a = fm ? fm.sp : 500;
+    else if (L === 'LATIN') a = fm ? (fm.a[ch.charCodeAt(0) - 0x21] || 600) : 600;
+    else a = fm ? fm.nl : 1000;
+    var size = cp.h * (cp.rel[k] || 100) / 100;
+    return size * a / 1000 * (ratio || cp.ratio[k] || 100) / 100 + size * (cp.sp[k] || 0) / 100;
+  }
+  // runs = [{cp:글자모양 id, s:글자}] → 줄 수
+  function countLines(ctx, runs, ppId, W, ratio, exact) {
+    var H = headerInfo(ctx), pp = H.pp[ppId] || { intent: 0, left: 0, right: 0, charBreak: true };
+    var chars = [];
+    runs.forEach(function (r) {
+      var cp = H.cp[r.cp]; if (!cp) return;
+      for (var i = 0; i < r.s.length; i++) {
+        var ch = r.s.charAt(i);
+        if (ch === '\n') { chars.push({ ch: ch, br: true }); continue; }
+        chars.push({ ch: ch, L: charLang(ch), w: ch === '\t' ? 4000 : charWidth(H, ch, cp, ratio) });
+      }
+    });
+    function canBreak(j) {
+      var a = chars[j - 1], b = chars[j];
+      if (a.ch === ' ' || a.ch === '\t') return true;
+      if (b.ch === ' ') return false;
+      var la = a.L === 'LATIN', lb = b.L === 'LATIN';
+      if (la && lb) return false;                 // 영문 낱말 안
+      return pp.charBreak;                        // 한글·기호 사이, 영문↔한글 경계
+    }
+    var tol = exact ? 0 : LINE_TOL;
+    var first = W - pp.left - pp.right - (pp.intent > 0 ? pp.intent : 0) - tol, rest = W - pp.left - pp.right - tol;
+    var n = 1, s0 = 0, x = 0, lim = first, i = 0;
+    while (i < chars.length) {
+      var c = chars[i];
+      if (c.br) { n++; s0 = i + 1; x = 0; lim = rest; i++; continue; }
+      if (x + c.w > lim && c.ch !== ' ') {
+        var b = i;
+        while (b > s0 && !canBreak(b)) b--;
+        if (b <= s0) b = i;
+        n++; s0 = b; i = b; x = 0; lim = rest;
+        continue;
+      }
+      x += c.w; i++;
+    }
+    return n;
+  }
+  function runsWidth(ctx, runs) {
+    var H = headerInfo(ctx), w = 0;
+    runs.forEach(function (r) { var cp = H.cp[r.cp]; if (cp) for (var i = 0; i < r.s.length; i++) w += charWidth(H, r.s.charAt(i), cp); });
+    return w;
+  }
+  function maxCharH(ctx, runs) {
+    var H = headerInfo(ctx), h = 0;
+    runs.forEach(function (r) { var cp = H.cp[r.cp]; if (cp && cp.h > h) h = cp.h; });
+    return h || 1000;
+  }
+  function lineAdvance(ctx, runs, ppId) {
+    var H = headerInfo(ctx), pp = H.pp[ppId] || {}, h = 0;
+    runs.forEach(function (r) { var cp = H.cp[r.cp]; if (cp && cp.h > h) h = cp.h; });
+    if (!h) h = 1000;
+    if (pp.lsType === 'FIXED') return pp.ls;
+    if (pp.lsType === 'PERCENT') return Math.ceil(h * pp.ls / 100) + 2;
+    return Math.ceil(h * 1.6) + (pp.ls || 0);
+  }
+  // 한 글자(hp:t)의 글자: 탭·줄 바꿈 등 안쪽 요소도 글자로
+  function tText(t) {
+    var s = '';
+    t.c.forEach(function (x) {
+      if (x.t === 'text') s += unesc(x.v);
+      else if (x.t === 'el') s += x.n === 'hp:tab' ? '\t' : x.n === 'hp:lineBreak' ? '\n' : (x.n === 'hp:nbSpace' || x.n === 'hp:fwSpace') ? ' ' : x.n === 'hp:hyphen' ? '-' : '';
+    });
+    return s;
+  }
+  // 기준값 글자: 쪽 맞추기 기준값(ref)이 있는 토큰은 기준값, 나머지는 지금 값 그대로
+  function refText(ctx, s, scopes) {
+    var ref = ctx.def.pageFit.ref;
+    return s.replace(TOKEN_RE, function (all, key) {
+      if (/^[#\/]/.test(key) || /^(도장|이미지):/.test(key)) return '';
+      if (Object.prototype.hasOwnProperty.call(ref, key)) { ctx._fitHit = true; ctx._fitKeys[key] = true; return String(ref[key]); }
+      var v = lookup(scopes, key);
+      return v === undefined || v === null ? all : String(v);
+    });
+  }
+  // 문단의 줄 수(지금 값 · 기준값)를 계산해 p._fit 에 둔다. tc = 문단이 든 표 칸(없으면 본문)
+  function measurePara(ctx, p, tc) {
+    var runs = p._fitRuns; delete p._fitRuns;
+    if (!runs || !p._fitHit) return;
+    var W = headerInfo(ctx).colW;
+    if (tc) {
+      var cm = kid(tc, 'hp:cellMargin'), cs = cellSz(tc);
+      W = (+attr(cs, 'width') || 0) - (cm ? (+attr(cm, 'left') || 0) + (+attr(cm, 'right') || 0) : 1020);
+    }
+    var ppId = attr(p, 'paraPrIDRef');
+    var act = runs.map(function (r) { return { cp: r.cp, s: r.act }; }), ref = runs.map(function (r) { return { cp: r.cp, s: r.ref }; });
+    var nRef = countLines(ctx, ref, ppId, W, 0, true), nAct = countLines(ctx, act, ppId, W);
+    // 지금 값이 기준값보다 짧으면(글자 폭 합) 줄이 늘지 않은 것으로 본다(여유 1mm 때문에 괜히 늘어난 것으로 세지 않게)
+    if (nAct > nRef && runsWidth(ctx, act) <= runsWidth(ctx, ref)) nAct = nRef;
+    p._fit = { keys: p._fitKeys, W: W, pp: ppId, act: act, nAct: nAct, nRef: nRef, adv: lineAdvance(ctx, act, ppId), h: maxCharH(ctx, act), cell: !!tc };
+  }
+  // 글자모양을 장평 r% 로 복사한 새 id (header.xml 에 더함)
+  function ratioCharPr(ctx, cpId, r) {
+    var H = headerInfo(ctx), key = cpId + '@' + r;
+    if (H.extraCp[key]) return H.extraCp[key];
+    var hdr = ctx.doc.files['Contents/header.xml'];
+    var m = new RegExp('<hh:charPr id="' + cpId + '"[\\s\\S]*?</hh:charPr>').exec(hdr);
+    var cnt = /<hh:charProperties itemCnt="(\d+)"/.exec(hdr);
+    if (!m || !cnt) return cpId;
+    var nid = String(+cnt[1]);
+    var x = m[0].replace('id="' + cpId + '"', 'id="' + nid + '"').replace(/<hh:ratio ([^>]*)\/>/, function (a, at) {
+      return '<hh:ratio ' + at.replace(/="(\d+)"/g, function (b, v) { return '="' + Math.min(+v, r) + '"'; }) + '/>';
+    });
+    hdr = hdr.replace('</hh:charProperties>', x + '</hh:charProperties>').replace(/(<hh:charProperties itemCnt=")(\d+)(")/, function (a, b, k, c) { return b + (+k + 1) + c; });
+    ctx.doc.files['Contents/header.xml'] = hdr;
+    var o = H.cp[cpId], c2 = { h: o.h, font: o.font, rel: o.rel, sp: o.sp, ratio: {} };
+    Object.keys(o.ratio).forEach(function (k) { c2.ratio[k] = Math.min(o.ratio[k], r); });
+    H.cp[nid] = c2; H.extraCp[key] = nid;
+    return nid;
+  }
+  // 문단 모양을 줄 간격 ls% 로 복사한 새 id (header.xml 에 더함)
+  function spacingParaPr(ctx, ppId, ls) {
+    var H = headerInfo(ctx), key = 'pp' + ppId + '@' + ls;
+    if (H.extraCp[key]) return H.extraCp[key];
+    var hdr = ctx.doc.files['Contents/header.xml'];
+    var m = new RegExp('<hh:paraPr id="' + ppId + '"[\\s\\S]*?</hh:paraPr>').exec(hdr);
+    var cnt = /<hh:paraProperties itemCnt="(\d+)"/.exec(hdr);
+    if (!m || !cnt) return ppId;
+    var nid = String(+cnt[1]);
+    var x = m[0].replace('id="' + ppId + '"', 'id="' + nid + '"').replace(/(<hh:lineSpacing type="PERCENT" value=")\d+(")/g, '$1' + ls + '$2');
+    hdr = hdr.replace('</hh:paraProperties>', x + '</hh:paraProperties>').replace(/(<hh:paraProperties itemCnt=")(\d+)(")/, function (a, b, k, c) { return b + (+k + 1) + c; });
+    ctx.doc.files['Contents/header.xml'] = hdr;
+    var o = H.pp[ppId], p2 = {}; Object.keys(o).forEach(function (k) { p2[k] = o[k]; }); p2.ls = ls;
+    H.pp[nid] = p2; H.extraCp[key] = nid;
+    return nid;
+  }
+  function fitPages(ctx, secEl) {
+    var pf = ctx.def.pageFit;
+    // 쪽 나누기: 쪽 나누기 문단에서 새 쪽
+    var segs = [], cur = null;
+    secEl.c.forEach(function (p) {
+      if (p.t !== 'el' || p.n !== 'hp:p') return;
+      if (!cur || attr(p, 'pageBreak') === '1') { cur = []; segs.push(cur); }
+      cur.push(p);
+    });
+    var drop = [];
+    segs.forEach(function (seg) {
+      // 쪽 끝 빈 줄: 다음 쪽으로 밀려 빈 쪽을 만들 수 있으므로 지운다(맨 앞 문단은 남김)
+      for (var e = seg.length - 1; e > 0 && isEmptyPara(seg[e]); e--) drop.push(seg[e]);
+      seg = seg.filter(function (q) { return drop.indexOf(q) < 0; });
+      if (!pf || !pf.pages) return;
+      var txt = '';
+      seg.forEach(function (q) { txt += textOf(q) + '\n'; });
+      var pd = null;
+      for (var k = 0; k < pf.pages.length && !pd; k++) {
+        var c = pf.pages[k];
+        if ((c.match || []).every(function (m) { return txt.indexOf(m) >= 0; })) pd = c;
+      }
+      if (!pd) return;
+      // 늘어난 높이: 글 줄(지금 − 기준) + 반복 표(fit 넘은 만큼 − 이미 지운 빈 줄)
+      var fits = [];
+      seg.forEach(function (q) { (function w(nd) { if (nd.t !== 'el') return; if (nd.n === 'hp:p' && nd._fit) fits.push(nd); nd.c.forEach(w); })(q); });
+      var shrinkKeys = pf.shrink || [];
+      function canShrink(q) { return q._fit.nAct > q._fit.nRef && shrinkKeys.some(function (k) { return q._fit.keys[k]; }); }
+      function textExtra(ratio) {
+        return fits.reduce(function (s, q) {
+          var n = ratio && canShrink(q) ? countLines(ctx, q._fit.act, q._fit.pp, q._fit.W, ratio) : q._fit.nAct;
+          return s + (n - q._fit.nRef) * q._fit.adv;
+        }, 0);
+      }
+      var tblExtra = 0, done = 0;
+      seg.forEach(function (q) { findAll(q, 'hp:tbl').forEach(function (t) { tblExtra += t._extra || 0; }); done += q._dropped || 0; });
+      var tx0 = textExtra(0);
+      var need = tx0 + tblExtra - done - (pd.slack || 0) + (tx0 > 0 ? (pf.margin || 0) : 0);
+      var log = { page: pd.label, textLines: fits.reduce(function (s, q) { return s + q._fit.nAct - q._fit.nRef; }, 0), need: need, dropped: 0, ratio: 100 };
+      if (need > 0) {
+        // ① 빈 줄: 연속한 빈 문단 묶음. 1차 = 묶음마다 1줄 남기고 큰 묶음부터(같으면 아래쪽), 2차 = 남은 1줄도 아래쪽부터
+        var groups = [], g = null;
+        seg.forEach(function (q, i) { if (i > 0 && isEmptyPara(q)) { if (!g) { g = []; groups.push(g); } g.push(q); } else g = null; });
+        var pass = 1;
+        while (need > 0) {
+          var best = null;
+          groups.forEach(function (gr) { if (gr.length > (pass === 1 ? 1 : 0) && (!best || gr.length >= best.length)) best = gr; });
+          if (!best) { if (pass === 1) { pass = 2; continue; } break; }
+          var q = best.pop(); drop.push(q); need -= lineHeight(q); log.dropped++;
+        }
+        // ②-1 줄 높이: 이 쪽의 squeeze 표 반복 행을 하한(minH)까지 더 줄인다
+        seg.forEach(function (q) {
+          findAll(q, 'hp:tbl').forEach(function (t) {
+            (t._sq || []).forEach(function (x) {
+              var n = x.rows.length, room = (x.h - x.minH) * n;
+              if (need <= 0 || room <= 0) return;
+              var h2 = x.h - Math.ceil(Math.min(room, need) / n);
+              x.rows.forEach(function (tr) {
+                kids(tr, 'hp:tc').forEach(function (tc) { setAttr(cellSz(tc), 'height', String(h2 * (+attr(cellSpan(tc), 'rowSpan') || 1))); });
+              });
+              var sz = kid(t, 'hp:sz');
+              if (sz) setAttr(sz, 'height', String(Math.max(0, +attr(sz, 'height') - (x.h - h2) * n)));
+              need -= (x.h - h2) * n; x.h = h2; log.rowH = h2;
+              ctx.warnings.push(x.label + ': 내용이 길어 줄 높이를 ' + (Math.round(h2 / 28.346) / 10) + 'mm 로 줄였어요.');
+            });
+          });
+        });
+        // ②-2 장평: 늘어난 문단만 단계적으로
+        if (need > 0) {
+          // 넘침이 풀리는 가장 큰 장평, 없으면 줄이 줄어드는 가장 작은 장평(줄이 안 줄면 장평을 바꾸지 않음)
+          var base = textExtra(0), ratios = pf.ratios || [], used = 0, usedGain = 0;
+          for (var ri = 0; ri < ratios.length; ri++) {
+            var gain = base - textExtra(ratios[ri]);
+            if (gain > 0) { used = ratios[ri]; usedGain = gain; }
+            if (gain >= need) break;
+          }
+          if (used) {
+            need -= usedGain;
+            log.ratio = used;
+            fits.forEach(function (q) {
+              if (!canShrink(q)) return;
+              kids(q, 'hp:run').forEach(function (run) { var cp = attr(run, 'charPrIDRef'); if (cp !== null) setAttr(run, 'charPrIDRef', ratioCharPr(ctx, cp, used)); });
+              dropLineseg(q);
+            });
+            ctx.warnings.push(pd.label + ': 내용이 길어 ' + shrinkKeys.join('·') + ' 글자 폭(장평)을 ' + used + '% 로 줄였어요.');
+          }
+        }
+        // ②-3 줄 간격: 그래도 넘치면 접힌 문단(장평을 줄인 문단과 같은 것)의 줄 간격을 낮춘다(하한 minLineSpacing %)
+        //       — 두 줄이 된 300% 문단을 150% 로 하면 문단 높이가 원래 한 줄과 같다
+        if (need > 0 && pf.minLineSpacing) {
+          fits.forEach(function (q) {
+            if (need <= 0 || !canShrink(q)) return;
+            var H = headerInfo(ctx), pp = H.pp[q._fit.pp], f = q._fit;
+            if (!pp || pp.lsType !== 'PERCENT' || pp.ls <= pf.minLineSpacing) return;
+            var n = countLines(ctx, f.act, f.pp, f.W, used || 0);
+            var ls2 = Math.max(pf.minLineSpacing, pp.ls - Math.ceil(need * 100 / (n * f.h)));
+            var adv2 = Math.ceil(f.h * ls2 / 100) + 2;
+            setAttr(q, 'paraPrIDRef', spacingParaPr(ctx, f.pp, ls2));
+            dropLineseg(q);
+            need -= n * (f.adv - adv2); log.lineSpacing = ls2;
+            ctx.warnings.push(pd.label + ': 내용이 길어 ' + shrinkKeys.join('·') + ' 줄 간격을 ' + ls2 + '% 로 줄였어요.');
+          });
+        }
+        if (need > 0) ctx.warnings.push(pd.label + ': 내용이 길어 한 쪽을 넘을 수 있어요(약 ' + Math.ceil(need / 283.46) + 'mm). 한글에서 확인하세요.');
+      }
+      log.left = need;
+      ctx.fitLog.push(log);
+    });
+    if (drop.length) secEl.c = secEl.c.filter(function (x) { return drop.indexOf(x) < 0; });
   }
 
   function cellAtCol(tr, col) {
@@ -528,13 +828,27 @@
 
   function replaceTokens(ctx, secEl) {
     var scopes = [ctx.globalScope];
-    var paraStack = [];
+    var paraStack = [], tcStack = [];
+    var pf = ctx.def.pageFit && ctx.def.pageFit.ref;
     function markDirty() { paraStack.forEach(function (p) { p._dirty = true; }); }
     (function w(nd, parent) {
       if (nd.t !== 'el') return;
       var pushedScope = false;
       if (nd._scope) { scopes.push(nd._scope); pushedScope = true; }
-      if (nd.n === 'hp:p') paraStack.push(nd);
+      if (nd.n === 'hp:tc') tcStack.push(nd);
+      if (nd.n === 'hp:p') {
+        paraStack.push(nd);
+        // 쪽 맞추기: 바꾸기 전에 문단 글자를 「지금 값」·「기준값」 두 벌로 잡아 둔다
+        // 표 칸 안 글은 재지 않는다(칸 높이에 여유가 있어 줄이 늘어도 표가 그만큼 늘지 않음)
+        if (pf && !tcStack.length) {
+          ctx._fitHit = false; ctx._fitKeys = {};
+          nd._fitRuns = kids(nd, 'hp:run').map(function (r) {
+            var s = kids(r, 'hp:t').map(tText).join('');
+            return { cp: attr(r, 'charPrIDRef'), ref: refText(ctx, s, scopes), act: replaceText(ctx, s, scopes, null) };
+          });
+          nd._fitHit = ctx._fitHit; nd._fitKeys = ctx._fitKeys;
+        }
+      }
       if (nd._dirty) markDirty();
       if (nd.n === 'hp:run') {
         processRun(ctx, nd, scopes, markDirty);
@@ -550,8 +864,10 @@
       nd.c.forEach(function (x) { w(x, nd); });
       if (nd.n === 'hp:p') {
         paraStack.pop();
+        if (pf && !tcStack.length) measurePara(ctx, nd, null);
         if (nd._dirty) dropLineseg(nd);
       }
+      if (nd.n === 'hp:tc') tcStack.pop();
       if (pushedScope) scopes.pop();
     })(secEl, null);
   }
@@ -624,7 +940,8 @@
     if (!reg) return null;
     var ow = reg.w * HWPUNIT_PER_PX, oh = reg.h * HWPUNIT_PER_PX;
     var bw = pdef.boxW || pdef.w, bh = pdef.boxH || pdef.h;
-    if (picMax && picMax > 0) { bw = Math.min(bw, picMax); bh = Math.min(bh, picMax); }   // 줄인 행(squeeze) 안에 들게
+    // 줄인 행(squeeze) 안에 들게: 세로만 줄인다(가로 상자는 그대로 — 둥근 도장은 정사각, 세로로 긴 도장은 비율대로 더 좁게)
+    if (picMax && picMax > 0) bh = Math.min(bh, picMax);
     var sc = Math.min(bw / ow, bh / oh);
     var w = Math.round(ow * sc), h = Math.round(oh * sc);
     var inline = kind === '이미지' || pdef.inline;
