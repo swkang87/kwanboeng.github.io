@@ -88,6 +88,9 @@
   // 착수계: 공문(경유처마다) · 착수신고서 · 책임기술자 지정 신고서 · 재직증명서 · 자격증 사본 · 참여기술자 명단 · 보안각서 ·
   //         (선택) 인력 및 장비 투입 계획서 (제출본 순서, 2026-11-11). 표가 있는 쪽은 일반(면허별) / 측량 단독 두 모양을 서식에 두고 블록으로 고른다.
   var SURVEY = '공공측량업';
+  // 서류에 찍히는 분야 이름(면허 이름과 다를 때만): 공공측량업 → 「공공측량」(제출본, v2.8.4). 화면·발급 이력은 면허 이름 그대로
+  var FIELD_LABEL = { '공공측량업': '공공측량' };
+  function fieldLabel(lic) { return FIELD_LABEL[lic] || lic; }
   // 보유 면허 (표시 순서 고정): 엔지니어링업 9개 + 공공측량업
   var LICENSES = ['교통', '도로공항', '상하수도', '수질관리', '토질지질', '구조', '도시계획', '수자원개발', '조경', SURVEY];
   var LEAD_FIELD = '사업책임기술자';
@@ -235,23 +238,18 @@
       if (noSealN.length) warnings.push('도장 그림이 없는 기술자: ' + noSealN.join(', ') + ' — 보안각서 서명 칸이 비어요.');
       function needNo(p) { if (p && !p.qual_no && !noNo[p.id]) { noNo[p.id] = true; noNoN.push(F.name(p.name)); } }
 
-      // 공공측량업 줄(일반 표): 학력,자격증 칸 = 측량 기술등급 분야, 자격증번호 칸 = 등급. 등급이 없으면 대표 자격·번호 + 경고
-      function surveyQual(p) {
-        if (p.survey_grade) return [p.survey_field || '', p.survey_grade];
-        warnings.push(F.name(p.name) + ': 측량 기술등급이 없어 ' + SURVEY + ' 줄에 대표 자격을 넣었어요.');
-        return [p.qual || '', p.qual_no || ''];
-      }
-      // 일반(면허별) 표: 면허마다 책임 1줄 + 참여 N줄
+      // 일반(면허별) 표: 면허마다 책임 1줄 + 참여 N줄. 학력,자격증 = 그 사람의 표시 자격(대표 또는 화면에서 고른 추가 자격),
+      // 자격증번호 = 그 자격의 번호 — 공공측량업 줄도 같다(v2.8.4, 혼합 용역은 설계용역 서식대로. 측량 기술등급은 측량 단독 표에만)
       var rowsGen = [];
       if (!surveyOnly) lics.forEach(function (l) {
         var ppl = (l.lead ? [[l.lead, '책임']] : []).concat((l.members || []).map(function (m) { return [m, '참여']; }));
         ppl.forEach(function (pr) {
-          var p = pr[0], q = l.name === SURVEY ? surveyQual(p) : [p.qual || '', p.qual_no || ''];
-          if (l.name !== SURVEY) needNo(p);
+          var p = pr[0];
+          needNo(p);
           rowsGen.push({
-            '분야': l.name, '구분': pr[1], '구분키': l.name + '|' + pr[1],
+            '분야': fieldLabel(l.name), '구분': pr[1], '구분키': l.name + '|' + pr[1],
             '성명': F.name(p.name), '생년월일': F.birth(p.birth_date),
-            '자격': q[0], '자격번호': q[1],
+            '자격': p.qual || '', '자격번호': p.qual_no || '',
             '도장:기술자': p.sealImg || null
           });
         });

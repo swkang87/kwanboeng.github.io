@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111103"></script>
+<script src="sysbar.js?v=2026111104"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
@@ -18,9 +18,9 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
 <script src="contract-parser.js?v=2026102907"></script>
-<script src="hwpx-engine.js?v=2026111103"></script>
-<script src="doc-defs.js?v=2026111103"></script>
-<script src="seal-prep.js?v=2026111103"></script>
+<script src="hwpx-engine.js?v=2026111104"></script>
+<script src="doc-defs.js?v=2026111104"></script>
+<script src="seal-prep.js?v=2026111104"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
@@ -356,7 +356,7 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
           <div><label className="fl">측량 기술등급 분야</label>
             <input className="fi" list="survey-fields" value={f.survey_field || ''} placeholder={SURVEY_FIELD} onChange={function(e) { set('survey_field', e.target.value); }} />
             <datalist id="survey-fields"><option value={SURVEY_FIELD} /></datalist></div>
-          <div><label className="fl">측량 기술등급 ({CHAKSU_DEF.survey} 줄에 씀)</label>
+          <div><label className="fl">측량 기술등급 ({CHAKSU_DEF.survey} 단독 서식에 씀)</label>
             <select className="fi" value={f.survey_grade || ''} onChange={function(e) {
               var g = e.target.value;
               setF(Object.assign({}, f, { survey_grade: g, survey_field: g && !f.survey_field ? SURVEY_FIELD : f.survey_field }));
@@ -1245,7 +1245,7 @@ function ChaksuView() {
     var l = engs.filter(function(e) { return !skip || skip.indexOf(e.id) < 0; });
     var a = l.filter(function(e) { return licName && e.default_field === licName; }), b = l.filter(function(e) { return !(licName && e.default_field === licName); });
     return a.concat(b).map(function(e) {
-      var g = licName === def.survey ? (e.survey_grade ? ' · 측량 ' + e.survey_grade : ' · 측량 등급 없음') : (e.qual ? ' · ' + e.qual : '');
+      var g = licName === def.survey && surveyOnly ? (e.survey_grade ? ' · 측량 ' + e.survey_grade : ' · 측량 등급 없음') : (e.qual ? ' · ' + e.qual : '');
       return <option key={e.id} value={e.id}>{e.name}{e.default_field ? ' (' + e.default_field + ')' : ''}{g}</option>;
     });
   }
@@ -1262,7 +1262,7 @@ function ChaksuView() {
     var e = byId[id]; if (!e) return null;
     return (
       <span>
-        {licName === def.survey && <span className={'tag ' + (e.survey_grade ? 'tag-g' : 'tag-no')}>{e.survey_grade ? '측량 ' + e.survey_grade : '측량 등급 없음'}</span>}
+        {licName === def.survey && surveyOnly && <span className={'tag ' + (e.survey_grade ? 'tag-g' : 'tag-no')}>{e.survey_grade ? '측량 ' + e.survey_grade : '측량 등급 없음'}</span>}
         {!e.seal_path && <span className="tag tag-no" style={{ marginLeft: 4 }}>도장 없음</span>}
       </span>
     );
