@@ -1,11 +1,11 @@
 {
-  "version": "1.3.5",
-  "notes": "탐색기(시험판) 즐겨찾기 다듬기 — 메뉴로 순서 바꾸기, 놓기 안내, 폴더 아이콘, 큰 화살표",
-  "pub_date": "2026-11-10T08:11:26Z",
+  "version": "1.3.6",
+  "notes": "탐색기(시험판): 완전히 삭제(Shift+Delete) · 탭 끌기(순서 바꾸기 · 다른 창으로 이동·복사)",
+  "pub_date": "2026-11-11T03:20:38Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNHlMODFhSlBiTWtnb0NzbEFsVWdMb1p5Um5TbVluQklnZmQ4Wm5hc3Mwak1kd1orUHRxRkpjUEQyUWRLQVY2dXUzanNKM3gySFdsRUlLbGN5cFdhcmdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0Mjk4Mjg2CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjMuNV94NjQtc2V0dXAuZXhlCXZlcnNpb246MS4zLjUKVndHUVd6VThDMUsxc2oxbDRoY1ozZ0Vhdk9pQUJnOHRGWnl0V1c2MENtaVZwd05OUUx4MkFaOTVhc0E1Zk1ndXlaVXdiVS9GbXcvcDh4UFA2b1EvRGc9PQo=",
-      "url": "https://kwanboeng.com/desktop/1.3.5/kbsys-desktop_1.3.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDVRQW84QSs3RlJlanpRNFRjYlUrdmJXeHNUbGk2RHJDZmRmcWQ4ZjVzSkxoVm5ydVFqZTdYelFXQk5aOUJURkRBTFdhc3VGS3lFb2FGUEtkamgySkF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MzY3MjM4CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjMuNl94NjQtc2V0dXAuZXhlCXZlcnNpb246MS4zLjYKeFdpQk96a2JDRC9TOWlkeHowNHloNm5xVUVUZFk3aE9KMTFoM09DRVFXTTJ5MlhTUEFtR29RcDVKL1lxNVdTQnRCV1hmS21xbVRLS2p2bEZWRnIvQVE9PQo=",
+      "url": "https://kwanboeng.com/desktop/1.3.6/kbsys-desktop_1.3.6_x64-setup.exe"
     }
   }
 }
