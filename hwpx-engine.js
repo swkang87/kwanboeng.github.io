@@ -20,6 +20,8 @@
  *                           값은 자리까지 붙은 키(도장:키@자리)가 있으면 그것, 없으면 도장:키.
  *                           pictures[토큰].outOfCell 이면 표 칸 안 그림을 표가 든 문단으로 옮겨 그 칸 가운데에 둔다
  *                           (칸보다 큰 도장도 행 높이를 바꾸지 않음). zigzag:n 이면 한 표 안에서 위에서부터 왼쪽·오른쪽 번갈아 n 만큼.
+ *                           zigzag:'auto' 면 그 표에 행보다 키 큰 도장이 하나라도 있을 때만 번갈아 비킨다 — 비키는 폭 = 칸 안에서
+ *                           도장이 칸 선에서 zigzagEdge 만큼 떨어지는 데까지(행이 넉넉하면 칸 가운데 그대로).
  *   {{이미지:키}}          글자처럼 취급하는 그림. 정의 pictures 의 상자(boxW×boxH) 안에 비율 유지.
  *   그림 토큰의 값 = images 에 등록한 그림 id. 값이 없으면 토큰만 지우고 warnings 에 남긴다.
  *
@@ -1031,11 +1033,14 @@
       }
       var list = found.filter(function (f) { return f.tbl === tbl; });
       list.sort(function (a, b) { return +attr(cellAddr(a.tc), 'rowAddr') - +attr(cellAddr(b.tc), 'rowAddr'); });
+      // zigzag:'auto' — 이 표에서 칸보다 키 큰 도장이 있으면(쪽에 담으려고 행 높이를 줄인 경우) 표 전체를 번갈아 놓는다
+      var tight = list.some(function (f) { return f.pic._outCell.h > +attr(cellSz(f.tc), 'height'); });
       list.forEach(function (f, k) {
         var o = f.pic._outCell, d = o.pdef;
         var ad = cellAddr(f.tc), sz = cellSz(f.tc);
         var r = +attr(ad, 'rowAddr'), c = +attr(ad, 'colAddr');
-        var zig = d.zigzag ? (k % 2 ? 1 : -1) * d.zigzag : 0;
+        var zw = d.zigzag === 'auto' ? (tight ? Math.max(0, Math.round((+attr(sz, 'width') - o.w) / 2) - (d.zigzagEdge || 0)) : 0) : (d.zigzag || 0);
+        var zig = zw ? (k % 2 ? 1 : -1) * zw : 0;
         var y = top + sum(rowH, r) + Math.round((+attr(sz, 'height') - o.h) / 2) + (d.vertOffset || 0);
         var x = left + sum(colW, c) + Math.round((+attr(sz, 'width') - o.w) / 2) + (d.horzOffset || 0) + zig;
         var pos = kid(f.pic, 'hp:pos');
