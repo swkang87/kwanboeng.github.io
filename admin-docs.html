@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026110902"></script>
+<script src="sysbar.js?v=2026111101"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
@@ -18,8 +18,9 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
 <script src="contract-parser.js?v=2026102907"></script>
-<script src="hwpx-engine.js?v=2026102907"></script>
-<script src="doc-defs.js?v=2026102907"></script>
+<script src="hwpx-engine.js?v=2026111101"></script>
+<script src="doc-defs.js?v=2026111101"></script>
+<script src="seal-prep.js?v=2026111101"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font-size:14px;overflow-x:hidden;}
@@ -74,6 +75,8 @@ body{font-family:'Noto Sans KR',sans-serif;background:#f8fafc;color:#0f172a;font
 .tag-p{background:#ede9fe;color:#6d28d9;}
 .note{font-size:12px;color:#64748b;line-height:1.7;}
 .thumb{width:72px;height:72px;border:1px dashed #cbd5e1;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#f8fafc;overflow:hidden;font-size:11px;color:#94a3b8;}
+/* 그림이 있으면 체크무늬 위에 — 도장 배경이 투명한지 보이게 */
+.thumb.has{background-color:#fff;background-image:linear-gradient(45deg,#e2e8f0 25%,transparent 25%),linear-gradient(-45deg,#e2e8f0 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e2e8f0 75%),linear-gradient(-45deg,transparent 75%,#e2e8f0 75%);background-size:12px 12px;background-position:0 0,0 6px,6px -6px,-6px 0;}
 .thumb img{max-width:100%;max-height:100%;object-fit:contain;}
 .thumb.lg{width:160px;height:120px;}
 .pick{border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;background:#fff;}
@@ -118,21 +121,53 @@ const won = (n) => (n === null || n === undefined || n === '' || isNaN(Number(n)
 const numOf = (s) => { var n = parseInt(String(s || '').replace(/[^0-9]/g, ''), 10); return isNaN(n) ? null : n; };
 const GENDER_KO = { M: '남', F: '여' };
 
-// 그림 파일 검사: 실제 바이트로 PNG·JPG 확인(브라우저 file.type 은 믿지 않음 — Sysbar.checkUpload). 고를 때 미리 알림
-function pickImgChecked(file, onOk, onErr) {
-  Sysbar.checkUpload(file, ['png', 'jpg'], IMG_MAX_MB).then(function(r) { if (r.ok) onOk(file); else onErr(r.message); });
+// 그림 종류: 'seal' = 도장(PNG·JPG → 흰 배경 투명 + 여백 자르기 → PNG), 'doc' = 서류 사본(PNG·JPG 그대로, BMP 는 해상도 그대로 PNG 로)
+// (2026-11-11 v2.8.1 — 흰 배경 도장이 글 앞 그림으로 표 선·글자를 가렸고, 자격증 사본 BMP 는 받지 못했다)
+const IMG_KINDS = { seal: ['png', 'jpg'], doc: ['png', 'jpg', 'bmp'] };
+const DOC_IN_MAX_MB = 20;   // 사본 원본(BMP 등)은 크게 받고, 바꾼 뒤 버킷 제한(IMG_MAX_MB) 안으로
+const SEAL_SMALL_PX = 300;  // 도장 그림 긴 변이 이보다 작으면 인쇄가 흐릴 수 있다고 알림(권장 400px 이상)
+const CERT_SMALL_PX = 1500; // 자격증 사본 긴 변이 이보다 작으면 알림
+// 그림 파일 검사: 실제 바이트로 형식 확인(브라우저 file.type 은 믿지 않음 — Sysbar.checkUpload). 고를 때 미리 알림
+function pickImgChecked(file, onOk, onErr, kind) {
+  kind = kind || 'seal';
+  Sysbar.checkUpload(file, IMG_KINDS[kind], kind === 'doc' ? DOC_IN_MAX_MB : IMG_MAX_MB).then(function(r) { if (r.ok) onOk(file); else onErr(r.message); });
 }
-// 저장 경로: 올릴 때마다 새 이름(삭제 권한이 없고, 같은 이름이면 브라우저가 옛 그림을 보여 줄 수 있어서)
+// 올릴 바이트 만들기: 도장 = 손질한 PNG, 사본 = 그대로(BMP 면 PNG — 5MB 넘으면 JPG)
+function prepImg(c, kind) {
+  if (kind === 'seal') return SealPrep.toPng(c.body, { clean: true }).then(function(r) {
+    if (r.empty) throw new Error('그림에서 도장을 찾지 못했어요(전부 흰색) — 다른 그림을 골라 주세요.');
+    return { body: r.bytes, ext: 'png', mime: 'image/png' };
+  });
+  if (c.kind === 'bmp') return SealPrep.convert(c.body, { maxBytes: IMG_MAX_MB * 1024 * 1024 }).then(function(r) { return { body: r.bytes, ext: r.ext, mime: r.mime }; });
+  return Promise.resolve({ body: c.body, ext: c.ext, mime: c.mime });
+}
+// 저장 경로: 올릴 때마다 새 이름(삭제 권한이 없고, 같은 이름이면 브라우저가 옛 그림을 보여 줄 수 있어서 — 예전 그림은 지우지 않고 남는다)
 // 바이트 + 표준 MIME 으로 올린다(File 을 그대로 넘기면 supabase-js 가 contentType 대신 file.type 을 씀)
-function uploadImg(bucket, prefix, file) {
-  return Sysbar.checkUpload(file, ['png', 'jpg'], IMG_MAX_MB).then(function(c) {
+function uploadImg(bucket, prefix, file, kind) {
+  kind = kind || 'seal';
+  return Sysbar.checkUpload(file, IMG_KINDS[kind], kind === 'doc' ? DOC_IN_MAX_MB : IMG_MAX_MB).then(function(c) {
     if (!c.ok) { Sysbar.showError(new Error(c.message), '그림 올리기'); return null; }
-    var path = prefix + '_' + Date.now() + '.' + c.ext;
-    return sb.storage.from(bucket).upload(path, c.body, { upsert: false, contentType: c.mime }).then(function(res) {
-      if (res.error) { Sysbar.showError(res.error, '그림 올리기'); return null; }
-      return path;
+    return prepImg(c, kind).then(function(p) {
+      if (p.body.byteLength > IMG_MAX_MB * 1024 * 1024) throw new Error('바꾼 그림이 ' + IMG_MAX_MB + 'MB 를 넘어요 — 더 작은 그림을 골라 주세요.');
+      return uploadBytes(bucket, prefix, p);
     });
   }).catch(function(err) { Sysbar.showError(err, '그림 올리기'); return null; });
+}
+function uploadBytes(bucket, prefix, p) {
+  var path = prefix + '_' + Date.now() + '.' + p.ext;
+  return sb.storage.from(bucket).upload(path, p.body, { upsert: false, contentType: p.mime }).then(function(res) {
+    if (res.error) { Sysbar.showError(res.error, '그림 올리기'); return null; }
+    return path;
+  });
+}
+// 이미 올린 도장을 손질해 새 경로에 다시 저장(예전 파일은 그 경로에 그대로 남음 = 백업). → 새 경로 | null(이미 손질됨·실패)
+function resaveSeal(bucket, prefix, path) {
+  return downloadBytes(bucket, path).then(function(b) {
+    return SealPrep.toPng(b, { clean: true }).then(function(r) {
+      if (r.empty || !r.changed) return null;
+      return uploadBytes(bucket, prefix, { body: r.bytes, ext: 'png', mime: 'image/png' });
+    });
+  });
 }
 // 내려받기는 매번 새 signed URL + 브라우저 캐시 안 씀(2026-11-06).
 // 예전 download() 는 같은 주소라 브라우저가 1시간 동안 옛 내용(304·캐시)을 돌려줘,
@@ -166,7 +201,7 @@ function SignedImg({ bucket, path, local, big }) {
     });
     return function() { alive = false; };
   }, [bucket, path, local]);
-  return <div className={big ? 'thumb lg' : 'thumb'}>{url ? <img src={url} alt="" /> : (path || local ? '…' : '없음')}</div>;
+  return <div className={(big ? 'thumb lg' : 'thumb') + (url ? ' has' : '')}>{url ? <img src={url} alt="" /> : (path || local ? '…' : '없음')}</div>;
 }
 
 // 끌어다 놓기 + 클릭해서 고르기 상자. 형식 확인은 공용 Sysbar.dropZone / Sysbar.checkFiles(= checkUpload)
@@ -238,11 +273,11 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   function set(k, v) { setF(Object.assign({}, f, { [k]: v })); }
-  function pickImg(setter) {
+  function pickImg(setter, kind) {
     return function(e) {
       var file = e.target.files && e.target.files[0]; e.target.value = '';
       if (!file) return;
-      pickImgChecked(file, function(fl) { setErr(''); setter(fl); }, setErr);
+      pickImgChecked(file, function(fl) { setErr(''); setter(fl); }, setErr, kind);
     };
   }
   function setQ(i, k, v) { setQuals(quals.map(function(q, j) { return j === i ? Object.assign({}, q, { [k]: v }) : q; })); }
@@ -267,8 +302,8 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
       var id = res.data[0].id;
       var up = {};
       return Promise.all([
-        seal ? uploadImg(ENG_BUCKET, id + '/seal', seal).then(function(p) { if (p) up.seal_path = p; }) : null,
-        cert ? uploadImg(ENG_BUCKET, id + '/cert', cert).then(function(p) { if (p) up.cert_path = p; }) : null
+        seal ? uploadImg(ENG_BUCKET, id + '/seal', seal, 'seal').then(function(p) { if (p) up.seal_path = p; }) : null,
+        cert ? uploadImg(ENG_BUCKET, id + '/cert', cert, 'doc').then(function(p) { if (p) up.cert_path = p; }) : null
       ]).then(function() {
         return Object.keys(up).length ? sb.from('doc_engineers').update(up).eq('id', id).select('id') : null;
       }).then(function(r2) {
@@ -277,7 +312,7 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
         quals.forEach(function(qq, i) {
           if (!String(qq.qual || '').trim()) return;
           var qr = { engineer_id: id, qual: qq.qual.trim(), qual_no: (qq.qual_no || '').trim() || null, sort_order: i };
-          var p0 = qq._file ? uploadImg(ENG_BUCKET, id + '/qual', qq._file).then(function(p) { if (p) qr.cert_path = p; }) : Promise.resolve();
+          var p0 = qq._file ? uploadImg(ENG_BUCKET, id + '/qual', qq._file, 'doc').then(function(p) { if (p) qr.cert_path = p; }) : Promise.resolve();
           jobs.push(p0.then(function() {
             return qq.id ? sb.from('doc_engineer_quals').update(qr).eq('id', qq.id).select('id') : sb.from('doc_engineer_quals').insert(qr).select('id');
           }).then(function(r3) { Sysbar.writeFailed(r3, '추가 자격 저장', { expectRows: true }); }));
@@ -343,12 +378,14 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
           <div>
             <label className="fl">도장 그림 (보안각서 서명 칸)</label>
             <div className="row"><SignedImg bucket={ENG_BUCKET} path={f.seal_path} local={seal} />
-              <label className="btn btn-s sm">그림 고르기<input type="file" accept="image/png,image/jpeg" hidden onChange={pickImg(setSeal)} /></label></div>
+              <label className="btn btn-s sm">그림 고르기<input type="file" accept="image/png,image/jpeg" hidden onChange={pickImg(setSeal, 'seal')} /></label></div>
+            <div className="note">흰 배경은 저장할 때 투명하게 바뀌어요. 긴 변 400px 이상 스캔본을 권해요.</div>
           </div>
           <div>
             <label className="fl">자격증 사본 (대표 자격)</label>
             <div className="row"><SignedImg bucket={ENG_BUCKET} path={f.cert_path} local={cert} />
-              <label className="btn btn-s sm">그림 고르기<input type="file" accept="image/png,image/jpeg" hidden onChange={pickImg(setCert)} /></label></div>
+              <label className="btn btn-s sm">그림 고르기<input type="file" accept="image/png,image/jpeg,image/bmp,.bmp" hidden onChange={pickImg(setCert, 'doc')} /></label></div>
+            <div className="note">PNG·JPG·BMP(BMP 는 해상도 그대로 PNG 로 바꿔 저장). 원본 스캔을 그대로 올려 주세요.</div>
           </div>
         </div>
         <div style={{ marginBottom: 12 }}>
@@ -359,10 +396,10 @@ function EngineerModal({ eng, users, onClose, onSaved }) {
                 <input className="fi sm" style={{ flex: 2, minWidth: 120 }} placeholder="자격" value={q.qual || ''} onChange={function(e) { setQ(i, 'qual', e.target.value); }} />
                 <input className="fi sm" style={{ flex: 2, minWidth: 100 }} placeholder="자격번호" value={q.qual_no || ''} onChange={function(e) { setQ(i, 'qual_no', e.target.value); }} />
                 <span className={'tag ' + (q._file || q.cert_path ? 'tag-ok' : 'tag-g')}>{q._file ? '새 사본' : (q.cert_path ? '사본 있음' : '사본 없음')}</span>
-                <label className="btn btn-s sm">사본<input type="file" accept="image/png,image/jpeg" hidden onChange={function(e) {
+                <label className="btn btn-s sm">사본<input type="file" accept="image/png,image/jpeg,image/bmp,.bmp" hidden onChange={function(e) {
                   var file = e.target.files && e.target.files[0]; e.target.value = '';
                   if (!file) return;
-                  pickImgChecked(file, function(fl) { setErr(''); setQ(i, '_file', fl); }, setErr);
+                  pickImgChecked(file, function(fl) { setErr(''); setQ(i, '_file', fl); }, setErr, 'doc');
                 }} /></label>
                 <button className="btn btn-d sm" onClick={function() {
                   if (q.id) setDelQ(delQ.concat([q.id]));
@@ -482,6 +519,8 @@ function EngineersView() {
           <label className="btn btn-s sm">📥 엑셀 일괄 올리기<input type="file" accept=".xlsx,.xls" hidden onChange={onXl} /></label>
           <button className="btn btn-s sm" onClick={downloadXlTemplate}>양식 내려받기</button>
           <button className="btn btn-s sm" onClick={function() { setBulk(true); }}>🖋 도장 일괄 올리기</button>
+          <ResaveSeals items={list.filter(function(e) { return e.active; }).map(function(e) { return { id: e.id, label: e.name, path: e.seal_path }; })}
+            bucket={ENG_BUCKET} prefixOf={function(it) { return it.id + '/seal'; }} table="doc_engineers" col="seal_path" onDone={reload} />
           <span style={{ flex: 1 }} />
           <label className="chk"><input type="checkbox" checked={all} onChange={function(e) { setAll(e.target.checked); }} /> 퇴사자도 보기</label>
         </div>
@@ -517,6 +556,59 @@ function EngineersView() {
       {bulk && <BulkSealModal title="도장 일괄 올리기" resolve={resolveEng} save={saveEng} onClose={function() { setBulk(false); }} onDone={reload}
         help="파일 이름(확장자 뺀 것, 띄어쓰기 무시)을 재직 명부의 성명과 맞춰요. 예: 홍길동.png → 홍길동. 이미 도장이 있는 사람은 「덮어쓰기」를 켠 것만 바꿔요." />}
     </div>
+  );
+}
+
+// ═══════════════════════ 도장 배경 투명하게 다시 저장 (v2.8.1) ═══════════════════════
+// items = [{ id, label, path }] — 이미 올린 도장을 하나씩 받아 흰 배경 투명 + 여백 자르기 → 새 경로에 올리고 표의 경로만 바꾼다.
+// 예전 그림 파일은 지우지 않고 그 경로에 남는다(되돌리기 = 표의 경로를 예전 값으로). 이미 투명한 것은 건너뛴다.
+// 서류를 만들 때도 같은 손질을 하므로 이 버튼은 화면 미리 보기·저장본을 맞추는 용도다.
+function ResaveSeals({ items, bucket, prefixOf, table, col, onDone }) {
+  const [ask, setAsk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  var list = (items || []).filter(function(x) { return x.path; });
+  function run() {
+    setAsk(false); setBusy(true);
+    var done = [], skip = [], fail = [], log = [];
+    var chain = Promise.resolve();
+    list.forEach(function(it, i) {
+      chain = chain.then(function() {
+        setMsg({ cls: 'al-i', list: ['다시 저장하는 중… ' + (i + 1) + ' / ' + list.length + ' — ' + it.label] });
+        return resaveSeal(bucket, prefixOf(it), it.path).then(function(np) {
+          if (!np) { skip.push(it.label); return; }
+          return sb.from(table).update({ [col]: np }).eq('id', it.id).select('id').then(function(r) {
+            if (r.error || !r.data || !r.data.length) { fail.push(it.label + '(' + (r.error ? r.error.message : '저장 안 됨') + ')'); return; }
+            done.push(it.label); log.push({ id: it.id, old: it.path, now: np });
+          });
+        }, function(ex) { fail.push(it.label + '(' + (ex && ex.message ? ex.message : ex) + ')'); });
+      });
+    });
+    chain.then(function() {
+      setBusy(false);
+      if (log.length) console.info('[도장 다시 저장] 예전 경로(되돌릴 때 사용):', JSON.stringify(log));
+      setMsg({ cls: fail.length ? 'al-w' : 'al-s', list: ['바꿈 ' + done.length + ' · 이미 투명해 그대로 ' + skip.length + ' · 실패 ' + fail.length + ' — 예전 그림 파일은 지우지 않고 남겨 뒀어요.']
+        .concat(fail.length ? ['실패: ' + fail.join(', ')] : []) });
+      if (onDone) onDone();
+    });
+  }
+  return (
+    <span>
+      <button className="btn btn-s sm" disabled={busy || !list.length} onClick={function() { setMsg(null); setAsk(true); }}>🫥 배경 투명하게 다시 저장</button>
+      {ask && (
+        <div className="modal-bg" onClick={function(e) { if (e.target === e.currentTarget) setAsk(false); }}>
+          <div className="modal" style={{ maxWidth: 460 }}>
+            <h3>도장 {list.length}개를 다시 저장할까요?</h3>
+            <div className="note" style={{ marginBottom: 12 }}>흰 배경을 투명하게, 둘레 여백을 잘라 PNG 로 새로 저장해요(해상도는 그대로). 예전 그림 파일은 지우지 않아요. 이미 투명한 그림은 건너뛰어요.</div>
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn btn-s" onClick={function() { setAsk(false); }}>취소</button>
+              <button className="btn btn-p" onClick={run}>다시 저장</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {msg && <div style={{ marginTop: 8 }}><Warn list={msg.list} cls={msg.cls} /></div>}
+    </span>
   );
 }
 
@@ -697,11 +789,13 @@ function SealsView() {
   return (
     <div className="card">
       <div className="st">회사 도장</div>
-      <div className="note" style={{ marginBottom: 12 }}>배경이 투명한 PNG 를 권장해요. 같은 용도를 이름을 달리해 여러 개 둘 수 있어요(예: 사용인감(계약용) · 사용인감(입찰용)). 용도마다 「기본」 하나가 서류 만들기에서 미리 골라져요. 쓰지 않는 도장은 「사용」을 끄세요.</div>
+      <div className="note" style={{ marginBottom: 12 }}>흰 배경은 올릴 때 투명하게 바뀌고 둘레 여백도 잘라요(해상도 그대로 — 긴 변 400px 이상 스캔본을 권해요). 같은 용도를 이름을 달리해 여러 개 둘 수 있어요(예: 사용인감(계약용) · 사용인감(입찰용)). 용도마다 「기본」 하나가 서류 만들기에서 미리 골라져요. 쓰지 않는 도장은 「사용」을 끄세요.</div>
       <div className="note" style={{ marginBottom: 12 }}>착수계는 공문 직인 자리에 「{SEAL_FOR_LETTER}」 기본 도장, 나머지 「(印)」 자리에 「{SEAL_FOR_DOC}」 기본 도장을 미리 골라요(서류 만들기에서 바꿀 수 있어요).</div>
       <div className="row" style={{ marginBottom: 12 }}>
         <button className="btn btn-p sm" onClick={function() { open(null); }}>+ 도장 추가</button>
         <button className="btn btn-s sm" onClick={openBulk}>🖋 도장 일괄 올리기</button>
+        <ResaveSeals items={list.map(function(x) { return { id: x.id, label: sealLabel(x), path: x.image_path }; })}
+          bucket={SEAL_BUCKET} prefixOf={function(it) { return 'company/' + it.id; }} table="doc_company_seals" col="image_path" onDone={reload} />
       </div>
       {bulk && <BulkSealModal title="회사 도장 일괄 올리기" resolve={resolveSeal} save={saveSeal} onClose={function() { setBulk(false); }} onDone={reload}
         help={'파일 이름(확장자 뺀 것, 띄어쓰기 무시)을 「용도(이름)」으로 맞춰요: 사용인감(계약용).png → 사용인감 · 계약용, 직인.png → 직인(이름 없음). 용도 = ' + SEAL_KINDS.join(' · ') + '. 같은 도장이 없으면 새로 만들고, 있으면 「덮어쓰기」를 켠 것만 그림을 바꿔요.'} />}
@@ -911,6 +1005,7 @@ function ChaksuView() {
   const def = DocDefs.get('chaksu');
   const [tpl, setTpl] = useState({ has: false, ok: false, ver: null });   // 서식 상태(TemplateBar)
   const [certSep, setCertSep] = useState(false);   // 자격증 사본 그림이 없을 때 「따로 붙임」(붙임 문구 그대로)
+  const [certJoin, setCertJoin] = useState(false); // 붙임에 「재직증명서, 자격증 사본」 한 줄(기본은 제출본처럼 두 줄)
   const [confirm, setConfirm] = useState(null);    // 내려받기 전 확인 창 { list, go }
   const [projects, setProjects] = useState([]);
   const [pq, setPq] = useState('');
@@ -1060,7 +1155,7 @@ function ChaksuView() {
       equipment: plan ? equip.filter(function(q) { return q.on; }).map(function(q) { return { name: q.name, spec: q.spec, qty: Number(q.qty), unit: q.unit }; }) : [],
       sealImg: seal ? want('seal', SEAL_BUCKET, seal.image_path) : null,
       letterSealImg: lseal ? want('lseal', SEAL_BUCKET, lseal.image_path) : null,
-      certSeparate: certSep
+      certSeparate: certSep, certJoin: certJoin
     };
   }
   var preview = def.build(makeInp(function(id, b, path) { return path ? id : null; }));
@@ -1072,10 +1167,27 @@ function ChaksuView() {
     if (!f.title.trim()) { setResult({ cls: 'al-e', list: ['용역명을 입력하세요.'] }); return; }
     if (!lead) { setResult({ cls: 'al-e', list: ['사업책임기술자를 고르세요.'] }); return; }
     setBusy(true); setResult(null);
-    var images = {}, jobs = [], asked = {};
+    var images = {}, jobs = [], asked = {}, small = [], smallCert = [], prepFail = [];
+    // 그림 이름(알림용): 's'+기술자 id → 성명, 'c'+id → 성명, seal/lseal → 도장 이름
+    function labelOf(id) {
+      if (id === 'seal') return sealLabel(seal); if (id === 'lseal') return sealLabel(lseal);
+      var e = byId[id.slice(1)]; return e ? e.name : id;
+    }
+    // 도장(s…·seal·lseal) = 흰 배경 투명 + 여백 자르기(이미 올린 그림도 같게), 사본(c…) = 그대로(BMP 면 PNG 로). 해상도는 줄이지 않는다
+    function prep(id, b) {
+      if (id.charAt(0) === 'c') {
+        var info = HwpxEngine.imageSize(b);
+        var go = info ? Promise.resolve({ bytes: b, w: info.w, h: info.h }) : SealPrep.convert(b).then(function(r) { return { bytes: r.bytes, w: r.w, h: r.h }; });
+        return go.then(function(r) { if (Math.max(r.w, r.h) < CERT_SMALL_PX) smallCert.push(labelOf(id) + ' ' + r.w + '×' + r.h + 'px'); return { bytes: r.bytes }; });
+      }
+      return SealPrep.toPng(b, { clean: true }).then(function(r) {
+        if (Math.max(r.srcW, r.srcH) < SEAL_SMALL_PX) small.push(labelOf(id) + ' ' + Math.max(r.srcW, r.srcH) + 'px');
+        return r.empty ? { bytes: b } : { bytes: r.bytes };
+      }, function() { prepFail.push(labelOf(id)); return { bytes: b }; });
+    }
     function want(id, bucket, path) {
       if (!path) return null;
-      if (!asked[id]) { asked[id] = true; jobs.push(downloadBytes(bucket, path).then(function(b) { images[id] = { bytes: b }; })); }
+      if (!asked[id]) { asked[id] = true; jobs.push(downloadBytes(bucket, path).then(function(b) { return prep(id, b); }).then(function(img) { images[id] = img; })); }
       return id;
     }
     var inp = makeInp(want);
@@ -1094,6 +1206,9 @@ function ChaksuView() {
     }).then(function(r) {
       // 도장 없는 기술자는 서류 정의가 이름과 함께 알렸으므로 엔진의 같은 알림은 뺀다
       var warns = (data.warnings || []).concat((r.out.warnings || []).filter(function(w) { return !/^그림 없음: 도장:(기술자|사업책임)/.test(w); }));
+      if (small.length) warns.push('도장 그림 해상도가 낮아 인쇄가 흐릴 수 있어요(긴 변): ' + small.join(', ') + ' — 긴 변 400px 이상 스캔본으로 다시 올려 주세요.');
+      if (smallCert.length) warns.push('자격증 사본 그림이 작아 인쇄가 흐릴 수 있어요: ' + smallCert.join(', ') + ' — 원본 스캔(긴 변 ' + CERT_SMALL_PX + 'px 이상)으로 다시 올려 주세요.');
+      if (prepFail.length) warns.push('도장 그림을 손질하지 못해 원래 그림을 넣었어요: ' + prepFail.join(', '));
       if (r.out.leftovers && r.out.leftovers.length) warns.unshift('채우지 못한 표시가 남았어요: ' + r.out.leftovers.join(', ') + ' — 서식을 확인하세요.');
       // 확인할 것이 있으면 내려받기 전에 확인 창(그래도 내려받기 / 취소)
       if (warns.length) setConfirm({ list: warns, go: function() { finish(r, warns); } });
@@ -1108,7 +1223,7 @@ function ChaksuView() {
       var detail = {
         lead: idn(inp.lead),
         licenses: inp.licenses.map(function(l) { return { name: l.name, lead: idn(l.lead), members: l.members.map(idn) }; }),
-        survey_only: data.surveyOnly, plan: plan, attach: data.attachList,
+        survey_only: data.surveyOnly, plan: plan, attach: data.attachList, cert_join: certJoin, cert_separate: certSep,
         equipment: inp.equipment.map(function(q) { return q.name; }),
         seal: seal ? seal.id : null, letter_seal: lseal ? lseal.id : null,
         seal_names: { doc: seal ? sealLabel(seal) : null, letter: lseal ? sealLabel(lseal) : null }, vias: f.vias.map(function(v) { return v.name; }), file: fname
@@ -1301,14 +1416,15 @@ function ChaksuView() {
       <div className="g2">
         <div className="card">
           <div className="st"><span className="no">4</span>붙임 서류</div>
-          <label className="chk" style={{ display: 'block', marginBottom: 6 }}><input type="checkbox" checked={plan} onChange={function(e) { setPlan(e.target.checked); }} /> 인력 및 장비투입 계획서 넣기</label>
+          <label className="chk" style={{ display: 'block', marginBottom: 6 }}><input type="checkbox" checked={plan} onChange={function(e) { setPlan(e.target.checked); }} /> 인력 및 장비투입 계획서 넣기 <span className="note">(보안각서 다음 쪽)</span></label>
+          <label className="chk" style={{ display: 'block', marginBottom: 6 }}><input type="checkbox" checked={certJoin} onChange={function(e) { setCertJoin(e.target.checked); }} /> 붙임에 「재직증명서, 자격증 사본」 한 줄로 쓰기 <span className="note">(끄면 두 줄 — 기본)</span></label>
           {def.attachments.map(function(a) {
             return <label key={a.key} className="chk" style={{ display: 'block', marginBottom: 6 }}><input type="checkbox" checked={!!attach[a.key]} onChange={function(e) { setAttach(Object.assign({}, attach, { [a.key]: e.target.checked })); }} /> {a.label} <span className="note">(따로 붙이는 서류 — 붙임 목록에만)</span></label>;
           })}
           {preview.noCert && (
             <div className="al al-w" style={{ marginTop: 6 }}>
               사업책임기술자의 자격증 사본 그림이 없어 자격증 쪽이 빠져요.
-              <label className="chk" style={{ display: 'block', marginTop: 4 }}><input type="checkbox" checked={certSep} onChange={function(e) { setCertSep(e.target.checked); }} /> 자격증 사본은 따로 붙임 (붙임 3번 「재직증명서, 자격증 사본」 그대로 — 끄면 「재직증명서」)</label>
+              <label className="chk" style={{ display: 'block', marginTop: 4 }}><input type="checkbox" checked={certSep} onChange={function(e) { setCertSep(e.target.checked); }} /> 자격증 사본은 따로 붙임 (붙임 목록에 「자격증 사본」을 그대로 둠 — 끄면 뺌)</label>
             </div>
           )}
           <div className="fl" style={{ marginTop: 8 }}>공문 붙임 목록 미리 보기</div>

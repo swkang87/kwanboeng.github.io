@@ -8,6 +8,10 @@
  *                           정의의 merge:[{col, by}] (열 번호·묶음 값 이름, 여러 개 가능)가 있으면 같은 값이 이어지는 칸을
  *                           rowSpan 으로 병합. by 값은 표시 글자와 달라도 된다(예: 분야+구분으로 묶고 칸에는 '참여'만).
  *                           예전 mergeCol·mergeBy 도 그대로 쓴다.
+ *                           fit(그 쪽이 그대로 담는 행 수)을 넘으면 표 아래 빈 문단을 줄인다. squeeze:{cap, minH, picPad} 가 있으면
+ *                           cap(빈 문단을 다 줄여야 담기는 행 수)을 넘을 때 반복 행(+ 같은 높이 위쪽 고정 행) 높이를 함께 줄이고
+ *                           (minH 아래로는 안 줄임), 그 행의 그림은 행 높이 − picPad 를 넘지 않게 한다.
+ *                           spacerAfter:'글자' 면 빈 문단은 그 글자가 든 문단 아래에서부터 줄인다.
  *   {{#끝행}}               이 표시가 든 행은 지우고, 그 칸들의 테두리(borderFillIDRef, 열 번호별)를 채운 뒤 표의 맨 아래에
  *                           닿는 칸에 입힌다. 반복 행을 늘리거나 줄여도 표 아래 굵은 선이 맨 끝 행에 오게 한다.
  *   {{#블록:이름}} … {{/블록:이름}}   이 표시만 든 문단 사이를 데이터 수만큼 복제(두 번째부터 쪽 나누기). 표시 문단은 지운다.
@@ -25,7 +29,7 @@
  *     return HwpxEngine.save(doc);                     // Blob (Node 에서는 Uint8Array)
  *   });
  *   data = { title, vars:{토큰:값}, rows:{이름:[{토큰:값}]}, blocks:{이름:[{토큰:값}]}, images:{id:{bytes:Uint8Array, ext:'png'}} }
- *   def  = { rows:{이름:{merge:[{col, by}], fit}}, pictures:{토큰:{…}} } — 서류 정의(doc-defs.js)
+ *   def  = { rows:{이름:{merge:[{col, by}], fit, squeeze, label}}, pictures:{토큰:{…}} } — 서류 정의(doc-defs.js)
  */
 (function (root) {
   'use strict';
@@ -384,10 +388,34 @@
       var baseRow = +attr(cellAddr(kids(tpl, 'hp:tc')[0]), 'rowAddr');
       var rowH = 0;
       kids(tpl, 'hp:tc').forEach(function (tc) { if (attr(cellSpan(tc), 'rowSpan') === '1') rowH = Math.max(rowH, +attr(cellSz(tc), 'height')); });
+      // squeeze:{cap, minH, picPad}: cap 행(빈 줄을 다 줄여야 담기는 행 수, 없으면 fit)을 넘으면 반복 행(+ 같은 높이의 위쪽 고정 행)의
+      // 높이를 함께 줄여 cap 행 높이 안에 넣는다(minH 아래로는 안 줄임).
+      // 그 행들의 그림은 (행 높이 − picPad) 를 넘지 않게 — 도장이 칸 밖으로 나가지 않게
+      var newH = rowH, picMax = null;
+      var cap = rdef.squeeze && (rdef.squeeze.cap || rdef.fit);
+      if (cap && items.length > cap) {
+        newH = Math.max(rdef.squeeze.minH || 0, Math.floor(cap * rowH / items.length));
+        if (newH < rowH) {
+          picMax = rdef.squeeze.picPad !== undefined ? newH - rdef.squeeze.picPad : null;
+          ctx.warnings.push((rdef.label || name) + ': 줄이 많아 줄 높이를 ' + (Math.round(newH / 28.346) / 10) + 'mm 로 줄였어요' +
+            (picMax ? '(도장 최대 ' + (Math.round(picMax / 28.346) / 10) + 'mm)' : '') + '.');
+          for (var ui = 1; ui < ri; ui++) {
+            var same = kids(trs[ui], 'hp:tc').every(function (tc) { return +attr(cellSz(tc), 'height') === rowH * (+attr(cellSpan(tc), 'rowSpan') || 1); });
+            if (!same) continue;
+            kids(trs[ui], 'hp:tc').forEach(function (tc) { setAttr(cellSz(tc), 'height', String(newH * (+attr(cellSpan(tc), 'rowSpan') || 1))); });
+            trs[ui]._scope = { __picMax: picMax };
+            var tsz = kid(tbl, 'hp:sz');
+            if (tsz) setAttr(tsz, 'height', String(Math.max(0, +attr(tsz, 'height') - (rowH - newH))));
+          }
+        } else newH = rowH;
+      }
       var clones = items.map(function (item, k) {
         var tr = clone(tpl);
-        tr._scope = item;
-        kids(tr, 'hp:tc').forEach(function (tc) { setAttr(cellAddr(tc), 'rowAddr', String(baseRow + k)); });
+        tr._scope = picMax ? Object.assign({}, item, { __picMax: picMax }) : item;
+        kids(tr, 'hp:tc').forEach(function (tc) {
+          setAttr(cellAddr(tc), 'rowAddr', String(baseRow + k));
+          if (newH !== rowH) setAttr(cellSz(tc), 'height', String(newH * (+attr(cellSpan(tc), 'rowSpan') || 1)));
+        });
         return tr;
       });
       // 같은 값이 이어지면 병합 (열마다 따로)
@@ -420,9 +448,12 @@
       Array.prototype.splice.apply(tbl.c, [pos, 1].concat(clones));
       setAttr(tbl, 'rowCnt', String(+attr(tbl, 'rowCnt') + delta));
       var sz = kid(tbl, 'hp:sz');
-      if (sz) setAttr(sz, 'height', String(Math.max(0, +attr(sz, 'height') + delta * rowH)));
+      if (sz) setAttr(sz, 'height', String(Math.max(0, +attr(sz, 'height') + clones.length * newH - rowH)));
       tbl._dirty = true;
-      if (rdef.fit && clones.length > rdef.fit) tbl._extra = (tbl._extra || 0) + (clones.length - rdef.fit) * rowH;
+      if (rdef.fit && clones.length * newH > rdef.fit * rowH) tbl._extra = (tbl._extra || 0) + clones.length * newH - rdef.fit * rowH;
+      if (rdef.spacerAfter) tbl._spacerAfter = rdef.spacerAfter;
+      // cap(빈 줄을 다 줄이면 담기는 높이, 한글로 잰 값) 안이면 「넘어갈 수 있어요」 경고를 내지 않는다(빈 줄 높이 추정이 실제보다 작음)
+      if (cap) tbl._capOk = (tbl._capOk !== false) && clones.length * newH <= cap * rowH + Math.round(rowH / 2);
       trs = kids(tbl, 'hp:tr');
       ri += delta;
     }
@@ -463,16 +494,18 @@
     for (var i = 0; i < paras.length; i++) {
       var p = paras[i];
       if (p.t !== 'el' || p.n !== 'hp:p') continue;
-      var extra = 0;
-      findAll(p, 'hp:tbl').forEach(function (t) { extra += t._extra || 0; });
+      var extra = 0, capOk = false, after = null;
+      findAll(p, 'hp:tbl').forEach(function (t) { extra += t._extra || 0; if (t._capOk) capOk = true; if (t._spacerAfter) after = t._spacerAfter; });
       if (extra <= 0) continue;
       for (var j = i + 1; j < paras.length && extra > 0; j++) {
         var q = paras[j];
         if (q.t !== 'el' || q.n !== 'hp:p') continue;
         if (attr(q, 'pageBreak') === '1') break;
+        // spacerAfter: 이 글자가 든 문단을 지난 뒤의 빈 줄만 줄인다(그 위 간격은 그대로)
+        if (after) { if (textOf(q).indexOf(after) >= 0) after = null; continue; }
         if (drop.indexOf(q) < 0 && isEmptyPara(q)) { drop.push(q); extra -= lineHeight(q); }
       }
-      if (extra > 0) ctx.warnings.push('표가 길어 일부 쪽이 다음 쪽으로 넘어갈 수 있어요. 한글에서 확인하세요.');
+      if (extra > 0 && !capOk) ctx.warnings.push('표가 길어 일부 쪽이 다음 쪽으로 넘어갈 수 있어요. 한글에서 확인하세요.');
     }
     if (drop.length) secEl.c = paras.filter(function (x) { return drop.indexOf(x) < 0; });
   }
@@ -552,7 +585,7 @@
         if (imgId === undefined) imgId = lookup(scopes, base);
         if (!pics) return '';
         if (!imgId) { ctx.warnings.push('그림 없음: ' + base); return ''; }
-        var pic = makePic(ctx, key, m[1], imgId);
+        var pic = makePic(ctx, key, m[1], imgId, lookup(scopes, '__picMax'));
         if (pic) pics.push(pic);
         return '';
       }
@@ -584,13 +617,14 @@
     return ctx.imageIds[imgId];
   }
 
-  function makePic(ctx, token, kind, imgId) {
+  function makePic(ctx, token, kind, imgId, picMax) {
     var pdef = (ctx.def.pictures && (ctx.def.pictures[token] || ctx.def.pictures[token.split('@')[0]])) || null;
     if (!pdef) { ctx.warnings.push('그림 자리 정의 없음: ' + token); return null; }
     var reg = registerImage(ctx, imgId);
     if (!reg) return null;
     var ow = reg.w * HWPUNIT_PER_PX, oh = reg.h * HWPUNIT_PER_PX;
     var bw = pdef.boxW || pdef.w, bh = pdef.boxH || pdef.h;
+    if (picMax && picMax > 0) { bw = Math.min(bw, picMax); bh = Math.min(bh, picMax); }   // 줄인 행(squeeze) 안에 들게
     var sc = Math.min(bw / ow, bh / oh);
     var w = Math.round(ow * sc), h = Math.round(oh * sc);
     var inline = kind === '이미지' || pdef.inline;
@@ -671,6 +705,7 @@
       var om = kid(tbl, 'hp:outMargin');
       var top = om ? +attr(om, 'top') || 0 : 0, left = om ? +attr(om, 'left') || 0 : 0;
       // 글자처럼 놓인 표는 문단 정렬을 따른다: 오른쪽·가운데 정렬 문단이면 남는 폭만큼(가운데는 절반) 표가 오른쪽에 있다
+      // (떠 있는 표 = 글자처럼 취급 아님 은 자리가 맞지 않는다 — 그런 표의 칸에는 outOfCell 을 쓰지 말 것)
       var tp = tblPara(ctx, secEl, tbl);
       if (tp) {
         var sz0 = kid(tbl, 'hp:sz');

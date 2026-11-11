@@ -85,25 +85,33 @@
   };
 
   /* ---------------- 서류 정의 ---------------- */
-  // 착수계: 공문(경유처마다) · 착수신고서 · 책임기술자 지정 신고서 · 재직증명서 · 자격증 사본 · (선택) 인력 및 장비 투입 계획서 ·
-  //         참여기술자 명단 · 보안각서. 표가 있는 쪽은 일반(면허별) / 측량 단독 두 모양을 서식에 두고 블록으로 고른다.
+  // 착수계: 공문(경유처마다) · 착수신고서 · 책임기술자 지정 신고서 · 재직증명서 · 자격증 사본 · 참여기술자 명단 · 보안각서 ·
+  //         (선택) 인력 및 장비 투입 계획서 (제출본 순서, 2026-11-11). 표가 있는 쪽은 일반(면허별) / 측량 단독 두 모양을 서식에 두고 블록으로 고른다.
   var SURVEY = '공공측량업';
   // 보유 면허 (표시 순서 고정): 엔지니어링업 9개 + 공공측량업
   var LICENSES = ['교통', '도로공항', '상하수도', '수질관리', '토질지질', '구조', '도시계획', '수자원개발', '조경', SURVEY];
   var LEAD_FIELD = '사업책임기술자';
   var MERGE2 = [{ col: 0, by: '분야' }, { col: 1, by: '구분키' }];   // 분야 칸 → 그 면허 전체, 구분 칸 → 책임 1줄 / 참여 전체
-  // 일반 모양 보안각서 서명 칸(폭 8426 · 행 높이 2612): 원본처럼 약 13mm 도장을 칸 밖 그림으로 줄 가운데에, 왼쪽·오른쪽 번갈아
-  // (칸 안 그림은 칸보다 크면 행이 커져 쪽이 넘침). 3800 + 엇갈림 1500 → 칸 안쪽(양쪽 약 800 여유)에 들어가고 이웃 줄 도장과 안 겹침
-  var SEAL_S = { w: 3800, h: 3800, outOfCell: true, zigzag: 1500 };
+  // 도장 크기 = 실제 제출본(2026-11, 사람이 만든 착수계)의 인영 크기 대표값. 그림은 화면이 흰 배경을 투명하게 하고 여백을 잘라
+  // 넣으므로(seal-prep.js) 그림 크기 = 인영 크기. 제출본 실측(인영): 직인 18.6 · 사용인감 17.5 · 기술자 11.1~12.9mm(대표 12)
+  var MM = function (mm) { return Math.round(mm * 7200 / 25.4); };
+  var SEAL_CO = MM(17.5);
+  // 보안각서 서명 칸(행 높이 16.2mm, 제출본과 같음) 가운데에 12mm. 칸 밖 그림(outOfCell)이라 행 높이를 바꾸지 않는다. 지그재그 없음
+  var SEAL_S = { w: MM(12), h: MM(12), outOfCell: true };
+  // 사람이 많아 쪽을 넘치면 줄 높이·도장을 함께 줄임 — 줄 높이 하한 9.2mm(예전 서식 줄 높이), 도장 = 줄 높이 − 1.6mm
+  // cap = 빈 줄을 다 줄였을 때 16.2mm 줄로 담기는 반복 행 수(2026-11-11 한글로 잼: 명단 5 · 보안각서 4)
+  var SQUEEZE_SEC = { cap: 4, minH: 2612, picPad: MM(1.6) };
+  var SQUEEZE_MAN = { cap: 5, minH: 2329 };
+  var ATTACH_MAX = 9;   // 공문 붙임 목록이 한 쪽에 드는 줄 수
 
   var CHAKSU = {
     key: 'chaksu',
     name: '착수계',
-    desc: '공문 · 착수신고서 · 책임기술자 지정 · 재직증명서 · 자격증 사본 · (선택) 인력/장비 투입 계획 · 참여기술자 명단 · 보안각서',
+    desc: '공문 · 착수신고서 · 책임기술자 지정 · 재직증명서 · 자격증 사본 · 참여기술자 명단 · 보안각서 · (선택) 인력/장비 투입 계획',
     template: 'chaksu.hwpx',
     // 서식 버전 = 서식 HWPX 가 마지막으로 바뀐 제품 버전. 서식 안 표시(HwpxEngine.templateVersion)와 다르면 화면이 만들기를 막는다.
     // 서식을 바꾸면 여기와 서식 만드는 스크립트(docs-work/node/build_template2.js — 이 값을 읽어 넣음)를 같이 올린다
-    templateVersion: '2.4.4',
+    templateVersion: '2.8.1',
     licenses: LICENSES,
     survey: SURVEY,
     docNoPrefix: '관보',
@@ -117,27 +125,31 @@
     isSurveyOnly: function (lics) { return !!lics && lics.length === 1 && lics[0].name === SURVEY; },
     fileName: function (v) { return String(v['용역명'] || '착수계').replace(/[\\\/:*?"<>|]/g, '_') + '_착수계.hwpx'; },
     rows: {
-      // fit = 그 쪽이 빈 줄을 줄이지 않고 담는 반복 행 수(사업책임 줄 제외, 2026-10-29 한글로 잼: 인력 2 · 명단 5 · 보안각서 7 — 한 줄 여유를 둠).
-      // 넘으면 넘친 행 높이만큼만 표 아래 빈 줄을 줄여 서명란을 지키고, 넘지 않으면 서식 간격 그대로
-      '명단': { merge: MERGE2, fit: 4 },
-      '보안': { merge: MERGE2, fit: 6 },
-      '인력': { merge: MERGE2, fit: 1 },
+      // fit = 그 쪽이 빈 줄을 줄이지 않고 담는 반복 행 수(사업책임 줄 제외, 2026-11-11 서식 2.8.1 을 한글로 잼: 명단·보안각서 2).
+      // fit 을 넘으면 넘친 높이만큼 표 아래 빈 줄을 줄여 서명란을 지키고, squeeze.cap 을 넘으면 줄 높이도 함께 줄인다(하한까지)
+      '명단': { merge: MERGE2, fit: 2, squeeze: SQUEEZE_MAN, label: '참여기술자 명단' },
+      '보안': { merge: MERGE2, fit: 2, squeeze: SQUEEZE_SEC, label: '보안각서 서명표' },
+      '인력': { merge: MERGE2, fit: 2, squeeze: { cap: 6, minH: 2329 }, label: '인력투입 계획서' },
       '측량명단': { merge: [{ col: 0, by: '분야' }], fit: 3 },
-      '측량보안': { merge: [{ col: 0, by: '분야' }], fit: 3 },
+      '측량보안': { merge: [{ col: 0, by: '분야' }], fit: 3, squeeze: SQUEEZE_SEC, label: '보안각서 서명표' },
       '측량인력': { merge: [{ col: 0, by: '분야' }], fit: 3 },
       '장비': { fit: 3 },
-      '붙임': {}
+      // 붙임 목록: 9줄까지 서식 간격 그대로(제출본 9줄). 넘으면 build 가 두 줄을 합치고, 그래도 넘으면 「대표이사」 줄 아래 빈 줄만 줄인다
+      // (표 바로 아래 빈 줄은 공문 직인 자리라 그대로. 글 줄은 한글이 내용 높이보다 낮게 줄이지 않아 squeeze 는 안 씀)
+      '붙임': { fit: 9, spacerAfter: '대표이사' }
     },
     pictures: {
-      // 공문 직인: 샘플 공문 직인과 같은 중심·크기(약 18.6mm, 대표이사 줄 위 빈 문단 기준)
-      '도장:회사@공문': { w: 5300, h: 5300, horzOffset: 37348, vertOffset: 2382 },
-      // 「대표이사 … (印)」 줄: 오른쪽 정렬 문단 끝의 (印) 위, 줄 가운데 높이
-      '도장:회사': { w: 4300, h: 4300, horzAlign: 'RIGHT', horzOffset: -1000, vertOffset: -1500, flowWithText: 0 },
+      // 공문 직인: 샘플 공문 직인과 같은 중심(대표이사 줄 위 빈 문단 기준), 인영 18.6mm(제출본과 같음)
+      '도장:회사@공문': { w: MM(18.6), h: MM(18.6), horzOffset: 37348 + Math.round((5300 - MM(18.6)) / 2), vertOffset: 2382 + Math.round((5300 - MM(18.6)) / 2) },
+      // 「대표이사 … (印)」 줄: 오른쪽 정렬 문단 끝의 (印) 가운데, 줄 가운데 높이 — 인영 17.5mm
+      '도장:회사': { w: SEAL_CO, h: SEAL_CO, horzAlign: 'RIGHT', horzOffset: -1350, vertOffset: -1850, flowWithText: 0 },
       // 재직증명서 표 안: 회사명 줄 기준으로 아래 「대표이사 … (印)」 위
-      '도장:회사@칸': { w: 4300, h: 4300, horzAlign: 'RIGHT', horzOffset: 600, vertOffset: 1220 },
-      // 보안각서 서명 칸 — 측량 모양(행 높이 4593): 칸 가운데
-      '도장:기술자': { w: 3700, h: 3700, horzAlign: 'CENTER', horzRelTo: 'PARA', horzOffset: 0, vertAlign: 'CENTER', vertOffset: 0 },
-      // 일반 모양(행 높이 2612) — 위 SEAL_S
+      '도장:회사@칸': { w: SEAL_CO, h: SEAL_CO, horzAlign: 'RIGHT', horzOffset: 530, vertOffset: 1320 },
+      // 자격증 사본 「원본대조필」 옆 빈 칸(떠 있는 표 안) — 칸 가운데(제출본과 같은 자리). 한글은 이 그림을 쪽 본문 왼쪽(가로)·
+      // 표가 든 바깥 문단(세로) 기준으로 놓는다 → 칸 가운데 = 본문 왼쪽 기준 160.25mm, 문단 위에서 10.75mm(한글 PDF 로 잼). 그림은 글과 함께 움직이지 않아 칸이 커지지 않음
+      '도장:회사@대조': { w: SEAL_CO, h: SEAL_CO, horzOffset: MM(160.25) - Math.round(SEAL_CO / 2), flowWithText: 0, vertOffset: MM(10.75) - Math.round(SEAL_CO / 2) },
+      // 보안각서 서명 칸(일반·측량 모두 행 높이 16.2mm): 칸 가운데 12mm
+      '도장:기술자': SEAL_S,
       '도장:기술자@작게': SEAL_S,
       '도장:사업책임@작게': SEAL_S,
       // 자격증 사본: 원래 그림 상자 안에 비율 유지
@@ -146,7 +158,8 @@
     // in = { title, amount, amountText, contractDate, startDate, endDate, receiver, vias:[{name, docNo}], issueDate, submitDate,
     //        lead:기술자, licenses:[{name, lead:기술자, members:[기술자]}], plan:불(인력·장비 투입 계획서 포함),
     //        equipment:[{name,spec,qty,unit}], attach:{schedule, bill, cems}, sealImg(서류 도장), letterSealImg(공문 도장),
-    //        certSeparate:불(사업책임기술자 자격증 사본 그림이 없을 때 「따로 붙임」 — 붙임 문구를 그대로 둠) }
+    //        certSeparate:불(사업책임기술자 자격증 사본 그림이 없을 때 「따로 붙임」 — 붙임 문구를 그대로 둠),
+    //        certJoin:불(붙임에 「재직증명서, 자격증 사본」 한 줄 — 기본은 제출본처럼 두 줄) }
     // 기술자 = { id, name, birth_date, gender, address, hire_date, dept, position, duty, qual, qual_no,
     //           survey_field, survey_grade, sealImg, certImg }
     build: function (inp) {
@@ -237,14 +250,25 @@
       });
       if (inp.plan && !rowsEq.length) warnings.push('인력 및 장비 투입 계획서에 장비가 없어요.');
 
-      // 붙임 목록: 실제 넣은 서류 순서대로 번호, 마지막 줄 끝에 「끝.」
+      // 붙임 목록: 실제 넣은 서류 순서대로 번호, 마지막 줄 끝에 「끝.」. 순서는 제출본(2026-11)과 같게 —
+      // 재직증명서 · 자격증 사본(따로 쓰기가 기본, certJoin 이면 한 줄) · 명단 · 보안각서 · 인력 및 장비투입계획서(서류도 이 순서) · 따로 붙이는 서류
       var at = inp.attach || {};
-      // 사업책임기술자 자격증 사본 그림이 없으면 그 쪽이 빠지므로 붙임 3번 = 「재직증명서」(「따로 붙임」을 고르면 문구 그대로)
+      // 사업책임기술자 자격증 사본 그림이 없으면 그 쪽이 빠지므로 자격증 사본은 목록에서 뺀다(「따로 붙임」을 고르면 그대로 둠)
       var noCert = !!lead && !lead.certImg;
-      var names = ['착수신고서', '과업 책임기술자 선임계', noCert && !inp.certSeparate ? '재직증명서' : '재직증명서, 자격증 사본'];
-      if (inp.plan) names.push('인력 및 장비투입 계획서');
+      var withCert = !noCert || !!inp.certSeparate;
+      var names = ['착수신고서', '과업 책임기술자 선임계'];
+      if (inp.certJoin) names.push(withCert ? '재직증명서, 자격증 사본' : '재직증명서');
+      else { names.push('재직증명서'); if (withCert) names.push('자격증 사본'); }
       names.push('분야별 참여 기술자 명단', '보안각서');
+      if (inp.plan) names.push('인력 및 장비투입계획서');
       CHAKSU.attachments.forEach(function (a) { if (at[a.key]) names.push(a.label); });
+      // 공문 한 쪽에 붙임은 9줄까지 들어간다(2026-11-11 한글로 잼 — 10줄이면 결재란 끝줄이 다음 쪽으로). 넘으면 두 줄을 합친다
+      var iJ = names.indexOf('재직증명서');
+      if (names.length > ATTACH_MAX && iJ >= 0 && names[iJ + 1] === '자격증 사본') {
+        names.splice(iJ, 2, '재직증명서, 자격증 사본');
+        warnings.push('붙임이 ' + (names.length + 1) + '줄이라 공문 한 쪽을 넘어 「재직증명서, 자격증 사본」을 한 줄로 합쳤어요.');
+      }
+      if (names.length > ATTACH_MAX) warnings.push('붙임이 ' + names.length + '줄이라 공문 결재란이 다음 쪽으로 넘어갈 수 있어요. 한글에서 확인하세요.');
       var rowsAt = names.map(function (n, i) {
         return { '붙임머리': i === 0 ? '붙임' : '', '번호': (i + 1) + '.', '붙임': n, '부수': i === names.length - 1 ? '1부.     끝.' : '1부.' };
       });
@@ -268,7 +292,7 @@
       if (lead) {
         if (lead.certImg) blkLic.push({ '이미지:자격증': lead.certImg });
         else warnings.push(F.name(lead.name) + ': 자격증 사본 그림이 없어 자격증 쪽이 빠져요 — ' +
-          (inp.certSeparate ? '붙임 3번은 「재직증명서, 자격증 사본」 그대로(따로 붙임).' : '붙임 3번을 「재직증명서」로 바꿨어요.'));
+          (inp.certSeparate ? '붙임 목록의 「자격증 사본」은 그대로(따로 붙임).' : '붙임 목록에서 「자격증 사본」을 뺐어요.'));
       }
       var one = [{}], none = [];
       return {

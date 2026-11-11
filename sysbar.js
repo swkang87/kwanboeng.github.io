@@ -1,7 +1,8 @@
 /**
- * SYSBAR MODULE v3.17
+ * SYSBAR MODULE v3.18
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
  *
+ * v3.18 (2026-11-11): checkUpload 가 BMP 도 받을 수 있다(kinds 에 'bmp' — 받은 화면이 PNG 로 바꿔 올림). APP_VERSION 2.8.1
  * v3.17 (2026-11-09): 업무관리 하위 「서류작성」(docs.html — 다른 화면). SECTION_TABS 항목에 url(다른 화면으로 가는 하위 항목) ·
  *   guest:false(비회원 둘러보기에서 뺌). sectionTabs 가 url 도 돌려준다. APP_VERSION 2.8.0
  * v3.16 (2026-11-03): 데스크탑 앱(1.2.0) 안에서만 — 왼쪽 메뉴 「파일」(앱 내장 파일 탐색기 창, 앱 명령 desk_open_files) ·
@@ -84,7 +85,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.8.0';
+  var APP_VERSION = '2.8.1';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -2154,6 +2155,7 @@
     jpg:  { mime: 'image/jpeg',          ext: 'jpg'  },
     pdf:  { mime: 'application/pdf',     ext: 'pdf'  },
     hwpx: { mime: 'application/hwp+zip', ext: 'hwpx' },
+    bmp:  { mime: 'image/bmp',           ext: 'bmp'  },   // 받기만 — 올리기 전에 화면이 PNG 로 바꾼다(버킷은 PNG·JPG 만)
   };
   function _startsWith(b, arr, off) { off = off || 0; for (var i = 0; i < arr.length; i++) if (b[off + i] !== arr[i]) return false; return true; }
   function _ascii(b, off, len) { var s = ''; for (var i = 0; i < len && off + i < b.length; i++) s += String.fromCharCode(b[off + i]); return s; }
@@ -2192,6 +2194,7 @@
       return '한글 서식 파일(.hwpx)만 올릴 수 있습니다.' + (got ? ' (고른 파일: ' + UPLOAD_NAMES[got] + ')' : '');
     }
     if (kinds.indexOf('pdf') !== -1) return 'PDF 파일만 올릴 수 있습니다.' + (got ? ' (고른 파일: ' + UPLOAD_NAMES[got] + ')' : '');
+    if (kinds.indexOf('bmp') !== -1) return 'PNG · JPG · BMP 그림만 올릴 수 있습니다.' + (got ? ' (고른 파일: ' + UPLOAD_NAMES[got] + ')' : '');
     return 'PNG 또는 JPG 그림만 올릴 수 있습니다.' + (gotName ? ' ' + gotName + '안 돼요 — 그림판 등에서 PNG 로 저장해 올려 주세요.' : '');
   }
   function checkUpload(file, kinds, maxMB) {
