@@ -223,6 +223,12 @@
 - 글꼴은 나눔고딕 고정(표지 글꼴 선택 숨김). PC(맑은 고딕·FreeType 2.13)와 글자 테두리 픽셀만 조금 다르다(사진·배치·쪽수·슬라이드 수는 같음).
 - 화이트라벨 한계: 엔진 안 PPTX 작성자·State 기본 발주처는 엔진 값 그대로(엔진 무수정 원칙) — 화면 기본값은 config 로 덮는다. 백업 `backup/*_20261109*`.
 
+### 데스크탑 앱 1.3.7 — 탐색기(시험판) 주소창 편집 (2026-11-12, 웹 코드 변경 없음)
+- 원인: 경로 단추(`.crumbs { display:flex }`)가 hidden 속성을 덮어 입력칸과 나란히 나왔다 → files.css 맨 위 `[hidden] { display: none !important; }`(앞으로 hidden 으로 숨기면 됨).
+- Windows 탐색기와 같게: 경로 단추 = 그 폴더로 / 빈 곳·› · Ctrl+L · Alt+D = 주소창 전체가 입력칸(전체 경로 선택) / Enter = 이동, 없는 경로면 입력 그대로 + 빨간 테두리·알림 /
+  Esc·다른 곳 클릭 = 취소. 상세 = desktop-app README 「주소창(1.3.7)」, 보고서 = 저장소 밖 `security-fix\report_desktop.md`.
+- 웹 쪽은 `desktop/1.3.7/` · `desktop/latest.json` 만(npm run release). 백업 `backup/CLAUDE_20261112.md`.
+
 ### 데스크탑 앱 1.3.6 — 탐색기(시험판) 완전히 삭제 · 탭 끌기 (2026-11-11, 웹 코드 변경 없음)
 - 완전히 삭제 = Shift+Delete · 오른쪽 클릭 「완전히 삭제」 · 도구 막대 「삭제」 Shift+클릭. 확인창 항상(휴지통 확인창과 다른 모양, 처음 포커스 = 취소). 휴지통을 거치지 않음(FOF_ALLOWUNDO 뺌), 보호 폴더 거절 그대로,
   네트워크 드라이브(Z: · NAS)는 기존 네트워크 삭제 흐름 그대로(`networkDeleteNotice`).
