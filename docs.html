@@ -11,11 +11,18 @@
 html, body, #root, button, input, select, textarea { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111104"></script>
+<script src="sysbar.js?v=2026111301"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
+<!-- 공문(2026-11-13): 서식 HWPX = JSZip, PDF = pdf-lib + fontkit, 대장 엑셀 = SheetJS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" integrity="sha384-weMABwrltA6jWR8DDe9Jp5blk+tZQh7ugpCsF3JwSA53WZM9/14PjS5LAJNHNjAI" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js" integrity="sha384-2p6U+1mmqF10USehFeRiyG2ESG9FwIqN+jxULn5w9jjQIihSn9Pt13dVCn/Hawjn" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
+<script src="seal-prep.js?v=2026111301"></script>
+<script src="letter-doc.js?v=2026111301"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:#f1f5f9;color:#0f172a;font-size:14px;overflow-x:hidden;}
@@ -106,6 +113,40 @@ body{background:#f1f5f9;color:#0f172a;font-size:14px;overflow-x:hidden;}
 .modal .acts{display:flex;justify-content:flex-end;gap:6px;margin-top:16px;}
 .modal .stack{display:flex;flex-direction:column;gap:6px;margin-top:14px;}
 .modal .stack .jg-b{padding:10px;font-size:13px;}
+/* 공문 */
+@font-face{font-family:"LetterNanum";font-weight:400;src:url("tools/jungong/fonts/NanumGothic.ttf") format("truetype");}
+@font-face{font-family:"LetterNanum";font-weight:700;src:url("tools/jungong/fonts/NanumGothicBold.ttf") format("truetype");}
+.lt-tabs{display:flex;gap:2px;border-bottom:1px solid #cbd5e1;margin-bottom:12px;}
+.lt-tabs button{padding:8px 14px;border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;background:transparent;font-size:13px;color:#475569;cursor:pointer;font-family:inherit;font-weight:700;}
+.lt-tabs button.on{background:#fff;border-color:#cbd5e1;color:#0f172a;margin-bottom:-1px;}
+.lt-wrap{display:grid;grid-template-columns:minmax(0,520px) minmax(0,1fr);gap:14px;align-items:start;}
+.lt-right{position:sticky;top:calc(var(--sysbar-h,38px) + 52px);min-width:0;display:flex;flex-direction:column;gap:8px;}
+.lt-paper{background:#e4e9ed;border:1px solid #cbd5e1;border-radius:10px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:12px;max-height:calc(100vh - 150px);overflow:auto;}
+.lt-page{width:100%;max-width:640px;box-shadow:0 2px 10px rgba(0,0,0,.14);background:#fff;}
+.lt-para{display:flex;gap:4px;align-items:flex-start;margin-bottom:6px;}
+.lt-para .lab{width:34px;flex-shrink:0;font-size:12px;color:#334155;font-weight:700;padding-top:7px;text-align:right;}
+.lt-para .ta{flex:1;min-width:0;}
+.lt-para .ctl{display:flex;flex-direction:column;gap:2px;flex-shrink:0;}
+.lt-para .ctl .jg-b{padding:2px 6px;font-size:11px;}
+.lt-arae{flex:1;text-align:center;font-size:13px;color:#334155;padding:6px;border:1px dashed #cbd5e1;border-radius:6px;background:#f8fafc;}
+.lt-tbl{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;}
+.lt-tbl th{background:#f1f5f9;color:#334155;font-weight:700;padding:7px 6px;border-bottom:1px solid #e2e8f0;text-align:left;white-space:nowrap;}
+.lt-tbl td{padding:6px;border-bottom:1px solid #f1f5f9;vertical-align:top;}
+.lt-tbl tr.cx td{color:#94a3b8;}
+.lt-tbl tr.cx td.st{text-decoration:line-through;}
+.lt-tbl td.no{white-space:nowrap;font-weight:700;}
+.lt-tbl td.act{white-space:nowrap;text-align:right;}
+.lt-tbl td.act .jg-b{padding:3px 7px;font-size:11.5px;margin-left:3px;}
+.lt-note{cursor:text;min-width:60px;display:inline-block;border-radius:4px;padding:1px 3px;}
+.lt-note.ed:hover{background:#eff6ff;}
+.lt-res{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
+.lt-res .r{display:flex;align-items:center;gap:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;}
+.lt-res .no{font-size:24px;font-weight:800;color:#1d4ed8;letter-spacing:-.5px;min-width:150px;}
+.lt-res .t{flex:1;min-width:0;font-size:13px;color:#334155;}
+.lt-badge{display:inline-block;font-size:10.5px;font-weight:700;border-radius:10px;padding:1px 7px;margin-left:4px;vertical-align:1px;}
+.lt-badge.l{background:#dbeafe;color:#1e40af;}
+.lt-badge.c{background:#fee2e2;color:#991b1b;}
+@media (max-width:1100px){ .lt-wrap{grid-template-columns:minmax(0,1fr);} .lt-right{position:static;} }
 @media (max-width:1180px){ .jg-wrap{grid-template-columns:360px minmax(0,1fr);} }
 </style>
 </head>
@@ -115,7 +156,7 @@ body{background:#f1f5f9;color:#0f172a;font-size:14px;overflow-x:hidden;}
 const { useState, useEffect, useRef } = React;
 
 // ── 업무관리 → 서류작성 (2026-11-09) ─────────────────────────────────────
-// 여러 서류를 담는 틀. 서류 종류는 아래 DOC_TYPES 한 곳에 등록한다(다음 = 착수계). 주소 = docs.html#서류키.
+// 여러 서류를 담는 틀. 서류 종류는 아래 DOC_TYPES 한 곳에 등록한다(준공사진 · 공문). 주소 = docs.html#서류키.
 // 권한: 직원 전체(협력업체 제외) — 권한 키 없음(SECTION_TABS.worklog 「서류작성」 show 와 같은 규칙).
 // 관리포털 「서류작성」(admin-docs.html, 권한 키 docs)과는 다른 화면이다.
 const sb = supabase.createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_KEY);
@@ -836,12 +877,705 @@ function SiteDialog({ value, onDone }) {
 }
 
 // ═════════════════════════════════════════════════════════════════════
+//  공문 (2026-11-13, v2.9.0) — 우리 회사 전용(화이트라벨 아님). 회사 고정값·배치는 letter-doc.js(LetterDoc) 한 곳
+//  탭: 공문 작성 · 번호만 받기 · 공문 대장. 번호는 DB issue_letter_numbers()(연도별 잠금)로만 받는다
+//  권한: 보기·번호 받기 = 직원 전체(협력업체 제외), 남의 공문 수정·취소 = letter_admin(기본 관리자 + 관리팀), 삭제 없음
+//  결재란 이름 = DB letter_depts(관리부 고정), 설계부·지반부는 이 PC 에 부서별로 기억. 직인 = DB 회사 도장(직인) 그림
+// ═════════════════════════════════════════════════════════════════════
+const LT_HON = ['청', '공사', '본부', '공단', '원', '사업소', '사'];
+const LT_SIGN_KEY = PREFIX + '_letter_sign_';      // + 부서 → [{pos,name},{pos,name}]
+const LT_COLS = 'id,year,seq,doc_no,issued_date,kind,recipient,via,title,body,attachments,opts,dept,sign_lines,cooperation,disclosure,project_id,author_id,author_name,note,status,cancel_reason,imported,created_at,updated_at';
+
+// 글꼴·서식·로고·직인 — 한 번만 받는다(화면이 바뀌어도 그대로)
+const LT_RES = (function() {
+  var p = null, seal = null;
+  function fetchBytes(url) {
+    return fetch(url, { cache: 'no-cache' }).then(function(r) {
+      if (!r.ok) throw new Error(url + ' (' + r.status + ')');
+      return r.arrayBuffer();
+    }).then(function(b) { return new Uint8Array(b); });
+  }
+  function load() {
+    if (p) return p;
+    p = Promise.all([
+      fetchBytes('tools/jungong/fonts/NanumGothic.ttf'),
+      fetchBytes('tools/jungong/fonts/NanumGothicBold.ttf'),
+      fetchBytes(LetterDoc.CO.TEMPLATE + '?v=2026111301')
+    ]).then(function(r) {
+      var fkReg = fontkit.create(r[0]), fkBold = fontkit.create(r[1]);
+      return JSZip.loadAsync(r[2]).then(function(z) { return z.file('BinData/image1.png').async('uint8array'); }).then(function(logo) {
+        var sz = LetterDoc.pngSize(logo) || { w: 1, h: 1 };
+        return {
+          fontReg: r[0], fkBold: fkBold, template: r[2], logo: logo,
+          measure: LetterDoc.makeMeasure(fkReg, fkBold),
+          logoImg: { url: pngUrl(logo), w: sz.w, h: sz.h }
+        };
+      });
+    });
+    p.catch(function() { p = null; });
+    return p;
+  }
+  // 직인: DB 가 알려 준 경로 하나만(그 밖의 도장 파일은 볼 수 없다). 배경 투명·여백 자르기(SealPrep)
+  function loadSeal() {
+    if (seal) return seal;
+    seal = sb.rpc('letter_seal_path').then(function(r) {
+      if (r.error) throw r.error;
+      if (!r.data) return null;
+      var bucket = (APP_CONFIG.DOCS && APP_CONFIG.DOCS.SEAL_BUCKET) || 'seals';
+      return sb.storage.from(bucket).createSignedUrl(r.data, 60).then(function(s) {
+        if (s.error || !s.data) throw (s.error || new Error('직인 주소를 받지 못했습니다.'));
+        return fetch(s.data.signedUrl, { cache: 'no-store' });
+      }).then(function(res) { if (!res.ok) throw new Error('직인 그림 (' + res.status + ')'); return res.arrayBuffer(); })
+        .then(function(b) { return SealPrep.toPng(new Uint8Array(b), { clean: true }); })
+        .then(function(x) { return { bytes: x.bytes, url: pngUrl(x.bytes), w: x.w, h: x.h }; });
+    });
+    seal.catch(function() { seal = null; });
+    return seal;
+  }
+  return { load: load, loadSeal: loadSeal };
+})();
+
+function ltNorm(s) { return String(s || '').replace(/\s+/g, '').toLowerCase(); }
+function ltYear(iso) { var m = /^(\d{4})/.exec(String(iso || '')); return m ? Number(m[1]) : new Date().getFullYear(); }
+function ltEmptyForm() {
+  return { id: null, docNo: '', date: LetterDoc.todayIso(), recipient: '', via: '', title: '', greet: true, hon: '', honAuto: true,
+    body: [{ t: '', lv: 1 }], attachments: [], dept: LetterDoc.CO.DEPTS[0], signLines: [], coop: '', disclosure: LetterDoc.DEFAULT_DISCLOSURE,
+    projectId: '', authorId: null, status: 'issued' };
+}
+function ltFromRow(row, copy) {
+  var o = row.opts || {};
+  var f = {
+    id: copy ? null : row.id, docNo: copy ? '' : (row.doc_no || ''), date: copy ? LetterDoc.todayIso() : (row.issued_date || LetterDoc.todayIso()),
+    recipient: row.recipient || '', via: row.via || '', title: row.title || '', greet: o.greet !== false, hon: o.hon || '', honAuto: !o.hon,
+    body: (row.body && row.body.length) ? row.body.map(function(p) { return Object.assign({}, p); }) : [{ t: '', lv: 1 }],
+    attachments: (row.attachments || []).map(function(a) { return Object.assign({}, a); }),
+    dept: row.dept || LetterDoc.CO.DEPTS[0], signLines: (row.sign_lines || []).map(function(a) { return Object.assign({}, a); }),
+    coop: row.cooperation || '', disclosure: row.disclosure || LetterDoc.DEFAULT_DISCLOSURE,
+    projectId: row.project_id || '', authorId: copy ? null : row.author_id, status: copy ? 'issued' : row.status
+  };
+  if (!f.hon) f.hon = LetterDoc.guessHonorific(f.recipient);
+  return f;
+}
+// 화면 값 → LetterDoc 이 쓰는 공문 값
+function ltLetter(f) {
+  return { docNo: f.docNo, date: f.date, recipient: f.recipient.trim(), via: f.via.trim(), title: f.title.trim(), greet: f.greet,
+    hon: f.hon || LetterDoc.guessHonorific(f.recipient), body: f.body.filter(function(p) { return p.arae || String(p.t || '').trim(); }),
+    attachments: f.attachments.filter(function(a) { return String(a.name || '').trim(); }), dept: f.dept,
+    signLines: f.signLines.filter(function(q) { return q && (String(q.pos || '').trim() || String(q.name || '').trim()); }),
+    coop: f.coop.trim(), disclosure: f.disclosure };
+}
+function ltRowLetter(row) { return ltLetter(ltFromRow(row, false)); }
+function ltPayload(f) {
+  var l = ltLetter(f);
+  return { kind: 'letter', issued_date: f.date, recipient: l.recipient, via: l.via, title: l.title, body: l.body, attachments: l.attachments,
+    opts: { greet: f.greet, hon: f.honAuto ? '' : f.hon }, dept: f.dept, sign_lines: l.signLines, cooperation: l.coop,
+    disclosure: f.disclosure, project_id: f.projectId || null };
+}
+// PDF · HWPX 만들기(같은 배치)
+function ltBuild(letter, res, seal) {
+  return Promise.all([
+    LetterDoc.buildPdf({ letter: letter, measure: res.measure, PDFLib: PDFLib, fontkit: fontkit, fontReg: res.fontReg, fkBold: res.fkBold,
+      logo: res.logo, seal: seal ? seal.bytes : null }),
+    LetterDoc.buildHwpx({ letter: letter, template: res.template, seal: seal ? seal.bytes : null, JSZip: JSZip, measure: res.measure, type: 'uint8array' })
+  ]);
+}
+function ltDownload(letter, res, seal, which) {
+  return ltBuild(letter, res, seal).then(function(r) {
+    if (which !== 'hwpx') downloadBytes(r[0], LetterDoc.fileName(letter.docNo, letter.title, 'pdf'), 'application/pdf');
+    if (which !== 'pdf') setTimeout(function() { downloadBytes(r[1], LetterDoc.fileName(letter.docNo, letter.title, 'hwpx'), 'application/hwp+zip'); }, which ? 0 : 400);
+  });
+}
+function ltErr(e) {
+  var m = (e && (e.message || e.msg)) || String(e || '');
+  if (e && e.code === '42501') return '권한이 없습니다. ' + m;
+  return m || '알 수 없는 오류';
+}
+function ltCopy(text) {
+  try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text); } catch (e) {}
+  return new Promise(function(ok) {
+    var t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); } catch (e) {} t.remove(); ok();
+  });
+}
+
+function LetterView({ user }) {
+  const [tab, setTab] = useState('write');
+  const [res, setRes] = useState(null);         // 글꼴·서식·로고
+  const [resErr, setResErr] = useState('');
+  const [seal, setSeal] = useState(undefined);  // undefined = 받는 중, null = 없음
+  const [sealErr, setSealErr] = useState('');
+  const [canAdmin, setCanAdmin] = useState(Sysbar.can('letter_admin'));
+  const [depts, setDepts] = useState([]);
+  const [book, setBook] = useState([]);          // 수신처록 + 예전 대장 수신처
+  const [projects, setProjects] = useState([]);
+  const [editRow, setEditRow] = useState(null);  // 대장에서 「고치기」·「복사」 → 작성 탭 {row, copy, n}
+  const [ledgerRev, setLedgerRev] = useState(0);
+  const dlg = useDialog();
+
+  useEffect(function() {
+    LT_RES.load().then(setRes, function(e) { setResErr('글꼴·서식을 불러오지 못했습니다. (' + ltErr(e) + ')'); });
+    LT_RES.loadSeal().then(function(s) { setSeal(s); }, function(e) { setSeal(null); setSealErr(ltErr(e)); });
+    Sysbar.loadPerms(sb).then(function() { setCanAdmin(Sysbar.can('letter_admin')); });
+    sb.from('letter_depts').select('name,fixed,sign_lines,sort_order').order('sort_order').then(function(r) { if (!r.error) setDepts(r.data || []); });
+    sb.from('projects').select('id,name,client,status').order('created_at', { ascending: false }).then(function(r) { if (!r.error) setProjects(r.data || []); });
+    loadBook();
+  }, []);
+  function loadBook() {
+    Promise.all([
+      sb.from('letter_recipients').select('name,via_default,honorific,use_count').order('use_count', { ascending: false }).limit(1000),
+      sb.from('official_letters').select('recipient').not('recipient', 'is', null).order('created_at', { ascending: false }).limit(1000)
+    ]).then(function(r) {
+      var seen = {}, out = [];
+      ((r[0] && r[0].data) || []).forEach(function(b) { var k = ltNorm(b.name); if (!seen[k]) { seen[k] = 1; out.push(b); } });
+      ((r[1] && r[1].data) || []).forEach(function(x) { var k = ltNorm(x.recipient); if (k && !seen[k]) { seen[k] = 1; out.push({ name: x.recipient.trim(), via_default: null, honorific: null }); } });
+      setBook(out);
+    });
+  }
+  function canEdit(row) { return !!row && (row.author_id === user.id || canAdmin); }
+  function openEdit(row, copy) { setEditRow({ row: row, copy: copy, n: Date.now() }); setTab('write'); }
+
+  return (
+    <div>
+      <div className="lt-tabs" role="tablist" aria-label="공문">
+        {[['write', '✏️ 공문 작성'], ['number', '🔢 번호만 받기'], ['ledger', '📒 공문 대장']].map(function(t) {
+          return <button key={t[0]} role="tab" aria-selected={tab === t[0]} className={tab === t[0] ? 'on' : ''} onClick={function() { setTab(t[0]); }}>{t[1]}</button>;
+        })}
+      </div>
+      {resErr && <div className="dc-al e" style={{ marginBottom: 10 }}>{resErr}</div>}
+      {tab === 'write' && <LetterWrite user={user} res={res} seal={seal} sealErr={sealErr} depts={depts} book={book} projects={projects}
+        editRow={editRow} canEdit={canEdit} dlg={dlg} onSaved={function() { loadBook(); setLedgerRev(ledgerRev + 1); }} />}
+      {tab === 'number' && <LetterNumbers book={book} dlg={dlg} onSaved={function() { loadBook(); setLedgerRev(ledgerRev + 1); }} />}
+      {tab === 'ledger' && <LetterLedger user={user} res={res} seal={seal} canEdit={canEdit} rev={ledgerRev} dlg={dlg} onEdit={openEdit} />}
+      {dlg.node}
+    </div>
+  );
+}
+
+// ── ① 공문 작성 ─────────────────────────────────────────────────
+function LetterWrite({ user, res, seal, sealErr, depts, book, projects, editRow, canEdit, dlg, onSaved }) {
+  const [f, setF] = useState(ltEmptyForm);
+  const [saved, setSaved] = useState(null);      // 마지막으로 저장한 행(같은 번호로 다시 내려받기)
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);          // {k:'i'|'w'|'e', t}
+  const focusRef = useRef({ i: -1, s: 0, e: 0 });
+
+  // 대장에서 넘어온 공문
+  useEffect(function() {
+    if (!editRow) return;
+    var nf = ltFromRow(editRow.row, editRow.copy);
+    if (!editRow.copy && nf.dept && depts.length) applyDeptLines(nf, nf.dept, true);
+    setF(nf); setSaved(editRow.copy ? null : editRow.row); setDirty(false);
+    setMsg(editRow.copy ? { k: 'i', t: editRow.row.doc_no + ' 내용을 복사했습니다. 저장하면 새 번호를 받습니다.' }
+      : { k: 'i', t: editRow.row.doc_no + ' 을(를) 고칩니다. 저장하면 같은 번호로 다시 만듭니다.' });
+  }, [editRow && editRow.n]);
+  // 결재 부서 목록이 오면 처음 부서의 결재란 채우기
+  useEffect(function() {
+    if (!depts.length || f.id) return;
+    setF(function(o) { var n = Object.assign({}, o); applyDeptLines(n, n.dept, false); return n; });
+  }, [depts.length]);
+
+  function deptRow(name) { return depts.filter(function(d) { return d.name === name; })[0] || null; }
+  function applyDeptLines(n, dept, keep) {
+    var d = deptRow(dept);
+    if (d && d.fixed) { n.signLines = (d.sign_lines || []).map(function(x) { return Object.assign({}, x); }); return; }
+    if (keep && n.signLines && n.signLines.length) return;
+    var mem = lsGet(LT_SIGN_KEY + dept);
+    n.signLines = (mem && mem.length) ? mem : ((d && d.sign_lines && d.sign_lines.length) ? d.sign_lines : [{ pos: '', name: '' }, { pos: '', name: '' }]);
+  }
+  function set(patch) { setF(function(o) { return Object.assign({}, o, patch); }); setDirty(true); }
+  function setRecipient(v) {
+    setF(function(o) {
+      var n = Object.assign({}, o, { recipient: v });
+      var hit = book.filter(function(b) { return ltNorm(b.name) === ltNorm(v); })[0];
+      if (hit && hit.via_default && !o.via) n.via = hit.via_default;
+      if (o.honAuto) n.hon = (hit && hit.honorific) || LetterDoc.guessHonorific(v);
+      return n;
+    });
+    setDirty(true);
+  }
+  function setDept(d) {
+    setF(function(o) { var n = Object.assign({}, o, { dept: d }); applyDeptLines(n, d, false); return n; });
+    setDirty(true);
+  }
+  function setSign(i, k, v) {
+    setF(function(o) {
+      var sl = o.signLines.slice(); while (sl.length < 2) sl.push({ pos: '', name: '' });
+      sl[i] = Object.assign({}, sl[i]); sl[i][k] = v;
+      return Object.assign({}, o, { signLines: sl });
+    });
+    setDirty(true);
+  }
+  function setPara(i, patch) { setF(function(o) { var b = o.body.slice(); b[i] = Object.assign({}, b[i], patch); return Object.assign({}, o, { body: b }); }); setDirty(true); }
+  function addPara(at, p) { setF(function(o) { var b = o.body.slice(); b.splice(at, 0, p); return Object.assign({}, o, { body: b }); }); setDirty(true); }
+  function delPara(i) { setF(function(o) { var b = o.body.slice(); b.splice(i, 1); if (!b.length) b.push({ t: '', lv: 1 }); return Object.assign({}, o, { body: b }); }); setDirty(true); }
+  function movePara(i, d) {
+    setF(function(o) { var b = o.body.slice(), j = i + d; if (j < 0 || j >= b.length) return o; var t = b[i]; b[i] = b[j]; b[j] = t; return Object.assign({}, o, { body: b }); });
+    setDirty(true);
+  }
+  function insertProjectName() {
+    var pj = projects.filter(function(p) { return p.id === f.projectId; })[0];
+    if (!pj) return;
+    var ins = '「' + pj.name + '」', fc = focusRef.current;
+    setF(function(o) {
+      var b = o.body.slice(), i = (fc.i >= 0 && fc.i < b.length && !b[fc.i].arae) ? fc.i : -1;
+      if (i < 0) { for (var k = b.length - 1; k >= 0; k--) { if (!b[k].arae) { i = k; break; } } }
+      if (i < 0) { b.push({ t: ins, lv: 1 }); return Object.assign({}, o, { body: b }); }
+      var t = String(b[i].t || ''), s = fc.i === i ? Math.min(fc.s, t.length) : t.length, e = fc.i === i ? Math.min(fc.e, t.length) : t.length;
+      b[i] = Object.assign({}, b[i], { t: t.slice(0, s) + ins + t.slice(e) });
+      return Object.assign({}, o, { body: b });
+    });
+    setDirty(true);
+  }
+  function pickProject(id) {
+    var pj = projects.filter(function(p) { return p.id === id; })[0];
+    set({ projectId: id });
+    if (pj && pj.client) setRecipient(pj.client);
+  }
+  function setAtt(i, k, v) { setF(function(o) { var a = o.attachments.slice(); a[i] = Object.assign({}, a[i]); a[i][k] = v; return Object.assign({}, o, { attachments: a }); }); setDirty(true); }
+  function addAtt() { setF(function(o) { return Object.assign({}, o, { attachments: o.attachments.concat([{ name: '', qty: '1부' }]) }); }); setDirty(true); }
+  function delAtt(i) { setF(function(o) { var a = o.attachments.slice(); a.splice(i, 1); return Object.assign({}, o, { attachments: a }); }); setDirty(true); }
+  function newLetter() {
+    var go = dirty ? dlg.ask({ title: '새 공문', text: '지금 쓰던 내용을 지우고 새로 쓸까요?', buttons: [{ label: '새로 쓰기', value: true, primary: true }, { label: '취소', value: false }] }) : Promise.resolve(true);
+    go.then(function(ok) {
+      if (!ok) return;
+      var n = ltEmptyForm(); applyDeptLines(n, n.dept, false);
+      setF(n); setSaved(null); setDirty(false); setMsg(null);
+    });
+  }
+
+  var letter = ltLetter(f);
+  var lay = null;
+  try { lay = res ? LetterDoc.layout(letter, res.measure) : null; } catch (e) { lay = null; }
+  var paras = LetterDoc.composeParas(Object.assign({}, letter, { body: f.body.map(function(p) { return p.arae ? p : Object.assign({}, p, { t: p.t || ' ' }); }) }));
+  var labels = [], pi = f.greet !== false ? 1 : 0;
+  f.body.forEach(function(p) { labels.push(p.arae ? '' : ((paras[pi] && paras[pi].label) || '')); pi++; });
+  var fixedDept = (deptRow(f.dept) || {}).fixed;
+  var year = ltYear(f.date), curY = new Date().getFullYear();
+  var editing = !!f.id;
+  var mayEdit = !editing || canEdit({ author_id: f.authorId });
+  var warns = [];
+  if (lay) lay.warnings.forEach(function(w) { warns.push(w); });
+  if (seal === null) warns.push('직인 그림이 없어 직인 없이 만듭니다' + (sealErr ? ' (' + sealErr + ')' : '') + '. 관리포털 → 서류작성 → 회사 도장에 「직인」을 등록해 주세요.');
+  if (!letter.signLines.length) warns.push('결재란(직급·이름)이 비어 있습니다.');
+  if (year !== curY && year !== curY - 1) warns.push('발송일은 올해나 작년이어야 번호를 받을 수 있습니다.');
+
+  function save() {
+    if (!letter.recipient) { setMsg({ k: 'e', t: '수신처를 적어 주세요.' }); return; }
+    if (!letter.title) { setMsg({ k: 'e', t: '제목을 적어 주세요.' }); return; }
+    if (!res) { setMsg({ k: 'e', t: '글꼴·서식을 아직 불러오는 중입니다.' }); return; }
+    if (editing && !mayEdit) { setMsg({ k: 'e', t: '이 공문은 작성자나 관리 권한이 있는 사람만 고칠 수 있습니다.' }); return; }
+    if (editing && f.status === 'canceled') { setMsg({ k: 'e', t: '취소된 공문은 고칠 수 없습니다. 대장에서 취소를 되돌린 뒤 고쳐 주세요.' }); return; }
+    if (!fixedDept) lsSet(LT_SIGN_KEY + f.dept, letter.signLines);
+    setBusy(true); setMsg({ k: 'i', t: editing ? '저장하는 중…' : '번호를 받는 중…' });
+    var pay = ltPayload(f), p;
+    if (editing) {
+      if (ltYear(f.date) !== ltYear(saved && saved.issued_date)) { setBusy(false); setMsg({ k: 'e', t: '번호를 받은 해(' + ltYear(saved && saved.issued_date) + '년) 안의 날짜만 고를 수 있습니다.' }); return; }
+      delete pay.kind;
+      p = sb.from('official_letters').update(pay).eq('id', f.id).select(LT_COLS).then(function(r) {
+        if (r.error) throw r.error;
+        if (!r.data || !r.data.length) throw new Error('저장되지 않았습니다(고칠 권한이 없거나 지워진 공문).');
+        return r.data[0];
+      });
+    } else {
+      p = sb.rpc('issue_letter_numbers', { p_year: year, p_rows: [pay] }).then(function(r) {
+        if (r.error) throw r.error;
+        var row = (r.data || [])[0];
+        if (!row) throw new Error('번호를 받지 못했습니다.');
+        return row;
+      });
+    }
+    p.then(function(row) {
+      setSaved(row); setDirty(false);
+      setF(function(o) { return Object.assign({}, o, { id: row.id, docNo: row.doc_no, authorId: row.author_id, status: row.status }); });
+      onSaved();
+      setMsg({ k: 'i', t: (editing ? '고쳐서 저장했습니다: ' : '번호를 받았습니다: ') + row.doc_no + ' — PDF·HWPX 를 내려받습니다.' });
+      return ltDownload(ltRowLetter(row), res, seal);
+    }).catch(function(e) { setMsg({ k: 'e', t: '저장하지 못했습니다. ' + ltErr(e) }); })
+      .then(function() { setBusy(false); });
+  }
+  function redownload(which) {
+    if (!saved || !res) return;
+    setBusy(true);
+    ltDownload(ltRowLetter(saved), res, seal, which).catch(function(e) { setMsg({ k: 'e', t: '파일을 만들지 못했습니다. ' + ltErr(e) }); }).then(function() { setBusy(false); });
+  }
+
+  var deptNames = depts.length ? depts.map(function(d) { return d.name; }) : LetterDoc.CO.DEPTS;
+  var sl = f.signLines.slice(); while (sl.length < 2) sl.push({ pos: '', name: '' });
+  return (
+    <div className="lt-wrap">
+      <div className="jg-left">
+        <div className="jg-sec">
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {editing ? <span>✏️ {f.docNo} 고치기{f.status === 'canceled' && <span className="lt-badge c">취소됨</span>}</span> : <span>✏️ 새 공문</span>}
+            <span style={{ marginLeft: 'auto' }}><button className="jg-b" onClick={newLetter}>＋ 새 공문</button></span>
+          </h3>
+          <div className="jg-row"><label>용역(선택)</label>
+            <div className="f" style={{ display: 'flex', gap: 4 }}>
+              <select className="jg-sel" value={f.projectId} onChange={function(e) { pickProject(e.target.value); }}>
+                <option value="">— 고르지 않음 —</option>
+                {projects.map(function(p) { return <option key={p.id} value={p.id}>{p.name}{p.client ? ' (' + p.client + ')' : ''}</option>; })}
+              </select>
+              <button className="jg-b" disabled={!f.projectId} title="본문 커서 자리에 「용역명」을 넣습니다" onClick={insertProjectName}>「용역명」 넣기</button>
+            </div>
+          </div>
+          <div className="jg-row"><label>수신</label>
+            <div className="f"><input className="jg-in" list="lt-book" value={f.recipient} placeholder="예: 부산광역시 사상구청장"
+              onChange={function(e) { setRecipient(e.target.value); }} />
+              <datalist id="lt-book">{book.slice(0, 500).map(function(b) { return <option key={b.name} value={b.name} />; })}</datalist></div>
+          </div>
+          <div className="jg-row"><label>(경유)</label><div className="f"><input className="jg-in" value={f.via} placeholder="없으면 비움" onChange={function(e) { set({ via: e.target.value }); }} /></div></div>
+          <div className="jg-row"><label>제목</label><div className="f"><input className="jg-in" value={f.title} onChange={function(e) { set({ title: e.target.value }); }} /></div></div>
+          <div className="jg-row"><label>발송일</label>
+            <div className="f" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input className="jg-in" type="date" style={{ width: 160 }} value={f.date} onChange={function(e) { set({ date: e.target.value || LetterDoc.todayIso() }); }} />
+              <span className="jg-small">시행 {f.docNo || (LetterDoc.CO.DOC_PREFIX + String(year).slice(2) + '-(저장할 때 받음)')}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="jg-sec">
+          <h3>본문</h3>
+          <label className="jg-ck"><input type="checkbox" checked={f.greet} onChange={function(e) { set({ greet: e.target.checked }); }} />
+            <span>첫 문단 인사 「{LetterDoc.greeting(f.hon)}」</span></label>
+          {f.greet && <div className="jg-row" style={{ marginLeft: 22 }}><label style={{ width: 'auto' }}>호칭</label>
+            <select className="jg-sel" style={{ width: 120 }} value={f.honAuto ? '' : f.hon}
+              onChange={function(e) { var v = e.target.value; set(v ? { hon: v, honAuto: false } : { hon: LetterDoc.guessHonorific(f.recipient), honAuto: true }); }}>
+              <option value="">자동 ({LetterDoc.guessHonorific(f.recipient) || '사'})</option>
+              {LT_HON.map(function(h) { return <option key={h} value={h}>{h}</option>; })}
+            </select></div>}
+          {f.body.map(function(p, i) {
+            return (
+              <div key={i} className="lt-para">
+                <span className="lab" style={{ paddingLeft: p.arae ? 0 : (Math.max(1, p.lv || 1) - 1) * 8 }}>{p.arae ? '' : (p.nn ? '·' : labels[i])}</span>
+                {p.arae
+                  ? <div className="lt-arae">{LetterDoc.ARAE}</div>
+                  : <textarea className="jg-ta ta" rows={Math.min(8, Math.max(2, Math.ceil(String(p.t || '').length / 34)))} value={p.t || ''}
+                      placeholder={i === 0 ? '문단 내용 — 번호는 자동으로 붙습니다' : ''}
+                      onChange={function(e) { setPara(i, { t: e.target.value }); }}
+                      onSelect={function(e) { focusRef.current = { i: i, s: e.target.selectionStart, e: e.target.selectionEnd }; }}
+                      onFocus={function(e) { focusRef.current = { i: i, s: e.target.selectionStart, e: e.target.selectionEnd }; }}
+                      onBlur={function(e) { focusRef.current = { i: i, s: e.target.selectionStart, e: e.target.selectionEnd }; }}
+                      onKeyDown={function(e) {
+                        if (e.key === 'Tab') { e.preventDefault(); setPara(i, { lv: Math.min(4, Math.max(1, (p.lv || 1) + (e.shiftKey ? -1 : 1))) }); }
+                      }} />}
+                <div className="ctl">
+                  {!p.arae && <button className="jg-b" title="한 단계 바깥(Shift+Tab)" disabled={(p.lv || 1) <= 1} onClick={function() { setPara(i, { lv: (p.lv || 1) - 1 }); }}>◀</button>}
+                  {!p.arae && <button className="jg-b" title="한 단계 안쪽(Tab)" disabled={(p.lv || 1) >= 4} onClick={function() { setPara(i, { lv: (p.lv || 1) + 1 }); }}>▶</button>}
+                  {!p.arae && <button className={'jg-b' + (p.nn ? ' on' : '')} title="번호 없이(앞 문단에 이어 쓰기)" onClick={function() { setPara(i, { nn: !p.nn }); }}>번호</button>}
+                </div>
+                <div className="ctl">
+                  <button className="jg-b" title="위로" disabled={i === 0} onClick={function() { movePara(i, -1); }}>▲</button>
+                  <button className="jg-b" title="아래로" disabled={i === f.body.length - 1} onClick={function() { movePara(i, 1); }}>▼</button>
+                  <button className="jg-b" title="빼기" onClick={function() { delPara(i); }}>✕</button>
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+            <button className="jg-b" onClick={function() { var last = f.body[f.body.length - 1]; addPara(f.body.length, { t: '', lv: (last && !last.arae && last.lv) || 1 }); }}>＋ 문단</button>
+            <button className="jg-b" onClick={function() { addPara(f.body.length, { arae: true }); addPara(f.body.length + 1, { t: '', lv: 2 }); }}>＋ {LetterDoc.ARAE}</button>
+          </div>
+          <p className="jg-small" style={{ marginTop: 6 }}>번호는 1. → 가. → 1) → 가) 순서로 자동입니다. ◀ ▶(또는 Tab · Shift+Tab)로 단계를 바꿉니다.
+            붙임이 없으면 마지막 문단 끝에 「끝.」, 있으면 붙임 마지막 줄 끝에 「끝.」이 붙습니다.</p>
+        </div>
+
+        <div className="jg-sec">
+          <h3>붙임</h3>
+          <div className="jg-items">
+            {f.attachments.map(function(a, i) {
+              return (
+                <div key={i} className="jg-item">
+                  <input className="jg-in nm" value={a.name} placeholder="서류 이름" onChange={function(e) { setAtt(i, 'name', e.target.value); }} />
+                  <input className="jg-in ct" value={a.qty} onChange={function(e) { setAtt(i, 'qty', e.target.value); }} />
+                  <button className="jg-b" onClick={function() { delAtt(i); }}>✕</button>
+                </div>
+              );
+            })}
+          </div>
+          <button className="jg-b" style={{ marginTop: 6 }} onClick={addAtt}>＋ 붙임</button>
+        </div>
+
+        <div className="jg-sec">
+          <h3>결재 · 하단</h3>
+          <div className="jg-row"><label>부서</label>
+            <div className="f"><select className="jg-sel" value={f.dept} onChange={function(e) { setDept(e.target.value); }}>
+              {deptNames.map(function(d) { return <option key={d} value={d}>{d}</option>; })}
+            </select></div>
+          </div>
+          {[0, 1].map(function(i) {
+            return (
+              <div key={i} className="jg-row"><label>결재 {i + 1}</label>
+                <div className="f" style={{ display: 'flex', gap: 4 }}>
+                  <input className="jg-in" style={{ width: 90 }} placeholder="직급" readOnly={!!fixedDept} value={sl[i].pos || ''} onChange={function(e) { setSign(i, 'pos', e.target.value); }} />
+                  <input className="jg-in" placeholder="이름" readOnly={!!fixedDept} value={sl[i].name || ''} onChange={function(e) { setSign(i, 'name', e.target.value); }} />
+                </div>
+              </div>
+            );
+          })}
+          <p className="jg-small">{fixedDept ? f.dept + ' 결재란은 고정입니다.' : f.dept + ' 결재란은 저장할 때 이 PC 에 기억해 두고 다음에 채웁니다.'}</p>
+          <div className="jg-row"><label>협조</label><div className="f"><input className="jg-in" value={f.coop} placeholder="없으면 비움" onChange={function(e) { set({ coop: e.target.value }); }} /></div></div>
+          <div className="jg-row"><label>공개 구분</label>
+            <div className="f"><select className="jg-sel" style={{ width: 140 }} value={f.disclosure} onChange={function(e) { set({ disclosure: e.target.value }); }}>
+              {LetterDoc.DISCLOSURE.map(function(d) { return <option key={d} value={d}>{d}</option>; })}
+            </select></div>
+          </div>
+        </div>
+
+        {msg && <div className={'dc-al ' + msg.k}>{msg.t}</div>}
+        <div className="jg-exp">
+          <button className="jg-b p" disabled={busy || !res || (editing && (!mayEdit || f.status === 'canceled'))} onClick={save}>
+            {busy ? '처리 중…' : (editing ? (dirty ? '💾 고쳐서 저장 (같은 번호) · 내려받기' : '💾 다시 저장 · 내려받기') : '💾 저장 · 번호 받기 · 내려받기')}
+          </button>
+        </div>
+        {saved && !dirty && <div className="jg-exp">
+          <button className="jg-b" disabled={busy} onClick={function() { redownload('pdf'); }}>⬇ PDF</button>
+          <button className="jg-b" disabled={busy} onClick={function() { redownload('hwpx'); }}>⬇ HWPX</button>
+        </div>}
+      </div>
+
+      <div className="lt-right">
+        {warns.length > 0 && <div className="dc-al w">{warns.map(function(w, i) { return <div key={i}>⚠ {w}</div>; })}</div>}
+        <div className="lt-paper">
+          {!lay
+            ? <div className="jg-empty">{res ? '미리보기를 만들 수 없습니다.' : '글꼴·서식을 불러오는 중…'}</div>
+            : lay.pages.map(function(items, i) {
+                return <div key={i} className="lt-page" dangerouslySetInnerHTML={{ __html: LetterDoc.pageSvg(items, { logo: res.logoImg, seal: seal || null }, 'LetterNanum') }} />;
+              })}
+        </div>
+        <p className="jg-small">미리보기는 PDF 와 같은 배치입니다. HWPX 는 한글에서 같은 서식으로 열립니다(줄 바꿈 위치는 조금 다를 수 있어요).</p>
+      </div>
+    </div>
+  );
+}
+
+// ── ② 번호만 받기 ───────────────────────────────────────────────
+function LetterNumbers({ book, dlg, onSaved }) {
+  const [date, setDate] = useState(LetterDoc.todayIso());
+  const [rows, setRows] = useState([{ recipient: '', title: '', note: '' }]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [got, setGot] = useState(null);
+  function setRow(i, k, v) { setRows(function(o) { var n = o.slice(); n[i] = Object.assign({}, n[i]); n[i][k] = v; return n; }); }
+  function submit() {
+    var list = rows.filter(function(r) { return r.title.trim() || r.recipient.trim(); });
+    if (!list.length) { setErr('제목을 적어 주세요.'); return; }
+    if (list.some(function(r) { return !r.title.trim(); })) { setErr('줄마다 제목을 적어 주세요.'); return; }
+    setErr(''); setBusy(true);
+    var pay = list.map(function(r) { return { kind: 'number_only', issued_date: date, recipient: r.recipient.trim(), title: r.title.trim(), note: r.note.trim() }; });
+    sb.rpc('issue_letter_numbers', { p_year: ltYear(date), p_rows: pay }).then(function(r) {
+      if (r.error) throw r.error;
+      setGot(r.data || []); setRows([{ recipient: '', title: '', note: '' }]); onSaved();
+    }).catch(function(e) { setErr('번호를 받지 못했습니다. ' + ltErr(e)); }).then(function() { setBusy(false); });
+  }
+  return (
+    <div style={{ maxWidth: 900 }}>
+      <div className="jg-sec">
+        <h3>🔢 공문 번호만 받기</h3>
+        <p className="jg-small" style={{ marginBottom: 8 }}>한글 등에서 직접 쓰는 공문의 번호만 받습니다. 여러 줄이면 이어진 번호를 한꺼번에 받습니다(최대 20건). 받은 번호는 대장에 바로 올라갑니다.</p>
+        <div className="jg-row"><label>발송일</label><div className="f"><input className="jg-in" type="date" style={{ width: 160 }} value={date} onChange={function(e) { setDate(e.target.value || LetterDoc.todayIso()); }} /></div></div>
+        <table className="lt-tbl" style={{ marginTop: 6 }}>
+          <thead><tr><th style={{ width: 28, position: 'static' }}>#</th><th style={{ position: 'static' }}>수신처</th><th style={{ position: 'static' }}>제목</th><th style={{ position: 'static' }}>비고</th><th style={{ position: 'static' }}></th></tr></thead>
+          <tbody>
+            {rows.map(function(r, i) {
+              return (
+                <tr key={i}>
+                  <td style={{ paddingTop: 12 }}>{i + 1}</td>
+                  <td><input className="jg-in" list="lt-book2" value={r.recipient} onChange={function(e) { setRow(i, 'recipient', e.target.value); }} /></td>
+                  <td><input className="jg-in" value={r.title} onChange={function(e) { setRow(i, 'title', e.target.value); }}
+                    onKeyDown={function(e) { if (e.key === 'Enter' && e.ctrlKey) submit(); }} /></td>
+                  <td><input className="jg-in" value={r.note} onChange={function(e) { setRow(i, 'note', e.target.value); }} /></td>
+                  <td><button className="jg-b" disabled={rows.length < 2} onClick={function() { setRows(rows.filter(function(x, j) { return j !== i; })); }}>✕</button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <datalist id="lt-book2">{book.slice(0, 500).map(function(b) { return <option key={b.name} value={b.name} />; })}</datalist>
+        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+          <button className="jg-b" disabled={rows.length >= 20} onClick={function() { setRows(rows.concat([{ recipient: '', title: '', note: '' }])); }}>＋ 줄 추가</button>
+          <button className="jg-b p" style={{ marginLeft: 'auto', padding: '8px 18px', fontSize: 13 }} disabled={busy} onClick={submit}>{busy ? '받는 중…' : '번호 받기'}</button>
+        </div>
+        {err && <div className="dc-al e" style={{ marginTop: 8 }}>{err}</div>}
+      </div>
+      {got && got.length > 0 && (
+        <div className="jg-sec" style={{ marginTop: 10 }}>
+          <h3 style={{ display: 'flex', alignItems: 'center' }}>받은 번호 {got.length}건
+            <button className="jg-b" style={{ marginLeft: 'auto' }} onClick={function() { ltCopy(got.map(function(r) { return r.doc_no + '\t' + (r.title || ''); }).join('\n')); }}>📋 모두 복사</button></h3>
+          <div className="lt-res">
+            {got.map(function(r) {
+              return (
+                <div key={r.id} className="r">
+                  <span className="no">{r.doc_no}</span>
+                  <span className="t">{r.recipient ? r.recipient + ' · ' : ''}{r.title}</span>
+                  <button className="jg-b" onClick={function(e) { var b = e.currentTarget; ltCopy(r.doc_no).then(function() { b.textContent = '✓ 복사됨'; setTimeout(function() { b.textContent = '📋 복사'; }, 1500); }); }}>📋 복사</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ③ 공문 대장 ─────────────────────────────────────────────────
+function LetterLedger({ user, res, seal, canEdit, rev, dlg, onEdit }) {
+  var curY = new Date().getFullYear();
+  const [year, setYear] = useState(curY);
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState('');
+  const [q, setQ] = useState('');
+  const [noteEd, setNoteEd] = useState(null);   // {id, v}
+  const [cancel, setCancel] = useState(null);   // row
+  const [busyId, setBusyId] = useState(null);
+  var years = []; for (var y = curY; y >= 2024; y--) years.push(y);
+
+  function load() {
+    setRows(null); setErr('');
+    var all = [], from = 0, PAGE = 1000;
+    function next() {
+      return sb.from('official_letters').select(LT_COLS).eq('year', year).order('created_at').range(from, from + PAGE - 1).then(function(r) {
+        if (r.error) throw r.error;
+        all = all.concat(r.data || []);
+        if ((r.data || []).length === PAGE) { from += PAGE; return next(); }
+        return all;
+      });
+    }
+    next().then(function(a) { setRows(a); }, function(e) { setErr('대장을 불러오지 못했습니다. ' + ltErr(e)); setRows([]); });
+  }
+  useEffect(load, [year, rev]);
+
+  function key(r) { var n = LetterDoc.ledgerNo(r); return [n === '' ? 1e9 : n, r.issued_date || '9999', r.created_at || '']; }
+  function cmp(a, b) { var x = key(a), z = key(b); for (var i = 0; i < 3; i++) { if (x[i] < z[i]) return -1; if (x[i] > z[i]) return 1; } return 0; }
+  var sorted = (rows || []).slice().sort(cmp);
+  var ql = q.trim().toLowerCase();
+  var shown = sorted.slice().reverse().filter(function(r) {
+    if (!ql) return true;
+    return [r.doc_no, r.recipient, r.title, r.author_name, r.note, r.via, r.cancel_reason].some(function(v) { return v && String(v).toLowerCase().indexOf(ql) >= 0; });
+  });
+  function patchRow(row) { setRows(function(o) { return (o || []).map(function(x) { return x.id === row.id ? row : x; }); }); }
+  function saveNote() {
+    var ed = noteEd; if (!ed) return;
+    setNoteEd(null);
+    var row = (rows || []).filter(function(x) { return x.id === ed.id; })[0];
+    if (!row || (row.note || '') === ed.v.trim()) return;
+    sb.from('official_letters').update({ note: ed.v.trim() || null }).eq('id', ed.id).select(LT_COLS).then(function(r) {
+      if (r.error || !r.data || !r.data.length) { dlg.info('비고 저장 실패', r.error ? ltErr(r.error) : '고칠 권한이 없습니다.'); return; }
+      patchRow(r.data[0]);
+    });
+  }
+  function doCancel(reason) {
+    var row = cancel; setCancel(null);
+    if (!row) return;
+    sb.from('official_letters').update({ status: 'canceled', cancel_reason: reason }).eq('id', row.id).select(LT_COLS).then(function(r) {
+      if (r.error || !r.data || !r.data.length) { dlg.info('취소하지 못했습니다', r.error ? ltErr(r.error) : '취소할 권한이 없습니다.'); return; }
+      patchRow(r.data[0]);
+    });
+  }
+  function undoCancel(row) {
+    dlg.ask({ title: '취소 되돌리기', text: row.doc_no + ' 의 취소를 되돌릴까요?', buttons: [{ label: '되돌리기', value: true, primary: true }, { label: '닫기', value: false }] }).then(function(ok) {
+      if (!ok) return;
+      sb.from('official_letters').update({ status: 'issued' }).eq('id', row.id).select(LT_COLS).then(function(r) {
+        if (r.error || !r.data || !r.data.length) { dlg.info('되돌리지 못했습니다', r.error ? ltErr(r.error) : '권한이 없습니다.'); return; }
+        patchRow(r.data[0]);
+      });
+    });
+  }
+  function download(row, which) {
+    if (!res) { dlg.info('준비 중', '글꼴·서식을 불러오는 중입니다. 잠시 뒤 다시 눌러 주세요.'); return; }
+    setBusyId(row.id + which);
+    ltDownload(ltRowLetter(row), res, seal, which).catch(function(e) { dlg.info('파일을 만들지 못했습니다', ltErr(e)); }).then(function() { setBusyId(null); });
+  }
+  function excel() {
+    var ws = XLSX.utils.aoa_to_sheet(LetterDoc.ledgerAoa(sorted));
+    ws['!cols'] = [{ wch: 9 }, { wch: 11 }, { wch: 22 }, { wch: 50 }, { wch: 9 }, { wch: 20 }];
+    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '공문발송대장(' + year + ')');
+    XLSX.writeFile(wb, '공문발송대장_' + year + '.xlsx');
+  }
+
+  var nIssued = (rows || []).filter(function(r) { return r.status !== 'canceled'; }).length;
+  var maxNo = (rows || []).reduce(function(m, r) { return r.seq != null && r.seq > m ? r.seq : m; }, 0);
+  return (
+    <div>
+      <div className="jg-bar" style={{ marginBottom: 8 }}>
+        <select className="jg-sel" style={{ width: 110 }} value={year} onChange={function(e) { setYear(Number(e.target.value)); }}>
+          {years.map(function(y) { return <option key={y} value={y}>{y}년</option>; })}
+        </select>
+        <input className="jg-in" style={{ width: 260 }} placeholder="번호·수신처·제목·작성자·비고 찾기" value={q} onChange={function(e) { setQ(e.target.value); }} />
+        <span className="jg-small">{rows ? (shown.length + '건' + (ql ? ' / ' + rows.length + '건' : '') + ' · 마지막 번호 ' + (maxNo ? LetterDoc.docNo(year, maxNo) : '없음') + (rows.length !== nIssued ? ' · 취소 ' + (rows.length - nIssued) + '건' : '')) : '불러오는 중…'}</span>
+        <div className="r"><button className="jg-b" disabled={!rows || !rows.length} onClick={excel}>📥 엑셀 (예전 대장 모양)</button></div>
+      </div>
+      {err && <div className="dc-al e" style={{ marginBottom: 8 }}>{err}</div>}
+      <div className="dc-card" style={{ padding: 0, overflowX: 'auto' }}>
+        <table className="lt-tbl">
+          <thead><tr><th>번호</th><th>일자</th><th>수신처</th><th>제목</th><th>작성자</th><th>비고</th><th></th></tr></thead>
+          <tbody>
+            {rows && !shown.length && <tr><td colSpan={7} className="dc-note" style={{ padding: 20, textAlign: 'center' }}>{ql ? '찾는 공문이 없습니다.' : '이 해에는 공문이 없습니다.'}</td></tr>}
+            {shown.map(function(r) {
+              var cx = r.status === 'canceled', ed = canEdit(r);
+              return (
+                <tr key={r.id} className={cx ? 'cx' : ''}>
+                  <td className="no st">{r.doc_no || '(번호 없음)'}</td>
+                  <td className="st" style={{ whiteSpace: 'nowrap' }}>{LetterDoc.ledgerDate(r.issued_date)}</td>
+                  <td className="st">{r.recipient || ''}{r.via ? <span className="jg-small"> (경유 {r.via})</span> : null}</td>
+                  <td><span className="st">{r.title || ''}</span>
+                    {r.kind === 'letter' && <span className="lt-badge l">공문 작성</span>}
+                    {cx && <span className="lt-badge c" title={r.cancel_reason || ''}>취소{r.cancel_reason ? ': ' + r.cancel_reason : ''}</span>}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{r.author_name || ''}</td>
+                  <td>{noteEd && noteEd.id === r.id
+                    ? <input className="jg-in" autoFocus value={noteEd.v} onChange={function(e) { setNoteEd({ id: r.id, v: e.target.value }); }}
+                        onBlur={saveNote} onKeyDown={function(e) { if (e.key === 'Enter') saveNote(); if (e.key === 'Escape') setNoteEd(null); }} />
+                    : <span className={'lt-note' + (ed ? ' ed' : '')} title={ed ? '눌러서 비고 고치기' : ''}
+                        onClick={function() { if (ed) setNoteEd({ id: r.id, v: r.note || '' }); }}>{r.note || (ed ? <span style={{ color: '#cbd5e1' }}>＋</span> : '')}</span>}</td>
+                  <td className="act">
+                    {r.kind === 'letter' && <button className="jg-b" disabled={busyId === r.id + 'pdf'} onClick={function() { download(r, 'pdf'); }}>PDF</button>}
+                    {r.kind === 'letter' && <button className="jg-b" disabled={busyId === r.id + 'hwpx'} onClick={function() { download(r, 'hwpx'); }}>HWPX</button>}
+                    {r.kind === 'letter' && ed && !cx && <button className="jg-b" onClick={function() { onEdit(r, false); }}>고치기</button>}
+                    {r.kind === 'letter' && <button className="jg-b" title="이 내용으로 새 공문 쓰기" onClick={function() { onEdit(r, true); }}>복사</button>}
+                    {ed && !cx && <button className="jg-b" onClick={function() { setCancel(r); }}>취소</button>}
+                    {ed && cx && <button className="jg-b" onClick={function() { undoCancel(r); }}>되돌리기</button>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="jg-small" style={{ marginTop: 6 }}>공문은 지우지 않고 「취소」로 남깁니다(줄이 그어져 보이고 엑셀 비고에 사유가 들어갑니다). 고치기·취소는 작성자와 관리 권한이 있는 사람만 할 수 있습니다.
+        「공문 작성」 표시가 없는 줄은 번호만 받은 공문(예전 대장 포함)이라 파일이 없습니다.</p>
+      {cancel && <LetterCancelDialog row={cancel} onDone={function(v) { if (v) doCancel(v); else setCancel(null); }} />}
+    </div>
+  );
+}
+function LetterCancelDialog({ row, onDone }) {
+  const [v, setV] = useState('');
+  return (
+    <div className="modal-bg" role="dialog" aria-modal="true">
+      <div className="modal" style={{ maxWidth: 460 }}>
+        <h3>{row.doc_no} 취소</h3>
+        <p>번호는 그대로 남고 대장에 「취소」로 표시됩니다. 취소 사유를 적어 주세요.</p>
+        <input className="jg-in" style={{ marginTop: 10 }} autoFocus value={v} maxLength={300} placeholder="예: 발송하지 않음, 다른 번호로 다시 발송"
+          onChange={function(e) { setV(e.target.value); }} onKeyDown={function(e) { if (e.key === 'Enter' && v.trim()) onDone(v.trim()); if (e.key === 'Escape') onDone(null); }} />
+        <div className="acts">
+          <button className="jg-b p" disabled={!v.trim()} onClick={function() { onDone(v.trim()); }}>취소 처리</button>
+          <button className="jg-b" onClick={function() { onDone(null); }}>닫기</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════
 //  서류 종류 등록 — 새 서류는 여기에 한 줄 + 그 화면 컴포넌트. 빈 「준비 중」 항목은 두지 않는다
 //  pcOnly = 휴대폰 폭에서는 「PC에서 사용해 주세요」 안내만
 // ═════════════════════════════════════════════════════════════════════
 const DOC_TYPES = [
   { key: 'jungong', label: '준공사진', icon: '📷', pcOnly: true, View: JungongDoc,
     mobileWhy: '바인더를 끌어 옮기고 큰 미리보기를 봐야 해서 PC 화면이 필요합니다.' },
+  { key: 'letter', label: '공문', icon: '✉️', View: LetterView },
 ];
 function docFromHash() {
   var h = Sysbar.hashTab();

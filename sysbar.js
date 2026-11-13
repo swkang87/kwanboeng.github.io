@@ -85,7 +85,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.8.4';
+  var APP_VERSION = '2.9.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -208,6 +208,7 @@
     { key:'worklog_all',     group:'업무관리', label:'다른 사람 일지 보기',  desc:'전체 업무일지에서 다른 사람이 쓴 내용 보기',                                          pages:['worklog.html#all_logs'] },
     { key:'worklog_history', group:'업무관리', label:'작성이력',           desc:'업무일지 「작성이력」 탭(전 직원 수정 기록)',                                         pages:['worklog.html#logs'] },
     { key:'supply_admin',    group:'업무관리', label:'비품 전체 수정',      desc:'비품관리에서 다른 사람 기록 수정·삭제 (본인 기록은 누구나)',                            pages:['worklog.html#supply'] },
+    { key:'letter_admin',    group:'업무관리', label:'공문 대장 관리',      desc:'서류작성 → 공문: 다른 사람 공문 고치기·취소, 대장 비고 고치기 (번호 받기·보기·본인 공문은 직원 누구나)', pages:['docs.html#letter'] },
     { key:'notice',          group:'메인메뉴', label:'공지 작성',          desc:'메인메뉴 공지 작성, 다른 사람 공지 수정·삭제 (본인 공지는 작성자도 가능)',               pages:['home.html'] },
     { key:'company_events',  group:'메인메뉴', label:'회사 일정',          desc:'메인메뉴 회사 일정 등록·수정·삭제',                                                    pages:['home.html'] },
   ];
