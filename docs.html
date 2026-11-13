@@ -11,7 +11,7 @@
 html, body, #root, button, input, select, textarea { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111301"></script>
+<script src="sysbar.js?v=2026111302"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
@@ -22,7 +22,7 @@ html, body, #root, button, input, select, textarea { font-family: 'Pretendard', 
 <script src="https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js" integrity="sha384-2p6U+1mmqF10USehFeRiyG2ESG9FwIqN+jxULn5w9jjQIihSn9Pt13dVCn/Hawjn" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <script src="seal-prep.js?v=2026111301"></script>
-<script src="letter-doc.js?v=2026111301"></script>
+<script src="letter-doc.js?v=2026111302"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:#f1f5f9;color:#0f172a;font-size:14px;overflow-x:hidden;}
@@ -883,7 +883,8 @@ function SiteDialog({ value, onDone }) {
 //  결재란 이름 = DB letter_depts(관리부 고정), 설계부·지반부는 이 PC 에 부서별로 기억. 직인 = DB 회사 도장(직인) 그림
 // ═════════════════════════════════════════════════════════════════════
 const LT_HON = ['청', '공사', '본부', '공단', '원', '사업소', '사'];
-const LT_SIGN_KEY = PREFIX + '_letter_sign_';      // + 부서 → [{pos,name},{pos,name}]
+const LT_SIGN_KEY = PREFIX + '_letter_sign_';      // + 부서 → [{pos,name}] (칸 수 그대로, 최대 LetterDoc.SIGN_MAX)
+const LT_HEAD_MSG = '수신이 기관의 장인지 확인해 주세요.';
 const LT_COLS = 'id,year,seq,doc_no,issued_date,kind,recipient,via,title,body,attachments,opts,dept,sign_lines,cooperation,disclosure,project_id,author_id,author_name,note,status,cancel_reason,imported,created_at,updated_at';
 
 // 글꼴·서식·로고·직인 — 한 번만 받는다(화면이 바뀌어도 그대로)
@@ -940,7 +941,7 @@ function ltYear(iso) { var m = /^(\d{4})/.exec(String(iso || '')); return m ? Nu
 function ltEmptyForm() {
   return { id: null, docNo: '', date: LetterDoc.todayIso(), recipient: '', via: '', title: '', greet: true, hon: '', honAuto: true,
     body: [{ t: '', lv: 1 }], attachments: [], dept: LetterDoc.CO.DEPTS[0], signLines: [], coop: '', disclosure: LetterDoc.DEFAULT_DISCLOSURE,
-    projectId: '', authorId: null, status: 'issued' };
+    authorId: null, status: 'issued' };
 }
 function ltFromRow(row, copy) {
   var o = row.opts || {};
@@ -951,7 +952,7 @@ function ltFromRow(row, copy) {
     attachments: (row.attachments || []).map(function(a) { return Object.assign({}, a); }),
     dept: row.dept || LetterDoc.CO.DEPTS[0], signLines: (row.sign_lines || []).map(function(a) { return Object.assign({}, a); }),
     coop: row.cooperation || '', disclosure: row.disclosure || LetterDoc.DEFAULT_DISCLOSURE,
-    projectId: row.project_id || '', authorId: copy ? null : row.author_id, status: copy ? 'issued' : row.status
+    authorId: copy ? null : row.author_id, status: copy ? 'issued' : row.status
   };
   if (!f.hon) f.hon = LetterDoc.guessHonorific(f.recipient);
   return f;
@@ -961,7 +962,8 @@ function ltLetter(f) {
   return { docNo: f.docNo, date: f.date, recipient: f.recipient.trim(), via: f.via.trim(), title: f.title.trim(), greet: f.greet,
     hon: f.hon || LetterDoc.guessHonorific(f.recipient), body: f.body.filter(function(p) { return p.arae || String(p.t || '').trim(); }),
     attachments: f.attachments.filter(function(a) { return String(a.name || '').trim(); }), dept: f.dept,
-    signLines: f.signLines.filter(function(q) { return q && (String(q.pos || '').trim() || String(q.name || '').trim()); }),
+    signLines: f.signLines.filter(function(q) { return q && (String(q.pos || '').trim() || String(q.name || '').trim()); })
+      .slice(0, LetterDoc.SIGN_MAX).map(function(q) { return { pos: String(q.pos || '').trim(), name: String(q.name || '').trim() }; }),
     coop: f.coop.trim(), disclosure: f.disclosure };
 }
 function ltRowLetter(row) { return ltLetter(ltFromRow(row, false)); }
@@ -969,7 +971,7 @@ function ltPayload(f) {
   var l = ltLetter(f);
   return { kind: 'letter', issued_date: f.date, recipient: l.recipient, via: l.via, title: l.title, body: l.body, attachments: l.attachments,
     opts: { greet: f.greet, hon: f.honAuto ? '' : f.hon }, dept: f.dept, sign_lines: l.signLines, cooperation: l.coop,
-    disclosure: f.disclosure, project_id: f.projectId || null };
+    disclosure: f.disclosure, project_id: null };   // v2.9.1 용역 선택 없앰 — 칸은 DB 에 남기고 늘 비움
 }
 // PDF · HWPX 만들기(같은 배치)
 function ltBuild(letter, res, seal) {
@@ -1007,7 +1009,6 @@ function LetterView({ user }) {
   const [canAdmin, setCanAdmin] = useState(Sysbar.can('letter_admin'));
   const [depts, setDepts] = useState([]);
   const [book, setBook] = useState([]);          // 수신처록 + 예전 대장 수신처
-  const [projects, setProjects] = useState([]);
   const [editRow, setEditRow] = useState(null);  // 대장에서 「고치기」·「복사」 → 작성 탭 {row, copy, n}
   const [ledgerRev, setLedgerRev] = useState(0);
   const dlg = useDialog();
@@ -1017,7 +1018,6 @@ function LetterView({ user }) {
     LT_RES.loadSeal().then(function(s) { setSeal(s); }, function(e) { setSeal(null); setSealErr(ltErr(e)); });
     Sysbar.loadPerms(sb).then(function() { setCanAdmin(Sysbar.can('letter_admin')); });
     sb.from('letter_depts').select('name,fixed,sign_lines,sort_order').order('sort_order').then(function(r) { if (!r.error) setDepts(r.data || []); });
-    sb.from('projects').select('id,name,client,status').order('created_at', { ascending: false }).then(function(r) { if (!r.error) setProjects(r.data || []); });
     loadBook();
   }, []);
   function loadBook() {
@@ -1026,8 +1026,9 @@ function LetterView({ user }) {
       sb.from('official_letters').select('recipient').not('recipient', 'is', null).order('created_at', { ascending: false }).limit(1000)
     ]).then(function(r) {
       var seen = {}, out = [];
+      // 수신처록은 모두, 예전 대장 수신처는 기관의 장으로 끝나는 것만(「강서구」「시청」 같은 약칭은 뺀다)
       ((r[0] && r[0].data) || []).forEach(function(b) { var k = ltNorm(b.name); if (!seen[k]) { seen[k] = 1; out.push(b); } });
-      ((r[1] && r[1].data) || []).forEach(function(x) { var k = ltNorm(x.recipient); if (k && !seen[k]) { seen[k] = 1; out.push({ name: x.recipient.trim(), via_default: null, honorific: null }); } });
+      ((r[1] && r[1].data) || []).forEach(function(x) { var k = ltNorm(x.recipient); if (k && !seen[k] && LetterDoc.isAgencyHead(x.recipient)) { seen[k] = 1; out.push({ name: x.recipient.trim(), via_default: null, honorific: null }); } });
       setBook(out);
     });
   }
@@ -1042,7 +1043,7 @@ function LetterView({ user }) {
         })}
       </div>
       {resErr && <div className="dc-al e" style={{ marginBottom: 10 }}>{resErr}</div>}
-      {tab === 'write' && <LetterWrite user={user} res={res} seal={seal} sealErr={sealErr} depts={depts} book={book} projects={projects}
+      {tab === 'write' && <LetterWrite user={user} res={res} seal={seal} sealErr={sealErr} depts={depts} book={book}
         editRow={editRow} canEdit={canEdit} dlg={dlg} onSaved={function() { loadBook(); setLedgerRev(ledgerRev + 1); }} />}
       {tab === 'number' && <LetterNumbers book={book} dlg={dlg} onSaved={function() { loadBook(); setLedgerRev(ledgerRev + 1); }} />}
       {tab === 'ledger' && <LetterLedger user={user} res={res} seal={seal} canEdit={canEdit} rev={ledgerRev} dlg={dlg} onEdit={openEdit} />}
@@ -1052,36 +1053,44 @@ function LetterView({ user }) {
 }
 
 // ── ① 공문 작성 ─────────────────────────────────────────────────
-function LetterWrite({ user, res, seal, sealErr, depts, book, projects, editRow, canEdit, dlg, onSaved }) {
+function LetterWrite({ user, res, seal, sealErr, depts, book, editRow, canEdit, dlg, onSaved }) {
   const [f, setF] = useState(ltEmptyForm);
   const [saved, setSaved] = useState(null);      // 마지막으로 저장한 행(같은 번호로 다시 내려받기)
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);          // {k:'i'|'w'|'e', t}
-  const focusRef = useRef({ i: -1, s: 0, e: 0 });
 
   // 대장에서 넘어온 공문
   useEffect(function() {
     if (!editRow) return;
     var nf = ltFromRow(editRow.row, editRow.copy);
-    if (!editRow.copy && nf.dept && depts.length) applyDeptLines(nf, nf.dept, true);
+    if (nf.dept && depts.length) applyDeptLines(nf, nf.dept, true);
     setF(nf); setSaved(editRow.copy ? null : editRow.row); setDirty(false);
     setMsg(editRow.copy ? { k: 'i', t: editRow.row.doc_no + ' 내용을 복사했습니다. 저장하면 새 번호를 받습니다.' }
       : { k: 'i', t: editRow.row.doc_no + ' 을(를) 고칩니다. 저장하면 같은 번호로 다시 만듭니다.' });
   }, [editRow && editRow.n]);
-  // 결재 부서 목록이 오면 처음 부서의 결재란 채우기
+  // 결재 부서 목록이 오면 처음 부서의 결재란 채우기 — 대장에서 연 공문(위 effect 가 채움)은 건드리지 않는다
+  //   (탭을 다시 열면 두 effect 가 같이 돌아 저장된 결재 칸을 덮어쓰던 문제, v2.9.1)
   useEffect(function() {
-    if (!depts.length || f.id) return;
+    if (!depts.length || f.id || editRow) return;
     setF(function(o) { var n = Object.assign({}, o); applyDeptLines(n, n.dept, false); return n; });
   }, [depts.length]);
 
   function deptRow(name) { return depts.filter(function(d) { return d.name === name; })[0] || null; }
+  // 결재 칸(최대 LetterDoc.SIGN_MAX). 고정 부서(관리부) = DB 칸은 고정 + 뒤에 추가 칸만, 그 밖 = 이 PC 에 기억한 칸(칸 수 포함) → 기본 2칸
+  //   keep = 대장에서 연 공문: 저장된 칸을 그대로(고정 부서면 고정 칸 뒤의 추가 칸만 살림)
   function applyDeptLines(n, dept, keep) {
-    var d = deptRow(dept);
-    if (d && d.fixed) { n.signLines = (d.sign_lines || []).map(function(x) { return Object.assign({}, x); }); return; }
-    if (keep && n.signLines && n.signLines.length) return;
-    var mem = lsGet(LT_SIGN_KEY + dept);
-    n.signLines = (mem && mem.length) ? mem : ((d && d.sign_lines && d.sign_lines.length) ? d.sign_lines : [{ pos: '', name: '' }, { pos: '', name: '' }]);
+    var d = deptRow(dept), MAX = LetterDoc.SIGN_MAX;
+    function cp(a) { return (Array.isArray(a) ? a : []).filter(function(x) { return x && typeof x === 'object'; }).slice(0, MAX)
+      .map(function(x) { return { pos: String(x.pos || ''), name: String(x.name || '') }; }); }
+    if (d && d.fixed) {
+      var fx = cp(d.sign_lines);
+      n.signLines = fx.concat(keep ? cp(n.signLines).slice(fx.length) : []).slice(0, MAX);
+      return;
+    }
+    if (keep && n.signLines && n.signLines.length) { n.signLines = cp(n.signLines); return; }
+    var mem = cp(lsGet(LT_SIGN_KEY + dept));
+    n.signLines = mem.length ? mem : ((d && d.sign_lines && d.sign_lines.length) ? cp(d.sign_lines) : [{ pos: '', name: '' }, { pos: '', name: '' }]);
   }
   function set(patch) { setF(function(o) { return Object.assign({}, o, patch); }); setDirty(true); }
   function setRecipient(v) {
@@ -1100,37 +1109,23 @@ function LetterWrite({ user, res, seal, sealErr, depts, book, projects, editRow,
   }
   function setSign(i, k, v) {
     setF(function(o) {
-      var sl = o.signLines.slice(); while (sl.length < 2) sl.push({ pos: '', name: '' });
+      var sl = o.signLines.slice();
       sl[i] = Object.assign({}, sl[i]); sl[i][k] = v;
       return Object.assign({}, o, { signLines: sl });
     });
     setDirty(true);
   }
+  function addSign() {
+    setF(function(o) { return o.signLines.length >= LetterDoc.SIGN_MAX ? o : Object.assign({}, o, { signLines: o.signLines.concat([{ pos: '', name: '' }]) }); });
+    setDirty(true);
+  }
+  function delSign(i) { setF(function(o) { var sl = o.signLines.slice(); sl.splice(i, 1); return Object.assign({}, o, { signLines: sl }); }); setDirty(true); }
   function setPara(i, patch) { setF(function(o) { var b = o.body.slice(); b[i] = Object.assign({}, b[i], patch); return Object.assign({}, o, { body: b }); }); setDirty(true); }
   function addPara(at, p) { setF(function(o) { var b = o.body.slice(); b.splice(at, 0, p); return Object.assign({}, o, { body: b }); }); setDirty(true); }
   function delPara(i) { setF(function(o) { var b = o.body.slice(); b.splice(i, 1); if (!b.length) b.push({ t: '', lv: 1 }); return Object.assign({}, o, { body: b }); }); setDirty(true); }
   function movePara(i, d) {
     setF(function(o) { var b = o.body.slice(), j = i + d; if (j < 0 || j >= b.length) return o; var t = b[i]; b[i] = b[j]; b[j] = t; return Object.assign({}, o, { body: b }); });
     setDirty(true);
-  }
-  function insertProjectName() {
-    var pj = projects.filter(function(p) { return p.id === f.projectId; })[0];
-    if (!pj) return;
-    var ins = '「' + pj.name + '」', fc = focusRef.current;
-    setF(function(o) {
-      var b = o.body.slice(), i = (fc.i >= 0 && fc.i < b.length && !b[fc.i].arae) ? fc.i : -1;
-      if (i < 0) { for (var k = b.length - 1; k >= 0; k--) { if (!b[k].arae) { i = k; break; } } }
-      if (i < 0) { b.push({ t: ins, lv: 1 }); return Object.assign({}, o, { body: b }); }
-      var t = String(b[i].t || ''), s = fc.i === i ? Math.min(fc.s, t.length) : t.length, e = fc.i === i ? Math.min(fc.e, t.length) : t.length;
-      b[i] = Object.assign({}, b[i], { t: t.slice(0, s) + ins + t.slice(e) });
-      return Object.assign({}, o, { body: b });
-    });
-    setDirty(true);
-  }
-  function pickProject(id) {
-    var pj = projects.filter(function(p) { return p.id === id; })[0];
-    set({ projectId: id });
-    if (pj && pj.client) setRecipient(pj.client);
   }
   function setAtt(i, k, v) { setF(function(o) { var a = o.attachments.slice(); a[i] = Object.assign({}, a[i]); a[i][k] = v; return Object.assign({}, o, { attachments: a }); }); setDirty(true); }
   function addAtt() { setF(function(o) { return Object.assign({}, o, { attachments: o.attachments.concat([{ name: '', qty: '1부' }]) }); }); setDirty(true); }
@@ -1158,6 +1153,8 @@ function LetterWrite({ user, res, seal, sealErr, depts, book, projects, editRow,
   if (lay) lay.warnings.forEach(function(w) { warns.push(w); });
   if (seal === null) warns.push('직인 그림이 없어 직인 없이 만듭니다' + (sealErr ? ' (' + sealErr + ')' : '') + '. 관리포털 → 서류작성 → 회사 도장에 「직인」을 등록해 주세요.');
   if (!letter.signLines.length) warns.push('결재란(직급·이름)이 비어 있습니다.');
+  var notHead = !!letter.recipient && !LetterDoc.isAgencyHead(letter.recipient);
+  if (notHead) warns.push(LT_HEAD_MSG);
   if (year !== curY && year !== curY - 1) warns.push('발송일은 올해나 작년이어야 번호를 받을 수 있습니다.');
 
   function save() {
@@ -1166,12 +1163,12 @@ function LetterWrite({ user, res, seal, sealErr, depts, book, projects, editRow,
     if (!res) { setMsg({ k: 'e', t: '글꼴·서식을 아직 불러오는 중입니다.' }); return; }
     if (editing && !mayEdit) { setMsg({ k: 'e', t: '이 공문은 작성자나 관리 권한이 있는 사람만 고칠 수 있습니다.' }); return; }
     if (editing && f.status === 'canceled') { setMsg({ k: 'e', t: '취소된 공문은 고칠 수 없습니다. 대장에서 취소를 되돌린 뒤 고쳐 주세요.' }); return; }
-    if (!fixedDept) lsSet(LT_SIGN_KEY + f.dept, letter.signLines);
+    if (!fixedDept) lsSet(LT_SIGN_KEY + f.dept, f.signLines.slice(0, LetterDoc.SIGN_MAX));   // 칸 수까지 기억
     setBusy(true); setMsg({ k: 'i', t: editing ? '저장하는 중…' : '번호를 받는 중…' });
     var pay = ltPayload(f), p;
     if (editing) {
       if (ltYear(f.date) !== ltYear(saved && saved.issued_date)) { setBusy(false); setMsg({ k: 'e', t: '번호를 받은 해(' + ltYear(saved && saved.issued_date) + '년) 안의 날짜만 고를 수 있습니다.' }); return; }
-      delete pay.kind;
+      delete pay.kind; delete pay.project_id;   // 예전 값이 있으면 그대로 둔다
       p = sb.from('official_letters').update(pay).eq('id', f.id).select(LT_COLS).then(function(r) {
         if (r.error) throw r.error;
         if (!r.data || !r.data.length) throw new Error('저장되지 않았습니다(고칠 권한이 없거나 지워진 공문).');
@@ -1189,7 +1186,7 @@ function LetterWrite({ user, res, seal, sealErr, depts, book, projects, editRow,
       setSaved(row); setDirty(false);
       setF(function(o) { return Object.assign({}, o, { id: row.id, docNo: row.doc_no, authorId: row.author_id, status: row.status }); });
       onSaved();
-      setMsg({ k: 'i', t: (editing ? '고쳐서 저장했습니다: ' : '번호를 받았습니다: ') + row.doc_no + ' — PDF·HWPX 를 내려받습니다.' });
+      setMsg({ k: notHead ? 'w' : 'i', t: (editing ? '고쳐서 저장했습니다: ' : '번호를 받았습니다: ') + row.doc_no + ' — PDF·HWPX 를 내려받습니다.' + (notHead ? ' ' + LT_HEAD_MSG : '') });
       return ltDownload(ltRowLetter(row), res, seal);
     }).catch(function(e) { setMsg({ k: 'e', t: '저장하지 못했습니다. ' + ltErr(e) }); })
       .then(function() { setBusy(false); });
@@ -1201,7 +1198,7 @@ function LetterWrite({ user, res, seal, sealErr, depts, book, projects, editRow,
   }
 
   var deptNames = depts.length ? depts.map(function(d) { return d.name; }) : LetterDoc.CO.DEPTS;
-  var sl = f.signLines.slice(); while (sl.length < 2) sl.push({ pos: '', name: '' });
+  var fixedN = fixedDept ? ((deptRow(f.dept) || {}).sign_lines || []).length : 0, minSign = fixedDept ? fixedN : 1;
   return (
     <div className="lt-wrap">
       <div className="jg-left">
@@ -1210,17 +1207,8 @@ function LetterWrite({ user, res, seal, sealErr, depts, book, projects, editRow,
             {editing ? <span>✏️ {f.docNo} 고치기{f.status === 'canceled' && <span className="lt-badge c">취소됨</span>}</span> : <span>✏️ 새 공문</span>}
             <span style={{ marginLeft: 'auto' }}><button className="jg-b" onClick={newLetter}>＋ 새 공문</button></span>
           </h3>
-          <div className="jg-row"><label>용역(선택)</label>
-            <div className="f" style={{ display: 'flex', gap: 4 }}>
-              <select className="jg-sel" value={f.projectId} onChange={function(e) { pickProject(e.target.value); }}>
-                <option value="">— 고르지 않음 —</option>
-                {projects.map(function(p) { return <option key={p.id} value={p.id}>{p.name}{p.client ? ' (' + p.client + ')' : ''}</option>; })}
-              </select>
-              <button className="jg-b" disabled={!f.projectId} title="본문 커서 자리에 「용역명」을 넣습니다" onClick={insertProjectName}>「용역명」 넣기</button>
-            </div>
-          </div>
           <div className="jg-row"><label>수신</label>
-            <div className="f"><input className="jg-in" list="lt-book" value={f.recipient} placeholder="예: 부산광역시 사상구청장"
+            <div className="f"><input className="jg-in" list="lt-book" value={f.recipient} placeholder="기관의 장으로 적어 주세요 (예: 부산광역시 강서구청장, 한국철도공사 부산경남본부장, ○○(주) 대표이사)"
               onChange={function(e) { setRecipient(e.target.value); }} />
               <datalist id="lt-book">{book.slice(0, 500).map(function(b) { return <option key={b.name} value={b.name} />; })}</datalist></div>
           </div>
@@ -1253,9 +1241,6 @@ function LetterWrite({ user, res, seal, sealErr, depts, book, projects, editRow,
                   : <textarea className="jg-ta ta" rows={Math.min(8, Math.max(2, Math.ceil(String(p.t || '').length / 34)))} value={p.t || ''}
                       placeholder={i === 0 ? '문단 내용 — 번호는 자동으로 붙습니다' : ''}
                       onChange={function(e) { setPara(i, { t: e.target.value }); }}
-                      onSelect={function(e) { focusRef.current = { i: i, s: e.target.selectionStart, e: e.target.selectionEnd }; }}
-                      onFocus={function(e) { focusRef.current = { i: i, s: e.target.selectionStart, e: e.target.selectionEnd }; }}
-                      onBlur={function(e) { focusRef.current = { i: i, s: e.target.selectionStart, e: e.target.selectionEnd }; }}
                       onKeyDown={function(e) {
                         if (e.key === 'Tab') { e.preventDefault(); setPara(i, { lv: Math.min(4, Math.max(1, (p.lv || 1) + (e.shiftKey ? -1 : 1))) }); }
                       }} />}
@@ -1303,17 +1288,23 @@ function LetterWrite({ user, res, seal, sealErr, depts, book, projects, editRow,
               {deptNames.map(function(d) { return <option key={d} value={d}>{d}</option>; })}
             </select></div>
           </div>
-          {[0, 1].map(function(i) {
+          {f.signLines.map(function(q, i) {
+            var locked = i < fixedN;
             return (
-              <div key={i} className="jg-row"><label>결재 {i + 1}</label>
+              <div key={i} className="jg-row lt-sign"><label>결재 {i + 1}</label>
                 <div className="f" style={{ display: 'flex', gap: 4 }}>
-                  <input className="jg-in" style={{ width: 90 }} placeholder="직급" readOnly={!!fixedDept} value={sl[i].pos || ''} onChange={function(e) { setSign(i, 'pos', e.target.value); }} />
-                  <input className="jg-in" placeholder="이름" readOnly={!!fixedDept} value={sl[i].name || ''} onChange={function(e) { setSign(i, 'name', e.target.value); }} />
+                  <input className="jg-in" style={{ width: 90 }} placeholder="직급" readOnly={locked} value={q.pos || ''} onChange={function(e) { setSign(i, 'pos', e.target.value); }} />
+                  <input className="jg-in" placeholder="이름" readOnly={locked} value={q.name || ''} onChange={function(e) { setSign(i, 'name', e.target.value); }} />
+                  {(!locked && f.signLines.length > minSign)
+                    ? <button className="jg-b" title="이 결재 칸 빼기" onClick={function() { delSign(i); }}>✕</button>
+                    : <span style={{ width: 30, flex: 'none' }} />}
                 </div>
               </div>
             );
           })}
-          <p className="jg-small">{fixedDept ? f.dept + ' 결재란은 고정입니다.' : f.dept + ' 결재란은 저장할 때 이 PC 에 기억해 두고 다음에 채웁니다.'}</p>
+          {f.signLines.length < LetterDoc.SIGN_MAX && <button className="jg-b" style={{ marginBottom: 6 }} onClick={addSign}>＋ 결재 추가</button>}
+          <p className="jg-small">{fixedDept ? f.dept + ' 앞 ' + fixedN + '칸은 고정입니다. 뒤에 칸을 더할 수 있습니다(최대 ' + LetterDoc.SIGN_MAX + '칸).'
+              : f.dept + ' 결재란(칸 수 포함)은 저장할 때 이 PC 에 기억해 두고 다음에 채웁니다. 최대 ' + LetterDoc.SIGN_MAX + '칸.'}</p>
           <div className="jg-row"><label>협조</label><div className="f"><input className="jg-in" value={f.coop} placeholder="없으면 비움" onChange={function(e) { set({ coop: e.target.value }); }} /></div></div>
           <div className="jg-row"><label>공개 구분</label>
             <div className="f"><select className="jg-sel" style={{ width: 140 }} value={f.disclosure} onChange={function(e) { set({ disclosure: e.target.value }); }}>
@@ -1572,10 +1563,11 @@ function LetterCancelDialog({ row, onDone }) {
 //  서류 종류 등록 — 새 서류는 여기에 한 줄 + 그 화면 컴포넌트. 빈 「준비 중」 항목은 두지 않는다
 //  pcOnly = 휴대폰 폭에서는 「PC에서 사용해 주세요」 안내만
 // ═════════════════════════════════════════════════════════════════════
+//  첫 항목 = 해시 없이 열 때의 기본(v2.9.1 부터 공문)
 const DOC_TYPES = [
+  { key: 'letter', label: '공문', icon: '✉️', View: LetterView },
   { key: 'jungong', label: '준공사진', icon: '📷', pcOnly: true, View: JungongDoc,
     mobileWhy: '바인더를 끌어 옮기고 큰 미리보기를 봐야 해서 PC 화면이 필요합니다.' },
-  { key: 'letter', label: '공문', icon: '✉️', View: LetterView },
 ];
 function docFromHash() {
   var h = Sysbar.hashTab();

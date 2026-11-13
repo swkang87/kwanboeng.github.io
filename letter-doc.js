@@ -1,5 +1,5 @@
 /*
- * letter-doc.js — 업무관리 → 서류작성 → 공문 (2026-11-13, v2.9.0)
+ * letter-doc.js — 업무관리 → 서류작성 → 공문 (2026-11-13, v2.9.0 · v2.9.1 결재 칸 2~4개 · 수신 = 기관의 장)
  *
  * 우리 회사 전용 기능이다(화이트라벨 아님 — config.js 에 넣지 않는다). 회사 고정값은 아래 CO 한 곳.
  * 사람 이름(결재란)·직인 그림은 이 파일과 저장소 서식에 두지 않는다(공개 저장소):
@@ -7,7 +7,7 @@
  *
  * 하는 일(화면 없이, Node 에서도 돈다):
  *   numberLabels / composeParas  본문 문단 번호(1. → 가. → 1) → 가)) · 첫 문단 인사 · 붙임 · 「끝.」
- *   guessHonorific               수신처 → 호칭(청·공사·본부·원·사)
+ *   guessHonorific / isAgencyHead 수신처 → 호칭(청·공사·본부·원·사) / 기관의 장인지(안내만)
  *   layout(letter, measure)      A4 배치(pt, 위에서 아래). 미리보기(SVG)와 PDF 가 같은 배치를 쓴다
  *   buildPdf(...)                pdf-lib + fontkit(나눔고딕 부분 글꼴) — 글자 선택되는 PDF
  *   buildHwpx(...)               서식 HWPX(assets/letter/template.hwpx) 채우기 — JSZip
@@ -71,6 +71,17 @@
     return '사';
   }
   function greeting(hon) { return '귀 ' + (hon || '사') + '의 무궁한 발전을 기원합니다.'; }
+  // 수신 = 기관의 장인지(끝말로만 본다 — 막지 않고 안내만). 「강서구」「시청」 같은 약칭은 false
+  var HEAD_RE = /(장|대표이사|대표|이사|군수|도지사|교육감|총재|회장)$/;
+  function isAgencyHead(name) { return HEAD_RE.test(String(name || '').replace(/\s+/g, '')); }
+
+  /* ================= 결재란 ================= */
+  // 칸 수 최대(하단 표 폭 기준). 빈 칸(직급·이름 모두 없음)은 뺀다
+  var SIGN_MAX = 4;
+  function signLinesOf(letter) {
+    return (letter.signLines || []).filter(function (q) { return q && (String(q.pos || '').trim() || String(q.name || '').trim()); })
+      .slice(0, SIGN_MAX).map(function (q) { return ((q.pos || '').trim() + '  ' + (q.name || '').trim()).trim(); });
+  }
 
   /* ================= 문단 번호 ================= */
   // body: [{t, lv:1~4, nn:번호 없음, arae:「- 아  래 -」}]
@@ -265,9 +276,15 @@
     cur.push({ k: 'rect', x: G.bar.x, y: G.bar.y, w: G.bar.w, h: G.bar.h, gray: G.bar.gray });
     var f = G.foot, fb = f.base0, fm = function (t) { return measure(t, f.size, false); };
     T(f.x, fb, letter.dept || CO.DEPTS[0], f.size);
-    var sl = (letter.signLines || []).filter(function (q) { return q && (q.pos || q.name); });
-    if (sl[0]) T(f.sign1, fb, ((sl[0].pos || '') + '  ' + (sl[0].name || '')).trim(), f.size);
-    if (sl[1]) T(f.sign2, fb, ((sl[1].pos || '') + '  ' + (sl[1].name || '')).trim(), f.size);
+    // 결재 칸: 2칸 = 발송본 자리(sign1·sign2), 3칸 = 같은 간격, 4칸 = 오른쪽 끝 안에 들게 간격을 줄인다
+    var st = signLinesOf(letter), sw2 = st.map(fm), pitch = f.sign2 - f.sign1, gapMin = 10;
+    if (st.length > 1) {
+      pitch = Math.min(pitch, (f.right - f.sign1 - sw2[st.length - 1]) / (st.length - 1));
+      var xs = [f.sign1];
+      for (var si = 1; si < st.length; si++) xs.push(Math.max(f.sign1 + si * pitch, xs[si - 1] + sw2[si - 1] + gapMin));
+      if (xs[st.length - 1] + sw2[st.length - 1] > f.right + 0.5) warnings.push('결재란 글자가 길어 줄 끝을 넘을 수 있습니다.');
+      st.forEach(function (t, i) { T(xs[i], fb, t, f.size); });
+    } else if (st.length) T(f.sign1, fb, st[0], f.size);
     fb += f.pitch;
     T(f.x, fb, '협조', f.size);
     if (letter.coop) T(f.sign1, fb, letter.coop, f.size);
@@ -387,6 +404,7 @@
     var nid = Math.max.apply(null, ids) + 1;
     var x = m[0].replace('id="' + srcId + '"', 'id="' + nid + '"');
     if (o.align) x = x.replace(/<hh:align horizontal="\w+"/, '<hh:align horizontal="' + o.align + '"');
+    if (o.tab != null) x = x.replace(/tabPrIDRef="\d+"/, 'tabPrIDRef="' + o.tab + '"');
     function setM(tag, v) {
       var i = 0;
       x = x.replace(new RegExp('<hc:' + tag + ' value="-?\\d+"', 'g'), function () { var val = (i++ === 0) ? Math.round(v / 2) : v; return '<hc:' + tag + ' value="' + val + '"'; });
@@ -440,6 +458,38 @@
       return '<hp:run charPrIDRef="' + (c1 || c2) + '"><hp:t>' + xesc(text) + '</hp:t></hp:run>';
     });
     return tbl.replace(cell, nc);
+  }
+
+  // 하단 결재 줄(부서 + 결재 칸) — 결재 칸 자리마다 탭 자리를 새로 정의하고(탭 모양 + 문단 모양 복사) 칸 사이에 탭 하나씩
+  //   (한글 기본 탭 = 40pt 마다라 이름 길이에 따라 칸이 한 자리씩 밀렸다 — 자리를 직접 정한다)
+  //   자리(쪽 왼쪽 기준 pt): 2·3칸 = 131 · 251 · 371(서식의 2칸 자리와 같은 간격), 4칸 = 131 · 221 · 311 · 401
+  //   앞 칸 글이 길면 그 끝 + 8pt 로 민다. 글 폭 = 나눔고딕 폭 × 1.18(서식 글꼴이 조금 넓다 — 한글 PDF 로 잰 값)
+  var HWPX_FOOT = { x0: 51, first: 131, pitch3: 120, pitch4: 90, k: 1.18, gap: 8 };
+  function hwpxSignRun(dept, texts, measure) {
+    var F = HWPX_FOOT;
+    function w(t) { return (measure ? measure(t, 10, false) : t.length * 10) * F.k; }
+    var pitch = texts.length >= 4 ? F.pitch4 : F.pitch3;
+    var out = xesc(dept), x = F.x0 + w(' ' + dept), stops = [];
+    texts.forEach(function (t, i) {
+      var at = Math.max(F.first + i * pitch, Math.ceil(x + F.gap));
+      stops.push(at - F.x0);
+      out += '<hp:tab width="' + Math.max(1, Math.round((at - x) * 100)) + '" leader="0" type="1"/>' + xesc(t);
+      x = at + w(t);
+    });
+    return { xml: out + '  ', stops: stops };
+  }
+  // 탭 모양 하나 더하기(자리 pt, 문단 왼쪽 기준) → id. hp:case = HWPUNIT, hp:default = 그 두 배(서식 규칙)
+  function addTabPr(hdr, stops) {
+    var ids = (hdr.match(/<hh:tabPr id="(\d+)"/g) || []).map(function (x) { return Number(x.replace(/\D/g, '')); });
+    var nid = ids.length ? Math.max.apply(null, ids) + 1 : 0;
+    var items = stops.map(function (pt) {
+      var v = Math.round(pt * 100);
+      return '<hp:switch><hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar"><hh:tabItem pos="' + v +
+        '" type="LEFT" leader="NONE" unit="HWPUNIT"/></hp:case><hp:default><hh:tabItem pos="' + (v * 2) + '" type="LEFT" leader="NONE"/></hp:default></hp:switch>';
+    }).join('');
+    hdr = hdr.replace(/(<hh:tabProperties itemCnt=")(\d+)(")/, function (a, p, n, q) { return p + (Number(n) + 1) + q; });
+    hdr = hdr.replace('</hh:tabProperties>', '<hh:tabPr id="' + nid + '" autoTabLeft="0" autoTabRight="0">' + items + '</hh:tabPr></hh:tabProperties>');
+    return { hdr: hdr, id: nid };
   }
 
   // o = {letter, template(bytes), seal(png bytes|null), JSZip} → Promise(Uint8Array | Blob)
@@ -509,11 +559,18 @@
         else sec = sec.replace(picRe, function (pic) { return sealPic(pic, sealSz, tight); });
 
         // ── 하단: 결재 · 협조 · 시행 · 주소 · 전화/메일/공개 ──
-        var sl = (letter.signLines || []).filter(function (q) { return q && (q.pos || q.name); });
-        var signTxt = xesc(letter.dept || CO.DEPTS[0]) + '<hp:tab width="376" leader="0" type="1"/><hp:tab width="4000" leader="0" type="1"/>' +
-          (sl[0] ? xesc(((sl[0].pos || '') + '  ' + (sl[0].name || '')).trim()) : '') + '<hp:tab width="1776" leader="0" type="1"/><hp:tab width="4000" leader="0" type="1"/>' +
-          (sl[1] ? xesc(((sl[1].pos || '') + '  ' + (sl[1].name || '')).trim()) : '') + '  ';
-        sec = sec.replace(/(<hp:run charPrIDRef="25"><hp:t>)[^<]*<hp:tab[\s\S]*?(<\/hp:t><\/hp:run><hp:run charPrIDRef="26"\/>)/, function (a0, p1, p2) { return p1 + signTxt + p2; });
+        var sg = hwpxSignRun(letter.dept || CO.DEPTS[0], signLinesOf(letter), o.measure);
+        var signRe = /(<hp:run charPrIDRef="25"><hp:t>)[^<]*<hp:tab[\s\S]*?(<\/hp:t><\/hp:run><hp:run charPrIDRef="26"\/>)/;
+        var sm = signRe.exec(sec);
+        if (!sm) throw new Error('서식에 결재 줄이 없습니다.');
+        var spStart = sec.lastIndexOf('<hp:p ', sm.index), spTag = sec.slice(spStart, sec.indexOf('>', spStart) + 1);
+        var ppm = /paraPrIDRef="(\d+)"/.exec(spTag);
+        if (sg.stops.length && ppm) {
+          var tp = addTabPr(hdr, sg.stops); hdr = tp.hdr;
+          var sp = addParaPr(hdr, Number(ppm[1]), { tab: tp.id }); hdr = sp.hdr;
+          sec = sec.slice(0, spStart) + spTag.replace(ppm[0], 'paraPrIDRef="' + sp.id + '"') + sec.slice(spStart + spTag.length);
+        }
+        sec = sec.replace(signRe, function (a0, p1, p2) { return p1 + sg.xml + p2; });
         sec = sec.replace('<hp:t> 협조  </hp:t>', '<hp:t> 협조  ' + xesc(letter.coop ? '            ' + letter.coop : '') + '</hp:t>');
         var no = letter.docNo || docNoPlaceholder(yearOf(letter));
         sec = sec.replace(/<hp:t> 시행  [^<]*?(<hp:tab)/, '<hp:t> 시행  ' + xesc(no) + '호     ' + xesc(fmtDate(letter.date)) + '            $1');
@@ -614,7 +671,8 @@
     todayIso: todayIso, docNo: docNo, fmtDate: fmtDate, ledgerDate: ledgerDate, fileName: fileName,
     guessHonorific: guessHonorific, greeting: greeting, labelFor: labelFor, composeParas: composeParas, attachLines: attachLines,
     makeMeasure: makeMeasure, wrap: wrap, layout: layout, pageSvg: pageSvg, buildPdf: buildPdf, buildHwpx: buildHwpx,
-    pngSize: pngSize, ledgerNo: ledgerNo, ledgerAoa: ledgerAoa
+    pngSize: pngSize, ledgerNo: ledgerNo, ledgerAoa: ledgerAoa,
+    isAgencyHead: isAgencyHead, signLinesOf: signLinesOf, SIGN_MAX: SIGN_MAX
   };
   root.LetterDoc = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
