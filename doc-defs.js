@@ -104,11 +104,11 @@
   // 줄 높이를 줄여 도장 세로보다 낮아지면(사람이 많을 때) 도장은 그대로 두고 서명 칸 안에서 왼쪽·오른쪽 번갈아(지그재그, v2.8.3 —
   // 동천 제출본 방식: 30mm 칸에 칸 선에서 1mm 안쪽). 줄이 넉넉하면 칸 가운데
   var SEAL_S = { w: MM(12), h: MM(15), outOfCell: true, zigzag: 'auto', zigzagEdge: MM(1) };
-  // 사람이 많아 쪽을 넘치면 줄 높이를 줄임(도장 크기는 그대로 — 위 지그재그) — 줄 높이 하한 9.2mm(예전 서식·동천 제출본 줄 높이).
-  // cap = 빈 줄을 다 줄였을 때 16.2mm 줄로 담기는 반복 행 수(2026-11-11 한글로 잼: 명단 5 · 보안각서 4). 쪽 맞추기도 9.2mm 까지
-  var SQUEEZE_SEC = { cap: 4, minH: 2612 };
-  // fitMinH = 용역명이 길어 쪽 맞추기(pageFit)가 더 줄일 때의 하한(7mm — 10pt 한 줄이 드는 높이)
-  var SQUEEZE_MAN = { cap: 5, minH: 2329, fitMinH: MM(7) };
+  // v2.8.5: 줄 높이는 미리 줄이지 않는다(cap 999). 쪽이 넘칠 때만 쪽 맞추기(pageFit)가 표 아래·서명 아래 여백({{#여백}})을 먼저 쓰고,
+  // 그래도 넘치면 줄 높이를 하한까지 줄인다 — 보안각서 9.2mm(예전 서식·동천 제출본 줄 높이, 도장은 그대로 두고 지그재그),
+  // 명단·인력 fitMinH 7mm(10pt 한 줄이 드는 높이)
+  var SQUEEZE_SEC = { cap: 999, minH: 2612 };
+  var SQUEEZE_MAN = { cap: 999, minH: 2329, fitMinH: MM(7) };
   var SQUEEZE_FIT = { cap: 999, fitMinH: MM(7) };
   var ATTACH_MAX = 9;   // 공문 붙임 목록이 한 쪽에 드는 줄 수
 
@@ -119,10 +119,12 @@
     template: 'chaksu.hwpx',
     // 서식 버전 = 서식 HWPX 가 마지막으로 바뀐 제품 버전. 서식 안 표시(HwpxEngine.templateVersion)와 다르면 화면이 만들기를 막는다.
     // 서식을 바꾸면 여기와 서식 만드는 스크립트(docs-work/node/build_template2.js — 이 값을 읽어 넣음)를 같이 올린다
-    templateVersion: '2.8.2',
+    templateVersion: '2.8.5',
     // 쪽 맞추기(엔진 pageFit): 용역명 등이 길어 줄이 늘면 그 쪽 빈 줄을 줄이고, 그래도 넘치면 용역명 문단 장평을 85% 까지 줄인다.
     // slack = 아래 ref 값 + 반복 표 fit 행으로 만든 쪽을 이 PC 한글로 열었을 때 맨 아래 줄 밑에 남는 높이(HWPUNIT, 2026-11-11 잼).
     // 서식을 바꾸면 다시 잰다(docs-work/v282/slack.py). 일반 표·측량 단독 표의 여유가 같아 한 줄씩. match = 그 쪽에 든 글자(모두).
+    // v2.8.5: 명단·보안각서·인력장비 쪽은 여백 문단({{#여백}} 둘)이 기준 높이(1700씩)일 때 잰 여유 − 150(한글 쪽 끝 오차 여유).
+    //   그 쪽의 남는 높이(여유 − 늘어난 표·글 줄)는 여백 둘(표 아래 · 대표이사 아래)에 똑같이 나뉘고, 날짜 위 8mm 는 늘 남는다(서식 문단 위 간격).
     pageFit: {
       ref: { '용역명': '2026년 주요시설물 정기안전점검용역', '수신': '부산광역시 연제구청장',
              '계약금액': '일금 사천사백삼십육만원정 (￦ 44,360,000 )' },
@@ -134,9 +136,9 @@
         { label: '공문', match: ['착수계 제출'], slack: 268 },
         { label: '착수신고서', match: ['착수 신고서'], slack: 91 },
         { label: '책임기술자 지정 신고서', match: ['책임기술자 지정 신고서'], slack: 337 },
-        { label: '참여기술자 명단', match: ['참여기술자 명단'], slack: 71 },
-        { label: '보안각서', match: ['보안각서'], slack: 2839 },
-        { label: '인력 및 장비투입 계획서', match: ['장비 투입 계획서'], slack: 261 }
+        { label: '참여기술자 명단', match: ['참여기술자 명단'], slack: 19330 },
+        { label: '보안각서', match: ['보안각서'], slack: 8441 },
+        { label: '인력 및 장비투입 계획서', match: ['장비 투입 계획서'], slack: 5607 }
       ]
     },
     licenses: LICENSES,
@@ -152,11 +154,11 @@
     isSurveyOnly: function (lics) { return !!lics && lics.length === 1 && lics[0].name === SURVEY; },
     fileName: function (v) { return String(v['용역명'] || '착수계').replace(/[\\\/:*?"<>|]/g, '_') + '_착수계.hwpx'; },
     rows: {
-      // fit = 그 쪽이 빈 줄을 줄이지 않고 담는 반복 행 수(사업책임 줄 제외, 2026-11-11 서식 2.8.1 을 한글로 잼: 명단·보안각서 2).
-      // fit 을 넘으면 넘친 높이만큼 표 아래 빈 줄을 줄여 서명란을 지키고, squeeze.cap 을 넘으면 줄 높이도 함께 줄인다(하한까지)
+      // fit = 쪽 여유(slack)를 잴 때의 반복 행 수(사업책임 줄 제외). v2.8.5: 행이 fit 보다 많거나 적으면 그 높이만큼 여백 문단이 줄거나 늘고,
+      // 여백이 0 이 되면 줄 높이(사업책임 줄 포함, 하한까지) → 빈 줄 → 장평 순으로 줄인다
       '명단': { merge: MERGE2, fit: 2, squeeze: SQUEEZE_MAN, label: '참여기술자 명단' },
       '보안': { merge: MERGE2, fit: 2, squeeze: SQUEEZE_SEC, label: '보안각서 서명표' },
-      '인력': { merge: MERGE2, fit: 2, squeeze: { cap: 6, minH: 2329, fitMinH: MM(7) }, label: '인력투입 계획서' },
+      '인력': { merge: MERGE2, fit: 2, squeeze: SQUEEZE_MAN, label: '인력투입 계획서' },
       // 측량 단독 표: 미리 줄이지 않고(cap 없음) 쪽 맞추기가 넘칠 때만 줄 높이를 줄인다(하한 fitMinH)
       '측량명단': { merge: [{ col: 0, by: '분야' }], fit: 3, squeeze: SQUEEZE_FIT, label: '참여기술자 명단' },
       '측량보안': { merge: [{ col: 0, by: '분야' }], fit: 3, squeeze: SQUEEZE_SEC, label: '보안각서 서명표' },

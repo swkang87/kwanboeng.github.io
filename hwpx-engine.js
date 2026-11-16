@@ -12,6 +12,9 @@
  *                           cap(빈 문단을 다 줄여야 담기는 행 수)을 넘을 때 반복 행(+ 같은 높이 위쪽 고정 행) 높이를 함께 줄이고
  *                           (minH 아래로는 안 줄임), 그 행의 그림은 행 높이 − picPad 를 넘지 않게 한다.
  *                           spacerAfter:'글자' 면 빈 문단은 그 글자가 든 문단 아래에서부터 줄인다.
+ *   {{#여백}}               이 표시만 든 문단 = 늘었다 줄었다 하는 빈칸(줄 간격 「고정 값」 문단). 쪽 맞추기(def.pageFit)가 그 쪽의
+ *                           남는 높이(기준 여유 slack − 늘어난 글 줄 − 표가 fit 행보다 늘어난 높이, 줄면 더함)를 여백 문단들에 똑같이
+ *                           나눠 높이를 정한다(모자라면 0 → 그다음 빈 줄 지우기 등). 빈 줄 지우기 대상이 아니다. 없는 서식은 그대로.
  *   {{#끝행}}               이 표시가 든 행은 지우고, 그 칸들의 테두리(borderFillIDRef, 열 번호별)를 채운 뒤 표의 맨 아래에
  *                           닿는 칸에 입힌다. 반복 행을 늘리거나 줄여도 표 아래 굵은 선이 맨 끝 행에 오게 한다.
  *   {{#블록:이름}} … {{/블록:이름}}   이 표시만 든 문단 사이를 데이터 수만큼 복제(두 번째부터 쪽 나누기). 표시 문단은 지운다.
@@ -209,6 +212,7 @@
       var secEl = kids(sec.tree).filter(function (x) { return x.n === 'hs:sec'; })[0];
       if (!secEl) return;
       expandBlocks(ctx, secEl);
+      markElastic(secEl);
       expandRows(ctx, secEl);
       shrinkSpacers(ctx, secEl);
       replaceTokens(ctx, secEl);
@@ -454,9 +458,17 @@
       if (sz) setAttr(sz, 'height', String(Math.max(0, +attr(sz, 'height') + clones.length * newH - rowH)));
       tbl._dirty = true;
       if (rdef.fit && clones.length * newH > rdef.fit * rowH) tbl._extra = (tbl._extra || 0) + clones.length * newH - rdef.fit * rowH;
+      if (rdef.fit) tbl._delta = (tbl._delta || 0) + clones.length * newH - rdef.fit * rowH;   // 줄면 음수(여백 문단이 받음)
       if (rdef.spacerAfter) tbl._spacerAfter = rdef.spacerAfter;
       // 쪽 맞추기가 더 줄일 수 있는 반복 행(squeeze 정의가 있고 도장이 없는 표 — 도장 크기를 다시 맞추지 않게)
-      if (rdef.squeeze && rdef.squeeze.picPad === undefined && clones.length) (tbl._sq = tbl._sq || []).push({ rows: clones, h: newH, minH: rdef.squeeze.fitMinH || rdef.squeeze.minH || 0, label: rdef.label || name });
+      if (rdef.squeeze && rdef.squeeze.picPad === undefined && clones.length) {
+        // 위쪽 고정 행 중 반복 행과 같은 높이인 것(사업책임 줄 등)도 함께 — 미리 줄일 때(cap)와 같은 규칙. 머리 행(0)은 제외
+        var sqRows = [];
+        if (newH === rowH) for (var uj = 1; uj < ri; uj++) {
+          if (kids(trs[uj], 'hp:tc').every(function (tc) { return +attr(cellSz(tc), 'height') === rowH * (+attr(cellSpan(tc), 'rowSpan') || 1); })) sqRows.push(trs[uj]);
+        }
+        (tbl._sq = tbl._sq || []).push({ rows: sqRows.concat(clones), h: newH, minH: rdef.squeeze.fitMinH || rdef.squeeze.minH || 0, label: rdef.label || name });
+      }
       // cap(빈 줄을 다 줄이면 담기는 높이, 한글로 잰 값) 안이면 「넘어갈 수 있어요」 경고를 내지 않는다(빈 줄 높이 추정이 실제보다 작음)
       if (cap) tbl._capOk = (tbl._capOk !== false) && clones.length * newH <= cap * rowH + Math.round(rowH / 2);
       trs = kids(tbl, 'hp:tr');
@@ -482,11 +494,16 @@
   // (원본 서식 쪽이 거의 꽉 차 있어 서명란이 다음 쪽으로 넘어가지 않게). 빈 문단이 모자라면 넘어간다.
   var DEFAULT_LINE_H = 2340;
   function isEmptyPara(p) {
+    if (p._elastic) return false;          // 여백 문단은 지우지 않고 높이만 바꾼다(fitPages)
     if (attr(p, 'pageBreak') === '1') return false;
     if (/\S/.test(textOf(p))) return false;
     var hasObj = false;
     (function w(nd) { if (nd.t !== 'el' || hasObj) return; if (/^hp:(tbl|pic|ctrl|secPr|rect|container|equation|ole)$/.test(nd.n)) { hasObj = true; return; } nd.c.forEach(w); })(p);
     return !hasObj;
+  }
+  // {{#여백}} 만 든 본문 문단 표시(블록 복제 뒤 — 복제본마다)
+  function markElastic(secEl) {
+    secEl.c.forEach(function (p) { if (p.t === 'el' && p.n === 'hp:p' && textOf(p).trim() === '{{#여백}}') p._elastic = true; });
   }
   function lineHeight(p) {
     var la = kid(p, 'hp:linesegarray'), ls = la && kid(la, 'hp:lineseg');
@@ -502,6 +519,10 @@
       var extra = 0, capOk = false, after = null, tbls = findAll(p, 'hp:tbl');
       tbls.forEach(function (t) { extra += t._extra || 0; if (t._capOk) capOk = true; if (t._spacerAfter) after = t._spacerAfter; });
       if (extra <= 0) continue;
+      // 이 표가 든 쪽에 여백 문단이 있으면 빈 줄을 미리 지우지 않는다(쪽 맞추기가 여백부터 줄인다)
+      var el = false;
+      for (var k = i + 1; k < paras.length; k++) { if (paras[k].t !== 'el' || paras[k].n !== 'hp:p') continue; if (attr(paras[k], 'pageBreak') === '1') break; if (paras[k]._elastic) { el = true; break; } }
+      if (el) continue;
       var got = 0;
       for (var j = i + 1; j < paras.length && extra > 0; j++) {
         var q = paras[j];
@@ -701,6 +722,24 @@
     H.pp[nid] = p2; H.extraCp[key] = nid;
     return nid;
   }
+  // 문단 모양을 줄 간격 「고정 값」 v(HWPUNIT)로 복사한 새 id. hp:case = v, hp:default = 2v(서식 규칙)
+  function fixedParaPr(ctx, ppId, v) {
+    var H = headerInfo(ctx), key = 'ppF' + ppId + '@' + v;
+    if (H.extraCp[key]) return H.extraCp[key];
+    var hdr = ctx.doc.files['Contents/header.xml'];
+    var m = new RegExp('<hh:paraPr id="' + ppId + '"[\\s\\S]*?</hh:paraPr>').exec(hdr);
+    var cnt = /<hh:paraProperties itemCnt="(\d+)"/.exec(hdr);
+    if (!m || !cnt) return ppId;
+    var nid = String(+cnt[1]), k = 0;
+    var x = m[0].replace('id="' + ppId + '"', 'id="' + nid + '"').replace(/<hh:lineSpacing type="\w+" value="\d+"/g, function () {
+      return '<hh:lineSpacing type="FIXED" value="' + (k++ === 0 ? v : 2 * v) + '"';
+    });
+    hdr = hdr.replace('</hh:paraProperties>', x + '</hh:paraProperties>').replace(/(<hh:paraProperties itemCnt=")(\d+)(")/, function (a, b, n, c) { return b + (+n + 1) + c; });
+    ctx.doc.files['Contents/header.xml'] = hdr;
+    var o = H.pp[ppId] || {}, p2 = {}; Object.keys(o).forEach(function (kk) { p2[kk] = o[kk]; }); p2.lsType = 'FIXED'; p2.ls = v;
+    H.pp[nid] = p2; H.extraCp[key] = nid;
+    return nid;
+  }
   function fitPages(ctx, secEl) {
     var pf = ctx.def.pageFit;
     // 쪽 나누기: 쪽 나누기 문단에서 새 쪽
@@ -738,10 +777,25 @@
       var tblExtra = 0, done = 0;
       seg.forEach(function (q) { findAll(q, 'hp:tbl').forEach(function (t) { tblExtra += t._extra || 0; }); done += q._dropped || 0; });
       var tx0 = textExtra(0);
+      var elastic = seg.filter(function (q) { return q._elastic; });
+      if (elastic.length) {   // 여백 쪽: 표가 줄어든 높이도 센다(빈 줄은 미리 지우지 않았음)
+        tblExtra = 0; seg.forEach(function (q) { findAll(q, 'hp:tbl').forEach(function (t) { tblExtra += t._delta || 0; }); });
+      }
       var need = tx0 + tblExtra - done - (pd.slack || 0) + (tx0 > 0 ? (pf.margin || 0) : 0);
       var log = { page: pd.label, textLines: fits.reduce(function (s, q) { return s + q._fit.nAct - q._fit.nRef; }, 0), need: need, dropped: 0, ratio: 100 };
+      if (elastic.length) {
+        // ⓪ 여백: 서식 높이 합 − 넘친 높이(남으면 +)를 여백 문단에 똑같이. 모자라면 0 으로 두고 남은 만큼 아래 단계로
+        var H0 = headerInfo(ctx), base = 0;
+        elastic.forEach(function (q) { var pp = H0.pp[attr(q, 'paraPrIDRef')]; base += pp && pp.lsType === 'FIXED' ? pp.ls : 0; });
+        var room = base - need, each = Math.max(0, Math.floor(room / elastic.length));
+        elastic.forEach(function (q) { setAttr(q, 'paraPrIDRef', fixedParaPr(ctx, attr(q, 'paraPrIDRef'), each)); dropLineseg(q); });
+        need = room >= 0 ? 0 : -room;
+        log.elastic = each;
+      }
       if (need > 0) {
         // ① 빈 줄: 연속한 빈 문단 묶음. 1차 = 묶음마다 1줄 남기고 큰 묶음부터(같으면 아래쪽), 2차 = 남은 1줄도 아래쪽부터
+        // (여백 문단이 있는 쪽은 ②-1 줄 높이를 먼저 줄이고 빈 줄은 그다음 — 머리 항목·서명란 간격을 지킨다)
+        var dropBlanks = function () {
         var groups = [], g = null;
         seg.forEach(function (q, i) { if (i > 0 && isEmptyPara(q)) { if (!g) { g = []; groups.push(g); } g.push(q); } else g = null; });
         var pass = 1;
@@ -751,7 +805,9 @@
           if (!best) { if (pass === 1) { pass = 2; continue; } break; }
           var q = best.pop(); drop.push(q); need -= lineHeight(q); log.dropped++;
         }
+        };
         // ②-1 줄 높이: 이 쪽의 squeeze 표 반복 행을 하한(minH)까지 더 줄인다
+        var squeezeRows = function () {
         seg.forEach(function (q) {
           findAll(q, 'hp:tbl').forEach(function (t) {
             (t._sq || []).forEach(function (x) {
@@ -768,6 +824,8 @@
             });
           });
         });
+        };
+        if (elastic.length) { squeezeRows(); dropBlanks(); } else { dropBlanks(); squeezeRows(); }
         // ②-2 장평: 늘어난 문단만 단계적으로
         if (need > 0) {
           // 넘침이 풀리는 가장 큰 장평, 없으면 줄이 줄어드는 가장 작은 장평(줄이 안 줄면 장평을 바꾸지 않음)
