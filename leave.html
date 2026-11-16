@@ -1300,7 +1300,7 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
     alert(`${ok}명이 등록되었습니다.`);
     setBulk('');setShowBulk(false);onRefresh();
   };
-  const TEAM_ORDER=['설계1팀','설계2팀','지반팀','관리팀'];
+  const TEAM_ORDER=(_LC&&_LC.TEAM_NAMES)||['설계1팀','설계2팀','지반팀','관리팀'];
   const emp=[...users.filter(u=>u.role!=='admin')].sort((a,b)=>{
     const ta=teams.find(t=>t.id===a.team_id)?.name||'zzz';
     const tb=teams.find(t=>t.id===b.team_id)?.name||'zzz';
@@ -1359,7 +1359,7 @@ function AdminUsers({user:adm,users,teams,leaves,onRefresh}){
 // ── Admin Stats ───────────────────────────────────────────
 function AdminStats({users,teams,leaves}){
   const yr=thisYear();
-  const TEAM_ORDER=['설계1팀','설계2팀','지반팀','관리팀'];
+  const TEAM_ORDER=(_LC&&_LC.TEAM_NAMES)||['설계1팀','설계2팀','지반팀','관리팀'];
   const sortEmp=arr=>[...arr].sort((a,b)=>{
     const ta=teams.find(t=>t.id===a.team_id)?.name||'zzz';
     const tb=teams.find(t=>t.id===b.team_id)?.name||'zzz';

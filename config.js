@@ -111,16 +111,17 @@ var APP_CONFIG = {
   ERROR_GENERIC:    '처리 중 오류가 발생했습니다.',
   ERROR_NO_ROWS:    '대상을 찾을 수 없거나 권한이 없어 변경되지 않았습니다.',
 
-  // ── 팀 색상 (Team Colors) ─────────────────────────────────────
-  // 팀 구성과 색상은 회사마다 다르므로 여기서 관리한다.
-  // 참조: leave.html(팀 캘린더 칩·범례), home.html(연차 현황 칩)
-  // 키는 teams 테이블의 팀명(name)과 정확히 일치해야 한다.
-  TEAM_COLORS: {
-    '설계1팀': '#2563eb',
-    '설계2팀': '#059669',
-    '지반팀':  '#d97706',
-    '관리팀':  '#7c3aed',
-  },
+  // ── 팀 목록·색상 (Teams) ─────────────────────────────────────
+  // 팀 구성·색상·정렬 순서를 한곳에서 관리한다(배열 순서 = 화면 정렬·범례 순서).
+  // 참조: leave.html(팀 캘린더 칩·범례·정렬), home.html(연차 현황 칩).
+  // name 은 teams 테이블의 팀명(name)과 정확히 일치해야 한다.
+  // 호환 값 TEAM_COLORS(이름→색)·TEAM_NAMES(순서대로 이름)는 이 배열에서 자동으로 만든다(파일 끝) — 손대지 말 것.
+  TEAMS: [
+    { name: '설계1팀', color: '#2563eb' },
+    { name: '설계2팀', color: '#059669' },
+    { name: '지반팀',  color: '#d97706' },
+    { name: '관리팀',  color: '#7c3aed' },
+  ],
   TEAM_COLOR_DEFAULT: '#94a3b8',  // 매핑에 없는 팀 / 팀 미배정 직원의 색상
 
   // ── 연차 캘린더 (leave.html) ──────────────────────────────────
@@ -278,3 +279,18 @@ var APP_CONFIG = {
   },
 
 };
+
+// ── 팀 목록(TEAMS) → 호환 값 자동 생성 (손대지 말 것. 팀을 바꾸려면 위 TEAMS 만 고친다) ──
+//   TEAM_COLORS : { 팀명: 색 } (배열 순서 보존 — 범례·정렬 순서가 TEAMS 순서를 따른다)
+//   TEAM_NAMES  : [ 팀명… ] (TEAMS 순서. leave.html 정렬 순서 등에 쓰인다)
+(function (c) {
+  if (!c || !Array.isArray(c.TEAMS)) return;
+  var colors = {}, names = [];
+  for (var i = 0; i < c.TEAMS.length; i++) {
+    var t = c.TEAMS[i]; if (!t || !t.name) continue;
+    names.push(t.name);
+    if (t.color) colors[t.name] = t.color;
+  }
+  c.TEAM_COLORS = colors;   // 이름 → 색 (옛 TEAM_COLORS 자리. Object.keys 순서 = TEAMS 순서)
+  c.TEAM_NAMES = names;     // 순서대로 팀명
+})(APP_CONFIG);
