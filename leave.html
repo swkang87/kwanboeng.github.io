@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <title>연차관리 시스템</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
@@ -19,7 +19,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111303"></script>
+<script src="sysbar.js?v=2026111601"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js" integrity="sha384-1qlE7MZPM2pHD/pBZCU/yB8UCP52RYL8bge/qNdfNBCWToySp8/M+JL2waXU4hjJ" crossorigin="anonymous"></script>
@@ -1464,7 +1464,7 @@ function App(){
   const [view,setView]=useState(()=>Sysbar.hashTab()||'calendar');
   const [syncing,setSyncing]=useState(false);
   const [lastSync,setLastSync]=useState('');
-  const [isMobile,setIsMobile]=useState(typeof window!=='undefined'&&window.innerWidth<768);
+  const [isMobile,setIsMobile]=useState(typeof window!=='undefined'&&Sysbar.isMobile());
   const [moreOpen,setMoreOpen]=useState(false);   // 휴대폰 하단 바 「더보기」
   const [,setApprTick]=useState(0);   // 결재 대기 숫자가 바뀌면 다시 그림
   useEffect(()=>{const f=()=>setApprTick(t=>t+1);window.addEventListener('sys-approvals',f);return()=>window.removeEventListener('sys-approvals',f);},[]);
@@ -1473,7 +1473,7 @@ function App(){
   const [,setPermTick]=useState(0);
 
   useEffect(()=>{
-    const handle=()=>setIsMobile(window.innerWidth<768);
+    const handle=()=>setIsMobile(Sysbar.isMobile());
     window.addEventListener('resize',handle);
     return()=>window.removeEventListener('resize',handle);
   },[]);
@@ -1643,7 +1643,7 @@ function App(){
           subBadges={subBadges} activeSub={view} onSubChange={changeView}
         />
         {/* 제목 바 */}
-        <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8'}}>
+        <div className="sys-page-head" style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8'}}>
           <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
           <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>연차 관리 시스템</p>
         </div>
@@ -1655,14 +1655,14 @@ function App(){
         <div style={{position:'fixed',bottom:0,left:0,right:0,background:'white',borderTop:'1px solid #e2e8f0',display:'flex',zIndex:200,paddingBottom:'env(safe-area-inset-bottom)'}}>
           {mobileNav.map(item=>(
             <button key={item.k} onClick={()=>changeView(item.k)} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3,background:'none',border:'none',cursor:'pointer',color:view===item.k?'#1e40af':'#94a3b8',padding:'8px 4px',position:'relative',fontFamily:"'Noto Sans KR',sans-serif",minHeight:56}}>
-              {item.b>0&&<span style={{position:'absolute',top:5,left:'50%',transform:'translateX(4px)',background:'#ef4444',color:'white',borderRadius:10,padding:'1px 5px',fontSize:9,fontWeight:700,minWidth:16,textAlign:'center'}}>{item.b}</span>}
+              {item.b>0&&<span className="num" style={{position:'absolute',top:3,left:'50%',transform:'translateX(11px)',background:'#ef4444',color:'white',borderRadius:10,padding:'1px 5px',fontSize:9,fontWeight:700,minWidth:16,textAlign:'center'}}>{item.b}</span>}
               <span style={{fontSize:20,lineHeight:1}}>{item.i}</span>
               <span style={{fontSize:10,fontWeight:view===item.k?700:400,letterSpacing:-0.3}}>{item.l}</span>
             </button>
           ))}
           {overflow&&(
             <button onClick={()=>setMoreOpen(o=>!o)} aria-expanded={moreOpen} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3,background:'none',border:'none',cursor:'pointer',color:(moreOn||moreOpen)?'#1e40af':'#94a3b8',padding:'8px 4px',position:'relative',fontFamily:"'Noto Sans KR',sans-serif",minHeight:56}}>
-              {moreBadge>0&&<span style={{position:'absolute',top:5,left:'50%',transform:'translateX(4px)',background:'#ef4444',color:'white',borderRadius:10,padding:'1px 5px',fontSize:9,fontWeight:700,minWidth:16,textAlign:'center'}}>{moreBadge}</span>}
+              {moreBadge>0&&<span className="num" style={{position:'absolute',top:3,left:'50%',transform:'translateX(11px)',background:'#ef4444',color:'white',borderRadius:10,padding:'1px 5px',fontSize:9,fontWeight:700,minWidth:16,textAlign:'center'}}>{moreBadge}</span>}
               <span style={{fontSize:20,lineHeight:1}}>⋯</span>
               <span style={{fontSize:10,fontWeight:moreOn?700:400,letterSpacing:-0.3}}>{moreOn?(moreItems.find(n=>n.k===view)||{}).l:'더보기'}</span>
             </button>
@@ -1701,13 +1701,13 @@ function App(){
       />
 
       {/* 2줄: 시스템 제목 바 */}
-      <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8',position:'sticky',top:'var(--sysbar-h,38px)',zIndex:250}}>
+      <div className="sys-page-head" style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',flexShrink:0,borderBottom:'2px solid #1d4ed8',position:'sticky',top:'var(--sysbar-h,38px)',zIndex:250}}>
         <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
         <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>연차 관리 시스템</p>
       </div>
 
       {/* 3줄: 가로 네비 탭 (PC 에서는 숨김 — 왼쪽 메뉴 하위 항목으로 보인다) */}
-      <div className="sys-page-tabs" style={{background:'#1e293b',padding:'0 14px',display:'flex',alignItems:'center',flexShrink:0,height:36,gap:1,borderBottom:'1px solid var(--theme,#0f172a)',position:'sticky',top:'calc(var(--sysbar-h,38px) + 45px)',zIndex:240,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none'}}>
+      <div className="sys-page-tabs" style={{background:'#1e293b',padding:'0 14px',display:'flex',alignItems:'center',flexShrink:0,height:36,gap:1,borderBottom:'1px solid var(--theme,#0f172a)',position:'sticky',top:'calc(var(--sysbar-h,38px) + var(--sys-head-h,45px))',zIndex:240,overflowX:'auto',WebkitOverflowScrolling:'touch',scrollbarWidth:'none',msOverflowStyle:'none'}}>
         {navItems.map(item=>(
           <button key={item.k} onClick={()=>changeView(item.k)} className={view===item.k?'sys-tab-on':''}
             style={{display:'flex',alignItems:'center',gap:4,padding:'5px 11px',

@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <title>업무관리 시스템</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111303"></script>
+<script src="sysbar.js?v=2026111601"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -25,7 +25,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 
 /* ─── TOP NAV TAB ────────────────────────────────────── */
 .top-nav-bar {
-  position: sticky; top: calc(var(--sysbar-h,38px) + 45px); z-index: 200;
+  position: sticky; top: calc(var(--sysbar-h,38px) + var(--sys-head-h,45px)); z-index: 200;
   background: #1e293b; height: 36px;
   display: flex; align-items: center;
   padding: 0 14px; gap: 1px;
@@ -2171,7 +2171,7 @@ function App() {
         onSubChange={nv}
       />
       {/* 시스템 제목 바 */}
-      <div style={{ background:'var(--theme,#0f172a)', padding:'6px 18px 8px', flexShrink:0, borderBottom:'2px solid #1d4ed8', position:'sticky', top:'var(--sysbar-h,38px)', zIndex:250 }}>
+      <div className="sys-page-head" style={{ background:'var(--theme,#0f172a)', padding:'6px 18px 8px', flexShrink:0, borderBottom:'2px solid #1d4ed8', position:'sticky', top:'var(--sysbar-h,38px)', zIndex:250 }}>
         <p style={{ margin:0, fontSize:9, lineHeight:'1.2', color:'#475569', letterSpacing:1, textTransform:'uppercase', fontWeight:600 }}>{APP_CONFIG.COMPANY_EN}</p>
         <p style={{ margin:0, fontSize:14, lineHeight:'1.3', fontWeight:800, color:'white', letterSpacing:-0.3 }}>업무관리 시스템</p>
       </div>

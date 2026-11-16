@@ -85,7 +85,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.9.2';
+  var APP_VERSION = '2.10.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -752,6 +752,8 @@
     clock:   '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     box:     '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
     flag:    '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>',
+    menu:    '<path d="M4 7h16M4 12h16M4 17h16"/>',
+    x:       '<path d="M6 6l12 12M18 6L6 18"/>',
     grid:    '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   };
   function sideIcon(React, name, size) {
@@ -782,6 +784,105 @@
   function guestOpenSet(list) { try { if (list.length) localStorage.setItem(GUEST_OPEN_KEY, JSON.stringify(list)); else localStorage.removeItem(GUEST_OPEN_KEY); } catch(e) {} }
   function guestOffGet() { try { return localStorage.getItem(GUEST_OFF_KEY) === '1'; } catch(e) { return false; } }
   function guestOffSet(v) { try { if (v) localStorage.setItem(GUEST_OFF_KEY, '1'); else localStorage.removeItem(GUEST_OFF_KEY); } catch(e) {} }
+
+  // ── 휴대폰 폭 판정 · 서랍 메뉴 (2026-11-16, v3.19 모바일 버전2) ──
+  //   휴대폰 = APP_CONFIG.MOBILE_MAX_WIDTH 이하. <html> 에 sys-m 클래스를 붙여 CSS 가 같은 기준을 쓰게 한다
+  //   (화면 CSS 에 768 같은 숫자를 다시 쓰지 말고 html.sys-m 선택자를 쓸 것).
+  var MOBILE_MAX = ((global.APP_CONFIG && global.APP_CONFIG.MOBILE_MAX_WIDTH) || 768);
+  var _mq = null;
+  try { _mq = global.matchMedia('(max-width:' + MOBILE_MAX + 'px)'); } catch(e) { _mq = null; }
+  function isMobile() { return _mq ? _mq.matches : ((global.innerWidth || 1024) <= MOBILE_MAX); }
+  function syncMobileClass() {
+    var r = document.documentElement; if (!r) return;
+    var m = isMobile();
+    if (r.classList.contains('sys-m') !== m) {
+      // 휴대폰 ↔ PC 가 바뀌는 순간에는 메뉴 미끄러짐 애니메이션을 끈다(창 크기를 바꿀 때 메뉴가 쓸려 들어오지 않게)
+      r.classList.add('sys-noanim');
+      setTimeout(function () { r.classList.remove('sys-noanim'); }, 300);
+    }
+    r.classList.toggle('sys-m', m);
+    if (!m && _drawer.open) drawerClose();   // 휴대폰 → PC 로 넓어지면 서랍은 닫는다
+  }
+  // 서랍 상태(화면에 하나). 열 때 history 에 한 칸을 넣어 휴대폰 「뒤로」가 서랍만 닫게 한다.
+  //   이 popstate 처리기는 sysbar.js 를 읽을 때 붙으므로 화면의 popstate 처리기보다 먼저 돈다 —
+  //   서랍 칸이 빠질 때는 화면 처리기까지 가지 않게 막는다(탭 주소가 바뀌지 않는다).
+  var _drawer = { open:false, pushed:false, after:null, set:null };
+  function _drawerSetOpen(v) {
+    _drawer.open = v;
+    try { document.documentElement.classList.toggle('sys-drawer-open', v); } catch(e) {}
+    if (_drawer.set) _drawer.set(v);
+  }
+  function drawerOpen() {
+    if (_drawer.open || !isMobile()) return;
+    _drawerSetOpen(true);
+    try {
+      var st = global.history.state;
+      var ns = (st && typeof st === 'object') ? Object.assign({}, st) : {};
+      ns.__sysDrawer = 1;
+      global.history.pushState(ns, '');   // 주소 인자 생략 = 지금 주소(#탭) 그대로
+      _drawer.pushed = true;
+    } catch(e) { _drawer.pushed = false; }
+  }
+  // after: 서랍이 다 닫힌 뒤 할 일(같은 화면 탭 전환 등 — history 칸이 빠진 다음에 해야 주소 기록이 꼬이지 않는다)
+  function drawerClose(after) {
+    if (!_drawer.open) { if (after) after(); return; }
+    if (_drawer.pushed) { _drawer.after = after || null; try { global.history.back(); return; } catch(e) { _drawer.pushed = false; } }
+    _drawerSetOpen(false);
+    if (after) after();
+  }
+  // 서랍 안 링크로 다른 화면에 갈 때: 서랍 칸을 새 화면으로 바꿔 끼운다(뒤로 = 서랍 열기 전 화면)
+  function drawerGo(href) {
+    var same = false;
+    try { var u = new URL(href, global.location.href); same = u.pathname === global.location.pathname; } catch(e) {}
+    if (_drawer.open && _drawer.pushed && !same) { _drawer.open = false; global.location.replace(href); return; }
+    drawerClose(function() { global.location.href = href; });
+  }
+  global.addEventListener('popstate', function(ev) {
+    if (!_drawer.open || !_drawer.pushed) return;
+    try { ev.stopImmediatePropagation(); } catch(e) {}
+    _drawer.pushed = false;
+    var f = _drawer.after; _drawer.after = null;
+    _drawerSetOpen(false);
+    if (f) setTimeout(f, 0);
+  });
+  global.addEventListener('keydown', function(ev) { if (ev.key === 'Escape' && _drawer.open) drawerClose(); });
+  if (_mq) { try { _mq.addEventListener('change', syncMobileClass); } catch(e) { try { _mq.addListener(syncMobileClass); } catch(e2) { global.addEventListener('resize', syncMobileClass); } } }
+  else global.addEventListener('resize', syncMobileClass);
+  syncMobileClass();
+
+  // ── 표를 휴대폰 카드로(.m-cards): 머리줄 글자를 각 칸 data-label 로 채운다(이미 있으면 그대로) ──
+  var _mcPending = false;
+  function labelMCards() {
+    _mcPending = false;
+    try {
+      var tbs = document.querySelectorAll('table.m-cards');
+      for (var i = 0; i < tbs.length; i++) {
+        var ths = tbs[i].querySelectorAll('thead th');
+        if (!ths.length) continue;
+        var names = []; for (var j = 0; j < ths.length; j++) names.push((ths[j].textContent || '').trim());
+        var rows = tbs[i].querySelectorAll('tbody tr');
+        for (var r = 0; r < rows.length; r++) {
+          var c = 0, tds = rows[r].children;
+          for (var k = 0; k < tds.length; k++) {
+            if (!tds[k].hasAttribute('data-label') && names[c]) tds[k].setAttribute('data-label', names[c]);
+            c += (+tds[k].getAttribute('colspan') || 1);
+          }
+        }
+      }
+    } catch(e) { logError(e, '표 카드 이름표'); }
+  }
+  function watchMCards() {
+    try {
+      var mo = new MutationObserver(function() {
+        if (_mcPending || !document.querySelector('table.m-cards')) return;
+        _mcPending = true;
+        (global.requestAnimationFrame || setTimeout)(labelMCards);
+      });
+      mo.observe(document.body, { childList:true, subtree:true });
+      labelMCards();
+    } catch(e) { logError(e, '표 카드 감시'); }
+  }
+  if (document.body) watchMCards(); else document.addEventListener('DOMContentLoaded', watchMCards);
 
   var CSS_INJECTED = false;
 
@@ -818,29 +919,25 @@
     s.textContent =
       '@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css");' +
       'body,button,input,select,textarea{font-family:\'Pretendard\',\'Noto Sans KR\',sans-serif!important;}' +
-      '.sys-bar{position:sticky;top:0;z-index:300;background:var(--theme,#0f172a);height:38px;display:flex;align-items:center;padding:0 10px;gap:3px;border-bottom:1px solid #1e293b;flex-shrink:0;}' +
-      '.sys-co{font-size:11px;font-weight:800;color:#94a3b8;margin-right:6px;letter-spacing:-.3px;white-space:nowrap;text-decoration:none;flex-shrink:0;}' +
-      '.sys-link{display:flex;align-items:center;justify-content:center;gap:3px;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;text-decoration:none;color:#94a3b8;background:#1e293b;white-space:nowrap;flex-shrink:0;border:none;cursor:pointer;font-family:inherit;}' +
-      '.sys-link.active{background:#1d4ed8;color:#fff;font-weight:700;cursor:default;}' +
-      '.sys-link.active-home{background:var(--theme,#0f172a);color:#e2e8f0;font-weight:700;cursor:default;border:1px solid #334155;}' +
-      '.sys-link.active-admin{background:#7c3aed;color:#fff;font-weight:700;cursor:default;}' +
-      '.sys-link.disabled{color:#475569;cursor:pointer;}' +
-      '.sys-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;}' +
-      '.sys-user{font-size:11px;color:#94a3b8;white-space:nowrap;}' +
-      '.sys-logout{background:transparent;color:#64748b;border:1px solid #334155;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;}' +
-      '@media(max-width:640px){' +
-        '.sys-bar{padding:0 4px;gap:2px;}' +
-        '.sys-co{display:none;}' +
-        '.sys-link{flex:1;padding:4px 1px;font-size:10px;gap:1px;}' +
-      '}' +
+      /* ─── 휴대폰 상단 막대 (MOBILE_MAX_WIDTH 이하, 2026-11-16 버전2) ───
+         ☰(서랍 메뉴) + 화면 제목만. 높이 48px + 아이폰 위 안전영역. 서랍 = 아래 .sys-side 를 그대로 씀(메뉴 한 벌) */
+      '.sys-bar{position:sticky;top:0;z-index:300;background:var(--theme,#0f172a);color:#fff;display:flex;align-items:center;gap:4px;' +
+        'height:calc(48px + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) calc(8px + env(safe-area-inset-right,0px)) 0 calc(4px + env(safe-area-inset-left,0px));box-sizing:border-box;flex-shrink:0;}' +
+      '.sys-m-menu{position:relative;display:flex;align-items:center;justify-content:center;width:44px;height:44px;flex-shrink:0;padding:0;border:none;border-radius:10px;background:transparent;color:#e2e8f0;cursor:pointer;font-family:inherit;}' +
+      '.sys-m-menu:active{background:rgba(255,255,255,.12);}' +
+      '.sys-m-dot{position:absolute;top:5px;right:3px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:8px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;font-variant-numeric:tabular-nums;}' +
+      '.sys-m-title{flex:1;min-width:0;display:flex;align-items:baseline;gap:6px;white-space:nowrap;overflow:hidden;}' +
+      '.sys-m-title b{font-size:16px;font-weight:800;letter-spacing:-.3px;flex-shrink:0;}' +
+      '.sys-m-title span{font-size:14px;font-weight:500;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;}' +
+      '.sys-m-x{display:none;}' +
       '@media print{.no-print{display:none!important;}}' +
 
       /* ─── 왼쪽 메뉴 (PC, MOBILE_MAX_WIDTH 초과) ───
          --sysbar-h : 화면 위 고정 막대 높이. 각 화면의 sticky top 은 var(--sysbar-h,38px) 를 쓴다.
                       휴대폰 = 38px(상단 막대), PC 왼쪽 메뉴 = 0
          --sys-side-w : 왼쪽 메뉴 폭. 접으면(body.sys-side-off) 0 */
-      ':root{--sysbar-h:38px;--sys-side-w:212px;}' +
-      '.sys-side,.sys-side-tog,.sys-pc-only{display:none;}' +
+      ':root{--sysbar-h:calc(48px + env(safe-area-inset-top,0px));--sys-head-h:45px;--sys-side-w:212px;}' +
+      '.sys-side,.sys-side-tog,.sys-pc-only,.sys-drawer-bg{display:none;}' +
       '@media(min-width:' + sideMin + '){' +
         'body.sys-has-side{--sysbar-h:0px;padding-left:var(--sys-side-w);transition:padding-left .2s;}' +
         'body.sys-has-side.sys-side-off{padding-left:0;}' +
@@ -877,7 +974,6 @@
       '.sys-side-b[aria-expanded="true"] .sys-side-chev{transform:rotate(90deg);}' +
       '.sys-side-wait{padding:7px 10px;font-size:12px;color:#64748b;}' +
       '.sys-side-b .sys-side-badge + .sys-side-chev{margin-left:6px;}' +
-      '.sys-link-badge{display:inline-block;margin-left:3px;background:#ef4444;color:#fff;border-radius:8px;padding:0 4px;font-size:9px;font-weight:700;line-height:14px;vertical-align:1px;}' +
       '.sys-side-badge{margin-left:auto;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:10px;font-weight:700;line-height:16px;}' +
       '.sys-side-foot{padding:12px 12px 14px;border-top:1px solid rgba(255,255,255,.07);}' +
       '.sys-side-view{padding:0 4px 10px;}' +
@@ -891,6 +987,72 @@
       '.sys-side-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 8px;border-radius:7px;border:1px solid #334155;background:transparent;color:#94a3b8;font-size:12px;font-family:inherit;cursor:pointer;text-decoration:none;white-space:nowrap;}' +
       '.sys-side-btn:hover{color:#fff;border-color:#475569;}' +
       '@media print{.sys-side,.sys-side-tog{display:none!important;}body.sys-has-side{padding-left:0!important;transition:none!important;}}' +
+
+      /* ─── 휴대폰 서랍 메뉴 + 공통 휴대폰 규칙 (html.sys-m = MOBILE_MAX_WIDTH 이하, sysbar.js 가 붙임) ─── */
+      'html.sys-m{--sys-head-h:0px;-webkit-text-size-adjust:100%;text-size-adjust:100%;}' +
+      'html.sys-m body{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);}' +
+      'html.sys-m .sys-side{display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;width:min(86vw,320px);background:var(--theme,#0f172a);color:#cbd5e1;z-index:960;' +
+        'transform:translateX(-102%);visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s;box-shadow:8px 0 28px rgba(0,0,0,.28);' +
+        'padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);box-sizing:border-box;overscroll-behavior:contain;}' +
+      'html.sys-noanim .sys-side,html.sys-noanim .sys-side-tog,html.sys-noanim body.sys-has-side,html.sys-noanim .sys-drawer-bg{transition:none!important;}' +
+      'html.sys-m.sys-drawer-open .sys-side{transform:none;visibility:visible;transition:transform .22s ease;}' +
+      'html.sys-m .sys-drawer-bg{display:block;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:955;opacity:0;pointer-events:none;transition:opacity .2s;touch-action:none;}' +
+      'html.sys-m.sys-drawer-open .sys-drawer-bg{opacity:1;pointer-events:auto;}' +
+      'html.sys-drawer-open,html.sys-drawer-open body{overflow:hidden!important;overscroll-behavior:none;}' +
+      'html.sys-m .sys-side-brand{height:56px;padding:0 56px 0 16px;flex-shrink:0;}' +
+      'html.sys-m .sys-side-brand b{font-size:16px;}' +
+      'html.sys-m .sys-side-ver{font-size:12px;}' +
+      'html.sys-m .sys-m-x{display:flex;align-items:center;justify-content:center;position:absolute;top:calc(env(safe-area-inset-top,0px) + 6px);right:6px;z-index:1;width:44px;height:44px;border:none;background:transparent;color:#94a3b8;border-radius:10px;cursor:pointer;padding:0;}' +
+      'html.sys-m .sys-side-nav{padding:10px 10px;gap:2px;}' +
+      'html.sys-m .sys-side-b{min-height:46px;font-size:15px;padding:0 12px;}' +
+      'html.sys-m .sys-side-sub{margin-left:21px;}' +
+      'html.sys-m .sys-side-sub .sys-side-b{min-height:44px;font-size:14px;padding:0 10px;}' +
+      'html.sys-m .sys-side-badge{font-size:12px;line-height:20px;padding:0 7px;border-radius:10px;}' +
+      'html.sys-m .sys-side-wait{font-size:14px;padding:12px 10px;}' +
+      'html.sys-m .sys-side-who b{font-size:15px;}' +
+      'html.sys-m .sys-side-who span{font-size:13px;}' +
+      'html.sys-m .sys-side-view label{font-size:13px;}' +
+      'html.sys-m .sys-side-view select{min-height:44px;font-size:16px;}' +
+      'html.sys-m .sys-side-btn{min-height:44px;font-size:14px;}' +
+      /* 휴대폰에서는 PC 처럼 화면 안 탭 줄·관리포털 탭 줄·화면 제목 띠를 숨긴다(서랍 메뉴와 상단 막대 제목이 대신함) */
+      'html.sys-m .sys-portal-tabs,html.sys-m .sys-page-tabs,html.sys-m .sys-page-head{display:none!important;}' +
+      /* 입력칸 글자 16px — 아이폰이 입력할 때 화면을 확대하지 않게 */
+      'html.sys-m input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),html.sys-m select,html.sys-m textarea{font-size:16px!important;}' +
+      'html.sys-m .btn{min-height:44px;}' +
+      'html.sys-m .btn-sm{min-height:40px;}' +
+      '@media print{.sys-drawer-bg,.sys-bar{display:none!important;}}' +
+
+      /* ─── 버전2 디자인 토큰 (모든 폭 공통) — 새 코드는 숫자 대신 이 변수를 쓴다 ─── */
+      ':root{--sys-radius:10px;--sys-radius-sm:6px;--sys-radius-lg:14px;--sys-gap:12px;--sys-pad:16px;' +
+        '--sys-shadow:0 1px 3px rgba(15,23,42,.08),0 1px 2px rgba(15,23,42,.04);--sys-shadow-lg:0 10px 30px rgba(15,23,42,.18);' +
+        '--sys-line:#e2e8f0;--sys-bg:#f1f5f9;--sys-card:#fff;--sys-text:#0f172a;--sys-muted:#64748b;--sys-accent:#1d4ed8;--sys-danger:#dc2626;}' +
+      'html.sys-m{--sys-pad:14px;--sys-gap:10px;}' +
+
+      /* ─── 공통 휴대폰 클래스 (2026-11-16) — 사용법은 CLAUDE.md 「모바일 규칙」 ───
+         .num      숫자 폭 고정 · 줄바꿈 없음 (모든 폭). .num.r / .num-r = 오른쪽 정렬
+         .m-cards  표(table) → 휴대폰에서 카드 목록. 칸 이름표는 thead 글자로 자동(data-label 이 있으면 그것)
+         .m-scroll 넓은 표를 감싸는 상자 → 휴대폰에서 상자 안에서만 가로 스크롤. .m-first = 첫 열 고정
+         .m-sheet  창(모달) 상자 → 휴대폰에서 아래에서 올라오는 시트. .m-sheet.m-full = 전체 화면
+         .m-stack  가로 배치(flex·grid) → 휴대폰에서 세로로 쌓기 */
+      '.num{font-variant-numeric:tabular-nums;white-space:nowrap;}' +
+      '.num.r,.num-r{text-align:right;}' +
+      'html.sys-m table.m-cards,html.sys-m table.m-cards tbody,html.sys-m table.m-cards tr,html.sys-m table.m-cards td{display:block;width:auto!important;}' +
+      'html.sys-m table.m-cards{border:0!important;min-width:0!important;}' +
+      'html.sys-m table.m-cards thead{display:none;}' +
+      'html.sys-m table.m-cards tr{background:var(--sys-card);border:1px solid var(--sys-line);border-radius:var(--sys-radius);box-shadow:var(--sys-shadow);margin:0 0 10px;padding:6px 14px;}' +
+      'html.sys-m table.m-cards td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 0!important;border:0!important;border-bottom:1px solid #f1f5f9!important;text-align:right!important;font-size:14px;min-height:0!important;height:auto!important;white-space:normal!important;}' +
+      'html.sys-m table.m-cards td:last-child{border-bottom:0!important;}' +
+      'html.sys-m table.m-cards td[data-label]:before{content:attr(data-label);flex-shrink:0;max-width:45%;text-align:left;color:var(--sys-muted);font-size:13px;font-weight:600;}' +
+      'html.sys-m table.m-cards td.m-card-head{display:block;text-align:left!important;font-size:15px;font-weight:700;}' +
+      'html.sys-m table.m-cards td.m-card-head:before{display:none;}' +
+      'html.sys-m .m-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;overscroll-behavior-x:contain;}' +
+      'html.sys-m .m-scroll.m-first th:first-child,html.sys-m .m-scroll.m-first td:first-child{position:sticky;left:0;z-index:1;background:var(--sys-card);box-shadow:1px 0 0 var(--sys-line);}' +
+      'html.sys-m .m-sheet{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;transform:none!important;width:100%!important;max-width:none!important;' +
+        'max-height:92dvh;margin:0!important;border-radius:var(--sys-radius-lg) var(--sys-radius-lg) 0 0!important;overflow-y:auto;box-sizing:border-box;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))!important;}' +
+      'html.sys-m .m-sheet.m-full{top:0!important;max-height:none;height:100%;border-radius:0!important;padding-top:env(safe-area-inset-top,0px)!important;}' +
+      'html.sys-m .m-stack{flex-direction:column!important;align-items:stretch!important;grid-template-columns:minmax(0,1fr)!important;}' +
+      'html.sys-m .m-stack>*{max-width:100%;min-width:0;}' +
+      'html.sys-m .m-hide{display:none!important;}' +
 
       /* ─── 공통 컴포넌트 클래스 (화이트라벨: 색상은 config 변수 연결) ─── */
       /* 버튼: <button class="btn btn-primary"> 형태로 사용 */
@@ -1564,6 +1726,54 @@
     if (!React) { console.error('[sysbar] React가 없습니다.'); return null; }
     injectCss();
 
+    // ── 휴대폰 서랍 메뉴 공용 (로그인·비회원 둘 다) ──
+    //   서랍 = PC 왼쪽 메뉴(.sys-side) 그 자체. 열림 상태는 모듈의 _drawer 한 곳(뒤로가기·Esc·바깥 누르기·메뉴 선택으로 닫힘)
+    function useDrawer() {
+      var st = React.useState(_drawer.open);
+      React.useEffect(function() {
+        _drawer.set = st[1];
+        return function() { if (_drawer.set === st[1]) _drawer.set = null; if (_drawer.open) _drawerSetOpen(false); };
+      }, []);
+      var open = st[0];
+      React.useEffect(function() {   // 열면 닫기 단추로, 닫으면 ☰ 단추로 포커스
+        if (!isMobile()) return;
+        try {
+          var el = document.querySelector(open ? '.sys-side .sys-m-x' : '.sys-bar .sys-m-menu');
+          if (el && (open || document.activeElement && document.activeElement.closest && document.activeElement.closest('.sys-side'))) el.focus();
+        } catch(err) {}
+      }, [open]);
+      return open;
+    }
+    function mobileTopBar(o) {
+      var e = React.createElement;
+      return e('div', {key:'top', className:'sys-bar' + (o.noPrint ? ' no-print' : '')},
+        e('button', {key:'m', type:'button', className:'sys-m-menu', 'aria-label': o.badge ? '메뉴 열기 (결재 대기 ' + o.badge + '건)' : '메뉴 열기',
+          'aria-expanded': o.open ? 'true' : 'false', 'aria-controls':'sys-side', onClick:function() { drawerOpen(); }},
+          sideIcon(React, 'menu', 24),
+          o.badge ? e('span', {key:'d', className:'sys-m-dot', 'aria-hidden':'true'}, o.badge > 99 ? '99+' : o.badge) : null),
+        e('div', {key:'t', className:'sys-m-title'},
+          e('b', {key:'b'}, o.title || ''),
+          o.sub ? e('span', {key:'s'}, o.sub) : null)
+      );
+    }
+    function drawerBg() {
+      return React.createElement('div', {key:'bg', className:'sys-drawer-bg no-print', 'aria-hidden':'true', onClick:function() { drawerClose(); }});
+    }
+    function drawerX() {
+      return React.createElement('button', {key:'x', type:'button', className:'sys-m-x', 'aria-label':'메뉴 닫기',
+        onClick:function(ev) { ev.preventDefault(); drawerClose(); }}, sideIcon(React, 'x', 22));
+    }
+    // 서랍 안 링크: 휴대폰에서 서랍이 열려 있으면 서랍 칸을 새 화면으로 바꿔 끼운다(뒤로 = 서랍 열기 전 화면)
+    function onSideClick(ev) {
+      if (!_drawer.open) return;
+      var a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+      if (!a || a.target === '_blank' || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.defaultPrevented) return;
+      ev.preventDefault();
+      drawerGo(a.getAttribute('href'));
+    }
+    // 같은 화면 안에서 할 일(탭 전환·안내 창·로그아웃)은 서랍을 닫은 뒤에
+    function afterClose(fn) { return function(ev) { if (_drawer.open) drawerClose(function() { fn(ev); }); else fn(ev); }; }
+
     // ── 비회원 모드 (guest.html) — 서버 호출 없음(sb 를 받지 않는다). 메뉴를 눌러도 이동하지 않고 onGuestBlocked(key, title) ──
     //   props: activeKey / activeSub = 마지막으로 누른 메뉴 강조(표시만), onGuestBlocked(key, title), onHome() = 회사명을 눌렀을 때
     //   key = 상위 메뉴 key 또는 '상위/하위', title = '연차관리 › 휴가 계획'
@@ -1612,21 +1822,16 @@
         return SECTION_TABS[m.key] ? guestSectionTabs(m.key) : null;
       }
 
-      // 휴대폰 상단 막대: 같은 메뉴, 누르면 안내
-      var links = menus.map(function(m) {
-        var on = m.key === activeKey;
-        return e('button', {key:m.key, type:'button', className:'sys-link' + (on ? ' active' : ''), style: on ? {cursor:'pointer'} : undefined,
-          onClick:function() { blocked(m.key, m.label); }}, m.icon + ' ' + m.label);
-      });
-      var topBar = e('div', {key:'top', className:'sys-bar no-print'},
-        e('a', {key:'home-link', href:cfg.INDEX_URL||'index.html', className:'sys-co', title:'홈페이지'}, '🌐'),
-        e('button', {key:'co', type:'button', className:'sys-co', style:{background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',padding:0}, onClick:onHome}, cfg.COMPANY_KO||''),
-        links,
-        e('div', {key:'right', className:'sys-right'},
-          e('span', {className:'sys-user'}, '비회원'),
-          e('a', {className:'sys-logout', href:loginUrl, style:{textDecoration:'none'}}, '로그인')
-        )
-      );
+      // 휴대폰 상단 막대: ☰ + 제목(마지막으로 누른 메뉴, 없으면 회사 이름). 메뉴는 서랍(.sys-side)
+      var drawerOpenNow = useDrawer();
+      var gMenu = menus.filter(function(m) { return m.key === activeKey; })[0];
+      var gSub = '';
+      if (gMenu && activeSub) {
+        var gs = (subsOf(gMenu) || []).filter(function(x) { return x.key === activeSub; })[0];
+        gSub = gs ? gs.label : '';
+      }
+      var topBar = mobileTopBar({ noPrint:true, open:drawerOpenNow,
+        title: gMenu ? gMenu.label : (cfg.COMPANY_SHORT || cfg.COMPANY_KO || ''), sub: gMenu ? gSub : '비회원 둘러보기' });
 
       var sideItems = [];
       menus.forEach(function(m) {
@@ -1634,7 +1839,7 @@
         var inner = [sideIcon(React, m.svg), e('span', {key:'l'}, m.label)];
         if (!subs) {
           sideItems.push(e('button', {key:m.key, type:'button', className:'sys-side-b' + (m.key === activeKey ? ' on' : ''), style:{cursor:'pointer'},
-            onClick:function() { blocked(m.key, m.label); }}, inner));
+            onClick:afterClose(function() { blocked(m.key, m.label); })}, inner));
           return;
         }
         var open = openKeys.indexOf(m.key) >= 0;
@@ -1648,15 +1853,16 @@
           subs.map(function(s) {
             var on = m.key === activeKey && s.key === activeSub;
             return e('button', {key:s.key, type:'button', className:'sys-side-b' + (on ? ' on' : ''),
-              onClick:function() { blocked(m.key + '/' + s.key, m.label + ' › ' + s.label); }},
+              onClick:afterClose(function() { blocked(m.key + '/' + s.key, m.label + ' › ' + s.label); })},
               (s.svg && SIDE_ICONS[s.svg]) ? sideIcon(React, s.svg, 16) : e('span', {key:'i', className:'sys-side-dot', 'aria-hidden':'true'}),
               e('span', {key:'l'}, s.label));
           })
         ));
       });
 
-      var side = e('aside', {key:'side', className:'sys-side no-print', 'aria-label':'메뉴'},
-        e('button', {key:'brand', type:'button', className:'sys-side-brand', onClick:onHome,
+      var side = e('aside', {key:'side', id:'sys-side', className:'sys-side no-print', 'aria-label':'메뉴', onClick:onSideClick},
+        drawerX(),
+        e('button', {key:'brand', type:'button', className:'sys-side-brand', onClick:afterClose(onHome),
           style:{background:'none',border:'none',borderBottom:'1px solid rgba(255,255,255,.07)',width:'100%',cursor:'pointer',fontFamily:'inherit',textAlign:'left'}},
           cfg.LOGO_URL ? e('img', {key:'i', src:cfg.LOGO_URL, alt:''}) : null,
           e('span', {key:'t', className:'sys-side-tt'},
@@ -1680,7 +1886,7 @@
         'aria-label': sideOff ? '메뉴 펴기' : '메뉴 접기'
       }, sideIcon(React, sideOff ? 'chevR' : 'chevL', 14));
 
-      return e(React.Fragment, null, topBar, side, tog);
+      return e(React.Fragment, null, topBar, drawerBg(), side, tog);
     }
 
     return function SysBar(props) {
@@ -1800,39 +2006,26 @@
       var curClosed = curClosedState[0] === activeKey;
       function toggleCur() { curClosedState[1](function(v) { return v === activeKey ? null : activeKey; }); }
 
-      // ── 휴대폰 상단 막대 (기존 그대로) ──
-      var links = SYS_MENUS
-        .filter(function(m){ return m.adminOnly ? canAdmin : true; })
-        .map(function(m){
-          var mb = menuBadge(m.key);
-          var label = mb ? [m.icon + ' ' + m.label, e('span', {key:'b', className:'sys-link-badge'}, mb)] : m.icon + ' ' + m.label;
-          if (m.key === activeKey) {
-            var cls = m.key === 'admin' ? 'sys-link active-admin'
-                    : m.key === 'home'  ? 'sys-link active-home'
-                    : 'sys-link active';
-            return e('div', {key:m.key, className:cls}, label);
-          }
-          if (contractor && !contractorOk(m.key))
-            return e('div', {key:m.key, className:'sys-link disabled', onClick:onDisabled}, label);
-          return e('a', {key:m.key, href:m.url, className:'sys-link'}, label);
-        });
-
-      var userLabel = user
-        ? (user.name + ' 님' + (teamName ? ' ('+teamName+')' : ''))
-        : '';
-
-      var topBar = e('div', {key:'top', className:'sys-bar'+(noPrint?' no-print':'')},
-        e('a', {key:'home-link', href:cfg.INDEX_URL||'index.html', className:'sys-co', title:'홈페이지'}, '🌐'),
-        e('a', {key:'co', href:cfg.HOME_URL||'home.html', className:'sys-co'}, cfg.COMPANY_KO||''),
-        links,
-        e('div', {key:'right', className:'sys-right'},
-          user ? e('span', {className:'sys-user'}, userLabel) : null,
-          e('button', {className:'sys-logout', onClick:onLogout}, '로그아웃')
-        )
-      );
-
-      // ── PC 왼쪽 메뉴 ──
+      // ── 휴대폰 상단 막대: ☰(서랍 = 아래 왼쪽 메뉴 그대로) + 화면 제목(메뉴 › 하위). 버전1 상단 막대(메뉴 단추 줄)는 2026-11-16 삭제 ──
       var curFile = (function() { try { return (location.pathname.split('/').pop() || '').toLowerCase(); } catch(err) { return ''; } })();
+      var drawerOpenNow = useDrawer();
+      var curMenu = SYS_MENUS.filter(function(m) { return m.key === activeKey; })[0] || null;
+      var mSub = '';
+      if (props.mobileSub !== undefined) mSub = props.mobileSub || '';
+      else if (activeKey === 'admin') {
+        var cp = PORTAL_PAGES.filter(function(pg) { return pg.href.toLowerCase() === curFile; })[0];
+        mSub = cp ? cp.label : '';
+      } else if (curMenu && curMenu.subs) {
+        var cs = curMenu.subs.filter(function(x) { return x.key === activeSub; })[0];
+        mSub = cs ? cs.label : '';
+      } else if (curMenu && SECTION_TABS[activeKey] && user) {
+        var ct = sectionTabs(activeKey, user).filter(function(x) { return x.key === activeSub; })[0];
+        mSub = ct ? ct.label : '';
+      }
+      var topBar = mobileTopBar({ noPrint:noPrint, open:drawerOpenNow, badge: appr && appr.total > 0 ? appr.total : 0,
+        title: props.mobileTitle || (curMenu ? curMenu.label : (cfg.COMPANY_SHORT || cfg.COMPANY_KO || '')), sub: mSub });
+
+      // ── PC 왼쪽 메뉴 (휴대폰에서는 같은 것이 서랍) ──
 
       // 하위 항목 하나. href 가 있으면 다른 화면으로(링크 — 화면 탭이면 page.html#탭키), 없으면 같은 화면 안 탭 전환(onSubChange)
       //   guard = 고정 링크(내 정보관리 하위)만 협력업체 판정. 화면 탭은 sectionTabs 가 이미 직급별로 거른 것
@@ -1843,14 +2036,14 @@
         ];
         if (s.badge > 0) inner.push(e('span', {key:'b', className:'sys-side-badge'}, s.badge));
         if (guard && contractor && !contractorOk(s.key))
-          return e('div', {key:s.key, className:'sys-side-b disabled', onClick:onDisabled}, inner);
+          return e('div', {key:s.key, className:'sys-side-b disabled', onClick:afterClose(onDisabled)}, inner);
         if (s.href) {
           return on ? e('div', {key:s.key, className:'sys-side-b on', 'aria-current':'page'}, inner)
                     : e('a', {key:s.key, href:s.href, className:'sys-side-b'}, inner);
         }
         // 선택된 탭도 누를 수 있다(공정관리 상세보기 → 목록 등)
         return e('button', {key:s.key, type:'button', className:'sys-side-b' + (on ? ' on' : ''), 'aria-current': on ? 'page' : undefined,
-          onClick:function() { if (onSubChange) onSubChange(s.key); }}, inner);
+          onClick:afterClose(function() { if (onSubChange) onSubChange(s.key); })}, inner);
       }
 
       // 상위 메뉴: 하위가 없으면(메인메뉴) 바로 이동, 하위가 있으면 누를 때 펼치기/접기만(지금 화면의 메뉴는 항상 펼침)
@@ -1861,7 +2054,7 @@
         var kind = m.key === 'admin' ? 'admin' : m.subs ? 'fixed' : SECTION_TABS[m.key] ? 'section' : null;
         var inner = [sideIcon(React, m.svg), e('span', {key:'l'}, m.label)];
         if (contractor && !contractorOk(m.key)) {   // 막힌 메뉴는 펼치지 않고 안내
-          sideItems.push(e('div', {key:m.key, className:'sys-side-b disabled', onClick:onDisabled}, inner));
+          sideItems.push(e('div', {key:m.key, className:'sys-side-b disabled', onClick:afterClose(onDisabled)}, inner));
           return;
         }
         if (!kind) {
@@ -1915,7 +2108,8 @@
           onClick:function() { openDesktopFiles(); }}, [sideIcon(React, 'folder'), e('span', {key:'l'}, '파일')]));
       }
 
-      var side = e('aside', {key:'side', className:'sys-side no-print', 'aria-label':'메뉴'},
+      var side = e('aside', {key:'side', id:'sys-side', className:'sys-side no-print', 'aria-label':'메뉴', onClick:onSideClick},
+        drawerX(),
         e('a', {key:'brand', className:'sys-side-brand', href:cfg.HOME_URL||'home.html'},
           cfg.LOGO_URL ? e('img', {key:'i', src:cfg.LOGO_URL, alt:''}) : null,
           e('span', {key:'t', className:'sys-side-tt'},
@@ -1939,7 +2133,7 @@
           ) : null,
           e('div', {key:'btns', className:'sys-side-btns'},
             e('a', {key:'hp', href:cfg.INDEX_URL||'index.html', className:'sys-side-btn', title:'홈페이지'}, sideIcon(React, 'globe', 14), '홈페이지'),
-            e('button', {key:'lo', type:'button', className:'sys-side-btn', onClick:onLogout}, sideIcon(React, 'out', 14), '로그아웃')
+            e('button', {key:'lo', type:'button', className:'sys-side-btn', onClick:afterClose(function() { onLogout(); })}, sideIcon(React, 'out', 14), '로그아웃')
           )
         )
       );
@@ -1950,7 +2144,7 @@
         'aria-label': sideOff ? '메뉴 펴기' : '메뉴 접기'
       }, sideIcon(React, sideOff ? 'chevR' : 'chevL', 14));
 
-      return e(React.Fragment, null, topBar, side, tog);
+      return e(React.Fragment, null, topBar, drawerBg(), side, tog);
     };
   }
 
@@ -2487,6 +2681,10 @@
     setViewAs:     setViewAs,
     clearPerms:    clearPerms,
     injectCss:   injectCss,
+    isMobile:    isMobile,
+    MOBILE_MAX_WIDTH: MOBILE_MAX,
+    drawerOpen:  drawerOpen,
+    drawerClose: drawerClose,
     createComponent:      createComponent,
     createLoginComponent: createLoginComponent,
     SessionManager:       SessionManager,

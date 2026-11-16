@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <title>공정관리 시스템</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
@@ -12,7 +12,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 — 그리면서 보낸 세션 확인 요청이 이동으로 중단되지 않게 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111303"></script>
+<script src="sysbar.js?v=2026111601"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -128,9 +128,9 @@ button{cursor:pointer}
 .sum-unit{font-size:10px;font-weight:400;color:#94a3b8}
 
 /* ── CALENDAR ── */
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
 .cal-head{padding:6px 2px;text-align:center;font-size:10px;font-weight:700;background:#f8fafc;border-bottom:1px solid #e2e8f0}
-.cal-cell{min-height:64px;padding:2px 3px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;cursor:pointer;transition:background .15s}
+.cal-cell{min-width:0;min-height:64px;padding:2px 3px;border-bottom:1px solid #f1f5f9;border-right:1px solid #f1f5f9;cursor:pointer;transition:background .15s}
 .cal-cell:hover{background:#f0f9ff}
 .cal-cell.selected{background:#eff6ff}
 .cal-cell.today{background:#fffbeb}
@@ -612,13 +612,13 @@ function App() {
       />
 
       {/* 2줄: 시스템 제목 */}
-      <div className="no-print" style={{ background: 'var(--theme,#0f172a)', padding: '6px 18px 8px', flexShrink: 0, borderBottom: '2px solid #1d4ed8', position: 'sticky', top: 'var(--sysbar-h,38px)', zIndex: 101 }}>
+      <div className="sys-page-head no-print" style={{ background: 'var(--theme,#0f172a)', padding: '6px 18px 8px', flexShrink: 0, borderBottom: '2px solid #1d4ed8', position: 'sticky', top: 'var(--sysbar-h,38px)', zIndex: 101 }}>
         <p style={{ margin: 0, fontSize: 9, lineHeight: '1.2', color: '#475569', letterSpacing: 1, textTransform: 'uppercase', fontWeight: 600 }}>{APP_CONFIG.COMPANY_EN}</p>
         <p style={{ margin: 0, fontSize: 14, lineHeight: '1.3', fontWeight: 800, color: 'white', letterSpacing: -0.3 }}>공정 관리 시스템</p>
       </div>
 
       {/* 3줄: 가로 네비 탭 (PC 에서는 숨김 — 왼쪽 메뉴 하위 항목으로 보인다) */}
-      <div className="no-print sys-page-tabs" style={{ background: '#1e293b', padding: '0 14px', display: 'flex', alignItems: 'center', flexShrink: 0, height: 36, gap: 1, borderBottom: '1px solid var(--theme,#0f172a)', position: 'sticky', top: 'calc(var(--sysbar-h,38px) + 45px)', zIndex: 100, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div className="no-print sys-page-tabs" style={{ background: '#1e293b', padding: '0 14px', display: 'flex', alignItems: 'center', flexShrink: 0, height: 36, gap: 1, borderBottom: '1px solid var(--theme,#0f172a)', position: 'sticky', top: 'calc(var(--sysbar-h,38px) + var(--sys-head-h,45px))', zIndex: 100, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {menuItems.map(t => (
           <button key={t.key} onClick={() => nv(t.key)} className={curTab === t.key ? 'sys-tab-on' : ''}
             style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 11px', background: (view === t.key || (view === 'project' && t.key === 'projects')) ? '#1d4ed8' : 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer', color: (view === t.key || (view === 'project' && t.key === 'projects')) ? 'white' : '#94a3b8', fontFamily: "'Noto Sans KR',sans-serif", fontSize: 11, fontWeight: (view === t.key || (view === 'project' && t.key === 'projects')) ? 700 : 400, whiteSpace: 'nowrap', height: 26, flexShrink: 0 }}>
@@ -662,12 +662,12 @@ function WeeklyReport({ gp, user, scrollY, setScrollY, appData }) {
   const [selWeek, setSelWeek] = useState('');
   const [loading, setLoading] = useState(true);
   const [allMembers, setAllMembers] = useState([]);
-  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && Sysbar.isMobile());
   const [openInputId, setOpenInputId] = useState(null);   // PC 인라인 입력 패널
   const [weeklyModal, setWeeklyModal] = useState(null);   // 모바일 모달
 
   useEffect(() => {
-    const handle = () => setIsMobile(window.innerWidth < 768);
+    const handle = () => setIsMobile(Sysbar.isMobile());
     window.addEventListener('resize', handle);
     return () => window.removeEventListener('resize', handle);
   }, []);
@@ -1389,7 +1389,7 @@ function MonthlyCalendar({ gp, calDate, setCalDate, user, appData }) {
             return (
               <div key={d} className={`cal-cell ${isS?'selected':''} ${isT?'today':''}`} onClick={() => setSelDate(dt === selDate ? null : dt)}>
                 <div className="cal-date" style={{ color: dateColor, fontWeight: isT?800:500 }}>
-                  {d}{isT && <span style={{ fontSize: 7, background: '#f59e0b', color: '#fff', borderRadius: 2, padding: '0 2px', marginLeft: 2, fontWeight: 700 }}>TODAY</span>}
+                  {d}{isT && <span className="m-hide" style={{ fontSize: 7, background: '#f59e0b', color: '#fff', borderRadius: 2, padding: '0 2px', marginLeft: 2, fontWeight: 700 }}>TODAY</span>}
                 </div>
                 {(HOLIDAYS[dt]||SUBSTITUTE[dt]) && (
                   <div style={{ fontSize: 7, color: '#dc2626', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>

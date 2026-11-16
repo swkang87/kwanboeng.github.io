@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <title>메인메뉴</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"/>
@@ -11,7 +11,7 @@ html,body,#app,button,input,textarea,select{font-family:'Pretendard','Pretendard
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
 /* SYS-BAR → sysbar.js 주입 */
-.top-nav{position:sticky;top:calc(var(--sysbar-h,38px) + 45px);z-index:200;background:#1e293b;height:36px;display:flex;align-items:center;padding:0 14px;gap:1px;border-bottom:1px solid var(--theme,#0f172a);}
+.top-nav{position:sticky;top:calc(var(--sysbar-h,38px) + var(--sys-head-h,45px));z-index:200;background:#1e293b;height:36px;display:flex;align-items:center;padding:0 14px;gap:1px;border-bottom:1px solid var(--theme,#0f172a);}
 .nav-btn{display:flex;align-items:center;gap:4px;padding:5px 11px;height:26px;border:none;background:transparent;border-radius:4px;font-size:11px;font-weight:400;color:#94a3b8;cursor:pointer;white-space:nowrap;font-family:inherit;}
 .nav-btn.on{background:#1d4ed8;color:#fff;font-weight:700;}
 .page{padding:20px;max-width:1100px;margin:0 auto;}
@@ -35,7 +35,7 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
 .cal-hdr{display:flex;align-items:center;background:var(--theme,#0f172a);padding:10px 14px;gap:6px;}
 .cal-title{font-size:14px;font-weight:800;color:#fff;flex:1;text-align:center;}
 .cal-nav{background:transparent;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:2px 8px;}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));}
 .cal-dh{text-align:center;font-size:10px;font-weight:700;padding:7px 0;color:#64748b;background:#f8fafc;}
 .cal-cell{border:0.5px solid #f1f5f9;min-height:78px;padding:3px;cursor:default;background:#fff;}
 .cal-cell.today{background:#fef9c3;border:2px solid #f59e0b;}
@@ -75,11 +75,16 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
   .btn{min-height:44px;}
   .nav-btn{min-height:44px;}
   .cal-week-inner{min-width:0!important;grid-template-columns:repeat(7,minmax(44px,1fr))!important;}
+  /* 좁은 달력 칸: 칸 밖으로 잘리던 일정·이름표는 칸 폭에 맞춰 … 으로 (2026-11-16) */
+  .cal-cell{min-width:0;}
+  .cal-pill{display:flex!important;overflow:hidden;}
+  .cal-pill-t{min-width:0;overflow:hidden;text-overflow:ellipsis;}
+  .cal-lv{max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;flex-shrink:1!important;}
   .cal-year-grid{grid-template-columns:repeat(2,1fr)!important;}
 }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111303"></script>
+<script src="sysbar.js?v=2026111601"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -479,18 +484,18 @@ function CalendarView({user,teamName}){
           const isAuto=ev.type==='착수일'||ev.type==='준공일';
           const dispText=isAuto?(ev.type==='착수일'?'🚀 착수':'📅 준공'):ev.type;
           return(
-            <div key={'p'+j} style={{display:'inline-flex',alignItems:'center',gap:2,marginBottom:2,background:ev.bg,border:'1px solid '+ev.bd,borderRadius:4,padding:'2px 6px',maxWidth:'100%'}}>
-              <span style={{background:isAuto?'transparent':ev.bd,color:isAuto?ev.tx:'#fff',borderRadius:2,padding:isAuto?'0':'0 4px',fontSize:9,fontWeight:800,whiteSpace:'nowrap'}}>{dispText}</span>
+            <div key={'p'+j} className="cal-pill" style={{display:'inline-flex',alignItems:'center',gap:2,marginBottom:2,background:ev.bg,border:'1px solid '+ev.bd,borderRadius:4,padding:'2px 6px',maxWidth:'100%'}}>
+              <span className="cal-pill-t" style={{background:isAuto?'transparent':ev.bd,color:isAuto?ev.tx:'#fff',borderRadius:2,padding:isAuto?'0':'0 4px',fontSize:9,fontWeight:800,whiteSpace:'nowrap'}}>{dispText}</span>
             </div>
           );
         })}
         {compEvs.slice(0,1).map((ev,j)=>(
-          <div key={'c'+j} style={{background:'#f3e8ff',border:'1px solid #a855f7',borderRadius:4,padding:'2px 5px',fontSize:9,fontWeight:700,color:'#6b21a8',marginBottom:2,overflow:'hidden',whiteSpace:'nowrap'}}>{ev.label}</div>
+          <div key={'c'+j} className="cal-pill-t" style={{background:'#f3e8ff',border:'1px solid #a855f7',borderRadius:4,padding:'2px 5px',fontSize:9,fontWeight:700,color:'#6b21a8',marginBottom:2,overflow:'hidden',whiteSpace:'nowrap'}}>{ev.label}</div>
         ))}
         {lvEvs.length>0&&(
           <div style={{display:'flex',flexWrap:'wrap',gap:2,marginTop:2}}>
             {lvEvs.slice(0,4).map((ev,j)=>(
-              <span key={'l'+j} style={{background:ev.bg,color:'#fff',borderRadius:10,padding:'1px 4px',fontSize:8,fontWeight:800,whiteSpace:'nowrap',flexShrink:0}} title={ev.label}>
+              <span key={'l'+j} className="cal-lv" style={{background:ev.bg,color:'#fff',borderRadius:10,padding:'1px 4px',fontSize:8,fontWeight:800,whiteSpace:'nowrap',flexShrink:0}} title={ev.label}>
                 {ev.shortLabel||ev.label}
               </span>
             ))}
@@ -913,7 +918,7 @@ function App(){
   return(
     <div>
       <SysBar sb={sb} activeKey="home" user={user} teamName={teamName} onLogout={logout}/>
-      <div style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',position:'sticky',top:'var(--sysbar-h,38px)',zIndex:250,borderBottom:'2px solid #1d4ed8'}}>
+      <div className="sys-page-head" style={{background:'var(--theme,#0f172a)',padding:'6px 18px 8px',position:'sticky',top:'var(--sysbar-h,38px)',zIndex:250,borderBottom:'2px solid #1d4ed8'}}>
         <p style={{margin:0,fontSize:9,lineHeight:'1.2',color:'#475569',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>{APP_CONFIG.COMPANY_EN}</p>
         <p style={{margin:0,fontSize:14,lineHeight:'1.3',fontWeight:800,color:'white',letterSpacing:-0.3}}>통합 홈</p>
       </div>
