@@ -87,7 +87,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.11.0';
+  var APP_VERSION = '2.12.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -1346,6 +1346,92 @@
   else global.addEventListener('resize', syncMobileClass);
   syncMobileClass();
 
+  // ── 날짜별 일정 시트 (휴대폰, 2026-11-16) ──
+  //   달력(home·leave·project)에서 날짜를 누르면 아래에서 올라오는 공통 시트. 화면은 데이터만 넘긴다.
+  //   Sysbar.openDaySheet({ title, sub, items, empty })
+  //     items: [{ color, dashed(계획), name, meta, tag, tagColor, memo, actions:[{label,variant,onClick,closeFirst}] }]
+  //   닫기: 바깥 누르기 · ✕ · Esc · 휴대폰 「뒤로」(서랍처럼 history 한 칸, 주소 인자 생략 = #탭 유지). 한 번에 하나만.
+  var _sheet = { el:null, bg:null, pushed:false, after:null, prevOverflow:'' };
+  function _daySheetTeardown() {
+    var el = _sheet.el, bg = _sheet.bg;
+    _sheet.el = null; _sheet.bg = null;
+    try { document.body.style.overflow = _sheet.prevOverflow || ''; } catch(e) {}
+    if (bg) bg.style.opacity = '0';
+    if (el) el.style.transform = 'translateY(100%)';
+    setTimeout(function () { try { if (bg && bg.parentNode) bg.parentNode.removeChild(bg); } catch(e) {} }, 240);
+  }
+  function daySheetClose(after) {
+    if (!_sheet.el) { if (after) after(); return; }
+    if (_sheet.pushed) { _sheet.after = after || null; try { global.history.back(); return; } catch(e) { _sheet.pushed = false; } }
+    _daySheetTeardown();
+    if (after) after();
+  }
+  function _daySheetRow(it) {
+    it = it || {};
+    var row = document.createElement('div'); row.className = 'sys-daysheet-row';
+    var dot = document.createElement('span'); dot.className = 'sys-daysheet-dot';
+    var c = it.color || '#94a3b8';
+    if (it.dashed) { dot.style.background = 'transparent'; dot.style.border = '2px dashed ' + c; }
+    else { dot.style.background = c; dot.style.border = '2px solid ' + c; }
+    row.appendChild(dot);
+    var mid = document.createElement('div'); mid.className = 'sys-daysheet-mid';
+    var line = document.createElement('div'); line.className = 'sys-daysheet-line';
+    var nm = document.createElement('b'); nm.textContent = it.name || ''; line.appendChild(nm);
+    if (it.tag) { var tg = document.createElement('span'); tg.className = 'sys-daysheet-tag'; tg.textContent = it.tag; if (it.tagColor) tg.style.color = it.tagColor; line.appendChild(tg); }
+    mid.appendChild(line);
+    if (it.meta) { var mt = document.createElement('div'); mt.className = 'sys-daysheet-meta'; mt.textContent = it.meta; mid.appendChild(mt); }
+    if (it.memo) { var mm = document.createElement('div'); mm.className = 'sys-daysheet-memo'; mm.textContent = it.memo; mid.appendChild(mm); }
+    if (it.actions && it.actions.length) {
+      var ab = document.createElement('div'); ab.className = 'sys-daysheet-acts';
+      it.actions.forEach(function (a) {
+        var b = document.createElement('button'); b.className = 'btn btn-sm ' + (a.variant === 'danger' ? 'btn-danger' : 'btn-secondary'); b.textContent = a.label;
+        b.onclick = function () { if (a.closeFirst === false) { if (a.onClick) a.onClick(); } else daySheetClose(function () { if (a.onClick) a.onClick(); }); };
+        ab.appendChild(b);
+      });
+      mid.appendChild(ab);
+    }
+    row.appendChild(mid);
+    return row;
+  }
+  function openDaySheet(opts) {
+    opts = opts || {};
+    var pushedBefore = false;
+    if (_sheet.el) { pushedBefore = _sheet.pushed; _daySheetTeardown(); }  // 이미 열려 있으면 갈아끼운다(history 칸 재사용)
+    var bg = document.createElement('div'); bg.className = 'sys-daysheet-bg'; bg.setAttribute('role', 'presentation');
+    var el = document.createElement('div'); el.className = 'sys-daysheet'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+    var grab = document.createElement('div'); grab.className = 'sys-daysheet-grab'; el.appendChild(grab);
+    var hd = document.createElement('div'); hd.className = 'sys-daysheet-hd';
+    var ht = document.createElement('div'); ht.className = 'sys-daysheet-ht';
+    var h1 = document.createElement('b'); h1.textContent = opts.title || ''; ht.appendChild(h1);
+    if (opts.sub) { var h2 = document.createElement('span'); h2.textContent = opts.sub; ht.appendChild(h2); }
+    var x = document.createElement('button'); x.className = 'sys-daysheet-x'; x.setAttribute('aria-label', '닫기'); x.textContent = '✕';
+    x.onclick = function () { daySheetClose(); };
+    hd.appendChild(ht); hd.appendChild(x); el.appendChild(hd);
+    var body = document.createElement('div'); body.className = 'sys-daysheet-body';
+    var items = opts.items || [];
+    if (!items.length) { var emp = document.createElement('div'); emp.className = 'sys-daysheet-empty'; emp.textContent = opts.empty || '이 날은 일정이 없습니다.'; body.appendChild(emp); }
+    else { for (var i = 0; i < items.length; i++) body.appendChild(_daySheetRow(items[i])); }
+    el.appendChild(body); bg.appendChild(el);
+    (document.body || document.documentElement).appendChild(bg);
+    bg.addEventListener('click', function (ev) { if (ev.target === bg) daySheetClose(); });
+    _sheet.el = el; _sheet.bg = bg;
+    try { _sheet.prevOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; } catch(e) {}
+    (global.requestAnimationFrame || setTimeout)(function () { bg.style.opacity = '1'; el.style.transform = 'translateY(0)'; });
+    if (!pushedBefore) {
+      try { var st = global.history.state; var ns = (st && typeof st === 'object') ? Object.assign({}, st) : {}; ns.__sysSheet = 1; global.history.pushState(ns, ''); _sheet.pushed = true; }
+      catch(e) { _sheet.pushed = false; }
+    } else { _sheet.pushed = true; }
+  }
+  global.addEventListener('popstate', function (ev) {
+    if (!_sheet.el || !_sheet.pushed) return;
+    try { ev.stopImmediatePropagation(); } catch(e) {}
+    _sheet.pushed = false;
+    var f = _sheet.after; _sheet.after = null;
+    _daySheetTeardown();
+    if (f) setTimeout(f, 0);
+  });
+  global.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && _sheet.el) daySheetClose(); });
+
   // ── 표를 휴대폰 카드로(.m-cards): 머리줄 글자를 각 칸 data-label 로 채운다(이미 있으면 그대로) ──
   var _mcPending = false;
   function labelMCards() {
@@ -1583,7 +1669,29 @@
       '.page-header .ph-sub{font-size:13px;color:#cbd5e1;margin-top:4px;}' +
       /* 빈 상태 */
       '.empty-state{text-align:center;padding:48px 20px;color:#94a3b8;font-size:14px;}' +
-      '.empty-state .es-icon{font-size:36px;margin-bottom:12px;opacity:.6;}';
+      '.empty-state .es-icon{font-size:36px;margin-bottom:12px;opacity:.6;}' +
+      /* ─── 날짜별 일정 시트 (휴대폰) — Sysbar.openDaySheet ─── */
+      '.sys-daysheet-bg{position:fixed;inset:0;z-index:980;background:rgba(15,23,42,.5);opacity:0;transition:opacity .2s;display:flex;align-items:flex-end;justify-content:center;}' +
+      '.sys-daysheet{width:100%;max-width:520px;max-height:85dvh;display:flex;flex-direction:column;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.25);transform:translateY(100%);transition:transform .24s cubic-bezier(.32,.72,0,1);box-sizing:border-box;padding-bottom:env(safe-area-inset-bottom,0px);}' +
+      '.sys-daysheet-grab{width:40px;height:4px;border-radius:2px;background:#cbd5e1;margin:8px auto 2px;flex-shrink:0;}' +
+      '.sys-daysheet-hd{display:flex;align-items:center;gap:10px;padding:6px 10px 10px 18px;border-bottom:1px solid #f1f5f9;flex-shrink:0;}' +
+      '.sys-daysheet-ht{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}' +
+      '.sys-daysheet-ht b{font-size:16px;font-weight:800;color:#0f172a;}' +
+      '.sys-daysheet-ht span{font-size:12px;font-weight:700;color:#dc2626;}' +
+      '.sys-daysheet-x{width:40px;height:40px;flex-shrink:0;border:none;background:transparent;color:#94a3b8;font-size:17px;border-radius:10px;cursor:pointer;padding:0;}' +
+      '.sys-daysheet-x:active{background:#f1f5f9;}' +
+      '.sys-daysheet-body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 18px 14px;}' +
+      '.sys-daysheet-empty{text-align:center;color:#94a3b8;font-size:14px;padding:28px 0;}' +
+      '.sys-daysheet-row{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid #f4f6f9;}' +
+      '.sys-daysheet-row:last-child{border-bottom:0;}' +
+      '.sys-daysheet-dot{width:13px;height:13px;border-radius:4px;flex-shrink:0;margin-top:3px;box-sizing:border-box;}' +
+      '.sys-daysheet-mid{flex:1;min-width:0;}' +
+      '.sys-daysheet-line{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;}' +
+      '.sys-daysheet-line b{font-size:15px;font-weight:700;color:#0f172a;}' +
+      '.sys-daysheet-tag{font-size:12px;font-weight:700;color:#7c3aed;}' +
+      '.sys-daysheet-meta{font-size:13px;color:#475569;margin-top:2px;line-height:1.45;}' +
+      '.sys-daysheet-memo{font-size:12px;color:#94a3b8;margin-top:3px;line-height:1.45;white-space:pre-wrap;}' +
+      '.sys-daysheet-acts{display:flex;gap:6px;margin-top:8px;}';
     var target = document.head || document.documentElement;
     target.appendChild(s);
     CSS_INJECTED = true;
@@ -3188,6 +3296,8 @@
     MOBILE_MAX_WIDTH: MOBILE_MAX,
     drawerOpen:  drawerOpen,
     drawerClose: drawerClose,
+    openDaySheet: openDaySheet,
+    closeDaySheet: daySheetClose,
     createComponent:      createComponent,
     createLoginComponent: createLoginComponent,
     SessionManager:       SessionManager,

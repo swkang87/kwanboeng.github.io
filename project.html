@@ -12,7 +12,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 — 그리면서 보낸 세션 확인 요청이 이동으로 중단되지 않게 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111603"></script>
+<script src="sysbar.js?v=2026111604"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -1368,6 +1368,27 @@ function MonthlyCalendar({ gp, calDate, setCalDate, user, appData }) {
 
   const selEvents = selDate ? allCalEvents.filter(e => e.event_date === selDate) : [];
 
+  // 휴대폰: 날짜를 누르면 공통 시트가 올라와 그날 주요 공정(착수·준공 포함)을 전부 보여 준다(PC 는 아래 상세 패널 그대로)
+  const monthDaySheet = (dt) => {
+    const evs = allCalEvents.filter(e => e.event_date === dt);
+    const hol = HOLIDAYS[dt] || (SUBSTITUTE[dt] ? '대체공휴일' : null);
+    if (!evs.length && !hol) return;
+    Sysbar.openDaySheet({
+      title: `${ff(dt)} (${DK[new Date(dt+'T00:00:00').getDay()]})`,
+      sub: hol || undefined,
+      items: evs.map(e => {
+        const pn = projects.find(p => p.id === e.project_id)?.name || '';
+        if (e.auto) {
+          const isEnd = e.type === 'auto_end';
+          return { color: isEnd ? '#a855f7' : '#3b82f6', name: pn || (isEnd ? '준공일' : '착수일'), meta: isEnd ? '준공일' : '착수일', tag: isEnd ? '준공' : '착수', actions: e.project_id ? [{ label: '프로젝트 보기', onClick: () => gp(e.project_id) }] : undefined };
+        }
+        const s = ec(e.type);
+        return { color: s.bd, name: e.title, meta: pn || undefined, tag: e.type, actions: e.project_id ? [{ label: '프로젝트 보기', onClick: () => gp(e.project_id) }] : undefined };
+      }),
+      empty: '등록된 주요 공정이 없습니다.'
+    });
+  };
+
   if (loading) return <Spinner />;
 
   return (
@@ -1387,7 +1408,7 @@ function MonthlyCalendar({ gp, calDate, setCalDate, user, appData }) {
             const isHoliday = !!(HOLIDAYS[dt] || SUBSTITUTE[dt]);
             const dateColor = (dw===0 || isHoliday) ? '#dc2626' : dw===6 ? '#2563eb' : '#334155';
             return (
-              <div key={d} className={`cal-cell ${isS?'selected':''} ${isT?'today':''}`} onClick={() => setSelDate(dt === selDate ? null : dt)}>
+              <div key={d} className={`cal-cell ${isS?'selected':''} ${isT?'today':''}`} onClick={() => { if (Sysbar.isMobile()) monthDaySheet(dt); else setSelDate(dt === selDate ? null : dt); }}>
                 <div className="cal-date" style={{ color: dateColor, fontWeight: isT?800:500 }}>
                   {d}{isT && <span className="m-hide" style={{ fontSize: 7, background: '#f59e0b', color: '#fff', borderRadius: 2, padding: '0 2px', marginLeft: 2, fontWeight: 700 }}>TODAY</span>}
                 </div>
