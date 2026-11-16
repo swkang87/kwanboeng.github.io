@@ -19,7 +19,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111603"></script>
+<script src="sysbar.js?v=2026111604"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" integrity="sha384-tMH8h3BGESGckSAVGZ82T9n90ztNXxvdwvdM6UoR56cYcf+0iGXBliJ29D+wZ/x8" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" integrity="sha384-bm7MnzvK++ykSwVJ2tynSE5TRdN+xL418osEVF2DE/L/gfWHj91J2Sphe582B1Bh" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js" integrity="sha384-1qlE7MZPM2pHD/pBZCU/yB8UCP52RYL8bge/qNdfNBCWToySp8/M+JL2waXU4hjJ" crossorigin="anonymous"></script>
@@ -917,6 +917,18 @@ function CalView({users,teams,leaves,plans}){
 
   const selPeople=sel?getDayPeople(sel):[];
   const todayStr=today();
+  // 휴대폰: 날짜를 누르면 공통 시트가 올라와 그날 연차·휴가 계획을 전부 보여 준다(PC 는 아래 상세 패널 그대로)
+  const openDaySheetM=ds=>{
+    const people=getDayPeople(ds);
+    const hol=HOLIDAYS[ds]||(SUBSTITUTE[ds]?'대체공휴일':null);
+    if(!people.length&&!hol)return;
+    Sysbar.openDaySheet({
+      title:fmtFull(ds),
+      sub:hol||undefined,
+      items:people.map(p=>({color:p.color||CAL_TEAM_COLOR_DEFAULT,dashed:!!p.plan,name:p.name,meta:typeLabel(p.type,p.days)+(p.time?` (${p.time})`:''),tag:p.plan?'예정(계획)':undefined})),
+      empty:'이 날은 연차·휴가 계획이 없습니다.'
+    });
+  };
 
   return(
     <div ref={wideRef} style={wideStyle}>
@@ -966,7 +978,7 @@ function CalView({users,teams,leaves,plans}){
                 :(isHolDay?'#f87171':dow===0?'#f87171':dow===6?'#93c5fd':'#b0b8c4');
               const displayDn=valid?dn:otherDn;
               return(
-                <div key={i} onClick={()=>valid&&setSel(sel===ds?null:ds)} style={{minHeight:CAL_CELL_MIN_HEIGHT,padding:'2px',borderRadius:5,cursor:valid?'pointer':'default',background:bg,border}}>
+                <div key={i} onClick={()=>{if(!valid)return;if(Sysbar.isMobile())openDaySheetM(ds);else setSel(sel===ds?null:ds);}} style={{minHeight:CAL_CELL_MIN_HEIGHT,padding:'2px',borderRadius:5,cursor:valid?'pointer':'default',background:bg,border}}>
                   <div style={{fontSize:10,fontWeight:(valid&&(isTday||isHolDay))?700:400,color:numColor}}>{displayDn}</div>
                   {hol&&<div style={{fontSize:8,color:valid?'#dc2626':'#f87171',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>{hol}</div>}
                   {sub&&<div style={{fontSize:8,color:valid?'#dc2626':'#f87171',lineHeight:1.2,overflow:'hidden',whiteSpace:'nowrap',fontWeight:600}}>대체공휴일</div>}

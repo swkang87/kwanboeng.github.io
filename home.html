@@ -84,7 +84,7 @@ body{background:#f1f5f9;color:#0f172a;min-height:100vh;}
 }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111603"></script>
+<script src="sysbar.js?v=2026111604"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -433,10 +433,29 @@ function CalendarView({user,teamName}){
   const navLbl=tab==='week'?wlabel():tab==='year'?yr+'년':yr+'년 '+(mo+1)+'월';
 
   // ── 이벤트 모달 ────────────────────────────────────────
+  // 휴대폰 시트용: 이벤트 → 공통 시트 항목(색은 달력과 같게, 회사 일정은 권한 있으면 수정·삭제)
+  const daySheetItem=ev=>{
+    if(ev.k==='leave'){
+      const tm=ev.raw&&ev.raw.start_time?` (${ev.raw.start_time.slice(0,5)}~${ev.raw.end_time?ev.raw.end_time.slice(0,5):''})`:'';
+      return {color:ev.bg,name:ev.fullName||ev.label,meta:(ev.type==='공가'?'공가':'연차')+' · '+(ev.timeTag==='DAY'?'하루':ev.timeTag)+tm};
+    }
+    if(ev.k==='plan') return {color:ev.bd||ev.bg,dashed:true,name:ev.fullName,meta:'휴가 계획(예정) · '+ev.type+(ev.time?` (${ev.time})`:''),tag:'예정'};
+    if(ev.k==='proj') return {color:ev.bd||ev.bg,name:ev.label||ev.type,meta:ev.pname?('📋 '+ev.pname):(ev.type||''),tag:(ev.type&&ev.type!==ev.label)?ev.type:undefined};
+    const cat=ev.raw&&ev.raw.category&&ev.raw.category!=='일반'?ev.raw.category:'';
+    return {color:ev.tx||'#64748b',name:ev.label,meta:cat||undefined,memo:(ev.raw&&ev.raw.memo)||undefined,
+      actions:canWrite?[
+        {label:'수정',onClick:()=>{setEditEv(ev.raw);setEvF({title:ev.raw.title,date:ev.raw.date,end_date:ev.raw.end_date||'',category:ev.raw.category,memo:ev.raw.memo||''});setShowEvF(true);}},
+        {label:'삭제',variant:'danger',onClick:()=>delEv(ev.raw.id)}
+      ]:undefined};
+  };
   const openDay=ds=>{
     const evs=evMap[ds]||[];
     const h=HOL[ds]||SUB[ds];
     if(!evs.length&&!h)return;
+    if(Sysbar.isMobile()){
+      Sysbar.openDaySheet({title:fmtFull(ds)+' 일정',sub:h?('🎌 '+h):undefined,items:evs.map(daySheetItem),empty:'이 날은 일정이 없습니다.'});
+      return;
+    }
     setSelDay({date:ds,events:evs,hol:h});
   };
 
