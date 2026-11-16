@@ -10,7 +10,7 @@
 html, body, #app, button, input, textarea, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111601"></script>
+<script src="sysbar.js?v=2026111602"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -128,7 +128,7 @@ a { text-decoration: none; }
 .logout-btn:hover { color: #fff; }
 
 /* ─── MAIN CONTENT ───────────────────────────────────────── */
-.main-content { margin-left: 0; flex: 1; min-height: calc(100vh - var(--sysbar-h,38px)); }
+.main-content { margin-left: 0; flex: 1; min-width: 0; min-height: calc(100vh - var(--sysbar-h,38px)); }
 
 /* ─── VIEW CONTAINER ─────────────────────────────────────── */
 .view-wrap { max-width: 1200px; margin: 0 auto; padding: 28px 24px 40px; }
@@ -150,6 +150,11 @@ a { text-decoration: none; }
 .log-section { background: var(--card); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 14px; }
 .sec-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .sec-title { font-size: 14px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 8px; }
+/* 휴대폰: 제목은 한 줄, 오른쪽 입력칸이 남는 폭만 쓴다 (2026-11-16) */
+html.sys-m .sec-header { gap: 8px; }
+html.sys-m .sec-title { white-space: nowrap; flex-shrink: 0; }
+html.sys-m .sec-header > div:last-child:not(.sec-title) { min-width: 0; flex: 0 1 auto; }
+html.sys-m .sec-header > div:last-child:not(.sec-title) input { min-width: 0; flex: 1 1 auto; }
 .sec-icon { font-size: 16px; }
 .add-btn { padding: 6px 14px; background: var(--bg); border: 1.5px solid var(--border); border-radius: 6px; font-size: 12px; font-weight: 700; color: var(--text-sub); transition: all .15s; }
 .add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-lt); }
@@ -1896,7 +1901,7 @@ function SupplyView({ user }) {
   const inputStyle  = { padding:'7px 10px', border:'1.5px solid var(--border)', borderRadius:6, fontSize:13, color:'var(--text)', outline:'none', background:'#fff' };
   const labelStyle  = { fontSize:11, fontWeight:700, color:'var(--text-sub)' };
   const iconBtnStyle = { background:'none', border:'1px solid var(--border)', borderRadius:5, cursor:'pointer', fontSize:12, padding:'3px 7px' };
-  const COLS = '96px 104px 1fr 56px 110px 84px 1fr 92px';
+  const COLS = '96px 104px minmax(150px,1fr) 56px 110px 84px minmax(100px,1fr) 92px';
 
   return (
     <div className="view-wrap">
@@ -1983,11 +1988,11 @@ function SupplyView({ user }) {
           ? <div className="empty-state"><div className="empty-icon">🧾</div><div className="empty-text">기록이 없습니다</div><div className="empty-sub">새 비품 구매 기록을 추가하세요</div></div>
           : <div style={{ background:'var(--card)', border:'1.5px solid var(--border)', borderRadius:'var(--radius)', overflow:'hidden' }}>
               <div style={{ overflowX:'auto' }}>
-              <div style={{ display:'grid', gridTemplateColumns:COLS, gap:8, background:'var(--bg)', borderBottom:'1.5px solid var(--border)', padding:'8px 14px', fontSize:11, fontWeight:800, color:'var(--text-sub)', textTransform:'uppercase', letterSpacing:'.04em', minWidth:596 }}>
+              <div style={{ display:'grid', gridTemplateColumns:COLS, gap:8, background:'var(--bg)', borderBottom:'1.5px solid var(--border)', padding:'8px 14px', fontSize:11, fontWeight:800, color:'var(--text-sub)', textTransform:'uppercase', letterSpacing:'.04em', minWidth:850 }}>
                 <span>날짜</span><span>결제수단</span><span>품목</span><span style={{ textAlign:'center' }}>수량</span><span style={{ textAlign:'right' }}>총액</span><span>작성자</span><span>비고</span><span style={{ textAlign:'center' }}>관리</span>
               </div>
               {records.map((rec, i) => (
-                <div key={rec.id} style={{ display:'grid', gridTemplateColumns:COLS, gap:8, padding:'9px 14px', borderBottom: i < records.length-1 ? '1px solid var(--border)' : 'none', fontSize:13, alignItems:'center', background: i % 2 === 0 ? '#fff' : '#fafafa', minWidth:596 }}>
+                <div key={rec.id} style={{ display:'grid', gridTemplateColumns:COLS, gap:8, padding:'9px 14px', borderBottom: i < records.length-1 ? '1px solid var(--border)' : 'none', fontSize:13, alignItems:'center', background: i % 2 === 0 ? '#fff' : '#fafafa', minWidth:850 }}>
                   <span style={{ color:'var(--text-sub)' }}>{rec.record_date}</span>
                   <span style={{ fontWeight:700 }}>{rec.payment_method}</span>
                   <span>{rec.item_name}</span>

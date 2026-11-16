@@ -12,7 +12,7 @@ html, body, #app, button, input, textarea, select { font-family: 'Pretendard', '
 <script>/* 옛 주소 #profile(「내 정보」 탭) → 내 정보관리. 화면을 그리기 전에 보낸다 — 그리면서 보낸 세션 확인 요청이 이동으로 중단되지 않게 */
 if (location.hash === '#profile') { window.__TO_ME = true; location.replace('me.html'); }</script>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111601"></script>
+<script src="sysbar.js?v=2026111602"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" integrity="sha384-AISI5AuDG6E8DeEiFMVB3rGQxhZt24OU0avMp+GMV64+tpnA3+Z6F5MT0f96iPva" crossorigin="anonymous"></script>
@@ -195,7 +195,7 @@ button{cursor:pointer}
   .tbl{font-size:10px}
   .tbl th,.tbl td{padding:4px 3px}
   .btn-sm{padding:4px 8px;font-size:10px}
-  .admin-edit-grid{grid-template-columns:1fr!important}
+  .admin-edit-grid{grid-template-columns:minmax(0,1fr)!important}.admin-edit-grid>*{min-width:0}
 }
 </style>
 </head>
@@ -1482,7 +1482,7 @@ function WeeklyTaskList({ allCalEvents, projects, gp }) {
 
   return (
     <div className="card card-p" style={{ marginTop: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', margin: 0 }}>📌 주간 일정</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button className="btn btn-secondary btn-sm" onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate()-7); setWeekStart(d); }}>◀</button>
