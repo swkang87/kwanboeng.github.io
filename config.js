@@ -264,6 +264,10 @@ var APP_CONFIG = {
     PUSH_PUBLIC_KEY:  'BGJjOsg_KXYwivDTa9GAW7TbDZFB9lgNfSe6myJ2jBoBFkStLRE-BqLKX7vJHlFqJ4XuXZ0jBdrYyvHb0KnGKRY',
     PUSH_FUNCTION:    'leave-push', // 알림을 보내는 Edge Function 이름
     DESKTOP_APP_URL:  'desktop/',  // PC 브라우저에는 앱 설치 대신 데스크탑 앱 안내
+    // ── 안드로이드 앱(TWA, 2026-11-16) — PWA 를 감싼 내부 배포 APK. 자세한 빌드는 저장소 밖 android-app/BUILD.md ──
+    HOST:             'kwanboeng.com',       // TWA 가 신뢰하는 도메인(.well-known/assetlinks.json 과 같아야 함)
+    ANDROID_PACKAGE:  'com.kwanboeng.app',   // APK 패키지 이름(assetlinks.json·twa-manifest.json 과 같아야 함)
+    INSTALL_PAGE:     'app/',                // 안드로이드 「앱 설치」가 여는 APK 안내 페이지(없으면 PWA 설치 안내)
   },
 
   // ── 시스템 화면 (admin-system.html — 사용량·백업 상태) ──────────────
