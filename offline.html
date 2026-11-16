@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="robots" content="noindex, nofollow"/>
+<title>연결 안 됨</title>
+<!-- 휴대폰 앱(PWA) 오프라인 안내 — 서비스워커(sw.js)가 미리 저장해 두고, 시스템 화면을 열 수 없을 때 대신 보인다.
+     회사 이름·색·아이콘은 config.js(서비스워커가 저장해 둔 사본)에서 읽는다. sysbar.js 는 불러오지 않는다(연결이 없을 때도 열려야 함). -->
+<script src="config.js"></script>
+<style>
+:root{--theme:#0f172a;--line:#e2e8f0;--muted:#64748b;--bg:#f1f5f9;--card:#fff;--radius:14px;}
+*{box-sizing:border-box;}
+html,body{margin:0;min-height:100%;}
+body{font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:var(--bg);color:#1e293b;
+  display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);}
+.bar{background:var(--theme);color:#fff;height:48px;display:flex;align-items:center;gap:10px;padding:0 16px;font-size:16px;font-weight:700;}
+.bar img{width:26px;height:26px;border-radius:6px;background:#fff;}
+main{flex:1;display:flex;align-items:center;justify-content:center;padding:24px 16px;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 4px 24px rgba(15,23,42,.06);
+  max-width:400px;width:100%;padding:32px 24px;text-align:center;}
+.ico{width:64px;height:64px;margin:0 auto 18px;border-radius:50%;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:var(--muted);}
+h1{font-size:19px;margin:0 0 10px;}
+p{font-size:15px;line-height:1.6;color:var(--muted);margin:0 0 24px;word-break:keep-all;}
+button{width:100%;min-height:48px;border:0;border-radius:10px;background:var(--theme);color:#fff;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer;}
+button:active{opacity:.85;}
+.hint{font-size:13px;margin:14px 0 0;}
+</style>
+</head>
+<body>
+<div class="bar"><img id="logo" alt="" hidden/><span id="name"></span></div>
+<main>
+  <div class="card" role="alert">
+    <div class="ico" aria-hidden="true">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16.1a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/><path d="M3 3l18 18"/>
+      </svg>
+    </div>
+    <h1>인터넷에 연결되어 있지 않아요</h1>
+    <p>와이파이나 모바일 데이터가 켜져 있는지 확인한 뒤 다시 시도해 주세요.</p>
+    <button type="button" id="retry">다시 시도</button>
+    <p class="hint">연결되면 자동으로 다시 열립니다.</p>
+  </div>
+</main>
+<script>
+(function () {
+  var c = window.APP_CONFIG || {}, p = c.PWA || {};
+  var theme = p.THEME_COLOR || c.COLOR_PRIMARY;
+  if (theme) document.documentElement.style.setProperty('--theme', theme);
+  document.getElementById('name').textContent = p.SHORT_NAME || c.COMPANY_SHORT || '';
+  var icon = p.ICONS && p.ICONS.ICON_192;
+  if (icon) { var im = document.getElementById('logo'); im.src = icon; im.hidden = false; }
+  function retry() { location.reload(); }
+  document.getElementById('retry').addEventListener('click', retry);
+  window.addEventListener('online', retry);
+})();
+</script>
+</body>
+</html>

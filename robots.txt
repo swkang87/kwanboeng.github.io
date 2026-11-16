@@ -10,5 +10,6 @@ Disallow: /import_weekly.html
 Disallow: /desktop/
 Disallow: /docs.html
 Disallow: /tools/
+Disallow: /offline.html
 
 Sitemap: https://kwanboeng.com/sitemap.xml

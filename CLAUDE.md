@@ -94,6 +94,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.11.0 · 2026-11-16 · 휴대폰 앱(PWA) — 홈 화면 설치(manifest·아이콘·설치 안내: 서랍 「앱 설치」·내 정보·로그인 뒤 안내 띠) · 서비스워커 sw.js(화면 사본·오프라인 안내·새 버전 안내·비상 스위치) · 연차 결재 웹 푸시(push_subscriptions · 트리거 → Edge Function leave-push)
   - 2.10.1 · 2026-11-16 · 휴대폰 화면 그룹 2·3 — 숨은 가로 넘침 정리(업무관리 본문 칸 min-width 0 · 비품 표 칸 최소폭 · 공정관리 관리 탭·주간 일정 머리 · 관리포털 업무일지 입력 줄) · 수금 카드 금액 한 줄씩 · 계정관리 표 버튼 한 줄 · 홈페이지 5px 넘침(html overflow-x:clip)
   - 2.10.0 · 2026-11-16 · 휴대폰 화면 버전2 — 왼쪽 메뉴를 휴대폰에서 서랍(☰)으로 · 낮은 상단 막대(제목만) · 공통 휴대폰 규칙(입력 16px · 누르는 곳 44px · 안전 영역) · 공통 클래스(.num .m-cards .m-scroll .m-sheet .m-stack) · 달력 칸 넘침 · 급여명세서 금액 · 로그인 창(터치 화면)
   - 2.9.2 · 2026-11-13 · 착수계 표가 긴 쪽 배치 — 명단·보안각서·인력장비 표 ↔ 날짜 8mm 고정 · 남는 높이를 표 아래·대표이사 아래 여백에 똑같이(엔진 {{#여백}}) · 머리 항목 200% · 표 칸 100% · 명단 줄 11mm(서식 2.8.5)
@@ -169,6 +170,25 @@
 ---
 
 ## ✅ 완료된 작업
+
+### 휴대폰 앱(PWA) — 홈 화면 설치 + 연차 결재 알림 (2026-11-16, v2.11.0, sysbar.js `?v=2026111603`)
+- **값은 config.js `PWA` 한 곳**(이름·짧은 이름·테마색(비우면 COLOR_PRIMARY)·배경색·시작 화면·아이콘 경로·`SW_ENABLED`·`PUSH_PUBLIC_KEY`(공개키)·`PUSH_FUNCTION`·`DESKTOP_APP_URL`).
+  `manifest.webmanifest` 와 `assets/pwa/*.png`(192 · 512 · maskable 512 · apple 180)는 **`python tools/build_pwa.py` 가 만든다**(원본 = 저장소 밖 `desktop-app/branding/icon.png`) — 손으로 고치지 말 것.
+  홈페이지 favicon 은 그대로(바꾸지 않음).
+- **등록 코드는 sysbar.js `Sysbar.Pwa` 한 곳**: 머리 태그(manifest · theme-color · apple 메타) 넣기, 서비스워커 `sw.js?v=APP_VERSION`(scope `./`) 등록, 설치 안내, 알림 켜기·끄기.
+  **홈페이지(index.html · service-*.html)에는 서비스워커·manifest 를 넣지 말 것**(sysbar.js 를 부르는 시스템 화면만). 데스크탑 앱(Tauri) 안에서는 manifest·서비스워커·알림 모두 하지 않는다.
+- **sw.js 저장 규칙**: 화면 HTML(`SHELL_PAGES`) · sysbar.js · config.js = 네트워크 먼저, 실패하면 마지막 사본 → `offline.html`. **급여(payslip.html · admin-payroll.html)는 저장하지 않음**(오프라인이면 안내만),
+  Supabase·CDN·홈페이지·Pyodide 는 건드리지 않음(가로채지 않음). 새 화면을 만들면 `SHELL_PAGES` 에 넣을지 정할 것. sw.js 안 저장 방식을 바꾸면 `REV` 를 올린다(옛 저장분 삭제).
+  **비상 스위치**: config.js `PWA.SW_ENABLED = false` 를 배포하면 서비스워커가 스스로 저장분을 지우고 등록을 해제한다(시험 확인).
+  새 `APP_VERSION` 이면 서비스워커가 바뀌고, 화면은 30분마다(보일 때) sysbar.js 버전을 확인해 「새 버전이 있습니다 · 새로고침」 띠를 띄운다.
+- **설치 안내**: 직원만(협력업체 없음), 이미 앱으로 열렸으면 숨김. 서랍 아래 「앱 설치」(로그아웃 위) · 내 정보 「📱 휴대폰 앱 · 알림」 카드 · 로그인 뒤 한 번 안내 띠(「다시 보지 않기」 = localStorage `SESSION_PREFIX + '_pwa_banner_off'`).
+  안드로이드 = 설치 신호(beforeinstallprompt) 단추 또는 ⋮ 메뉴 안내, 아이폰 = 공유 → 「홈 화면에 추가」 그림 안내(알림은 설치한 앱에서만), PC = 데스크탑 앱 안내.
+- **연차 결재 웹 푸시**: 표 `push_subscriptions`(본인 것만 보기·넣기·지우기, 수정 없음, 같은 기기 endpoint 는 다시 켠 사람 것으로 옮김) · 화면은 함수 `push_subscribe` / `push_unsubscribe` 로만.
+  **결재자 판정은 `leave_approval_kind(결재자, 상태, 신청자)` 하나** — `my_pending_approvals` 와 알림 대상(`leave_push_targets`)이 같이 쓴다(둘을 따로 고치지 말 것).
+  보내기 = 트리거 `leave_requests_push`(결재 대기 상태가 될 때: pending · manager_approved · cancel_pending) → pg_net → Edge Function `leave-push`(verify_jwt false, Vault 토큰 확인).
+  알림 내용 = 제목 · 이름 · 종류 · 날짜만(사유 없음), 누르면 `leave.html#team_approve` / `#admin_approve`(열린 창이 있으면 그 창). 410·404 구독은 함수가 지운다. 앱 아이콘 숫자 = 결재 대기 수(지원 기기만).
+  **VAPID 비밀키는 Vault(`push_vapid_private`)에만** 있다(공개키만 config.js). 키를 바꾸면 모든 직원이 알림을 다시 켜야 한다.
+  DB 산출물은 저장소 밖 `security-fixu~168_pwa_push_*`, 보고서 `security-fixeport_pwa.md`. 백업 `backup/*_20261116_pwa.*`.
 
 ### 휴대폰 화면 버전2 — 서랍 메뉴 + 공통 휴대폰 규칙 (2026-11-16, v2.10.0 · v2.10.1, sysbar.js `?v=2026111602`)
 - **휴대폰 기준 폭은 `MOBILE_MAX_WIDTH`(768) 하나**: sysbar.js 가 `matchMedia('(max-width:768px)')` 로 `html.sys-m` 클래스를 붙인다. 화면 CSS 는 `html.sys-m …` 으로 쓰고,

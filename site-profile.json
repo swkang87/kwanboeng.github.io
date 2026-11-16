@@ -190,6 +190,7 @@
 
   "privatePaths": [
     "/home.html", "/leave.html", "/project.html", "/worklog.html",
-    "/admin-", "/payslip.html", "/import_weekly.html"
+    "/admin-", "/payslip.html", "/import_weekly.html",
+    "/desktop/", "/docs.html", "/tools/", "/offline.html"
   ]
 }

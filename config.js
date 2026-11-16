@@ -240,6 +240,31 @@ var APP_CONFIG = {
     ],
   },
 
+  // ── 휴대폰 앱(PWA — 홈 화면 설치 + 연차 결재 알림, 2026-11-16) ──────────────
+  //   manifest.webmanifest 와 아이콘은 이 값으로 tools/build_pwa.py 가 만든다(손으로 고치지 말 것 — 값을 바꾸면 스크립트를 다시 실행).
+  //   서비스워커(sw.js)는 앱 모양 유지용 — 화면 HTML·sysbar.js·config.js 사본만 두고 데이터·급여·로그인은 저장하지 않는다.
+  PWA: {
+    ENABLED:          true,        // false = 설치 안내·알림 켜기를 보이지 않는다(서비스워커는 SW_ENABLED 로 따로)
+    SW_ENABLED:       true,        // 비상 스위치 — false 로 배포하면 모든 기기에서 서비스워커가 스스로 해제되고 저장분도 지운다
+    NAME:             '관보종합기술단 종합정보시스템',   // 데스크탑 앱 이름과 같게(desktop-app app.config.json appName)
+    SHORT_NAME:       '관보종합기술단',                 // 홈 화면 아이콘 아래 이름
+    THEME_COLOR:      '',          // 비우면 COLOR_PRIMARY (휴대폰 상단 막대 색과 같음)
+    BACKGROUND_COLOR: '#ffffff',   // 앱을 열 때 잠깐 보이는 바탕색
+    START_URL:        'home.html',
+    DISPLAY:          'standalone',
+    ICONS: {                       // 원본 = desktop-app/branding/icon.png (1024px)
+      ICON_192:     'assets/pwa/icon-192.png',
+      ICON_512:     'assets/pwa/icon-512.png',
+      MASKABLE_512: 'assets/pwa/maskable-512.png',   // 안드로이드 둥근 아이콘용(안전 여백 포함)
+      APPLE_TOUCH:  'assets/pwa/apple-touch-icon.png', // 아이폰 홈 화면 180px
+    },
+    MANIFEST:         'manifest.webmanifest',
+    // 웹 푸시 VAPID 공개키(공개해도 되는 값 — 비밀키는 Supabase Vault 에만 있다. 키를 바꾸면 모든 기기가 알림을 다시 켜야 한다)
+    PUSH_PUBLIC_KEY:  'BGJjOsg_KXYwivDTa9GAW7TbDZFB9lgNfSe6myJ2jBoBFkStLRE-BqLKX7vJHlFqJ4XuXZ0jBdrYyvHb0KnGKRY',
+    PUSH_FUNCTION:    'leave-push', // 알림을 보내는 Edge Function 이름
+    DESKTOP_APP_URL:  'desktop/',  // PC 브라우저에는 앱 설치 대신 데스크탑 앱 안내
+  },
+
   // ── 시스템 화면 (admin-system.html — 사용량·백업 상태) ──────────────
   //   요금제 한도는 화면 막대의 기준값일 뿐, 실제 한도는 Supabase 요금제를 따른다(요금제를 바꾸면 여기도 맞춘다).
   //   Supabase 대시보드 주소는 SUPABASE_URL 의 프로젝트 ref 로 화면이 만든다(여기 적지 않음).

@@ -1,0 +1,33 @@
+{
+  "name": "관보종합기술단 종합정보시스템",
+  "short_name": "관보종합기술단",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "home.html",
+  "scope": "./",
+  "id": "home.html",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0f172a",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "assets/pwa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/pwa/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

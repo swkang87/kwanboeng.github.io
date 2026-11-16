@@ -11,7 +11,7 @@
 html, body, #root, button, input, select { font-family: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif !important; }
 </style>
 <script src="config.js"></script>
-<script src="sysbar.js?v=2026111602"></script>
+<script src="sysbar.js?v=2026111603"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
@@ -50,7 +50,7 @@ body{background:#f1f5f9;color:#0f172a;font-size:14px;overflow-x:hidden;}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 // 내 정보관리 → 내 정보 (2026-10-22 신설)
 // 공정관리 「내 정보」 탭(비밀번호 변경)과 연차관리 「내 정보」 탭(기본 정보)을 합친 화면이다.
@@ -74,6 +74,18 @@ function isPhoneLike(p) {
   if (!p) return false;
   var s = String(p).trim();
   return /^[0-9+\-\s()]+$/.test(s) && s.replace(/\D/g, '').length >= 9;
+}
+
+// 휴대폰 앱 설치 · 알림 켜기 카드 (2026-11-16) — 패널은 sysbar.js 가 바닐라 DOM 으로 그린다(설치 창 안의 알림 줄과 같은 것)
+function PwaCard() {
+  const ref = useRef(null);
+  useEffect(function() { return Sysbar.Pwa.mountPanel(ref.current, { sb: sb }); }, []);
+  return (
+    <div className="me-card">
+      <div className="me-h">📱 휴대폰 앱 · 알림</div>
+      <div ref={ref}></div>
+    </div>
+  );
 }
 
 function MyInfo({ user, teamName, onLogout }) {
@@ -141,6 +153,9 @@ function MyInfo({ user, teamName, onLogout }) {
           </a>
         </div>
       )}
+
+      {/* 휴대폰 앱 · 연차 결재 알림 — 내용은 sysbar.js(Sysbar.Pwa) 가 그린다. 직원만(협력업체 · 데스크탑 앱 제외) */}
+      {Sysbar.Pwa && Sysbar.Pwa.panelVisible(user) && <PwaCard />}
 
       {/* 비밀번호 변경 */}
       <div className="me-card">

@@ -1,7 +1,9 @@
 /**
- * SYSBAR MODULE v3.18
+ * SYSBAR MODULE v3.20
  * 모든 페이지 공통: 네비게이션 CSS + React 컴포넌트
  *
+ * v3.20 (2026-11-16): 휴대폰 앱(PWA) — manifest·홈 화면 메타 넣기 · 서비스워커(sw.js) 등록·비상 해제 · 새 버전 안내 ·
+ *   설치 안내(서랍 「앱 설치」 · 안내 띠 · 설치 창) · 연차 결재 알림 켜기/끄기(웹 푸시) · 앱 아이콘 숫자. Sysbar.Pwa. APP_VERSION 2.11.0
  * v3.18 (2026-11-11): checkUpload 가 BMP 도 받을 수 있다(kinds 에 'bmp' — 받은 화면이 PNG 로 바꿔 올림). APP_VERSION 2.8.1
  * v3.17 (2026-11-09): 업무관리 하위 「서류작성」(docs.html — 다른 화면). SECTION_TABS 항목에 url(다른 화면으로 가는 하위 항목) ·
  *   guest:false(비회원 둘러보기에서 뺌). sectionTabs 가 url 도 돌려준다. APP_VERSION 2.8.0
@@ -85,7 +87,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.10.1';
+  var APP_VERSION = '2.11.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -322,6 +324,7 @@
       if (!now || now.id !== u.id) return getApprovals();   // 응답 사이 로그아웃·만료 — 쓰지 않는다
       _ssSet(APPR_KEY, { uid: u.id, at: Date.now(), data: r.data });
       _deskBadge(r.data.total || 0);   // 데스크탑 앱 트레이 숫자(앱 안에서만, 값이 바뀔 때만)
+      pwaBadge(r.data.total || 0);     // 휴대폰 앱 아이콘 숫자(앱으로 열었을 때만, 지원하는 기기만)
       try { global.dispatchEvent(new Event('sys-approvals')); } catch(e) {}
       return r.data;
     }, function(err) { logError(err, '결재 대기 건수 조회'); return getApprovals(); });
@@ -446,6 +449,498 @@
     _ssSet(DESK_BADGE_KEY, { n: n });
     _deskInvoke('desk_badge', { n: n });
   }
+
+  // ── 휴대폰 앱(PWA) — 홈 화면 설치 · 서비스워커 · 연차 결재 알림(웹 푸시) (2026-11-16, v2.11.0) ──
+  //   설정 = APP_CONFIG.PWA(이름·색·아이콘·비상 스위치·푸시 공개키). manifest·아이콘은 tools/build_pwa.py 가 만든다.
+  //   ① 머리 태그: 이 파일이 <head> 에서 불릴 때 manifest 링크 · theme-color · 아이폰 홈 화면 메타를 넣는다(화면 HTML 에 따로 쓰지 않음).
+  //   ② 서비스워커: 화면을 다 읽은 뒤 sw.js?v=APP_VERSION 등록(버전이 바뀌면 주소가 바뀌어 바로 교체). SW_ENABLED=false 면 해제 + 저장분 삭제.
+  //   ③ 새 버전 안내: 화면을 다시 볼 때(30분에 한 번) sysbar.js 의 APP_VERSION 을 서버에서 읽어 다르면 「새 버전이 있습니다 · 새로고침」.
+  //   ④ 설치 안내: 직원(협력업체 제외) · 휴대폰(안드로이드·아이폰) · 앱으로 열지 않았을 때만. 서랍 아래 「앱 설치」 · 내 정보 · 로그인 뒤 한 번 안내 띠.
+  //   ⑤ 알림: 단추를 누를 때만 권한을 묻는다. 구독은 DB push_subscriptions(push_subscribe/push_unsubscribe 함수). 발송은 DB 트리거 → Edge Function.
+  //   데스크탑 앱(Tauri) 안에서는 ①~⑤ 모두 하지 않는다(앱 자체 알림이 있음 — 남은 등록이 있으면 푼다).
+  var _pwaCfg = (global.APP_CONFIG && global.APP_CONFIG.PWA) || null;
+  var PWA_CACHE_PREFIX = 'sys-shell-';
+  var PWA_BANNER_OFF_KEY  = _prefix + '_pwa_banner_off';    // localStorage — 「다시 보지 않기」
+  var PWA_BANNER_SEEN_KEY = _prefix + '_pwa_banner_seen';   // sessionStorage {uid} — 이번 로그인에 이미 보였음
+  var PWA_INSTALLED_KEY   = _prefix + '_pwa_installed';     // localStorage — 안드로이드 설치 완료(appinstalled)
+  var PWA_PUSH_KEY        = _prefix + '_pwa_push';          // localStorage {uid, endpoint} — 이 기기 알림을 켠 사람
+  var PWA_VER_KEY         = _prefix + '_pwa_vercheck';      // sessionStorage {at} — 새 버전 확인 시각
+  var _pwaBip = null;          // 안드로이드 크롬 설치 신호(beforeinstallprompt)
+  var _pwaSb = null;           // 알림 켜기·동기화에 쓰는 Supabase 클라이언트(SysBar 가 넘겨 줌)
+  var _pwaPanels = [];         // 다시 그릴 패널들(설치·알림 상태가 바뀌면)
+
+  function pwaOn() { return !!(_pwaCfg && _pwaCfg.ENABLED !== false) && !isDesktopApp(); }
+  function swWanted() { return !!(_pwaCfg && _pwaCfg.SW_ENABLED !== false) && !isDesktopApp(); }
+  function pwaPlatform() {
+    if (isDesktopApp()) return 'desktop-app';
+    var ua = (global.navigator && navigator.userAgent) || '';
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1)) return 'ios';
+    if (/Android/.test(ua)) return 'android';
+    return 'pc';
+  }
+  function isStandalone() {
+    try { if (global.matchMedia('(display-mode: standalone)').matches) return true; } catch(e) {}
+    return !!(global.navigator && navigator.standalone);
+  }
+  function pwaStaff(user) { user = user || _me(); return !!(user && user.role && user.role !== 'contractor'); }
+  function pwaIsPhone() { var p = pwaPlatform(); return p === 'android' || p === 'ios'; }
+  // 설치 안내를 보일까: 직원 · 휴대폰 · 앱으로 열지 않음 · (안드로이드) 이 기기에 설치했다고 기록되지 않음
+  function canInstallUi(user) {
+    if (!pwaOn() || !pwaStaff(user) || !pwaIsPhone() || isStandalone()) return false;
+    try { if (localStorage.getItem(PWA_INSTALLED_KEY) === '1') return false; } catch(e) {}
+    return true;
+  }
+
+  // ① 머리 태그 — 이미 있으면 그대로
+  function _pwaHead() {
+    if (!pwaOn()) return;
+    var head = document.head || document.getElementsByTagName('head')[0];
+    if (!head) return;
+    var c = global.APP_CONFIG || {}, icons = _pwaCfg.ICONS || {};
+    var theme = _pwaCfg.THEME_COLOR || c.COLOR_PRIMARY || '#0f172a';
+    function add(tag, attrs, sel) {
+      if (sel && document.querySelector(sel)) return;
+      var el = document.createElement(tag);
+      for (var k in attrs) if (attrs[k] != null) el.setAttribute(k, attrs[k]);
+      head.appendChild(el);
+    }
+    add('link', { rel:'manifest', href:_pwaCfg.MANIFEST || 'manifest.webmanifest' }, 'link[rel="manifest"]');
+    add('meta', { name:'theme-color', content:theme }, 'meta[name="theme-color"]');
+    add('meta', { name:'mobile-web-app-capable', content:'yes' }, 'meta[name="mobile-web-app-capable"]');
+    add('meta', { name:'apple-mobile-web-app-capable', content:'yes' }, 'meta[name="apple-mobile-web-app-capable"]');
+    add('meta', { name:'apple-mobile-web-app-status-bar-style', content:'default' }, 'meta[name="apple-mobile-web-app-status-bar-style"]');
+    add('meta', { name:'apple-mobile-web-app-title', content:_pwaCfg.SHORT_NAME || c.COMPANY_SHORT || '' }, 'meta[name="apple-mobile-web-app-title"]');
+    if (icons.APPLE_TOUCH) add('link', { rel:'apple-touch-icon', href:icons.APPLE_TOUCH }, 'link[rel="apple-touch-icon"]');
+  }
+  try { _pwaHead(); } catch(e) { logError(e, '앱 머리 태그'); }
+
+  // 안드로이드 크롬 — 설치 신호를 잡아 두었다가 「앱 설치」 단추에서 쓴다
+  try {
+    global.addEventListener('beforeinstallprompt', function(ev) {
+      if (!pwaOn()) return;
+      ev.preventDefault(); _pwaBip = ev; _pwaRedraw();
+    });
+    global.addEventListener('appinstalled', function() {
+      _pwaBip = null;
+      try { localStorage.setItem(PWA_INSTALLED_KEY, '1'); } catch(e) {}
+      _pwaBannerClose(); _pwaRedraw();
+    });
+  } catch(e) {}
+
+  // ② 서비스워커 등록 · 비상 스위치 해제
+  function _swKill() {
+    var sw = global.navigator && navigator.serviceWorker;
+    var p1 = sw && sw.getRegistrations ? sw.getRegistrations().then(function(list) {
+      return Promise.all(list.filter(function(r) {
+        var w = r.active || r.waiting || r.installing;
+        return w && /\/sw\.js(\?|$)/.test(w.scriptURL);
+      }).map(function(r) { return r.unregister(); }));
+    }).catch(function() {}) : Promise.resolve();
+    var p2 = global.caches && caches.keys ? caches.keys().then(function(keys) {
+      return Promise.all(keys.filter(function(k) { return k.indexOf(PWA_CACHE_PREFIX) === 0; }).map(function(k) { return caches.delete(k); }));
+    }).catch(function() {}) : Promise.resolve();
+    return Promise.all([p1, p2]);
+  }
+  var _swReg = null;
+  function swRegister() {
+    var sw = global.navigator && navigator.serviceWorker;
+    if (!sw) return Promise.resolve(null);
+    if (!swWanted()) return _swKill().then(function() { return null; });
+    if (_swReg) return _swReg;
+    _swReg = sw.register('sw.js?v=' + encodeURIComponent(APP_VERSION), { scope:'./' }).then(null, function(err) {
+      logError(err, '서비스워커 등록'); _swReg = null; return null;
+    });
+    return _swReg;
+  }
+  try {
+    if (global.navigator && navigator.serviceWorker) {
+      var _swStart = function() { swRegister(); };
+      if (document.readyState === 'complete') setTimeout(_swStart, 0); else global.addEventListener('load', _swStart);
+      // 알림을 눌렀는데 이 화면이 이미 열려 있으면 → 그 주소(#탭)로 다시 읽는다(새 결재 건이 보이게)
+      navigator.serviceWorker.addEventListener('message', function(ev) {
+        var d = ev.data || {};
+        if (d.type !== 'sys-open' || !d.url) return;
+        try { global.history.replaceState(global.history.state, '', d.url); } catch(e) {}
+        global.location.reload();
+      });
+    }
+  } catch(e) { logError(e, '서비스워커'); }
+
+  // ③ 새 버전 안내 — 화면을 다시 볼 때 확인(30분에 한 번)
+  var PWA_VER_EVERY = 30 * 60 * 1000;
+  function checkNewVersion(force) {
+    if (!swWanted() || !global.fetch) return Promise.resolve(null);
+    var last = _ssGet(PWA_VER_KEY);
+    if (!force && last && (Date.now() - last.at) < PWA_VER_EVERY) return Promise.resolve(null);
+    _ssSet(PWA_VER_KEY, { at: Date.now() });
+    return fetch('sysbar.js?vc=' + Date.now(), { cache:'no-store' }).then(function(r) { return r.ok ? r.text() : ''; }).then(function(t) {
+      var m = /var APP_VERSION = '([^']+)'/.exec(t || '');
+      if (m && m[1] !== APP_VERSION) _pwaUpdateBand(m[1]);
+      return m ? m[1] : null;
+    }, function() { return null; });
+  }
+  function _pwaUpdateBand(v) {
+    if (document.getElementById('sys-pwa-update') || !document.body) return;
+    _pwaCss();
+    var el = document.createElement('div');
+    el.id = 'sys-pwa-update'; el.className = 'sys-pwa-band no-print'; el.setAttribute('role', 'status');
+    el.innerHTML = '<span>새 버전이 있습니다</span><button type="button" class="sys-pwa-b on">새로고침</button><button type="button" class="sys-pwa-x" aria-label="닫기">✕</button>';
+    el.querySelector('.on').addEventListener('click', function() { global.location.reload(); });
+    el.querySelector('.sys-pwa-x').addEventListener('click', function() { el.parentNode && el.parentNode.removeChild(el); });
+    document.body.appendChild(el);
+  }
+  try {
+    document.addEventListener('visibilitychange', function() { if (document.visibilityState === 'visible') checkNewVersion(); });
+  } catch(e) {}
+
+  // 앱 아이콘 숫자(결재 대기) — 앱으로 열었을 때만, 지원하지 않는 기기는 건너뜀
+  function pwaBadge(n) {
+    try {
+      if (!pwaOn() || !isStandalone() || !navigator.setAppBadge) return;
+      n = parseInt(n, 10) || 0;
+      (n > 0 ? navigator.setAppBadge(n) : navigator.clearAppBadge()).then(null, function() {});
+    } catch(e) {}
+  }
+
+  // ⑤ 알림(웹 푸시)
+  function _b64uToBytes(s) {
+    s = String(s || '').replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var raw = atob(s), out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  function _bytesToB64u(buf) {
+    var b = new Uint8Array(buf), s = '';
+    for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function _pwaDevice() {
+    var ua = navigator.userAgent || '', p = pwaPlatform();
+    var dev = p === 'ios' ? (/iPad/.test(ua) || /Macintosh/.test(ua) ? 'iPad' : 'iPhone') : p === 'android' ? 'Android' : 'PC';
+    var br = /SamsungBrowser/.test(ua) ? '삼성 인터넷' : /EdgA?\//.test(ua) ? 'Edge' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
+    return dev + (br ? ' · ' + br : '') + (isStandalone() ? ' · 앱' : '');
+  }
+  // 상태: unsupported(이유 why) | denied | on | off
+  function pushStatus(user) {
+    user = user || _me();
+    var why = null;
+    if (!pwaOn() || !pwaStaff(user)) why = 'off';
+    else if (!pwaIsPhone()) why = 'pc';
+    else if (!_pwaCfg.PUSH_PUBLIC_KEY || !swWanted()) why = 'nokey';
+    else if (pwaPlatform() === 'ios' && !isStandalone()) why = 'ios-browser';
+    else if (!('serviceWorker' in navigator) || !global.PushManager || !global.Notification) why = 'browser';
+    if (why) return Promise.resolve({ state:'unsupported', why:why });
+    if (Notification.permission === 'denied') return Promise.resolve({ state:'denied' });
+    return swRegister().then(function(reg) {
+      if (!reg) return { state:'unsupported', why:'browser' };
+      return reg.pushManager.getSubscription().then(function(sub) {
+        var mine = _lsGet(PWA_PUSH_KEY);
+        var on = !!(sub && Notification.permission === 'granted' && mine && mine.uid === user.id && mine.endpoint === sub.endpoint);
+        return { state: on ? 'on' : 'off', other: !!(sub && mine && mine.uid !== user.id) };
+      });
+    }, function() { return { state:'unsupported', why:'browser' }; });
+  }
+  function _pushSave(sbClient, sub) {
+    var j = sub.toJSON ? sub.toJSON() : {};
+    var keys = j.keys || {};
+    return sbClient.rpc('push_subscribe', {
+      p_endpoint: sub.endpoint, p_p256dh: keys.p256dh || _bytesToB64u(sub.getKey('p256dh')),
+      p_auth: keys.auth || _bytesToB64u(sub.getKey('auth')), p_device: _pwaDevice()
+    });
+  }
+  // 알림 켜기 — 반드시 단추를 누른 그 순간에 부른다(권한 요청이 사용자 동작 안에 있어야 함)
+  function pushEnable(sbClient) {
+    var user = _me();
+    sbClient = sbClient || _pwaSb;
+    if (!user || !sbClient) return Promise.resolve({ ok:false, reason:'로그인 정보를 확인할 수 없어요. 다시 로그인해 주세요.' });
+    var perm;
+    try { perm = Notification.requestPermission(); } catch(e) { perm = null; }
+    return Promise.resolve(perm).then(function(p) {
+      p = p || Notification.permission;
+      if (p !== 'granted') return { ok:false, reason: p === 'denied' ? '알림이 차단되었어요. 휴대폰 설정에서 이 앱의 알림을 허용해 주세요.' : '알림을 허용하지 않았어요.' };
+      return swRegister().then(function(reg) {
+        if (!reg) return { ok:false, reason:'이 브라우저는 알림을 지원하지 않아요.' };
+        return navigator.serviceWorker.ready.then(function(ready) {
+          return ready.pushManager.getSubscription().then(function(old) {
+            return old || ready.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:_b64uToBytes(_pwaCfg.PUSH_PUBLIC_KEY) });
+          });
+        }).then(function(sub) {
+          return _pushSave(sbClient, sub).then(function(r) {
+            if (r.error) { logError(r.error, '알림 켜기'); return { ok:false, reason:'알림을 켜지 못했어요. 잠시 뒤 다시 시도해 주세요.' }; }
+            _lsSet(PWA_PUSH_KEY, { uid:user.id, endpoint:sub.endpoint });
+            return { ok:true };
+          });
+        });
+      });
+    }).then(function(r) { _pwaRedraw(); return r; }, function(err) {
+      logError(err, '알림 켜기'); _pwaRedraw();
+      return { ok:false, reason:'알림을 켜지 못했어요. 잠시 뒤 다시 시도해 주세요.' };
+    });
+  }
+  // 알림 끄기 — 서버의 구독을 지우고 이 기기 구독도 푼다
+  function pushDisable(sbClient) {
+    sbClient = sbClient || _pwaSb;
+    return swRegister().then(function(reg) {
+      if (!reg) return null;
+      return reg.pushManager.getSubscription();
+    }).then(function(sub) {
+      if (!sub) return { ok:true };
+      var del = sbClient ? sbClient.rpc('push_unsubscribe', { p_endpoint: sub.endpoint }) : Promise.resolve({});
+      return Promise.resolve(del).then(function(r) {
+        if (r && r.error) logError(r.error, '알림 끄기');
+        return sub.unsubscribe().then(function() { return { ok:true }; }, function() { return { ok:true }; });
+      });
+    }).then(function(r) { _lsSet(PWA_PUSH_KEY, null); _pwaRedraw(); return r; }, function(err) {
+      logError(err, '알림 끄기'); return { ok:false, reason:'알림을 끄지 못했어요.' };
+    });
+  }
+  // 화면을 열 때(로그인한 직원, 이번 창에서 한 번): 알림을 켠 사람이 지금 사람이면 구독을 서버에 다시 알린다(주소가 바뀌었을 수 있음)
+  var _pushSynced = false;
+  function pushSync(sbClient) {
+    var user = _me();
+    if (_pushSynced || !sbClient || !user) return;
+    _pushSynced = true;
+    var mine = _lsGet(PWA_PUSH_KEY);
+    if (!mine || mine.uid !== user.id) return;
+    pushStatus(user).then(function(st) {
+      if (st.state === 'unsupported') return;
+      return navigator.serviceWorker.ready.then(function(reg) { return reg.pushManager.getSubscription(); }).then(function(sub) {
+        if (!sub || Notification.permission !== 'granted') { _lsSet(PWA_PUSH_KEY, null); return; }
+        return _pushSave(sbClient, sub).then(function(r) {
+          if (r.error) { logError(r.error, '알림 구독 확인'); return; }
+          _lsSet(PWA_PUSH_KEY, { uid:user.id, endpoint:sub.endpoint });
+        });
+      });
+    }).then(null, function(err) { logError(err, '알림 구독 확인'); });
+  }
+  // 시험 알림 — 내 기기들에만 한 건(Edge Function 이 내 로그인으로 확인)
+  function pushTest(sbClient) {
+    sbClient = sbClient || _pwaSb;
+    if (!sbClient) return Promise.resolve({ ok:false, reason:'로그인 정보를 확인할 수 없어요.' });
+    return sbClient.auth.getSession().then(function(s) {
+      var tok = s && s.data && s.data.session && s.data.session.access_token;
+      if (!tok) return { ok:false, reason:'로그인이 만료되었어요. 다시 로그인해 주세요.' };
+      return sbClient.functions.invoke(_pwaCfg.PUSH_FUNCTION || 'leave-push', {
+        body: { action:'self_test' }, headers: { Authorization:'Bearer ' + tok }
+      }).then(function(r) {
+        if (r.error) { logError(r.error, '시험 알림'); return { ok:false, reason:'시험 알림을 보내지 못했어요.' }; }
+        var n = (r.data && r.data.sent) || 0;
+        return n > 0 ? { ok:true, sent:n } : { ok:false, reason:'알림을 받을 기기가 없어요. 알림을 먼저 켜 주세요.' };
+      });
+    }).then(null, function(err) { logError(err, '시험 알림'); return { ok:false, reason:'시험 알림을 보내지 못했어요.' }; });
+  }
+
+  // ── 화면 조각(바닐라 DOM): 패널(내 정보 · 설치 창 끝) · 설치 창 · 안내 띠 ──
+  var _pwaCssDone = false;
+  function _pwaCss() {
+    if (_pwaCssDone || document.getElementById('sys-pwa-css')) { _pwaCssDone = true; return; }
+    var s = document.createElement('style'); s.id = 'sys-pwa-css';
+    s.textContent =
+      '.sys-pwa-band{position:fixed;left:12px;right:12px;top:calc(var(--sysbar-h,48px) + 8px);z-index:940;display:flex;align-items:center;gap:8px;' +
+        'background:#fff;color:#0f172a;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 28px rgba(15,23,42,.18);padding:10px 8px 10px 14px;font-size:14px;max-width:520px;margin:0 auto;}' +
+      '.sys-pwa-band>span{flex:1;min-width:0;line-height:1.4;}' +
+      '.sys-pwa-band>span small{display:block;color:#64748b;font-size:12px;}' +
+      '#sys-pwa-banner{flex-wrap:wrap;row-gap:6px;padding:10px 6px 10px 14px;}' +
+      '#sys-pwa-banner>span{flex:1 1 calc(100% - 52px);}' +
+      '#sys-pwa-banner>.sys-pwa-x{order:1;align-self:flex-start;margin-top:-6px;}' +
+      '#sys-pwa-banner>.sys-pwa-b{order:2;}' +
+      '#sys-pwa-banner>.sys-pwa-b.on{margin-left:auto;}' +
+      '.sys-pwa-b{min-height:40px;padding:0 12px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;color:#334155;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}' +
+      '.sys-pwa-b.on{background:var(--theme,#0f172a);border-color:var(--theme,#0f172a);color:#fff;}' +
+      '.sys-pwa-b:disabled{opacity:.5;cursor:default;}' +
+      '.sys-pwa-x{width:40px;height:40px;border:0;background:none;color:#94a3b8;font-size:16px;cursor:pointer;flex-shrink:0;}' +
+      '.sys-pwa-sheet-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:960;}' +
+      '.sys-pwa-sheet{position:fixed;left:0;right:0;bottom:0;z-index:961;background:#fff;border-radius:16px 16px 0 0;max-height:92dvh;overflow-y:auto;' +
+        'padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));box-sizing:border-box;max-width:560px;margin:0 auto;}' +
+      '.sys-pwa-sheet:focus{outline:none;}' +
+      '.sys-pwa-sheet h2{font-size:17px;margin:0 0 4px;display:flex;align-items:center;gap:8px;}' +
+      '.sys-pwa-sheet h2 button{margin-left:auto;}' +
+      '.sys-pwa-sheet .lead{font-size:13px;color:#64748b;margin:0 0 14px;line-height:1.6;}' +
+      '.sys-pwa-steps{list-style:none;margin:0 0 16px;padding:0;counter-reset:s;}' +
+      '.sys-pwa-steps li{counter-increment:s;display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:14px;line-height:1.5;}' +
+      '.sys-pwa-steps li:before{content:counter(s);flex-shrink:0;width:24px;height:24px;border-radius:50%;background:var(--theme,#0f172a);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;}' +
+      '.sys-pwa-steps svg{flex-shrink:0;color:#2563eb;}' +
+      '.sys-pwa-panel{font-size:14px;}' +
+      '.sys-pwa-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #f1f5f9;flex-wrap:wrap;}' +
+      '.sys-pwa-row:first-child{border-top:0;padding-top:0;}' +
+      '.sys-pwa-row>span{flex:1;min-width:160px;line-height:1.5;}' +
+      '.sys-pwa-row small{display:block;color:#64748b;font-size:12px;}' +
+      '.sys-pwa-row .btns{display:flex;gap:6px;flex-wrap:wrap;}' +
+      '.sys-pwa-msg{font-size:12px;border-radius:8px;padding:8px 10px;margin-top:8px;line-height:1.5;}' +
+      '.sys-pwa-msg.ok{background:#dcfce7;color:#166534;}.sys-pwa-msg.e{background:#fee2e2;color:#991b1b;}' +
+      '@media print{.sys-pwa-band,.sys-pwa-sheet,.sys-pwa-sheet-bg{display:none!important;}}';
+    (document.head || document.documentElement).appendChild(s);
+    _pwaCssDone = true;
+  }
+  function _esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function(ch) { return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]; }); }
+  var PWA_SVG = {
+    share: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>',
+    plus:  '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>',
+    dots:  '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
+    home:  '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M11 18h2"/></svg>'
+  };
+
+  // 패널 — 설치 줄 + 알림 줄. el 을 비우고 다시 그린다. opts.inSheet = 설치 창 안(설치 줄 없음)
+  function _pwaRedraw() { _pwaPanels = _pwaPanels.filter(function(p) { return p.el.isConnected; }); _pwaPanels.forEach(function(p) { _pwaDraw(p); }); }
+  function mountPanel(el, opts) {
+    if (!el) return function() {};
+    _pwaCss();
+    var p = { el: el, opts: opts || {}, msg: null, busy: false };
+    if (p.opts.sb) _pwaSb = p.opts.sb;
+    _pwaPanels.push(p);
+    _pwaDraw(p);
+    return function() { _pwaPanels = _pwaPanels.filter(function(x) { return x !== p; }); };
+  }
+  // 「내 정보」에 카드를 보일까: 직원 · 데스크탑 앱 아님
+  function panelVisible(user) { return pwaOn() && pwaStaff(user); }
+  function _pwaDraw(p) {
+    var user = _me(), el = p.el;
+    if (!panelVisible(user)) { el.innerHTML = ''; return; }
+    var plat = pwaPlatform(), html = '';
+    if (plat === 'pc') {
+      var durl = _pwaCfg.DESKTOP_APP_URL || 'desktop/';
+      el.innerHTML = '<div class="sys-pwa-panel"><div class="sys-pwa-row"><span>PC 에서는 데스크탑 앱을 쓰세요<small>연차 결재 요청이 오면 PC 알림으로 알려 드려요. 휴대폰 앱 설치·알림은 휴대폰에서 이 화면을 열면 보여요.</small></span>' +
+        '<div class="btns"><a class="sys-pwa-b" style="display:inline-flex;align-items:center;text-decoration:none" href="' + _esc(durl) + '">데스크탑 앱 ›</a></div></div></div>';
+      return;
+    }
+    if (!p.opts.inSheet) {
+      if (isStandalone()) html += '<div class="sys-pwa-row"><span>✓ 앱으로 열려 있어요<small>홈 화면 아이콘으로 열면 주소창 없이 보여요.</small></span></div>';
+      else html += '<div class="sys-pwa-row"><span>📱 휴대폰 앱 설치<small>홈 화면에 아이콘을 두고 앱처럼 열 수 있어요.</small></span><div class="btns"><button type="button" class="sys-pwa-b on" data-a="install">앱 설치</button></div></div>';
+    }
+    html += '<div class="sys-pwa-row" data-push><span>🔔 연차 결재 알림<small>확인하는 중…</small></span></div>';
+    el.innerHTML = '<div class="sys-pwa-panel">' + html + '</div>' + (p.msg ? '<div class="sys-pwa-msg ' + (p.msg.ok ? 'ok' : 'e') + '">' + _esc(p.msg.text) + '</div>' : '');
+    var ins = el.querySelector('[data-a="install"]');
+    if (ins) ins.addEventListener('click', function() { openInstall(); });
+    var row = el.querySelector('[data-push]');
+    pushStatus(user).then(function(st) {
+      if (!row.isConnected) return;
+      var t = '', b = '';
+      if (st.state === 'unsupported') {
+        t = st.why === 'ios-browser' ? '알림은 홈 화면에 추가한 앱에서 켤 수 있어요(아이폰은 앱 설치 뒤에만 알림이 와요).'
+          : st.why === 'nokey' ? '알림이 아직 준비되지 않았어요.' : '이 브라우저는 알림을 지원하지 않아요. 크롬(안드로이드)이나 사파리(아이폰)를 써 주세요.';
+      } else if (st.state === 'denied') {
+        t = '알림이 차단되어 있어요. 휴대폰 설정 → 알림에서 이 앱(또는 브라우저)의 알림을 허용한 뒤 다시 열어 주세요.';
+      } else if (st.state === 'on') {
+        t = '켜짐 · 결재할 연차 신청이 오면 알려 드려요.';
+        b = '<button type="button" class="sys-pwa-b" data-a="test">시험 알림</button><button type="button" class="sys-pwa-b" data-a="off">알림 끄기</button>';
+      } else {
+        t = st.other ? '이 기기는 다른 계정이 알림을 받고 있어요. 켜면 이 계정으로 바뀌어요.' : '꺼짐 · 결재할 연차 신청이 오면 휴대폰으로 알려 드려요.';
+        b = '<button type="button" class="sys-pwa-b on" data-a="on">알림 켜기</button>';
+      }
+      row.innerHTML = '<span>🔔 연차 결재 알림<small>' + _esc(t) + '</small></span>' + (b ? '<div class="btns">' + b + '</div>' : '');
+      function act(name, fn) {
+        var bt = row.querySelector('[data-a="' + name + '"]');
+        if (bt) bt.addEventListener('click', function() {
+          if (p.busy) return;
+          p.busy = true; bt.disabled = true;
+          fn().then(function(r) {
+            p.busy = false;
+            p.msg = r.ok ? (name === 'test' ? { ok:true, text:'시험 알림을 보냈어요. 잠시 뒤 알림이 오는지 확인해 주세요.' } : null) : { ok:false, text:r.reason };
+            _pwaDraw(p);
+          });
+        });
+      }
+      act('on', function() { return pushEnable(p.opts.sb); });
+      act('off', function() { return pushDisable(p.opts.sb); });
+      act('test', function() { return pushTest(p.opts.sb); });
+    });
+  }
+
+  // 설치 창(아래에서 올라오는 창) — 휴대폰 종류별 안내 + 끝에 알림 켜기
+  function openInstall() {
+    if (!pwaOn() || !document.body) return;
+    _pwaCss(); _pwaBannerClose();
+    if (document.getElementById('sys-pwa-sheet')) return;
+    var plat = pwaPlatform(), name = _pwaCfg.SHORT_NAME || '';
+    var bg = document.createElement('div'); bg.className = 'sys-pwa-sheet-bg no-print';
+    var sh = document.createElement('div'); sh.id = 'sys-pwa-sheet'; sh.className = 'sys-pwa-sheet no-print';
+    sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true'); sh.setAttribute('tabindex', '-1'); sh.setAttribute('aria-label', '앱 설치');
+    var body = '';
+    if (isStandalone()) {
+      body = '<p class="lead">이미 앱으로 열려 있어요.</p>';
+    } else if (plat === 'ios') {
+      body = '<p class="lead">사파리에서 아래 순서대로 누르면 홈 화면에 「' + _esc(name) + '」 아이콘이 생겨요. (다른 앱 안의 브라우저에서는 안 될 수 있어요 — 사파리로 열어 주세요.)</p>' +
+        '<ol class="sys-pwa-steps"><li>' + PWA_SVG.share + '<span>화면 아래(또는 위) <b>공유</b> 단추를 누릅니다</span></li>' +
+        '<li>' + PWA_SVG.plus + '<span>목록을 내려 <b>홈 화면에 추가</b>를 누릅니다</span></li>' +
+        '<li>' + PWA_SVG.home + '<span>오른쪽 위 <b>추가</b> → 홈 화면의 아이콘으로 엽니다</span></li></ol>' +
+        '<p class="lead">아이폰은 <b>홈 화면에 추가한 앱에서만</b> 알림을 켤 수 있어요. 설치한 뒤 앱의 「내 정보」에서 알림을 켜 주세요.</p>';
+    } else if (plat === 'android' && _pwaBip) {
+      body = '<p class="lead">아래 단추를 누르면 홈 화면에 「' + _esc(name) + '」 앱이 생겨요.</p>' +
+        '<p style="margin:0 0 16px"><button type="button" class="sys-pwa-b on" data-a="bip" style="width:100%;min-height:48px;font-size:15px">앱 설치</button></p>';
+    } else if (plat === 'android') {
+      body = '<p class="lead">크롬에서 아래 순서대로 누르면 홈 화면에 「' + _esc(name) + '」 앱이 생겨요. 이미 설치했다면 홈 화면 아이콘으로 열어 주세요.</p>' +
+        '<ol class="sys-pwa-steps"><li>' + PWA_SVG.dots + '<span>오른쪽 위 <b>⋮</b> 메뉴를 누릅니다</span></li>' +
+        '<li>' + PWA_SVG.plus + '<span><b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 누릅니다</span></li>' +
+        '<li>' + PWA_SVG.home + '<span><b>설치</b> → 홈 화면의 아이콘으로 엽니다</span></li></ol>';
+    } else {
+      body = '<p class="lead">휴대폰 앱 설치는 휴대폰에서 할 수 있어요. PC 에서는 데스크탑 앱을 써 주세요.</p>';
+    }
+    sh.innerHTML = '<h2>📱 앱 설치<button type="button" class="sys-pwa-x" data-a="x" aria-label="닫기">✕</button></h2>' + body + '<div data-panel></div>';
+    function close() {
+      [bg, sh].forEach(function(n) { if (n.parentNode) n.parentNode.removeChild(n); });
+      document.removeEventListener('keydown', onKey, true);
+    }
+    function onKey(ev) { if (ev.key === 'Escape') close(); }
+    bg.addEventListener('click', close);
+    sh.querySelector('[data-a="x"]').addEventListener('click', close);
+    document.addEventListener('keydown', onKey, true);
+    var bip = sh.querySelector('[data-a="bip"]');
+    if (bip) bip.addEventListener('click', function() {
+      var ev = _pwaBip; if (!ev) return;
+      _pwaBip = null;
+      try {
+        ev.prompt();
+        Promise.resolve(ev.userChoice).then(function(c) {
+          if (c && c.outcome === 'accepted') {
+            try { localStorage.setItem(PWA_INSTALLED_KEY, '1'); } catch(e) {}
+            bip.parentNode.innerHTML = '<span class="sys-pwa-msg ok" style="display:block">설치했어요. 홈 화면의 아이콘으로 열어 주세요.</span>';
+          }
+        });
+      } catch(e) { logError(e, '앱 설치'); }
+    });
+    document.body.appendChild(bg); document.body.appendChild(sh);
+    if (plat !== 'pc') mountPanel(sh.querySelector('[data-panel]'), { sb:_pwaSb, inSheet:true });
+    try { sh.focus(); } catch(e) {}   // 창 자체에 포커스(Esc 로 닫기 · 화면 읽기 프로그램이 창을 읽음)
+  }
+
+  // ④ 로그인 뒤 한 번 안내 띠 — ✕ = 이번 로그인만, 「다시 보지 않기」 = 이 기기에서 계속
+  function _pwaBannerClose() { var b = document.getElementById('sys-pwa-banner'); if (b && b.parentNode) b.parentNode.removeChild(b); }
+  function maybeInstallBanner(user) {
+    if (!canInstallUi(user) || !document.body || document.getElementById('sys-pwa-banner')) return;
+    try { if (localStorage.getItem(PWA_BANNER_OFF_KEY) === '1') return; } catch(e) {}
+    var seen = _ssGet(PWA_BANNER_SEEN_KEY);
+    if (seen && seen.uid === user.id) return;
+    _ssSet(PWA_BANNER_SEEN_KEY, { uid: user.id });
+    _pwaCss();
+    var el = document.createElement('div');
+    el.id = 'sys-pwa-banner'; el.className = 'sys-pwa-band no-print'; el.setAttribute('role', 'status');
+    el.innerHTML = '<span>휴대폰 앱으로 설치할 수 있어요<small>홈 화면 아이콘 · 연차 결재 알림</small></span>' +
+      '<button type="button" class="sys-pwa-b on" data-a="how">설치 방법</button>' +
+      '<button type="button" class="sys-pwa-b" data-a="never">다시 보지 않기</button>' +
+      '<button type="button" class="sys-pwa-x" data-a="x" aria-label="닫기">✕</button>';
+    el.querySelector('[data-a="how"]').addEventListener('click', function() { openInstall(); });
+    el.querySelector('[data-a="never"]').addEventListener('click', function() { try { localStorage.setItem(PWA_BANNER_OFF_KEY, '1'); } catch(e) {} _pwaBannerClose(); });
+    el.querySelector('[data-a="x"]').addEventListener('click', _pwaBannerClose);
+    document.body.appendChild(el);
+  }
+  // SysBar 가 로그인한 사람으로 그릴 때 한 번 — 알림 구독 확인 · 안내 띠 · 새 버전 확인
+  function pwaOnUser(sbClient, user) {
+    if (!pwaOn() || !user) return;
+    if (sbClient) _pwaSb = sbClient;
+    if (!pwaStaff(user)) return;
+    pushSync(sbClient);
+    setTimeout(function() { maybeInstallBanner(user); }, 600);
+  }
+
+  var Pwa = {
+    platform: pwaPlatform, isStandalone: isStandalone, enabled: pwaOn, swEnabled: swWanted,
+    canInstallUi: canInstallUi, openInstall: openInstall, maybeInstallBanner: maybeInstallBanner,
+    panelVisible: panelVisible, mountPanel: mountPanel,
+    pushStatus: pushStatus, pushEnable: pushEnable, pushDisable: pushDisable, pushTest: pushTest,
+    register: swRegister, checkNewVersion: checkNewVersion, badge: pwaBadge, onUser: pwaOnUser,
+    _kill: _swKill
+  };
 
   // ── 비밀번호 다시 확인 (2026-11-03) — 앱 화면 잠금 해제 · 급여명세서 본인 확인 공용 ──
   //   지금 로그인한 계정의 이메일 + 입력한 비밀번호로 signInWithPassword. 성공하면 새 세션이 생기고(서버는 JWT amr 로
@@ -754,6 +1249,7 @@
     flag:    '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>',
     menu:    '<path d="M4 7h16M4 12h16M4 17h16"/>',
     x:       '<path d="M6 6l12 12M18 6L6 18"/>',
+    phone:   '<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18h2"/>',
     grid:    '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   };
   function sideIcon(React, name, size) {
@@ -984,6 +1480,7 @@
       '.sys-side-who b{display:block;font-size:13px;color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
       '.sys-side-who span{display:block;font-size:11px;color:#64748b;margin-top:1px;}' +
       '.sys-side-btns{display:flex;gap:6px;}' +
+      '.sys-side-install{width:100%;margin-bottom:6px;color:#e2e8f0;border-color:#475569;}' +
       '.sys-side-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 8px;border-radius:7px;border:1px solid #334155;background:transparent;color:#94a3b8;font-size:12px;font-family:inherit;cursor:pointer;text-decoration:none;white-space:nowrap;}' +
       '.sys-side-btn:hover{color:#fff;border-color:#475569;}' +
       '@media print{.sys-side,.sys-side-tog{display:none!important;}body.sys-has-side{padding-left:0!important;transition:none!important;}}' +
@@ -1278,6 +1775,7 @@
       stopDesktopWatch();
       try { localStorage.removeItem(DESK_SESS_KEY); } catch(e) {}   // 데스크탑 앱 로그인 사본
       _deskBadge(0);   // 데스크탑 앱 트레이 숫자 지움(앱 안에서만, 이미 0이면 안 보냄)
+      pwaBadge(0);     // 휴대폰 앱 아이콘 숫자 지움
       _ssSet(DESK_UNLOCK_KEY, null);
       recheckFailClear('lock'); recheckFailClear('payslip');
       sessionStorage.removeItem(SESSION_KEY);
@@ -1929,6 +2427,7 @@
         global.addEventListener('sys-approvals', onAppr);
         loadApprovals(sbClient);
         startDesktopWatch(sbClient);   // 데스크탑 앱 안에서만(일반 브라우저는 아무것도 안 함)
+        pwaOnUser(sbClient, user);     // 휴대폰 앱: 알림 구독 확인 · 설치 안내 띠(직원 · 휴대폰만)
         return function() { global.removeEventListener('sys-approvals', onAppr); };
       }, [user ? user.id : null]);
       var appr = user ? approvalCounts() : null;
@@ -2131,6 +2630,9 @@
             e('b', null, user.name + ' 님'),
             teamName ? e('span', null, teamName) : null
           ) : null,
+          // 휴대폰 앱 설치(직원 · 휴대폰 · 앱으로 열지 않았을 때만) — 로그아웃 위
+          canInstallUi(user) ? e('button', {key:'pwa', type:'button', className:'sys-side-btn sys-side-install', onClick:afterClose(function() { openInstall(); })},
+            sideIcon(React, 'phone', 14), '앱 설치') : null,
           e('div', {key:'btns', className:'sys-side-btns'},
             e('a', {key:'hp', href:cfg.INDEX_URL||'index.html', className:'sys-side-btn', title:'홈페이지'}, sideIcon(React, 'globe', 14), '홈페이지'),
             e('button', {key:'lo', type:'button', className:'sys-side-btn', onClick:afterClose(function() { onLogout(); })}, sideIcon(React, 'out', 14), '로그아웃')
@@ -2665,6 +3167,7 @@
     approvalCounts:   approvalCounts,
     approvalBadges:   approvalBadges,
     isDesktopApp:     isDesktopApp,
+    Pwa:              Pwa,
     openDesktopFiles: openDesktopFiles,
     startDesktopWatch: startDesktopWatch,
     lockDesktopNow:    lockDesktopNow,
