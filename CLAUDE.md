@@ -94,6 +94,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.12.0 · 2026-11-16 · 휴대폰 달력 날짜 탭 → 그날 일정 시트 — 공통 바텀시트 `Sysbar.openDaySheet`(home·leave·project 달력, 휴대폰만, 화면은 데이터만 넘김, 닫기=바깥·✕·Esc·뒤로, `#탭` 유지) · PC 는 기존 상세 패널 그대로
   - 2.11.0 · 2026-11-16 · 휴대폰 앱(PWA) — 홈 화면 설치(manifest·아이콘·설치 안내: 서랍 「앱 설치」·내 정보·로그인 뒤 안내 띠) · 서비스워커 sw.js(화면 사본·오프라인 안내·새 버전 안내·비상 스위치) · 연차 결재 웹 푸시(push_subscriptions · 트리거 → Edge Function leave-push)
   - 2.10.1 · 2026-11-16 · 휴대폰 화면 그룹 2·3 — 숨은 가로 넘침 정리(업무관리 본문 칸 min-width 0 · 비품 표 칸 최소폭 · 공정관리 관리 탭·주간 일정 머리 · 관리포털 업무일지 입력 줄) · 수금 카드 금액 한 줄씩 · 계정관리 표 버튼 한 줄 · 홈페이지 5px 넘침(html overflow-x:clip)
   - 2.10.0 · 2026-11-16 · 휴대폰 화면 버전2 — 왼쪽 메뉴를 휴대폰에서 서랍(☰)으로 · 낮은 상단 막대(제목만) · 공통 휴대폰 규칙(입력 16px · 누르는 곳 44px · 안전 영역) · 공통 클래스(.num .m-cards .m-scroll .m-sheet .m-stack) · 달력 칸 넘침 · 급여명세서 금액 · 로그인 창(터치 화면)
@@ -170,6 +171,22 @@
 ---
 
 ## ✅ 완료된 작업
+
+### 휴대폰 달력 날짜 탭 → 그날 일정 시트 (2026-11-16, v2.12.0, sysbar.js `?v=2026111604`)
+- **공통 바텀시트는 sysbar.js `Sysbar.openDaySheet({title, sub, items, empty})` 한 곳**(바닐라 DOM, 휴대폰만). 화면은 **데이터만** 넘긴다 —
+  `items=[{color, dashed(계획=점선 빈 점), name, meta, tag, tagColor, memo, actions:[{label,variant,onClick,closeFirst}]}]`. 닫기 = 바깥 누르기 · ✕ · Esc · 휴대폰 「뒤로」
+  (서랍과 같은 방식: 열 때 history 한 칸, **주소 인자 생략이라 `#탭` 유지**, popstate 를 화면 탭 처리기보다 먼저 가로채 닫음). 본문 스크롤 잠금. CSS 는 **`.sys-daysheet*` 로만**(범위 한정).
+- **home·leave·project 달력**: 날짜 칸 `onClick` 을 `Sysbar.isMobile()` 로 분기 — 휴대폰이면 openDaySheet, **PC 는 기존 동작 그대로**(아래 상세 패널 / selDay 모달). 기존 칩·셀 동작 유지.
+  - 360px 에서 칩이 잘려 보이던 문제(「중…」「박…」)를 시트에서 전부(이름·종류·시간·색) 보여 해결. **빈 날(연차·일정 없음) 탭 = 무반응**(home 기존 규칙).
+  - home 회사 일정은 권한 있으면 시트에서 수정·삭제(actions), project 는 각 공정에 「프로젝트 보기」 버튼. leave 는 연차·휴가 계획(계획 = 점선).
+- 검증(헤드리스 Edge + 가짜 DB): 휴대폰 360·390 × 3화면 탭 → 시트 열림(home 7행·leave 4행·project 2행+버튼), audit 넘침·겹침·잘림 0, Esc·바깥·뒤로 모두 닫힘, 뒤로 뒤 `#탭` 유지, JS 예외 0.
+  PC 1280 회귀 = 사이드바 버전 글자(2.11→2.12)만, 모바일 base 회귀 0 px. 백업 `backup/{sysbar,home,leave,project}_20261116_night2.*`. 저장소 밖 보고서 `security-fix\report_night.md`.
+
+### 🔲 진행중 — 안드로이드 앱(TWA, `night/task1-android-apk` 브랜치, 미병합)
+- PWA 를 **Bubblewrap(TWA)** 으로 감싼 **내부 배포 APK**. 웹을 배포하면 앱에 바로 반영(껍데기). 빌드 도구(JDK·SDK)가 없어 **야간엔 빌드 못 함** — 저장소 밖 `android-app/`(twa-manifest·생성 스크립트·`BUILD.md`)와 브랜치(config `PWA.ANDROID_PACKAGE`·`HOST`·`INSTALL_PAGE` · `.well-known/assetlinks.json` 지문 placeholder · `_config.yml` include · `app/index.html` 설치 안내)만 준비.
+- 패키지 `com.kwanboeng.app`(config `PWA.ANDROID_PACKAGE`, 화이트라벨). 서명키 = 저장소·앱소스 밖 `C:\Users\kwanb\.kbsys-android-keys\`(**잃으면 앱 업데이트 영구 불가 — USB+NAS 백업**).
+- **versionCode 규칙**: `android-app/twa-manifest.json` 의 `appVersionCode` 는 **이름·아이콘·도메인·패키지가 바뀔 때만** +1(그 외엔 웹만 배포하면 앱이 따라옴 = 재빌드 불필요). ERP `APP_VERSION`(sysbar)과 별개.
+- 마무리 순서(사람): `android-app/BUILD.md`(JDK·SDK → 서명키 → 빌드 → 지문 넣기 → sysbar 서랍 분기 → robots → 병합 → 휴대폰 인증 확인).
 
 ### 휴대폰 앱(PWA) — 홈 화면 설치 + 연차 결재 알림 (2026-11-16, v2.11.0, sysbar.js `?v=2026111603`)
 - **값은 config.js `PWA` 한 곳**(이름·짧은 이름·테마색(비우면 COLOR_PRIMARY)·배경색·시작 화면·아이콘 경로·`SW_ENABLED`·`PUSH_PUBLIC_KEY`(공개키)·`PUSH_FUNCTION`·`DESKTOP_APP_URL`).
@@ -1074,19 +1091,18 @@ admin-worklog / admin-perf / admin-salary / admin-staff / admin-account:
 
 ## 🔲 미완료 — 팀 목록 중복 소스 정리 (화이트라벨)
 
-`config.js`에 **팀 목록(`TEAMS` 등) 키는 없음**. 이번에 `TEAM_COLORS`를 만들면서 그 **키 순서가 사실상
-팀 목록·정렬순서 역할**을 하게 되어, 아래 하드코딩들과 **중복 소스**가 생겼다. 향후 `TEAMS` 단일 소스로 통합 필요.
+**2026-11-16 (야간 작업 3) 부분 정리됨.** `config.js` 에 **`TEAMS` 배열(`{name,color}`, 순서 = 정렬·범례 순서) 단일 소스**가 생겼다.
+파일 끝 IIFE 가 호환 값 `TEAM_COLORS`(이름→색, 배열 순서 보존)·`TEAM_NAMES`(순서대로 이름)를 자동 생성한다(손대지 말 것 — 팀을 바꾸려면 `TEAMS` 만).
+`leave.html` 의 `TEAM_ORDER` 2곳은 `(_LC.TEAM_NAMES || 폴백)` 으로 통합 완료. 아래는 **의미가 달라 아직 남긴 것**(색/순서가 아니라 정렬 규칙·권한):
 
-| 파일 | 라인 | 내용 | 성격 |
+| 파일 | 내용 | 성격 | 왜 남겼나 |
 |---|---|---|---|
-| `leave.html` | 961·1020 | `TEAM_ORDER=['설계1팀','설계2팀','지반팀','관리팀']` | 정렬 순서 (2곳 중복) |
-| `admin-staff.html` | 489 | `TEAM_ORDER={'관리팀':0,'설계1팀':1,'설계2팀':2,'지반팀':3,'기술지원':4}` | 정렬 순서 |
-| `worklog.html` | 427 | `ALLOWED_TEAMS=['설계1팀','설계2팀','지반팀']` | 접근 허용 팀 |
-| `admin-worklog.html` | 549 | `teams.find(t=>t.name==='관리팀')` | `ADMIN_TEAM_NAME` 미참조 |
+| `admin-staff.html` | `TEAM_ORDER={'관리팀':0,'설계1팀':1,…,'기술지원':4}` | 정렬 순서 | **순서가 다름(관리팀 우선)** + TEAMS 에 없는 `기술지원` 포함 → TEAMS 순서 강제 시 직원관리 정렬 바뀜 |
+| `worklog.html` | `ALLOWED_TEAMS=['설계1팀','설계2팀','지반팀']` | 접근 허용 팀 | 관리팀 제외 **부분집합(권한)**. `TEAM_NAMES.filter(≠관리팀)` 가능하나 "팀 추가=업무일지 접근 자동 허용" 정책 변경이라 보류 |
+| `admin-worklog.html` | `teams.find(t=>t.name==='관리팀')` | 팀명 리터럴 | `ADMIN_TEAM_NAME` 미참조(별개 화이트라벨 부채) |
 
-⚠️ **`admin-staff.html`의 '기술지원' 팀이 `TEAM_COLORS`에는 없음** — 해당 팀원은 캘린더에서
-`TEAM_COLOR_DEFAULT`(회색)로 표시됨. 실재하는 팀이면 config에 색상을 추가할 것.
-이번 작업 범위(색상 매핑 + 이름 절단)에는 포함하지 않음.
+→ 통합하려면 `TEAMS` 항목에 `staffOrder`·`worklogAccess` 같은 속성을 더하는 2차 설계 필요. 지금은 동작·화면 불변으로 남김.
+⚠️ **`admin-staff.html`의 '기술지원' 팀이 `TEAMS`에는 없음** — 해당 팀원은 캘린더에서 `TEAM_COLOR_DEFAULT`(회색). 실재하는 팀이면 `TEAMS` 에 색상을 추가할 것.
 
 ## 🔲 미완료 — 대시보드 작업 필요
 
