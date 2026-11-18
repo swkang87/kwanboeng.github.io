@@ -94,6 +94,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.15.0 · 2026-11-18 · (keep-login 후속) 데스크탑 앱 비활동 화면 잠금 — 앱 안에서 비활동 N분(`app.config.json lockIdleMinutes`, 기본 60, desk_config 로 전달, 0=끔)이면 「지금 잠그기」와 같은 잠금 화면을 띄운다(로그아웃 아님, 잠금 중에도 결재 알림 감시는 그대로). 잠금은 웹(sysbar.js)에 있어 기존 설치 앱에도 새 sysbar.js 로 적용 · 데스크탑 앱 1.4.0 은 시간 설정만 더함
   - 2.14.0 · 2026-11-18 · 설치한 휴대폰 앱 로그인 유지(APP_KEEP_LOGIN) — 설치 앱(standalone/TWA)에서만 직접 로그아웃 전까지 유지(세션 사본 `_keep_session` localStorage, 1시간 비활동·만료 로그아웃 면제, 화면 복귀 시 토큰 갱신) · PC·휴대폰 브라우저·데스크탑 앱(Tauri)은 기존 정책 그대로 · 급여명세서 비밀번호 재확인 유지 · 비활성(관리자 초기화 must_change) 계정은 복원/복귀 때 로그인 화면으로
   - 2.13.0 · 2026-11-18 · 안드로이드 앱(TWA) APK — PWA 를 Bubblewrap 으로 감싼 내부 배포 APK(`com.kwanboeng.app` v1.0.0, versionCode 1, minSdk24·targetSdk36) · 서랍 「앱 설치」가 안드로이드에서 `PWA.INSTALL_PAGE`(app/) 로 감(앱 안은 standalone 이라 자동 숨김) · `.well-known/assetlinks.json` 지문 = APK 서명 인증서 · `app/app-release-signed.apk` · 서명키 저장소 밖 `.kbsys-android-keys`
   - 2.12.0 · 2026-11-16 · 휴대폰 달력 날짜 탭 → 그날 일정 시트 — 공통 바텀시트 `Sysbar.openDaySheet`(home·leave·project 달력, 휴대폰만, 화면은 데이터만 넘김, 닫기=바깥·✕·Esc·뒤로, `#탭` 유지) · PC 는 기존 상세 패널 그대로
@@ -181,7 +182,8 @@
 - **원리(데스크탑 앱 로그인 유지와 같은 방식 일반화)**: 프로필 캐시는 sessionStorage 라 앱을 닫으면 사라진다 → 설치 앱에선 localStorage 사본 **`SESSION_PREFIX + '_keep_session'`** 에 미러(pagehide·visibilitychange hidden)하고, 이 파일이 불릴 때 sessionStorage 가 비었으면 사본으로 복원한다. 데스크탑은 `_desk_session`, 설치 앱은 `_keep_session` — `_mirrorWanted()`/`_mirrorKey()` 로 한 경로. 미러 대상 세션키는 `SESSION_KEY` 하나.
 - **유휴·만료 로그아웃 면제**: `SessionManager._startWatching`·`_isExpired` 가 `keepLoginOn()` 이면 데스크탑 앱과 똑같이 1시간 비활동·만료 로그아웃을 하지 않는다.
 - **복원 검증·토큰 갱신 = `startKeepLoginGuard(sbClient)`**(SysBar 마운트에서 `startDesktopWatch` 옆). ① 사본으로 복원해 열었으면 `get_my_profile` 재조회(`_keepVerify`)로 **비활성(관리자 초기화 `must_change_pw`/`must_change_id`)·사라진 계정**을 걸러 로그인 화면으로 보낸다(퇴사 `leave_date` 는 화면이 기존대로 급여명세서로 보냄). ② 화면이 다시 보일 때 `refreshSession()` → **네트워크 실패면 로그아웃하지 않고 다음 기회에 재시도**, refresh token 무효면 로그인 화면, 성공하면 다시 검증. **DB·Edge Function 변경 없음**(`get_my_profile` 은 첫 로그인 강제변경 흐름이 같이 써서 건드리지 않음).
-- **그대로인 것**: 급여명세서 비밀번호 재확인(설치 앱에서도 필수), 서랍 맨 아래 직접 로그아웃(로그아웃해도 알림 구독 유지), 데스크탑 앱 시작 잠금. ⚠️ 관리자 초기화(`reset-user-login`)는 기존 refresh token 을 서버에서 revoke 하지 않음 — 즉시 강제 끊기는 아직 없다(Edge Function 에 `admin.auth.admin.signOut(auth_id,'global')` 한 줄이면 가능, 지시로 조사만·미구현). 자세한 건 저장소 밖 `security-fix\report_keeplogin.md`.
+- **그대로인 것**: 급여명세서 비밀번호 재확인(설치 앱에서도 필수), 서랍 맨 아래 직접 로그아웃(로그아웃해도 알림 구독 유지), 데스크탑 앱 시작 잠금. 자세한 건 저장소 밖 `security-fix\report_keeplogin.md`.
+- **후속(2026-11-18) — 서버 세션 강제 끊기**: 관리자 초기화(`reset-user-login`)·퇴사(leave_date)는 이제 대상 계정의 `auth.sessions`(refresh token)를 서버에서 끊는다 → 로그인 유지 중인 앱도 다음 갱신/열기에서 로그인 화면. `admin.auth.admin.signOut` 은 대상의 JWT 가 있어야 해서(초기화 흐름엔 없음) `auth.sessions` 는 **postgres 소유 SECURITY DEFINER 함수 `admin_revoke_user_sessions(auth_id)`**(service_role 전용)로 지운다. reset Edge Function 이 성공 뒤 이 RPC 를 부르고(best-effort), 퇴사는 `public.users` 트리거 `users_revoke_on_leave_trg`(leave_date ≤ 오늘로 바뀔 때)가 처리한다. DB 산출물 저장소 밖 `security-fix\171_force_logout_*`. (Supabase 세션 타임아웃 대시보드 설정은 Pro 플랜 전용이라 무료 요금제에선 안 먹음 — JWT 만료(1h)·never-expire refresh 만 적용.)
 
 ### 휴대폰 달력 날짜 탭 → 그날 일정 시트 (2026-11-16, v2.12.0, sysbar.js `?v=2026111604`)
 - **공통 바텀시트는 sysbar.js `Sysbar.openDaySheet({title, sub, items, empty})` 한 곳**(바닐라 DOM, 휴대폰만). 화면은 **데이터만** 넘긴다 —
@@ -404,7 +406,7 @@
 - 백업 `backup/sysbar_20261103_2.js` · `backup/CLAUDE_20261103_2.md`.
 
 ### 데스크탑 앱 2단계 — 화면 잠금 + 트레이 숫자 / 급여명세서 비밀번호 재확인 (2026-11-03, v2.6.0, 앱 1.1.0, sysbar.js v3.15 `?v=2026110301`)
-- **화면 잠금(앱 안에서만, PC 카카오톡 방식)**: 앱을 켤 때(재실행 포함) 한 번 + 트레이 「지금 잠그기」. 비활동 자동 잠금 없음. 로그인·감시·알림·트레이 숫자는 잠겨 있어도 그대로 돈다.
+- **화면 잠금(앱 안에서만, PC 카카오톡 방식)**: 앱을 켤 때(재실행 포함) 한 번 + 트레이 「지금 잠그기」 + **비활동 N분 자동 잠금(2.15.0~, `lockIdleMinutes` 기본 60, 0=끔)**. 로그인·감시·알림·트레이 숫자는 잠겨 있어도 그대로 돈다.
   - sysbar.js 가 `<head>` 에서 불릴 때 판정 → `html.kb-desk-locked` 로 body 내용을 먼저 가리고(visibility) body 가 생기는 즉시 잠금 창 `#kb-desk-lock`(로고·회사명·이름·비밀번호·「다른 계정으로 로그인」).
     키는 window capture 에서 막고(화면 단축키 안 받음) 포커스는 잠금 창 입력칸으로. 새로고침·화면 이동해도 잠금 유지.
   - 해제 상태 = sessionStorage `SESSION_PREFIX + '_desk_unlocked'` {uid}(이번 실행 동안만). 로그인 화면(doLogin·강제 변경·index.html 로그인)에서 방금 로그인했으면 잠그지 않는다.

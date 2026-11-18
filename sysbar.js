@@ -87,7 +87,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.14.0';
+  var APP_VERSION = '2.15.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -449,6 +449,7 @@
     }
     _deskInvoke('desk_config').then(function(cfg) {
       if (_deskWatch !== w) return;
+      startDeskIdleLock(cfg);                    // 비활동 화면 잠금(앱 안에서만)
       var s = cfg ? Number(cfg.pollSeconds) : 0;
       if (s >= 15) w.ms = s * 1000;
       w.timer = setInterval(_deskTick, w.ms);
@@ -1088,6 +1089,7 @@
     if (!isDesktopApp() || !uid) return;
     _ssSet(DESK_UNLOCK_KEY, { uid: uid });
     recheckFailClear('lock');
+    _idleLast = Date.now();   // 잠금 해제 직후부터 비활동 시간 다시 셈
   }
   function _lockClient() {
     if (_lockSb) return _lockSb;
@@ -1243,6 +1245,33 @@
     _ssSet(DESK_UNLOCK_KEY, null);
     _lockShow();
     return true;
+  }
+
+  // ── 비활동 시 화면 잠금(앱 안에서만, 2026-11-18) ──────────────────────────
+  //   「지금 잠그기」와 같은 잠금 화면을 비활동 N분 뒤에 띄운다. 로그아웃이 아니라 잠금 — 잠긴 동안에도
+  //   결재 알림 감시(startDesktopWatch)는 그대로 돈다(이 함수는 타이머를 멈추지 않는다).
+  //   N = app.config.json lockIdleMinutes(desk_config). 0 이하면 끔. 설정이 없으면 기본 60분(기존 앱도 새 sysbar.js 로 적용됨).
+  var _idleLockMs = 0, _idleLast = 0, _idleTimer = null, _idleBound = false;
+  function _idleTouch() { _idleLast = Date.now(); }
+  function startDeskIdleLock(cfg) {
+    if (!isDesktopApp()) return;
+    var min = (cfg && cfg.lockIdleMinutes != null) ? Number(cfg.lockIdleMinutes) : 60;
+    if (!(min > 0)) { _idleLockMs = 0; return; }   // config 로 끔
+    _idleLockMs = min * 60000;
+    _idleLast = Date.now();
+    if (!_idleBound) {
+      _idleBound = true;
+      ['mousemove', 'mousedown', 'keydown', 'wheel', 'touchstart', 'scroll'].forEach(function(ev) {
+        try { document.addEventListener(ev, _idleTouch, { passive: true, capture: true }); } catch(e) {}
+      });
+    }
+    if (_idleTimer) return;   // 한 창에 하나
+    var step = Math.min(30000, Math.max(1000, Math.floor(_idleLockMs / 2)));
+    _idleTimer = setInterval(function() {
+      if (!_idleLockMs || !_sessUser()) { _idleLast = Date.now(); return; }
+      if (_lockEl || _deskNeedsLock()) { _idleLast = Date.now(); return; }   // 이미 잠김 → 시계 리셋
+      if (Date.now() - _idleLast >= _idleLockMs) { _idleLast = Date.now(); lockDesktopNow(); }
+    }, step);
   }
   // ── 파일 탐색기 창(앱 1.2.0) — 앱 안에서만. 창은 앱에 내장된 화면이고 파일 일은 앱(Rust)이 한다. 여기서는 「열어 달라」만 ──
   //   왼쪽 메뉴 「파일」 · 트레이 「파일」(앱이 __kbDeskOpenFiles() 를 부름). 로그인 전이면 열지 않고(false → 앱이 이 창을 보여 줌),
