@@ -1,11 +1,11 @@
 {
-  "version": "1.3.7",
-  "notes": "탐색기(시험판) 주소창 편집을 Windows 탐색기와 같게(빈 곳 클릭 = 주소창 전체 입력, 없는 경로는 입력 유지)",
-  "pub_date": "2026-11-12T02:06:09Z",
+  "version": "1.4.0",
+  "notes": "비활동 1시간 화면 잠금 추가(앱 안, config lockIdleMinutes). 잠금 중에도 결재 알림은 동작.",
+  "pub_date": "2026-11-18T03:54:38Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDBGbTNWSHlXM3YvRzY2SURGWjVKUlJHU05JVDhqZEVRdEdSUG9QdTVqZWZpZkFhWXQ0MXk1RmpaQk5SakxjOUpkMmx5RG8wdTVxLzdrRjVmSTd6RVFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NDQ5MTY5CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjMuN194NjQtc2V0dXAuZXhlCXZlcnNpb246MS4zLjcKY3ErSEFiazhuVkVXbzkrQWdKaDlMam1LZVFhRllZcWE5MldsalhOajB5THFDczJKb0JWb2ZlTFdsYnhvc2pvbzUxa0RwMCtGNmU4YytVcXNyMC85QWc9PQo=",
-      "url": "https://kwanboeng.com/desktop/1.3.7/kbsys-desktop_1.3.7_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNC94S2ZybXJGVU9QTmFnRS9nNjJ1MVVOTVlZNzN2c2ZXT1YraTJlZEU4WkMvUXZFbFZVQVFqcklYclVORDVlOTN6cHdWeTlTZ0x3RkQrRkhpWVl4OFFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0OTc0MDc4CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjQuMF94NjQtc2V0dXAuZXhlCXZlcnNpb246MS40LjAKb0s3cGlIVTVlRUFyS1hoSjNHa3dTNVJrVnFTOWduMEZWV1JHbmZ2Wi9RSzdtN0l5S2laaVRaRFNtclBBL1dkSC9pNjhEQ3Fyc2JtTitYdmZPUStmQ2c9PQo=",
+      "url": "https://kwanboeng.com/desktop/1.4.0/kbsys-desktop_1.4.0_x64-setup.exe"
     }
   }
 }

@@ -89,7 +89,14 @@ Deno.serve(async (req) => {
       const { error: authErr } = await admin.auth.admin.updateUserById(target.auth_id, {
         email: tmpId + '@' + authDomain, email_confirm: true, password: initPw,
       })
-      if (!authErr) return json({ ok: true, login_id: tmpId, init_pw: initPw })
+      if (!authErr) {
+        // 초기화 성공 → 대상 계정의 서버 세션(refresh token)을 모두 끊는다. 로그인 유지 중인 휴대폰 앱도
+        // 다음 토큰 갱신/열기에서 로그인 화면으로 간다. auth.sessions 는 postgres 소유 SECURITY DEFINER 함수로만
+        // 지울 수 있어 RPC 로 부른다(service_role 전용). 실패해도 초기화 자체는 끝났으므로 막지 않는다
+        // (앱 계층 must_change 로그인 차단이 이미 있음 — best-effort).
+        try { await admin.rpc('admin_revoke_user_sessions', { p_auth_id: target.auth_id }) } catch (_e) { /* best-effort */ }
+        return json({ ok: true, login_id: tmpId, init_pw: initPw })
+      }
 
       // 인증 계정 변경 실패 → users 원복
       await admin.from('users').update({
