@@ -87,7 +87,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.12.0';
+  var APP_VERSION = '2.13.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -850,6 +850,11 @@
   // 설치 창(아래에서 올라오는 창) — 휴대폰 종류별 안내 + 끝에 알림 켜기
   function openInstall() {
     if (!pwaOn() || !document.body) return;
+    // APK(TWA)가 있는 회사: 안드로이드 「앱 설치」는 APK 안내 페이지(config PWA.INSTALL_PAGE = app/)로 보낸다.
+    // 앱(TWA) 안에서는 standalone 이라 canInstallUi 가 이미 단추를 숨긴다(여기 오지 않음). INSTALL_PAGE 가 없으면 기존 PWA 설치 안내.
+    if (pwaPlatform() === 'android' && !isStandalone() && _pwaCfg && _pwaCfg.INSTALL_PAGE) {
+      try { location.href = _pwaCfg.INSTALL_PAGE; return; } catch(e) {}
+    }
     _pwaCss(); _pwaBannerClose();
     if (document.getElementById('sys-pwa-sheet')) return;
     var plat = pwaPlatform(), name = _pwaCfg.SHORT_NAME || '';

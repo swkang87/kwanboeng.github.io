@@ -8,6 +8,7 @@ Disallow: /admin-
 Disallow: /payslip.html
 Disallow: /import_weekly.html
 Disallow: /desktop/
+Disallow: /app/
 Disallow: /docs.html
 Disallow: /tools/
 Disallow: /offline.html
