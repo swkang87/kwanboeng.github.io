@@ -94,6 +94,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.13.0 · 2026-11-18 · 안드로이드 앱(TWA) APK — PWA 를 Bubblewrap 으로 감싼 내부 배포 APK(`com.kwanboeng.app` v1.0.0, versionCode 1, minSdk24·targetSdk36) · 서랍 「앱 설치」가 안드로이드에서 `PWA.INSTALL_PAGE`(app/) 로 감(앱 안은 standalone 이라 자동 숨김) · `.well-known/assetlinks.json` 지문 = APK 서명 인증서 · `app/app-release-signed.apk` · 서명키 저장소 밖 `.kbsys-android-keys`
   - 2.12.0 · 2026-11-16 · 휴대폰 달력 날짜 탭 → 그날 일정 시트 — 공통 바텀시트 `Sysbar.openDaySheet`(home·leave·project 달력, 휴대폰만, 화면은 데이터만 넘김, 닫기=바깥·✕·Esc·뒤로, `#탭` 유지) · PC 는 기존 상세 패널 그대로
   - 2.11.0 · 2026-11-16 · 휴대폰 앱(PWA) — 홈 화면 설치(manifest·아이콘·설치 안내: 서랍 「앱 설치」·내 정보·로그인 뒤 안내 띠) · 서비스워커 sw.js(화면 사본·오프라인 안내·새 버전 안내·비상 스위치) · 연차 결재 웹 푸시(push_subscriptions · 트리거 → Edge Function leave-push)
   - 2.10.1 · 2026-11-16 · 휴대폰 화면 그룹 2·3 — 숨은 가로 넘침 정리(업무관리 본문 칸 min-width 0 · 비품 표 칸 최소폭 · 공정관리 관리 탭·주간 일정 머리 · 관리포털 업무일지 입력 줄) · 수금 카드 금액 한 줄씩 · 계정관리 표 버튼 한 줄 · 홈페이지 5px 넘침(html overflow-x:clip)
@@ -182,11 +183,14 @@
 - 검증(헤드리스 Edge + 가짜 DB): 휴대폰 360·390 × 3화면 탭 → 시트 열림(home 7행·leave 4행·project 2행+버튼), audit 넘침·겹침·잘림 0, Esc·바깥·뒤로 모두 닫힘, 뒤로 뒤 `#탭` 유지, JS 예외 0.
   PC 1280 회귀 = 사이드바 버전 글자(2.11→2.12)만, 모바일 base 회귀 0 px. 백업 `backup/{sysbar,home,leave,project}_20261116_night2.*`. 저장소 밖 보고서 `security-fix\report_night.md`.
 
-### 🔲 진행중 — 안드로이드 앱(TWA, `night/task1-android-apk` 브랜치, 미병합)
-- PWA 를 **Bubblewrap(TWA)** 으로 감싼 **내부 배포 APK**. 웹을 배포하면 앱에 바로 반영(껍데기). 빌드 도구(JDK·SDK)가 없어 **야간엔 빌드 못 함** — 저장소 밖 `android-app/`(twa-manifest·생성 스크립트·`BUILD.md`)와 브랜치(config `PWA.ANDROID_PACKAGE`·`HOST`·`INSTALL_PAGE` · `.well-known/assetlinks.json` 지문 placeholder · `_config.yml` include · `app/index.html` 설치 안내)만 준비.
-- 패키지 `com.kwanboeng.app`(config `PWA.ANDROID_PACKAGE`, 화이트라벨). 서명키 = 저장소·앱소스 밖 `C:\Users\kwanb\.kbsys-android-keys\`(**잃으면 앱 업데이트 영구 불가 — USB+NAS 백업**).
-- **versionCode 규칙**: `android-app/twa-manifest.json` 의 `appVersionCode` 는 **이름·아이콘·도메인·패키지가 바뀔 때만** +1(그 외엔 웹만 배포하면 앱이 따라옴 = 재빌드 불필요). ERP `APP_VERSION`(sysbar)과 별개.
-- 마무리 순서(사람): `android-app/BUILD.md`(JDK·SDK → 서명키 → 빌드 → 지문 넣기 → sysbar 서랍 분기 → robots → 병합 → 휴대폰 인증 확인).
+### 안드로이드 앱(TWA) — 내부 배포 APK (2026-11-18 완료, v2.13.0)
+- PWA 를 **Bubblewrap(TWA)** 으로 감싼 **내부 배포 APK**(주소창 없는 껍데기 — 웹을 배포하면 앱에 바로 반영). 패키지 `com.kwanboeng.app`(config `PWA.ANDROID_PACKAGE`, 화이트라벨), v1.0.0.
+- 서명 APK = 저장소 `app/app-release-signed.apk`(main). `app/index.html` 설치 안내(noindex) 가 이 파일을 `download` 로 건다. `/app/` 는 robots·site-profile privatePaths.
+- **도메인 인증**: `.well-known/assetlinks.json` 지문 = APK 서명 인증서 SHA-256(`C3:A5:…:19`). `_config.yml` 의 `include: [".well-known"]` 로 GitHub Pages 가 점 폴더를 내보낸다.
+- **「앱 설치」 분기**: sysbar.js `Sysbar.Pwa.openInstall` 맨 위 — 안드로이드 + `PWA.INSTALL_PAGE`(app/) 이고 standalone 아니면 그 페이지로 보낸다. APK 앱 안은 standalone 이라 `canInstallUi` 가 단추를 이미 숨김. 아이폰·PC 는 기존 PWA/데스크탑 안내 그대로.
+- **서명키** = 저장소·앱소스 밖 `C:\Users\kwanb\.kbsys-android-keys\android.keystore`(alias kwanbo). 비밀번호 = Windows 자격 증명 관리자 `kbsys-android-keystore`. **USB+NAS 백업 완료 — 잃으면 앱 업데이트 영구 불가.**
+- **빌드 도구**(이 PC): JDK 17 = `~/.bubblewrap/jdk/jdk-17.0.21+9`, Android SDK = `~/.bubblewrap/android_sdk`(build-tools 36.1.0·platforms android-36, `tools`→`cmdline-tools/latest` 정션), `~/.bubblewrap/config.json` 지정. 재빌드·다른 회사 납품 순서는 저장소 밖 `android-app/BUILD.md`.
+- **versionCode 규칙**: `android-app/twa-manifest.json` 의 `appVersionCode` 는 **이름·아이콘·도메인·패키지가 바뀔 때만** +1(그 외엔 웹만 배포하면 앱이 따라옴 = 재빌드 불필요). ERP `APP_VERSION`(sysbar)과 별개. 재빌드: `generate-twa-manifest.mjs` → `bubblewrap update --skipVersionUpgrade` → `build`(프로젝트 폴더·JDK bin 을 PATH 에, 비밀번호는 `BUBBLEWRAP_KEYSTORE_PASSWORD`·`_KEY_PASSWORD`).
 
 ### 휴대폰 앱(PWA) — 홈 화면 설치 + 연차 결재 알림 (2026-11-16, v2.11.0, sysbar.js `?v=2026111603`)
 - **값은 config.js `PWA` 한 곳**(이름·짧은 이름·테마색(비우면 COLOR_PRIMARY)·배경색·시작 화면·아이콘 경로·`SW_ENABLED`·`PUSH_PUBLIC_KEY`(공개키)·`PUSH_FUNCTION`·`DESKTOP_APP_URL`).
