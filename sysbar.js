@@ -87,7 +87,7 @@
 
   // ── ERP 제품 버전 (2026-10-23~) — 회사별 값이 아니라 제품 값이다. 다른 회사에 납품해도 같은 코드 = 같은 버전.
   //   config.js 에 두지 않는다. sysbar.js?v= (브라우저 캐시 값)와 섞지 않는다. 올리는 규칙·기록은 CLAUDE.md 「버전」.
-  var APP_VERSION = '2.13.0';
+  var APP_VERSION = '2.14.0';
 
   // icon = 휴대폰 상단 막대(이모지), svg = PC 왼쪽 메뉴(선 아이콘, SIDE_ICONS 키)
   var SYS_MENUS = [
@@ -343,18 +343,33 @@
   //   ② 로그인 유지(2026-11-02 승우 결정): 앱 안에서는 1시간 비활동 자동 로그아웃을 하지 않고, 앱을 다시 켜면
   //      저장해 둔 로그인(localStorage 사본)으로 들어간 뒤 서버로 다시 확인한다. 로그아웃하면 사본도 지운다.
   var DESK_LAST_KEY = _prefix + '_desk_appr_last';   // 직전 결재 대기 건수 {uid, team, final, cancel}
-  var DESK_SESS_KEY = _prefix + '_desk_session';     // 로그인 사본(앱 안에서만)
+  var DESK_SESS_KEY = _prefix + '_desk_session';     // 로그인 사본(데스크탑 앱 안에서만)
+  var KEEP_SESS_KEY = _prefix + '_keep_session';     // 로그인 사본(설치한 휴대폰 앱 — APP_KEEP_LOGIN)
   var DESK_KINDS = [
     { key:'team',   label:'팀원 결재', tab:'team_approve'  },
     { key:'final',  label:'최종 승인', tab:'admin_approve' },
     { key:'cancel', label:'취소 요청', tab:'admin_approve' },
   ];
   var _deskWatch = null;      // { uid, sb, timer, ms, busy, at }
-  var _deskRestored = false;  // 이번 화면을 로그인 사본으로 열었는가 → 서버로 다시 확인
+  var _deskRestored = false;  // 데스크탑 앱: 이번 화면을 로그인 사본으로 열었는가 → 서버로 다시 확인
+  var _keepRestored = false;  // 설치 휴대폰 앱: 이번 화면을 로그인 사본으로 열었는가 → 서버로 다시 확인
   function isDesktopApp() {
     var t = global.__TAURI__;
     return !!(t && t.core && typeof t.core.invoke === 'function');
   }
+  // ── 설치한 휴대폰 앱 로그인 유지 (2026-11-18, APP_KEEP_LOGIN) ──
+  //   설치 앱(standalone/TWA) 안에서만 직접 로그아웃 전까지 로그인을 유지한다. 데스크탑 앱(Tauri)에는 절대 적용하지 않는다.
+  //   TWA 는 referrer 가 android-app:// 로 시작하고 보통 display-mode:standalone 도 참이다 — 둘 중 하나면 설치 앱으로 본다.
+  function isTwa() {
+    try { return !!(document.referrer && document.referrer.indexOf('android-app://') === 0); } catch(e) { return false; }
+  }
+  function isInstalledApp() { return isStandalone() || isTwa(); }
+  function keepLoginOn() {
+    return !!(global.APP_CONFIG && global.APP_CONFIG.APP_KEEP_LOGIN) && !isDesktopApp() && isInstalledApp();
+  }
+  // 로그인 사본을 유지할까(데스크탑 앱 또는 설치 휴대폰 앱) + 어느 키에 둘까
+  function _mirrorWanted() { return isDesktopApp() || keepLoginOn(); }
+  function _mirrorKey() { return isDesktopApp() ? DESK_SESS_KEY : KEEP_SESS_KEY; }
   function _deskInvoke(cmd, args) {
     try {
       return Promise.resolve(global.__TAURI__.core.invoke(cmd, args || {}))
@@ -363,20 +378,22 @@
   }
   function _lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch(e) { return null; } }
   function _lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} }
+  // 세션 사본을 localStorage 에 둔다(데스크탑 앱 = DESK_SESS_KEY, 설치 휴대폰 앱 = KEEP_SESS_KEY). 이름은 호환 유지.
   function _deskMirror() {
-    if (!isDesktopApp()) return;
-    try { var s = sessionStorage.getItem(SESSION_KEY); if (s) localStorage.setItem(DESK_SESS_KEY, s); } catch(e) {}
+    if (!_mirrorWanted()) return;
+    try { var s = sessionStorage.getItem(SESSION_KEY); if (s) localStorage.setItem(_mirrorKey(), s); } catch(e) {}
   }
   // 앱을 다시 켜면 sessionStorage 가 비어 있다 → 화면이 세션을 읽기 전에(이 파일이 불릴 때) 사본으로 채운다
   (function() {
-    if (!isDesktopApp()) return;
+    if (!_mirrorWanted()) return;
     try {
       if (!sessionStorage.getItem(SESSION_KEY)) {
-        var m = localStorage.getItem(DESK_SESS_KEY);
-        if (m) { sessionStorage.setItem(SESSION_KEY, m); _deskRestored = true; }
+        var m = localStorage.getItem(_mirrorKey());
+        if (m) { sessionStorage.setItem(SESSION_KEY, m); if (isDesktopApp()) _deskRestored = true; else _keepRestored = true; }
       }
     } catch(e) {}
     try { global.addEventListener('pagehide', _deskMirror); } catch(e) {}
+    try { global.addEventListener('visibilitychange', function() { if (document.visibilityState === 'hidden') _deskMirror(); }); } catch(e) {}
   })();
   function stopDesktopWatch() {
     if (_deskWatch && _deskWatch.timer) clearInterval(_deskWatch.timer);
@@ -437,6 +454,64 @@
       w.timer = setInterval(_deskTick, w.ms);
       _deskTick();
     });
+  }
+
+  // ── 설치 휴대폰 앱 로그인 유지 가드 (2026-11-18, APP_KEEP_LOGIN) ──────────────
+  //   SysBar 가 화면을 열 때 부른다(일반 브라우저·데스크탑 앱에서는 아무것도 안 함).
+  //   ① 사본으로 복원해 열었으면 서버로 한 번 검증 — 퇴사·비활성(관리자 초기화) 계정을 걸러 로그인 화면으로 보낸다.
+  //   ② 화면이 다시 보일 때(visibilitychange) 토큰을 갱신하고 검증한다. 오래 백그라운드에 있다 돌아와도 이어진다.
+  //   네트워크 문제로 실패하면 로그아웃하지 않고 다음 기회에 다시 시도한다. refresh token 자체가 무효일 때만 로그인 화면.
+  var _keepGuardOn = false;     // 이 창에 visibility 리스너를 한 번만
+  var _keepRefreshing = false;
+  function _keepLogout(sbClient) {
+    try { localStorage.removeItem(KEEP_SESS_KEY); } catch(e) {}
+    try { Auth.logout(sbClient); } catch(e) {}
+    try { global.location.reload(); } catch(e) {}
+  }
+  // 복원/재개 때 프로필을 다시 읽어 판정한다. deactivated(must_change) 면 로그인 화면, 네트워크 오류면 유지.
+  function _keepVerify(sbClient) {
+    return loadMyProfile(sbClient, 'id,role,leave_date,must_change_pw,must_change_id').then(function(pr) {
+      if (pr.error) {
+        // 서버가 명확히 답한 실패(코드/401·403·404)만 로그아웃. 중단·네트워크·5xx 는 유지.
+        return Auth._isClearFailure(pr.error, pr.status) ? 'logout' : 'hold';
+      }
+      if (!pr.data) return 'logout';                                   // 계정이 사라짐
+      if (pr.data.must_change_pw || pr.data.must_change_id) return 'logout';  // 관리자 초기화·비활성 → 로그인 화면
+      return 'ok';   // 퇴사(leave_date)는 화면이 isLeaver 로 급여명세서로 보냄 — 여기서 로그아웃하지 않음
+    }, function() { return 'hold'; });
+  }
+  function _keepRefresh(sbClient) {
+    if (!keepLoginOn() || _keepRefreshing || !sbClient || !sbClient.auth) return;
+    _keepRefreshing = true;
+    Promise.resolve(sbClient.auth.refreshSession()).then(function(r) {
+      var err = r && r.error;
+      if (err) {
+        var st = err.status || 0;
+        var retryable = err.name === 'AuthRetryableFetchError' || !(st >= 400 && st < 500);
+        _keepRefreshing = false;
+        if (retryable) return;          // 네트워크 문제 → 유지, 다음 기회에 다시
+        _keepLogout(sbClient);          // refresh token 무효 → 로그인 화면
+        return;
+      }
+      _keepVerify(sbClient).then(function(v) {
+        _keepRefreshing = false;
+        if (v === 'logout') _keepLogout(sbClient);
+      });
+    }, function() { _keepRefreshing = false; });
+  }
+  function startKeepLoginGuard(sbClient) {
+    if (!keepLoginOn() || !sbClient || !sbClient.auth) return;
+    if (_keepRestored) {
+      _keepRestored = false;
+      _keepVerify(sbClient).then(function(v) { if (v === 'logout') _keepLogout(sbClient); });
+    }
+    if (_keepGuardOn) return;
+    _keepGuardOn = true;
+    try {
+      global.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') _keepRefresh(sbClient);
+      });
+    } catch(e) {}
   }
 
   // ── 트레이 숫자 (2026-11-03) — 결재 대기 total 을 앱에 보낸다(desk_badge). 값이 바뀔 때만. 로그아웃 = 0 ──
@@ -939,7 +1014,7 @@
   }
 
   var Pwa = {
-    platform: pwaPlatform, isStandalone: isStandalone, enabled: pwaOn, swEnabled: swWanted,
+    platform: pwaPlatform, isStandalone: isStandalone, isInstalledApp: isInstalledApp, enabled: pwaOn, swEnabled: swWanted,
     canInstallUi: canInstallUi, openInstall: openInstall, maybeInstallBanner: maybeInstallBanner,
     panelVisible: panelVisible, mountPanel: mountPanel,
     pushStatus: pushStatus, pushEnable: pushEnable, pushDisable: pushDisable, pushTest: pushTest,
@@ -1752,6 +1827,7 @@
     function _startWatching(cb) {
       _logoutCb = cb;
       if (isDesktopApp()) return;   // 데스크탑 앱 안에서는 1시간 비활동 로그아웃 없음(2026-11-02 승우 결정)
+      if (keepLoginOn()) return;    // 설치 휴대폰 앱: 직접 로그아웃 전까지 유지(2026-11-18, APP_KEEP_LOGIN)
       ['click', 'keydown', 'scroll', 'touchstart'].forEach(function(ev) {
         document.addEventListener(ev, _touch, { passive: true, capture: true });
       });
@@ -1778,6 +1854,7 @@
 
     function _isExpired() {
       if (isDesktopApp()) return false;   // 데스크탑 앱 — 위 _startWatching 과 같은 결정
+      if (keepLoginOn()) return false;    // 설치 휴대폰 앱 — 만료로 로그아웃하지 않음(2026-11-18)
       var lastActive = parseInt(sessionStorage.getItem(ACTIVE_KEY) || '0');
       var loginTs    = parseInt(sessionStorage.getItem(LOGIN_KEY)  || '0');
       var base = lastActive > 0 ? lastActive : loginTs;
@@ -1887,6 +1964,7 @@
       clearPerms();   // 기능 권한 캐시 + 다른 부서로 보기
       stopDesktopWatch();
       try { localStorage.removeItem(DESK_SESS_KEY); } catch(e) {}   // 데스크탑 앱 로그인 사본
+      try { localStorage.removeItem(KEEP_SESS_KEY); } catch(e) {}   // 설치 휴대폰 앱 로그인 사본
       _deskBadge(0);   // 데스크탑 앱 트레이 숫자 지움(앱 안에서만, 이미 0이면 안 보냄)
       pwaBadge(0);     // 휴대폰 앱 아이콘 숫자 지움
       _ssSet(DESK_UNLOCK_KEY, null);
@@ -2135,6 +2213,7 @@
       recheckFailAdd:    recheckFailAdd,
       recheckFailClear:  recheckFailClear,
       RECHECK_MAX_FAILS: RECHECK_MAX_FAILS,
+      _isClearFailure:   _isClearFailure,
     };
   })();
 
@@ -2540,6 +2619,7 @@
         global.addEventListener('sys-approvals', onAppr);
         loadApprovals(sbClient);
         startDesktopWatch(sbClient);   // 데스크탑 앱 안에서만(일반 브라우저는 아무것도 안 함)
+        startKeepLoginGuard(sbClient); // 설치 휴대폰 앱에서만: 로그인 유지 복원 검증 · 복귀 시 토큰 갱신
         pwaOnUser(sbClient, user);     // 휴대폰 앱: 알림 구독 확인 · 설치 안내 띠(직원 · 휴대폰만)
         return function() { global.removeEventListener('sys-approvals', onAppr); };
       }, [user ? user.id : null]);
@@ -3283,6 +3363,8 @@
     Pwa:              Pwa,
     openDesktopFiles: openDesktopFiles,
     startDesktopWatch: startDesktopWatch,
+    startKeepLoginGuard: startKeepLoginGuard,
+    keepLoginOn:      keepLoginOn,
     lockDesktopNow:    lockDesktopNow,
     PORTAL_PAGES:  PORTAL_PAGES,
     portalCanShow: portalCanShow,

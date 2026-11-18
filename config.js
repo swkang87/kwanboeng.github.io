@@ -49,6 +49,9 @@ var APP_CONFIG = {
   ADMIN_TEAM_NAME: '관리팀',          // 관리포털 접근 팀명
   SESSION_PREFIX:  'kwanbo',          // 스토리지 키 prefix
   AUTH_DOMAIN:     'kwanbo.internal', // 로그인 이메일 도메인
+  // 설치한 휴대폰 앱(안드로이드 APK/TWA·PWA 홈 화면 앱, standalone)에서만 직접 로그아웃 전까지 로그인 유지.
+  // PC·휴대폰 브라우저(설치 안 함)·데스크탑 앱(Tauri)에는 적용되지 않는다(2026-11-18). false = 설치 앱도 기존 정책.
+  APP_KEEP_LOGIN:  true,
 
   // ── 표시 라벨 (키 = DB 값, 화면 표시만 바꾼다) ─────────────────────
   // full = 필터 칩·입력 창 등 넓은 자리, short = 표 안의 좁은 배지. DB 값은 바꾸지 않는다.

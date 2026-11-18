@@ -94,6 +94,7 @@
   - 둘째 자리(2.**x**.0): 새 기능 · 새 화면 · 새 권한 키
   - 첫째 자리(**x**.0.0): 구조가 크게 바뀔 때만 — **승우 결정**(멈춤 조건)
 - **버전 기록** (버전 · 날짜 · 한 줄 요약, 새 것이 위)
+  - 2.14.0 · 2026-11-18 · 설치한 휴대폰 앱 로그인 유지(APP_KEEP_LOGIN) — 설치 앱(standalone/TWA)에서만 직접 로그아웃 전까지 유지(세션 사본 `_keep_session` localStorage, 1시간 비활동·만료 로그아웃 면제, 화면 복귀 시 토큰 갱신) · PC·휴대폰 브라우저·데스크탑 앱(Tauri)은 기존 정책 그대로 · 급여명세서 비밀번호 재확인 유지 · 비활성(관리자 초기화 must_change) 계정은 복원/복귀 때 로그인 화면으로
   - 2.13.0 · 2026-11-18 · 안드로이드 앱(TWA) APK — PWA 를 Bubblewrap 으로 감싼 내부 배포 APK(`com.kwanboeng.app` v1.0.0, versionCode 1, minSdk24·targetSdk36) · 서랍 「앱 설치」가 안드로이드에서 `PWA.INSTALL_PAGE`(app/) 로 감(앱 안은 standalone 이라 자동 숨김) · `.well-known/assetlinks.json` 지문 = APK 서명 인증서 · `app/app-release-signed.apk` · 서명키 저장소 밖 `.kbsys-android-keys`
   - 2.12.0 · 2026-11-16 · 휴대폰 달력 날짜 탭 → 그날 일정 시트 — 공통 바텀시트 `Sysbar.openDaySheet`(home·leave·project 달력, 휴대폰만, 화면은 데이터만 넘김, 닫기=바깥·✕·Esc·뒤로, `#탭` 유지) · PC 는 기존 상세 패널 그대로
   - 2.11.0 · 2026-11-16 · 휴대폰 앱(PWA) — 홈 화면 설치(manifest·아이콘·설치 안내: 서랍 「앱 설치」·내 정보·로그인 뒤 안내 띠) · 서비스워커 sw.js(화면 사본·오프라인 안내·새 버전 안내·비상 스위치) · 연차 결재 웹 푸시(push_subscriptions · 트리거 → Edge Function leave-push)
@@ -172,6 +173,15 @@
 ---
 
 ## ✅ 완료된 작업
+
+### 설치한 휴대폰 앱 로그인 유지 (2026-11-18, v2.14.0, sysbar.js `?v=2026111802`)
+- **설치한 휴대폰 앱(안드로이드 APK/TWA · PWA 홈 화면 앱, standalone)에서만** 직접 로그아웃 전까지 로그인을 유지한다. PC·휴대폰 브라우저(설치 안 함)·데스크탑 앱(Tauri)은 **기존 정책 그대로**.
+- **켜고 끄기 = `config.js` `APP_KEEP_LOGIN`**(기본 true). false 면 설치 앱도 브라우저와 같은 정책으로 즉시 복귀.
+- **판정은 sysbar.js 한 곳**: `keepLoginOn()` = `APP_KEEP_LOGIN` && **`!isDesktopApp()`**(Tauri 제외) && `isInstalledApp()`(`isStandalone()` 또는 TWA = referrer `android-app://`). 데스크탑 앱에는 **절대 적용 안 됨**.
+- **원리(데스크탑 앱 로그인 유지와 같은 방식 일반화)**: 프로필 캐시는 sessionStorage 라 앱을 닫으면 사라진다 → 설치 앱에선 localStorage 사본 **`SESSION_PREFIX + '_keep_session'`** 에 미러(pagehide·visibilitychange hidden)하고, 이 파일이 불릴 때 sessionStorage 가 비었으면 사본으로 복원한다. 데스크탑은 `_desk_session`, 설치 앱은 `_keep_session` — `_mirrorWanted()`/`_mirrorKey()` 로 한 경로. 미러 대상 세션키는 `SESSION_KEY` 하나.
+- **유휴·만료 로그아웃 면제**: `SessionManager._startWatching`·`_isExpired` 가 `keepLoginOn()` 이면 데스크탑 앱과 똑같이 1시간 비활동·만료 로그아웃을 하지 않는다.
+- **복원 검증·토큰 갱신 = `startKeepLoginGuard(sbClient)`**(SysBar 마운트에서 `startDesktopWatch` 옆). ① 사본으로 복원해 열었으면 `get_my_profile` 재조회(`_keepVerify`)로 **비활성(관리자 초기화 `must_change_pw`/`must_change_id`)·사라진 계정**을 걸러 로그인 화면으로 보낸다(퇴사 `leave_date` 는 화면이 기존대로 급여명세서로 보냄). ② 화면이 다시 보일 때 `refreshSession()` → **네트워크 실패면 로그아웃하지 않고 다음 기회에 재시도**, refresh token 무효면 로그인 화면, 성공하면 다시 검증. **DB·Edge Function 변경 없음**(`get_my_profile` 은 첫 로그인 강제변경 흐름이 같이 써서 건드리지 않음).
+- **그대로인 것**: 급여명세서 비밀번호 재확인(설치 앱에서도 필수), 서랍 맨 아래 직접 로그아웃(로그아웃해도 알림 구독 유지), 데스크탑 앱 시작 잠금. ⚠️ 관리자 초기화(`reset-user-login`)는 기존 refresh token 을 서버에서 revoke 하지 않음 — 즉시 강제 끊기는 아직 없다(Edge Function 에 `admin.auth.admin.signOut(auth_id,'global')` 한 줄이면 가능, 지시로 조사만·미구현). 자세한 건 저장소 밖 `security-fix\report_keeplogin.md`.
 
 ### 휴대폰 달력 날짜 탭 → 그날 일정 시트 (2026-11-16, v2.12.0, sysbar.js `?v=2026111604`)
 - **공통 바텀시트는 sysbar.js `Sysbar.openDaySheet({title, sub, items, empty})` 한 곳**(바닐라 DOM, 휴대폰만). 화면은 **데이터만** 넘긴다 —
