@@ -349,13 +349,13 @@
 - 한글 잠금 = 열기 직전 + 파일 하나를 골랐을 때 그 파일만(목록에서는 안 봄, 승우 결정). `hwpLock.pollSeconds` 기본 0, `maxFiles` 30(켜면 보이는 줄만).
   압축하기(예전 보내기용 압축) = 보내기용/보관용(압축 강도) + 암호(AES-256 기본 / ZipCrypto, 영문·숫자·기호 4~128자, 저장 안 함). 7z 풀기 = sevenz-rust2 0.25.0(Apache-2.0), ALZ·EGG 보류.
   도구 막대 = 복사·잘라내기·붙여넣기·삭제 단추 뺌, 좁으면 아이콘만 → 「⋯」(`files.toolbar`). 폴더별 정렬·큰 아이콘·날짜별 묶기 기억(최대 3000, `files.sortDefaults` — 다운로드·카카오톡 받은 파일 = 날짜 ↓).
-  상세 = desktop-app README 「1.4.6」, 보고서 = 저장소 밖 `security-fixeport_desktop.md` 「6단계」.
+  상세 = desktop-app README 「1.4.6」, 보고서 = 저장소 밖 `security-fix\report_desktop.md` 「6단계」.
 - 웹 쪽은 `desktop/1.4.6/` · `desktop/latest.json` 만(npm run release). 백업 `backup/CLAUDE_20261124_6.md`.
 
 ### 데스크탑 앱 1.4.5 — 탐색기(시험판) 한글(HWP) 잠금 표시 (2026-11-24, 웹 코드 변경 없음)
 - 한글은 잠금 파일을 만들지 않는다(견본으로 확인) → 문서가 쓰기 권한으로 열려 있는지 공유 모드로 잠깐 열어 보아 판정(NAS·SMB 도 동작). 소유자를 몰라 「누군가가 한글로 열고 있음」.
   설정 `files.tools.hwpLock { pollSeconds(20), maxFiles(300) }` — 폴더 감시로는 몰라 화면이 주기적으로·열기 직전에 다시 확인. 한글에 「읽기 전용으로 열기」 명령이 없어 %TEMP% 읽기 전용 사본.
-  상세 = desktop-app README 「1.4.5」, 보고서 = 저장소 밖 `security-fixeport_desktop.md` 「5단계」(V3 랜섬웨어 행위 탐지 직접 증거 · 실제 앱 기능 위험도 포함).
+  상세 = desktop-app README 「1.4.5」, 보고서 = 저장소 밖 `security-fix\report_desktop.md` 「5단계」(V3 랜섬웨어 행위 탐지 직접 증거 · 실제 앱 기능 위험도 포함).
 - 웹 쪽은 `desktop/1.4.5/` · `desktop/latest.json` 만(npm run release). 백업 `backup/CLAUDE_20261124_5.md`.
 
 ### 데스크탑 앱 1.4.4 — 탐색기(시험판) 후속 정리: NAS 시스템 공유 숨김 · 썸네일 흔적 줄이기 · 날짜 붙여 복사 임시 이름 (2026-11-24, 웹 코드 변경 없음)
