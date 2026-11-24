@@ -1,11 +1,11 @@
 {
-  "version": "1.4.3",
-  "notes": "탐색기(시험판) 도구 3단계: Office 잠금 표시 · 압축 풀기 · 보내기용 압축 · 두 폴더 비교",
-  "pub_date": "2026-11-24T03:02:44Z",
+  "version": "1.4.4",
+  "notes": "탐색기(시험판) 후속 정리: NAS 시스템 공유 숨김 · 썸네일 흔적 줄이기 · 날짜 붙여 복사 안전하게",
+  "pub_date": "2026-11-24T06:15:37Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDVPemVYMEltUmxaRzFodzlOMU9QVWhhaCtLblBoVGN0T0xpMEZyY3dwSUpXRkZyVWd4bnlsZ2pUZG5CK1U4bTU1NzMzc0NDRWRKZjJjcHh4b1hyakFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NDg5MzYzCWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjQuM194NjQtc2V0dXAuZXhlCXZlcnNpb246MS40LjMKa2JvdkkyYmRPMFZBbWQwVm80Uk5PeFQxR1AzN1hhOTkxR2c5c1RRenVJemM3a2N2bVdZTWpsTmc3clQybWdMcE9KQXR1L2Vyei91Yzc4dEpCNDdTQnc9PQo=",
-      "url": "https://kwanboeng.com/desktop/1.4.3/kbsys-desktop_1.4.3_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNCtjNDJITTY2MzVXd2x3b2dmKzk4NzlaRWJVUEhKcnBLSnQrQXdYZm5JanIrYVllWDVOUHIzSHJ0dm5VdTU0YitSMVJkV0RDRVlWSXE3cEhvQ2tqUnc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTAwOTM2CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjQuNF94NjQtc2V0dXAuZXhlCXZlcnNpb246MS40LjQKbkhjdEVEV09WSDV6MlNFdXNYZEcrZ2xtS3M4QlM4endNNWtXemVzSTR0QmNSak54aDRrUVlaVGZpNzh6bEN3V2UzZ055SU9xZ3FzNU5RcW12amNCQmc9PQo=",
+      "url": "https://kwanboeng.com/desktop/1.4.4/kbsys-desktop_1.4.4_x64-setup.exe"
     }
   }
 }
