@@ -1,11 +1,11 @@
 {
-  "version": "1.4.2",
-  "notes": "탐색기(시험판): 미리 보기 창 · 큰 아이콘 썸네일 · 이름 일괄 바꾸기 · 날짜 붙여 복사",
-  "pub_date": "2026-11-24T01:30:29Z",
+  "version": "1.4.3",
+  "notes": "탐색기(시험판) 도구 3단계: Office 잠금 표시 · 압축 풀기 · 보내기용 압축 · 두 폴더 비교",
+  "pub_date": "2026-11-24T03:02:44Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDRuVFVZeEpxYTlFUmJQT0JaelZZSHpQb0NOelI5SDNIUG9GRE5jOG4rUWpteU8rcVFXNjYxbEVGNi9uSE53emQ0TFZUaTY4S3paRUpudFcwSXNma2dnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NDgzODI5CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjQuMl94NjQtc2V0dXAuZXhlCXZlcnNpb246MS40LjIKdGlESlo1YXcrQlpzenlGekI3NGc4aEtPZDNWeVpyM1IvalpLWDZSS3ZpY0FYUUNuRjBYZGh2aEdiZ0Q5VjlvbkkrZFZoREVreGVBN2ltUTQ0RCtCQXc9PQo=",
-      "url": "https://kwanboeng.com/desktop/1.4.2/kbsys-desktop_1.4.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDVPemVYMEltUmxaRzFodzlOMU9QVWhhaCtLblBoVGN0T0xpMEZyY3dwSUpXRkZyVWd4bnlsZ2pUZG5CK1U4bTU1NzMzc0NDRWRKZjJjcHh4b1hyakFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NDg5MzYzCWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjQuM194NjQtc2V0dXAuZXhlCXZlcnNpb246MS40LjMKa2JvdkkyYmRPMFZBbWQwVm80Uk5PeFQxR1AzN1hhOTkxR2c5c1RRenVJemM3a2N2bVdZTWpsTmc3clQybWdMcE9KQXR1L2Vyei91Yzc4dEpCNDdTQnc9PQo=",
+      "url": "https://kwanboeng.com/desktop/1.4.3/kbsys-desktop_1.4.3_x64-setup.exe"
     }
   }
 }
