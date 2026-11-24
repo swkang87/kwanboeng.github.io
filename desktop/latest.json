@@ -1,11 +1,11 @@
 {
-  "version": "1.4.4",
-  "notes": "탐색기(시험판) 후속 정리: NAS 시스템 공유 숨김 · 썸네일 흔적 줄이기 · 날짜 붙여 복사 안전하게",
-  "pub_date": "2026-11-24T06:15:37Z",
+  "version": "1.4.5",
+  "notes": "탐색기(시험판): 한글(HWP) 문서를 누가 열고 있으면 자물쇠 표시",
+  "pub_date": "2026-11-24T07:46:23Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNCtjNDJITTY2MzVXd2x3b2dmKzk4NzlaRWJVUEhKcnBLSnQrQXdYZm5JanIrYVllWDVOUHIzSHJ0dm5VdTU0YitSMVJkV0RDRVlWSXE3cEhvQ2tqUnc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTAwOTM2CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjQuNF94NjQtc2V0dXAuZXhlCXZlcnNpb246MS40LjQKbkhjdEVEV09WSDV6MlNFdXNYZEcrZ2xtS3M4QlM4endNNWtXemVzSTR0QmNSak54aDRrUVlaVGZpNzh6bEN3V2UzZ055SU9xZ3FzNU5RcW12amNCQmc9PQo=",
-      "url": "https://kwanboeng.com/desktop/1.4.4/kbsys-desktop_1.4.4_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDM3SnMzcmlROGxBN0VJeGtrWE1aUndKQUFUOFpLbzc3YlpvMTNWdGVCLzhaK2hYa05rd29GcklQcWVYQU1nWVYxVmFZa3Jyd0g4dDhsT2FaanRrQWdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTA2MzgyCWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjQuNV94NjQtc2V0dXAuZXhlCXZlcnNpb246MS40LjUKMzJTNVRVTmNlSXpmOFFaY3FzUENpNU9rR21NQ29HQVdxUmFDdUFkV1AvYytvKy9MeE01K2RXeUxDbENRYm91b0xBaHRTTjYva09OWXdDWDBEZWU4Qnc9PQo=",
+      "url": "https://kwanboeng.com/desktop/1.4.5/kbsys-desktop_1.4.5_x64-setup.exe"
     }
   }
 }
