@@ -1,11 +1,11 @@
 {
-  "version": "1.4.6",
-  "notes": "탐색기(시험판): 한글 확인은 열 때만 · 압축하기(암호) · 7z 풀기 · 도구 막대 정리 · 폴더별 보기 기억",
-  "pub_date": "2026-11-24T09:35:11Z",
+  "version": "1.4.7",
+  "notes": "탐색기(시험판): 새로 만들기 · 설정 백업/내보내기/가져오기 · NAS 주소로 경로 복사(Ctrl+Alt+C) · 도움말(F1) · 긴 경로 등 안정성 정리",
+  "pub_date": "2026-11-24T23:36:35Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDBtSHJvWDY3eGlqQytZOC8rWXBFL0h4UWZnVXh4OHdWdjg3d3B6bDlncmxmdUt3VG5ibXUyOTBvUzlTdEM4U2NMbVhoMEV1NjV1RXQ3L2pqdWZtM1FvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTEyOTEwCWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjQuNl94NjQtc2V0dXAuZXhlCXZlcnNpb246MS40LjYKUG1jWmczNlRENFgzNFFCNHkxTVQ5TUdxd3lzWW0wcDZ1SnZJTFAyQkxJSDFNOFdmT2l2T3VobXNlTWVFYTBnc0lXc1AvNFovWlNxaXkvWGtzeGFPRHc9PQo=",
-      "url": "https://kwanboeng.com/desktop/1.4.6/kbsys-desktop_1.4.6_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDNGNmNQc0RQeExZUTBsY2hFOXFycStEeEFUWDJjY0wzeXFXemlON0Urc3FrczJqZ0hPdkxjbzN4WGFDbURlNmlPMnpCQ0xPZEpWN0NLdUJOUUl4RkFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTYzMzk1CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjQuN194NjQtc2V0dXAuZXhlCXZlcnNpb246MS40LjcKMHZXbVBvbVMyOWwxcjJUSjhCLy96VjZRSVFWZ2oveThZcUNXVGQxaFlCMUxWUXBFTGRGZFhNcURldU5RTGE4WW1lWHdiY2lBdHZBN0V2OG5lNmpuQnc9PQo=",
+      "url": "https://kwanboeng.com/desktop/1.4.7/kbsys-desktop_1.4.7_x64-setup.exe"
     }
   }
 }
