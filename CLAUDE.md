@@ -221,7 +221,7 @@
   보내기 = 트리거 `leave_requests_push`(결재 대기 상태가 될 때: pending · manager_approved · cancel_pending) → pg_net → Edge Function `leave-push`(verify_jwt false, Vault 토큰 확인).
   알림 내용 = 제목 · 이름 · 종류 · 날짜만(사유 없음), 누르면 `leave.html#team_approve` / `#admin_approve`(열린 창이 있으면 그 창). 410·404 구독은 함수가 지운다. 앱 아이콘 숫자 = 결재 대기 수(지원 기기만).
   **VAPID 비밀키는 Vault(`push_vapid_private`)에만** 있다(공개키만 config.js). 키를 바꾸면 모든 직원이 알림을 다시 켜야 한다.
-  DB 산출물은 저장소 밖 `security-fixu~168_pwa_push_*`, 보고서 `security-fixeport_pwa.md`. 백업 `backup/*_20261116_pwa.*`.
+  DB 산출물은 저장소 밖 `security-fix\165~168_pwa_push_*`, 보고서 `security-fix\report_pwa.md`. 백업 `backup/*_20261116_pwa.*`.
 
 ### 휴대폰 화면 버전2 — 서랍 메뉴 + 공통 휴대폰 규칙 (2026-11-16, v2.10.0 · v2.10.1, sysbar.js `?v=2026111602`)
 - **휴대폰 기준 폭은 `MOBILE_MAX_WIDTH`(768) 하나**: sysbar.js 가 `matchMedia('(max-width:768px)')` 로 `html.sys-m` 클래스를 붙인다. 화면 CSS 는 `html.sys-m …` 으로 쓰고,
@@ -252,7 +252,7 @@
   빈 줄의 줄 간격을 바꿀 때는 줄 정보(linesegarray)를 지우지 않고 spacing 만 새 값으로(엔진이 빈 줄 높이를 이 값으로 셈 — 지우면 기본값으로 세어 넘침 판정이 틀린다).
 - doc-defs: squeeze `cap` 999(미리 줄이지 않음, 하한 minH·fitMinH 그대로), slack 명단 19330 · 보안각서 8441 · 인력 5607(여백 기준 높이일 때 잰 여유 − 150). 다른 쪽 slack 그대로.
 - 검증(이 PC 한글): 일반 사업책임 + 참여 1·2·4·6·8·10, 측량 단독 1·3·6, 긴 용역명 + 6 = 10벌 모두 8쪽, 표 ↔ 날짜 ≥ 8.0mm, 귀하 같은 쪽, 표 줄 글자 높이 차 0mm.
-  공문~자격증 사본 쪽은 수정 전 엔진·서식과 PDF 픽셀까지 같음. 보고서 저장소 밖 `security-fix\report_latest.md`. **새 서식은 화면 「서식 올리기」로 올려야 만들기가 열린다**(`docs-work\올릴서식\chaksu.hwpx`, 예전 = `docs-work	emplates\chaksu_2.8.2.hwpx`). 백업 `backup/*_20261113.*`.
+  공문~자격증 사본 쪽은 수정 전 엔진·서식과 PDF 픽셀까지 같음. 보고서 저장소 밖 `security-fix\report_latest.md`. **새 서식은 화면 「서식 올리기」로 올려야 만들기가 열린다**(`docs-work\올릴서식\chaksu.hwpx`, 예전 = `docs-work\templates\chaksu_2.8.2.hwpx`). 백업 `backup/*_20261113.*`.
 
 ### 업무관리 → 서류작성 「공문」 (2026-11-13, v2.9.0 · v2.9.1, sysbar.js `?v=2026111302`)
 - **우리 회사 전용(화이트라벨 아님)** — config.js 에 넣지 않는다. 회사 고정값(이름·주소·전화·전송·메일·문서번호 접두어 「관보」·결재 부서 목록)·A4 배치는
@@ -341,14 +341,14 @@
 ### 데스크탑 앱 1.4.2 — 탐색기(시험판) 도구 묶음 2단계: 미리 보기 · 큰 아이콘 · 이름 일괄 바꾸기 · 날짜 붙여 복사 (2026-11-24, 웹 코드 변경 없음)
 - 미리 보기 창(Alt+P, 너비 기억) = PDF 쪽 넘기기·확대 · 그림 EXIF 방향 · 글 UTF-8/CP949 자동 · 그 밖 정보만, 큰 파일(100MB)·NAS 파일(20MB)은 단추. 큰 아이콘(창마다 ▦ · Ctrl+Shift+2/6) = PDF 첫 쪽·사진 썸네일,
   앱 캐시 폴더(경로+크기+수정 시각, 500MB 넘으면 오래된 것부터). 이름 일괄 바꾸기(여러 개 F2) = 찾아 바꾸기(정규식)·앞뒤·번호·날짜(수정/EXIF), 확장자 지킴, 겹침·못 쓰는 글자·긴 경로는 빨강 + 실행 막음, 마지막 실행 되돌리기.
-  날짜 붙여 복사 = **Ctrl+Shift+D**(새 단축키) `파일명_YYYYMMDD`(있으면 `_2`). 설정 `files.tools` 에 datedCopy · batchRename · preview · thumbs. 상세 = desktop-app README 「1.4.2」, 보고서 = 저장소 밖 `security-fixeport_desktop.md`.
+  날짜 붙여 복사 = **Ctrl+Shift+D**(새 단축키) `파일명_YYYYMMDD`(있으면 `_2`). 설정 `files.tools` 에 datedCopy · batchRename · preview · thumbs. 상세 = desktop-app README 「1.4.2」, 보고서 = 저장소 밖 `security-fix\report_desktop.md`.
 - 웹 쪽은 `desktop/1.4.2/` · `desktop/latest.json` 만(npm run release). 백업 `backup/CLAUDE_20261124_2.md`.
 
 ### 데스크탑 앱 1.4.1 — 탐색기(시험판) 도구 묶음 1단계: PDF 도구 + 사진 줄이기 (2026-11-24, 웹 코드 변경 없음)
 - 작업지시서 단계 번호 1.3.8/1.3.9/1.4.0 은 앱이 이미 1.4.0 이라 **1.4.1 / 1.4.2 / 1.4.3** 으로 진행.
 - 진입 = 우클릭 맨 위 회사 구역(고른 종류에 맞는 기능만) · 도구 막대 「도구 ▾」(못 쓰면 흐리게 + 이유). 기능 = PDF→JPG · 이미지→PDF · 합치기(책갈피) · 나누기/쪽 뽑기 · 회전 · 워터마크 · 사진 줄이기.
   결과는 원본 옆, 덮어쓰지 않음(「이름 (2)」), 백그라운드 + 진행·취소. PDF 엔진 = PDFium(pdfium.dll, 없으면 PDF 기능만 흐리게). 설정 = desktop-app `app.config.json files.tools`.
-  상세 = desktop-app README 「도구 묶음」, 보고서 = 저장소 밖 `security-fixeport_desktop.md`. 설치 파일 3.3MB → 7.2MB.
+  상세 = desktop-app README 「도구 묶음」, 보고서 = 저장소 밖 `security-fix\report_desktop.md`. 설치 파일 3.3MB → 7.2MB.
 - 웹 쪽은 `desktop/1.4.1/` · `desktop/latest.json` 만(npm run release). 백업 `backup/CLAUDE_20261124.md`.
 
 ### 데스크탑 앱 1.3.7 — 탐색기(시험판) 주소창 편집 (2026-11-12, 웹 코드 변경 없음)
@@ -429,7 +429,7 @@
 - **트레이 숫자**: 웹이 `loadApprovals` 성공 때 total 을 `desk_badge(n)` 로(값이 바뀔 때만, sessionStorage `'_desk_badge'`), 로그아웃(`clearSession`) = 0. 앱 명령은 이제 `desk_config`·`desk_notify`·`desk_badge` 셋.
   Rust(`src-tauri/src/badge.rs`)가 아이콘 오른쪽 위 원 + 숫자(10 이상 9+)를 그려 트레이 아이콘·툴팁(「앱이름 — 결재 대기 N건」)·작업표시줄 겹침 그림을 바꾼다. 색·글꼴 = `desktop-app\app.config.json` `badge`.
 - **급여명세서 본인 확인 = 계정 비밀번호 재입력**(생년월일 6자리 대체, 브라우저·앱 공통, 2026-11-03 승우 결정). 유지 범위는 예전과 같다(화면을 열 때마다, 화면 안에서는 `SLIP_VERIFY_UNLOCK_MINUTES`).
-  DB(저장소 밖 `security-fixl~157_payslip_pw_*`, 저장소 사본 `supabase/sql/payslip_pw_recheck.sql`): `payslip_verify_pw(p_token)` = JWT `amr` 의 password 시각이 120초 안인 세션만 이 창 토큰을 통과(클라이언트 값 아님),
+  DB(저장소 밖 `security-fix\154~157_payslip_pw_*`, 저장소 사본 `supabase/sql/payslip_pw_recheck.sql`): `payslip_verify_pw(p_token)` = JWT `amr` 의 password 시각이 120초 안인 세션만 이 창 토큰을 통과(클라이언트 값 아님),
   `payslip_pw_fail(p_count)` = 틀림 기록(`payslip_verify_logs` 'fail', 'n/5 비밀번호'). **`payslip_verify`(생년월일) 실행 권한은 authenticated 에서 회수**(함수는 남김 — 정리 후보).
   급여 열람 기록(`self_slip_view`)은 그대로. config `SLIP_VERIFY_MAX_FAILS`·`LOCK_MINUTES` 와 관리 화면 잠금 해제 표는 예전 생년월일용(정리 후보, 삭제 안 함).
 - 앱 저장소 밖 `desktop-app` 버전 1.1.0. 백업 `backup/*_20261103.*`.
