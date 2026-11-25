@@ -1,11 +1,11 @@
 {
-  "version": "1.4.7",
-  "notes": "탐색기(시험판): 새로 만들기 · 설정 백업/내보내기/가져오기 · NAS 주소로 경로 복사(Ctrl+Alt+C) · 도움말(F1) · 긴 경로 등 안정성 정리",
-  "pub_date": "2026-11-24T23:36:35Z",
+  "version": "1.4.8",
+  "notes": "이름 「관보ERP」 · 탐색기(시험판)·Q-Dir 연결 삭제 · 「파일」 = ND갈피 실행",
+  "pub_date": "2026-11-25T01:36:11Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDNGNmNQc0RQeExZUTBsY2hFOXFycStEeEFUWDJjY0wzeXFXemlON0Urc3FrczJqZ0hPdkxjbzN4WGFDbURlNmlPMnpCQ0xPZEpWN0NLdUJOUUl4RkFNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTYzMzk1CWZpbGU66rSA67O07KKF7ZWp6riw7Iig64uoIOyihe2VqeygleuztOyLnOyKpO2FnF8xLjQuN194NjQtc2V0dXAuZXhlCXZlcnNpb246MS40LjcKMHZXbVBvbVMyOWwxcjJUSjhCLy96VjZRSVFWZ2oveThZcUNXVGQxaFlCMUxWUXBFTGRGZFhNcURldU5RTGE4WW1lWHdiY2lBdHZBN0V2OG5lNmpuQnc9PQo=",
-      "url": "https://kwanboeng.com/desktop/1.4.7/kbsys-desktop_1.4.7_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDQwaHd2QS9PS25GQ1RVYVZFTXgrbXZnem5rVi9GenNGMHEwOU5rRjZZRFZBbVkzNFkzTGJVa1B0Q2ZFU0Zxc0FHTTZNQ1BYc0xtQlpaNGNxTUpVYWc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTcwNTcxCWZpbGU66rSA67O0RVJQXzEuNC44X3g2NC1zZXR1cC5leGUJdmVyc2lvbjoxLjQuOApkOEQ0Wm5XL3p2Tk5KUW5JZndtWWpvbUw2YmdRZXkrbkpIalFRWHM2enhXdTNCeUZTL01aTGpEeW1OQnRVbUcxOWRtUUZpbUFKaGI1OUJwNlJzcXhCUT09Cg==",
+      "url": "https://kwanboeng.com/desktop/1.4.8/kbsys-desktop_1.4.8_x64-setup.exe"
     }
   }
 }

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>데스크탑 앱 내려받기</title>
-<!-- 직원용 데스크탑 앱 설치 파일 안내(2026-11-03, 앱 1.2.0~ · 2026-11-09 1.3.0: 「파일」 = Q-Dir, Synology Drive Client 안내 삭제). 설치 파일·업데이트 정보(latest.json)는 이 폴더에 있다.
+<!-- 직원용 데스크탑 앱 설치 파일 안내(2026-11-03, 앱 1.2.0~ · 2026-11-09 1.3.0: 「파일」 = Q-Dir · 2026-11-25 1.4.8: 이름 「관보ERP」, 「파일」 = ND갈피). 설치 파일·업데이트 정보(latest.json)는 이 폴더에 있다.
      latest.json · <버전>/ 은 desktop-app 의 `npm run release` 가 만든다(손으로 고치지 말 것 — 서명이 깨지면 업데이트가 거부된다). -->
 <script src="../config.js"></script>
 <style>
@@ -34,31 +34,30 @@
     <ol>
       <li>위 단추로 설치 파일을 받아 실행합니다(관리자 권한 필요 없음).</li>
       <li>「Windows의 PC 보호」 창이 뜨면 <b>추가 정보 → 실행</b>을 누릅니다(회사 내부 앱이라 서명 인증서가 없어 뜨는 안내입니다).</li>
-      <li>설치가 끝나면 앱이 열립니다. 종합정보시스템 아이디·비밀번호로 로그인합니다.</li>
+      <li>설치가 끝나면 앱(바탕 화면·시작 메뉴 <b class="appname">ERP</b>)이 열립니다. 종합정보시스템 아이디·비밀번호로 로그인합니다. 예전 이름(「<span class="oldname">종합정보시스템</span>」)으로 깔려 있던 PC 는 업데이트하면 이름·바로가기가 바뀌고 로그인은 그대로입니다.</li>
       <li>이후 새 버전은 앱이 알아서 받아 두고 알려 줍니다. 트레이(시계 옆) 아이콘 메뉴 <b>업데이트 후 다시 시작</b>을 누르면 적용됩니다.</li>
     </ol>
   </div>
 
-  <h2 id="qdir">「파일」을 쓰려면 — Q-Dir 설치(이미 쓰는 사람은 그대로)</h2>
+  <h2 id="files">「파일」을 쓰려면 — ND갈피 설치</h2>
   <div class="card">
-    <div>앱 왼쪽 메뉴·트레이 메뉴의 <b>파일</b>을 누르면 PC 의 <b>Q-Dir</b>(창 4개 탐색기)이 회사 기본 배치로 열립니다.
-      NAS 파일은 지금처럼 <b>Z 드라이브</b>(네트워크 드라이브)에서 열고·고치고·저장합니다.</div>
+    <div>앱 왼쪽 메뉴·트레이 메뉴의 <b>파일</b>을 누르면 파일 탐색기 <b>ND갈피</b>가 열립니다(1.4.8~ · 예전 Q-Dir 연결과 「탐색기(시험판)」은 없어졌습니다).</div>
     <ol>
-      <li><b>이미 Q-Dir 을 쓰고 있으면 할 일이 없습니다.</b> 앱이 설치 위치를 알아서 찾습니다.</li>
-      <li>Q-Dir 이 없으면 <a href="https://www.softwareok.com/?seite=Freeware/Q-Dir" target="_blank" rel="noopener">Q-Dir 공식 페이지(SoftwareOK)</a>에서
-        <b>Q-Dir_Installer</b> 를 받아 설치합니다(무료, 관리자 권한 없이 사용자 폴더에 설치됨).</li>
-      <li>앱의 <b>파일</b>을 누릅니다. 이미 Q-Dir 창이 열려 있으면 새로 열지 않고 그 창을 앞으로 가져옵니다.</li>
-      <li>「Q-Dir 이 설치되어 있지 않습니다」 창이 뜨면 설치한 뒤 <b>다시 확인</b>을 누르거나, 다른 곳에 있다면 <b>직접 찾기</b>로 <code>Q-Dir.exe</code> 를 고릅니다.</li>
+      <li><a href="../galpi/">ND갈피 내려받기</a>에서 설치합니다(관리자 권한 필요 없음).</li>
+      <li>같은 PC 에서 「탐색기(시험판)」을 쓰던 사람은 ND갈피를 처음 켤 때 즐겨찾기·탭·창 배치가 그대로 들어옵니다.</li>
+      <li>ND갈피가 없으면 <b>파일</b>을 눌렀을 때 「ND갈피가 설치돼 있지 않아요」 창이 뜹니다 — <b>설치 페이지 열기</b>를 누르세요.</li>
     </ol>
-    <div class="mu">Z 드라이브가 안 보이면 관리자에게 문의하세요. 앱 설정(트레이 아이콘 오른쪽 클릭 → <b>설정</b>)에서 Q-Dir 위치·배치 파일을 바꿀 수 있습니다.</div>
+    <div class="mu">Q-Dir 은 앱이 건드리지 않습니다. 계속 쓰거나, 필요 없으면 직접 지우면 됩니다. Z 드라이브가 안 보이면 관리자에게 문의하세요.</div>
   </div>
 </main>
 <script>
 (function () {
   var c = window.APP_CONFIG || {};
-  var name = (c.COMPANY_SHORT || c.COMPANY_KO || '') + ' 종합정보시스템';
+  var name = c.DESKTOP_APP_NAME || ((c.COMPANY_SHORT || '') + ' 데스크탑 앱');   // 1.4.8~ 앱 이름(config.js DESKTOP_APP_NAME)
   document.getElementById('title').textContent = name + ' 데스크탑 앱';
   document.title = name + ' 데스크탑 앱 내려받기';
+  [].forEach.call(document.querySelectorAll('.appname'), function (e) { e.textContent = name; });
+  [].forEach.call(document.querySelectorAll('.oldname'), function (e) { e.textContent = (c.COMPANY_SHORT || '') + ' 종합정보시스템'; });
   fetch('latest.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
     var p = j.platforms && j.platforms['windows-x86_64'];
     if (!p || !p.url) throw new Error('no url');

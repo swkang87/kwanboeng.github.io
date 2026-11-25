@@ -19,6 +19,7 @@ var APP_CONFIG = {
   COMPANY_KO_EM:  '관보종합기술단',    // em태그 강조 없는 버전
   COMPANY_EN:     'KWANBO ENGINEERING CO., LTD.',
   COMPANY_SHORT:  '관보종합기술단',    // 짧은 이름 (시스템 헤더 등)
+  DESKTOP_APP_NAME: '관보ERP',        // 데스크탑 앱 이름(desktop-app app.config.json appName 과 같게, 2026-11-25 1.4.8~) — desktop/ 안내 페이지가 씀
   COMPANY_BIZ_NO: '604-81-29017',     // 사업자등록번호 (세금계산서 매입/매출 판별용)
   CEO_NAMES:      ['강호갑', '이수금'], // 대표이사 (공동대표면 여러 명, 1인 회사는 1명만)
   LOGO_URL:       'logo.png',
@@ -250,7 +251,7 @@ var APP_CONFIG = {
   PWA: {
     ENABLED:          true,        // false = 설치 안내·알림 켜기를 보이지 않는다(서비스워커는 SW_ENABLED 로 따로)
     SW_ENABLED:       true,        // 비상 스위치 — false 로 배포하면 모든 기기에서 서비스워커가 스스로 해제되고 저장분도 지운다
-    NAME:             '관보종합기술단 종합정보시스템',   // 데스크탑 앱 이름과 같게(desktop-app app.config.json appName)
+    NAME:             '관보종합기술단 종합정보시스템',   // 휴대폰 앱 이름(2026-11-25 데스크탑 앱은 「관보ERP」 로 바뀜 — 휴대폰 앱 이름은 그대로 둠)
     SHORT_NAME:       '관보종합기술단',                 // 홈 화면 아이콘 아래 이름
     THEME_COLOR:      '',          // 비우면 COLOR_PRIMARY (휴대폰 상단 막대 색과 같음)
     BACKGROUND_COLOR: '#ffffff',   // 앱을 열 때 잠깐 보이는 바탕색

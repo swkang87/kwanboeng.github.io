@@ -338,6 +338,17 @@
 - 글꼴은 나눔고딕 고정(표지 글꼴 선택 숨김). PC(맑은 고딕·FreeType 2.13)와 글자 테두리 픽셀만 조금 다르다(사진·배치·쪽수·슬라이드 수는 같음).
 - 화이트라벨 한계: 엔진 안 PPTX 작성자·State 기본 발주처는 엔진 값 그대로(엔진 무수정 원칙) — 화면 기본값은 config 로 덮는다. 백업 `backup/*_20261109*`.
 
+### ND갈피 1.0 분리 + 관보ERP 1.4.8 (2026-11-25, 웹 = galpi/ 신설 · desktop/ 안내 · config.js DESKTOP_APP_NAME)
+- **탐색기(시험판) → 별도 프로그램 「ND갈피」**(개발 나든기술, 무료 배포, 식별자 `com.nadntech.galpi`, `ndgalpi.exe`). 같은 저장소 desktop-app 의 Cargo 작업 공간:
+  `explorer/`(탐색기 라이브러리 nd-explorer + 화면) · `galpi-tauri/`(ND갈피) · `src-tauri/`(관보ERP). 설명 = desktop-app README · `explorer/README.md`.
+- **배포 위치 = 이 저장소 `galpi/`**(`https://kwanboeng.com/galpi/`, noindex · robots · site-profile privatePaths). `galpi/latest.json` · `galpi/<버전>/` 은 `npm run release:galpi` 가 만든다 — 손으로 고치지 말 것.
+  서명키는 저장소 밖 `C:\Users\kwanb\.ndgalpi-keys\`(관보ERP 키와 다름). 주소를 나든기술 쪽으로 옮기는 순서 = `explorer/README.md` 「ND갈피 주소 옮기기」.
+- **관보ERP 1.4.8**: 앱 이름 「관보ERP」(식별자·앱 데이터·업데이트 주소·서명키 그대로 = 로그인 유지), 탐색기·도구·pdfium·글꼴·Q-Dir 연동·앱 설정 창 삭제(설치 파일 7.7MB → 3.1MB).
+  「파일」(웹 `desk_open_files` 그대로) = ND갈피 실행(설치 정보 → 기본 위치, 없으면 설치 안내). 켤 때마다 ND갈피 조직 설정 파일(`%APPDATA%\com.nadntech.galpi\org.json`)을
+  app.config.json `files` 로 맞춰 쓴다(ND갈피는 다음에 켤 때 읽음). 예전 이름의 바로가기·설치 폴더·설치 정보는 설치 프로그램 hook, 자동 실행 등록은 앱이 옮긴다(`legacy.productNames`).
+  **Q-Dir 프로그램·Q-Dir.ini·.qdr 은 건드리지 않는다.** 웹 `desktop/index.html` 이름 표시는 config.js `DESKTOP_APP_NAME`(휴대폰 앱 이름 `PWA.NAME` 은 그대로).
+- 보고서 = 저장소 밖 `security-fix\report_desktop.md` 「9단계」. 백업 `backup/CLAUDE_20261125_2.md` · `backup/config_20261125.js` · 저장소 밖 `kbsys\backup\desktop_1.4.7\`.
+
 ### 데스크탑 앱 1.4.7 — 탐색기(시험판) 새로 만들기 · 설정 백업 · NAS 주소로 경로 복사 · 도움말 (2026-11-25, 웹 코드 변경 없음)
 - 새로 만들기 = 빈 곳 오른쪽 클릭 「새로 만들기 ▸」(폴더 · 텍스트 문서 · 이 PC ShellNew 종류 — 프로그램·셸 처리기로 만드는 종류는 뺌, 만든 뒤 바로 이름 바꾸기, 겹치면 「(2)」).
   설정 백업 = 앱 데이터 폴더 `files-backup.json` 자동 저장 → 화면 저장소가 비면 되살림, 설정 창 내보내기·가져오기(합치기/바꾸기, 회사 기본 즐겨찾기는 늘 지금 설정).
