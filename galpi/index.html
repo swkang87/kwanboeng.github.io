@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ND갈피 내려받기</title>
+<!-- ND갈피(나든기술 파일 탐색기) 설치 파일 안내(2026-11-25 ~ 1.0). 설치 파일·업데이트 정보(latest.json)는 이 폴더에 있다.
+     latest.json · <버전>/ 은 desktop-app 의 `npm run release:galpi` 가 만든다(손으로 고치지 말 것 — 서명이 깨지면 업데이트가 거부된다).
+     회사 값(관보 이름·설정)을 넣지 않는다 — 다른 곳으로 옮길 때 이 폴더를 그대로 옮기면 된다(desktop-app README 「ND갈피 주소 옮기기」). -->
+<style>
+  :root { --ink: #1e293b; --mu: #64748b; --bg: #f1f5f9; --card: #fff; --line: #dbe2ea; --pri: #0f766e; --code: #eef2f7; }
+  @media (prefers-color-scheme: dark) { :root { --ink: #e2e8f0; --mu: #94a3b8; --bg: #0f172a; --card: #111827; --line: #263244; --pri: #14b8a6; --code: #1f2937; } }
+  body { margin: 0; font: 15px/1.7 'Segoe UI', 'Malgun Gothic', sans-serif; color: var(--ink); background: var(--bg); }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 60px; }
+  h1 { font-size: 24px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+  h1 img { width: 40px; height: 40px; }
+  h2 { font-size: 18px; margin: 32px 0 8px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; margin-top: 18px; }
+  .dl { display: inline-block; margin: 10px 0 4px; padding: 12px 22px; border-radius: 9px; background: var(--pri); color: #fff; text-decoration: none; font-weight: 700; }
+  .dl[aria-disabled="true"] { background: #94a3b8; pointer-events: none; }
+  .mu { color: var(--mu); font-size: 13px; }
+  ol, ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  code { background: var(--code); padding: 1px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1><img src="icon.png" alt="">ND갈피</h1>
+  <div class="mu">파일 탐색기 · Windows 10 · 11 전용 · 개발 나든기술 · 무료</div>
+
+  <div class="card">
+    <b>설치 파일</b>
+    <div><a class="dl" id="dl" href="#" aria-disabled="true">불러오는 중…</a></div>
+    <div class="mu" id="ver"></div>
+    <ol>
+      <li>위 단추로 설치 파일을 받아 실행합니다(관리자 권한 필요 없음 — 사용자 폴더에 설치).</li>
+      <li>「Windows의 PC 보호」 창이 뜨면 <b>추가 정보 → 실행</b>을 누릅니다(아직 코드 서명 인증서가 없어 뜨는 안내입니다).</li>
+      <li>바탕 화면·시작 메뉴의 <b>ND갈피</b>로 엽니다. 창을 닫으면 프로그램도 끝납니다(트레이에 남지 않음). <b>Ctrl+N</b> = 새 창.</li>
+      <li>새 버전은 ND갈피가 알아서 받아 두고 창 위에 알려 줍니다. <b>다시 시작</b>을 누르면 적용됩니다.</li>
+    </ol>
+  </div>
+
+  <h2>처음 켤 때</h2>
+  <div class="card">
+    <ul>
+      <li>같은 PC 에서 예전에 쓰던 회사 데스크탑 앱의 「탐색기(시험판)」 설정(즐겨찾기 · 사용자 폴더 · 탭 · 창 배치 · 폴더별 보기)이 있으면 <b>한 번 가져오고</b> 알려 줍니다. 원래 설정은 그대로 둡니다.</li>
+      <li>회사 NAS 같은 조직 설정은 회사 프로그램이 조직 설정 파일을 써 두면 ND갈피를 <b>다음에 켤 때</b> 들어옵니다. 없으면 기본 설정으로 열립니다.</li>
+      <li>도움말 = 창 오른쪽 위 <b>?</b> 또는 <b>F1</b>. 프로그램 정보·함께 들어간 소프트웨어의 라이선스는 도움말의 <b>정보</b>.</li>
+    </ul>
+  </div>
+  <p class="mu">© 나든기술. 함께 들어간 소프트웨어: PDFium(BSD-3-Clause) · 나눔고딕(SIL OFL 1.1) · Rust 라이브러리(MIT · Apache-2.0 등) — 설치 폴더 <code>licenses</code>.</p>
+</main>
+<script>
+(function () {
+  fetch('latest.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+    var p = j.platforms && j.platforms['windows-x86_64'];
+    if (!p || !p.url) throw new Error('no url');
+    var a = document.getElementById('dl');
+    a.href = p.url; a.removeAttribute('aria-disabled');
+    a.textContent = '설치 파일 내려받기 (' + j.version + ')';
+    document.getElementById('ver').textContent = '버전 ' + j.version + (j.pub_date ? ' · ' + j.pub_date.slice(0, 10) : '');
+  }).catch(function () {
+    document.getElementById('dl').textContent = '설치 파일 정보를 불러오지 못했어요';
+  });
+})();
+</script>
+</body>
+</html>
