@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0",
-  "notes": "ND갈피 1.0 — 첫 배포(관보ERP 1.4.7 의 탐색기(시험판)을 별도 프로그램으로)",
-  "pub_date": "2026-11-25T01:30:08Z",
+  "version": "1.0.1",
+  "notes": "1.0.1 — 늦게 온 폴더 응답이 지금 화면을 덮지 않음 · 새 폴더/새 항목은 만든 그 폴더에서만 이름 바꾸기 · 확인창은 한 번에 하나 · 작업이 끝나도 고른 파일 유지(「결과 선택」 단추) · 네트워크 삭제 문구가 복구를 약속하지 않음 · 작업 중에는 업데이트 설치 안 함, 창 닫기는 확인 후 작업이 멈춘 뒤",
+  "pub_date": "2026-11-26T00:05:02Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaDBiL0pQazZtQU91S2IybzloN1UwekRiOG1HdHVTYVVFdUJhOVZPVi9VcUdVak5SbXNrQUFXV3plN3BFT01VdnJtNmxnRVI1ZHpEMWhzQ0VZajdWSk0xM2pxNTRxandNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTcwMjA4CWZpbGU6TkTqsIjtlLxfMS4wLjBfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjEuMC4wCmlyeFRZaElMTlhCTXd6Mk1qZytHM0RBUDJ3RGJvRDBUU2JBb0ZNcW5OSDdaNDVOMWFyN3M0VXBGQ3R3QVhJOXRBOWVRbENMLy9MZHQ1ZTJWLzdkUkJRPT0K",
-      "url": "https://kwanboeng.com/galpi/1.0.0/ndgalpi_1.0.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaDBiL0pQazZtQUN3RTBRMHpiYWI0alZsSWhNSE9ZR3QwS0RETEwzbmRueTJGN0R4OXdsbjdaYzZQVDR2TWkyM2VKYzduNi9DMlo1M1lwZUJuQU5oM054QU0ranlscnc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NjUxNTAyCWZpbGU6TkTqsIjtlLxfMS4wLjFfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjEuMC4xClplUXIxaEVTTVAxa3lZWGEyWUVtSm1POUlHeTUyK3BhaXZuVkxQY2l5MGRjaGFGcW1XMm9xeTdXc1dqZUFaejV2UTVnWVRrYzJGSUF6ejBLWEVRY0NBPT0K",
+      "url": "https://kwanboeng.com/galpi/1.0.1/ndgalpi_1.0.1_x64-setup.exe"
     }
   }
 }
