@@ -342,7 +342,7 @@
 - 늦게 온 폴더 응답이 지금 주소·탭·목록을 덮지 않음(같은 폴더에서 밀린 새로 고침은 가장 새 결과를 기다림) · 새 폴더/새 항목은 만든 그 창·탭·폴더일 때만 이름 바꾸기 · 확인창은 한 번에 하나(새 창이 앞 창을 취소) ·
   작업이 끝나도 고른 파일 유지(그대로일 때만 결과 자동 선택, 「결과 선택」 단추) · 네트워크 삭제 문구는 중립(조직 설정 `networkRecycleConfirmed: true` 일 때만 「NAS 휴지통」 안내 — **관보ERP 조직 설정에는 아직 안 넣음**, 승우가 Synology 공유 폴더 7개 휴지통 확인 뒤) ·
   쓰기 작업(복사·옮기기·도구) 중에는 업데이트 설치 안 함(다른 창 포함 — 앱 데이터 `busy\<pid>.busy`), 창 닫기는 확인 → 작업이 실제로 멈춘 뒤 닫힘.
-- 보고서 = 저장소 밖 `security-fixeport_desktop.md` 「10단계」(NAS 동작은 미검증). 백업 `backup/CLAUDE_20261126.md` · 저장소 밖 `kbsysackup\galpi_1.0.0\`.
+- 보고서 = 저장소 밖 `security-fix\report_desktop.md` 「10단계」(NAS 동작은 미검증). 백업 `backup/CLAUDE_20261126.md` · 저장소 밖 `kbsys\backup\galpi_1.0.0\`.
 
 ### ND갈피 1.0 분리 + 관보ERP 1.4.8 (2026-11-25, 웹 = galpi/ 신설 · desktop/ 안내 · config.js DESKTOP_APP_NAME)
 - **탐색기(시험판) → 별도 프로그램 「ND갈피」**(개발 나든기술, 무료 배포, 식별자 `com.nadntech.galpi`, `ndgalpi.exe`). 같은 저장소 desktop-app 의 Cargo 작업 공간:
