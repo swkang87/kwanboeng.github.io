@@ -1,11 +1,11 @@
 {
-  "version": "1.0.1",
-  "notes": "1.0.1 — 늦게 온 폴더 응답이 지금 화면을 덮지 않음 · 새 폴더/새 항목은 만든 그 폴더에서만 이름 바꾸기 · 확인창은 한 번에 하나 · 작업이 끝나도 고른 파일 유지(「결과 선택」 단추) · 네트워크 삭제 문구가 복구를 약속하지 않음 · 작업 중에는 업데이트 설치 안 함, 창 닫기는 확인 후 작업이 멈춘 뒤",
-  "pub_date": "2026-11-26T00:05:02Z",
+  "version": "1.0.2",
+  "notes": "ND갈피 1.0.2 — 외부 검토 2차: 두 창 설정 합치기 · 미리 보기 늦은 응답 무시 · 폴더 비교 결과 문구 · 설정 가져오기 바꾸기 범위 · 이름 바꾸기 뒤 새로 고침 · 썸네일 실패 기억 정리 · 썸네일 캐시 원자적 쓰기 · 새 폴더 만들기 비동기",
+  "pub_date": "2026-11-26T04:57:16Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaDBiL0pQazZtQUN3RTBRMHpiYWI0alZsSWhNSE9ZR3QwS0RETEwzbmRueTJGN0R4OXdsbjdaYzZQVDR2TWkyM2VKYzduNi9DMlo1M1lwZUJuQU5oM054QU0ranlscnc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NjUxNTAyCWZpbGU6TkTqsIjtlLxfMS4wLjFfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjEuMC4xClplUXIxaEVTTVAxa3lZWGEyWUVtSm1POUlHeTUyK3BhaXZuVkxQY2l5MGRjaGFGcW1XMm9xeTdXc1dqZUFaejV2UTVnWVRrYzJGSUF6ejBLWEVRY0NBPT0K",
-      "url": "https://kwanboeng.com/galpi/1.0.1/ndgalpi_1.0.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaDBiL0pQazZtQUpuYzIzaHdTZUhWVHhSY2VHc3lYV0p6TU8rbFZrUTFUMm4wb3c1MHB0ZGkveTRGTlJDdTZhbGhaUnczenpZNXZ6OUlnL00vVnhyTDRRdzEyNnZCeVFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NjY5MDM2CWZpbGU6TkTqsIjtlLxfMS4wLjJfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjEuMC4yCmVZUEVyWmczREQrdUZtUkFEcVppa2EzN0RRK2pxSnpMVm5QTmhTN215RkxpMW5yYXVwNmd4Z2h0ZytLT0R2VzBQRHFLZ0ZEa2FzYU0xUnpaNy9KNkRRPT0K",
+      "url": "https://kwanboeng.com/galpi/1.0.2/ndgalpi_1.0.2_x64-setup.exe"
     }
   }
 }

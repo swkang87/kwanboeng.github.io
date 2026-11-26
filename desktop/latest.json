@@ -1,11 +1,11 @@
 {
-  "version": "1.4.8",
-  "notes": "이름 「관보ERP」 · 탐색기(시험판)·Q-Dir 연결 삭제 · 「파일」 = ND갈피 실행",
-  "pub_date": "2026-11-25T01:36:11Z",
+  "version": "1.4.9",
+  "notes": "관보ERP 1.4.9 — 네트워크 삭제 안내에 NAS 휴지통 문구(조직 설정 networkRecycleConfirmed)",
+  "pub_date": "2026-11-26T04:52:51Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDQwaHd2QS9PS25GQ1RVYVZFTXgrbXZnem5rVi9GenNGMHEwOU5rRjZZRFZBbVkzNFkzTGJVa1B0Q2ZFU0Zxc0FHTTZNQ1BYc0xtQlpaNGNxTUpVYWc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NTcwNTcxCWZpbGU66rSA67O0RVJQXzEuNC44X3g2NC1zZXR1cC5leGUJdmVyc2lvbjoxLjQuOApkOEQ0Wm5XL3p2Tk5KUW5JZndtWWpvbUw2YmdRZXkrbkpIalFRWHM2enhXdTNCeUZTL01aTGpEeW1OQnRVbUcxOWRtUUZpbUFKaGI1OUJwNlJzcXhCUT09Cg==",
-      "url": "https://kwanboeng.com/desktop/1.4.8/kbsys-desktop_1.4.8_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaW5vUEFKMDVqNDJvQUxxNmJnWmwxUm02S01uejhVMmlGdzRPOXB3M0pGaUhFT2JGNjZqT1BTdUZzMWdBOWkzQzR3a1dQc3l3aEQ5UitYUERLdk1vYmQ5K0pod2ZWOVFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NjY4NzcxCWZpbGU66rSA67O0RVJQXzEuNC45X3g2NC1zZXR1cC5leGUJdmVyc2lvbjoxLjQuOQpiSkc3SW1RVU1nN2g5TTE4QnF5VHV4UnZhMTZQSXFsS2NkSy9Wc21YZzVaN2NKYzBjMHhwbVNkZGhvNjJQQ3lxUGJQQ2c3VFpjQWpMZ011VmdyWm9EUT09Cg==",
+      "url": "https://kwanboeng.com/desktop/1.4.9/kbsys-desktop_1.4.9_x64-setup.exe"
     }
   }
 }
