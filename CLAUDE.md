@@ -343,7 +343,7 @@
   크기 = 16 × 화면 배율, 작업 스레드 + 2.5초 넘으면 다음에(느린 NAS 가 트리를 멈추지 않음). 오른쪽 목록은 특별한 폴더(규칙·알려진·desktop.ini)만.
 - 폴더별 아이콘 `files.folderIcons [{match, iconFrom, fallback, style}]`(기본값 = desktop-app `scripts/files-config.mjs` — 「문서\카카오톡 받은 파일」 → 이 PC 카카오톡 프로그램 아이콘을 읽기만, 코드에 앱 이름 없음).
   기본 모양 = 폴더 + 작은 프로그램 아이콘(overlay), 못 찾으면 ND갈피 청록 말풍선 배지(직접 그린 SVG — 다른 회사 로고 그림 없음, 배포 exe 그림 = ND갈피 아이콘 6장뿐 확인).
-- 보고서 = 저장소 밖 `security-fixeport_desktop.md` 「12단계」, 사진 `security-fixeport_galpi_1.0.3\`. 백업 `backup/CLAUDE_20261127.md` · 저장소 밖 `kbsysackup\galpi_1.0.2\`.
+- 보고서 = 저장소 밖 `security-fix\report_desktop.md` 「12단계」, 사진 `security-fix\report_galpi_1.0.3\`. 백업 `backup/CLAUDE_20261127.md` · 저장소 밖 `kbsys\backup\galpi_1.0.2\`.
 
 ### ND갈피 1.0.2 + 관보ERP 1.4.9 — 외부 검토 2차(상태 저장·비동기 정리) (2026-11-26, 웹 = galpi/1.0.2 · desktop/1.4.9 · latest.json 만)
 - 관보ERP 1.4.9 = 조직 설정 `networkRecycleConfirmed: true`(승우: Synology 공유 7개 휴지통 확인) → ND갈피 네트워크 삭제 확인창에 「NAS 휴지통」 문구(ND갈피를 껐다 켜면 반영).
