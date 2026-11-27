@@ -338,6 +338,13 @@
 - 글꼴은 나눔고딕 고정(표지 글꼴 선택 숨김). PC(맑은 고딕·FreeType 2.13)와 글자 테두리 픽셀만 조금 다르다(사진·배치·쪽수·슬라이드 수는 같음).
 - 화이트라벨 한계: 엔진 안 PPTX 작성자·State 기본 발주처는 엔진 값 그대로(엔진 무수정 원칙) — 화면 기본값은 config 로 덮는다. 백업 `backup/*_20261109*`.
 
+### ND갈피 1.0.3 — 왼쪽 트리 아이콘을 Windows 탐색기처럼 + 폴더별 아이콘 규칙 (2026-11-27, 웹 = galpi/1.0.3 · latest.json 만)
+- 트리 모든 항목·구역 제목(내 PC·네트워크)·NAS 공유(네트워크 드라이브 그림)·탭·주소창 = Windows 셸이 주는 그림(nd-explorer `icons.rs` `files_path_icons`, 실행 중에 받음 — 프로그램에 그림 없음).
+  크기 = 16 × 화면 배율, 작업 스레드 + 2.5초 넘으면 다음에(느린 NAS 가 트리를 멈추지 않음). 오른쪽 목록은 특별한 폴더(규칙·알려진·desktop.ini)만.
+- 폴더별 아이콘 `files.folderIcons [{match, iconFrom, fallback, style}]`(기본값 = desktop-app `scripts/files-config.mjs` — 「문서\카카오톡 받은 파일」 → 이 PC 카카오톡 프로그램 아이콘을 읽기만, 코드에 앱 이름 없음).
+  기본 모양 = 폴더 + 작은 프로그램 아이콘(overlay), 못 찾으면 ND갈피 청록 말풍선 배지(직접 그린 SVG — 다른 회사 로고 그림 없음, 배포 exe 그림 = ND갈피 아이콘 6장뿐 확인).
+- 보고서 = 저장소 밖 `security-fixeport_desktop.md` 「12단계」, 사진 `security-fixeport_galpi_1.0.3\`. 백업 `backup/CLAUDE_20261127.md` · 저장소 밖 `kbsysackup\galpi_1.0.2\`.
+
 ### ND갈피 1.0.2 + 관보ERP 1.4.9 — 외부 검토 2차(상태 저장·비동기 정리) (2026-11-26, 웹 = galpi/1.0.2 · desktop/1.4.9 · latest.json 만)
 - 관보ERP 1.4.9 = 조직 설정 `networkRecycleConfirmed: true`(승우: Synology 공유 7개 휴지통 확인) → ND갈피 네트워크 삭제 확인창에 「NAS 휴지통」 문구(ND갈피를 껐다 켜면 반영).
 - ND갈피 1.0.2: 두 창 공유 설정은 필드 단위로 합침(탭·배치는 창마다) · 미리 보기 늦은 응답 무시 · 폴더 비교 「같아요」는 내용까지·빠짐 없을 때만 · 설정 가져오기 「바꾸기」 = 내보내기 목록만 ·

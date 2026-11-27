@@ -1,11 +1,11 @@
 {
-  "version": "1.0.2",
-  "notes": "ND갈피 1.0.2 — 외부 검토 2차: 두 창 설정 합치기 · 미리 보기 늦은 응답 무시 · 폴더 비교 결과 문구 · 설정 가져오기 바꾸기 범위 · 이름 바꾸기 뒤 새로 고침 · 썸네일 실패 기억 정리 · 썸네일 캐시 원자적 쓰기 · 새 폴더 만들기 비동기",
-  "pub_date": "2026-11-26T04:57:16Z",
+  "version": "1.0.3",
+  "notes": "ND갈피 1.0.3 — 왼쪽 트리·탭·주소창 아이콘을 Windows 탐색기처럼(바탕 화면·문서·다운로드·드라이브·NAS) · 폴더별 아이콘(문서\\카카오톡 받은 파일)",
+  "pub_date": "2026-11-27T06:02:17Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaDBiL0pQazZtQUpuYzIzaHdTZUhWVHhSY2VHc3lYV0p6TU8rbFZrUTFUMm4wb3c1MHB0ZGkveTRGTlJDdTZhbGhaUnczenpZNXZ6OUlnL00vVnhyTDRRdzEyNnZCeVFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NjY5MDM2CWZpbGU6TkTqsIjtlLxfMS4wLjJfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjEuMC4yCmVZUEVyWmczREQrdUZtUkFEcVppa2EzN0RRK2pxSnpMVm5QTmhTN215RkxpMW5yYXVwNmd4Z2h0ZytLT0R2VzBQRHFLZ0ZEa2FzYU0xUnpaNy9KNkRRPT0K",
-      "url": "https://kwanboeng.com/galpi/1.0.2/ndgalpi_1.0.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaDBiL0pQazZtQUFLdExFelh5dmZYdWRYbzJFWEZzRnZySDRMTllVNDhyV21VQllIZEdrekJOMjhiYndNRC9WcGRodXhOb2ZOb3hzb1E2c05RRWROL3c2ZFR4MTVseUFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NzU5MzM2CWZpbGU6TkTqsIjtlLxfMS4wLjNfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjEuMC4zCld3Z3RoMHN3eEhudDFwb2dZbUVhdTBNREN3ZnhMcG0rZU4wd09oTy9jTWw3dTZnZTNkVDM5anVYNmFqODN6cXBjT0YvUGl2KzJXNjN6aDl4N1FJNUJ3PT0K",
+      "url": "https://kwanboeng.com/galpi/1.0.3/ndgalpi_1.0.3_x64-setup.exe"
     }
   }
 }
